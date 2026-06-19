@@ -1,27 +1,52 @@
-import { Stack } from "expo-router";
+import { Stack, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { SafeAreaProvider } from "react-native-safe-area-context";
+import { StatusBar } from "expo-status-bar";
+import { View } from "react-native";
 
 import { useIconFonts } from "@/src/hooks/use-icon-fonts";
+import { getToken } from "@/src/api";
 
-// Keep the native splash visible from cold start until icon fonts register.
-// Required because @expo/vector-icons' componentDidMount fallback fires
-// Font.loadAsync against a broken vendor path if any <Icon> mounts before
-// the family is registered — which throws on Android Expo Go.
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   const [loaded, error] = useIconFonts();
+  const router = useRouter();
+  const segments = useSegments();
 
   useEffect(() => {
-    if (loaded || error) {
-      SplashScreen.hideAsync();
-    }
+    if (loaded || error) SplashScreen.hideAsync();
   }, [loaded, error]);
 
-  // If the CDN is unreachable we fall through on error rather than wedging
-  // the app — icons will tofu, but the app still boots.
+  useEffect(() => {
+    if (!loaded && !error) return;
+    (async () => {
+      const t = await getToken();
+      const first = segments[0];
+      if (!t && first !== "(auth)" && first !== undefined && first !== "index") {
+        router.replace("/");
+      }
+    })();
+  }, [loaded, error, segments]);
+
   if (!loaded && !error) return null;
 
-  return <Stack screenOptions={{ headerShown: false }} />;
+  return (
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: "#0A0A0A" }}>
+      <SafeAreaProvider>
+        <StatusBar style="light" />
+        <View style={{ flex: 1, backgroundColor: "#0A0A0A" }}>
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              contentStyle: { backgroundColor: "#0A0A0A" },
+              animation: "fade",
+            }}
+          />
+        </View>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
+  );
 }

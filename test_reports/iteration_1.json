@@ -1,0 +1,54 @@
+{
+  "summary": "First full-stack test pass on SwapKaro. Backend: 23/23 pytest cases pass after fixing 2 endpoints (send_message and bot reply were returning 500 due to MongoDB ObjectId leaking into response). All AI endpoints (matches/ai, verify-quiz, swaps agreement, bot) work, with graceful fallbacks when Claude returns budget-exceeded. Frontend: splash → onboarding → login (10-digit phone + 6-digit auto-advance OTP) → setup (3 steps) → home tab works end-to-end. 4-tab bottom nav (Barter/Matches/Swaps/Profile) navigates correctly. Home shows greeting, category chips, 99% match banner, feed cards with give/want pills. Matches shows AI scanning animation. Profile renders SwapScore, score bars, Pro upsell. UI bugs found: onboarding slide headlines not visible (DOM has text but rendered off-screen/invisible), seeded users not reachable via login due to phone-format mismatch (+91- prefix not added). Deprecated React Native style warnings detected (shadow*, pointerEvents).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/swaps/{id}/messages", "issue": "Was returning 500 (MongoDB ObjectId in response). FIXED by adding msg.pop('_id', None) before return."},
+      {"endpoint": "POST /api/swaps/{id}/bot", "issue": "Was returning 500 (MongoDB ObjectId in response). FIXED by adding msg.pop('_id', None) before return."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "Onboarding slides (/onboarding)", "issue": "Slide content (image + headline 'Apna Hunar Do' / 'AI Dhundega Match' / 'Barter Karo, Badho' + subtitle) is present in DOM (body.innerText returns all 3 slide strings) but NOT rendered visually in viewport — screen shows only black background with bottom 'Aage Badho' button and dots indicator. Likely a FlatList/ScrollView width/horizontal positioning issue or images failing to load (no Skip-style overflow visible). Reference: /app/frontend/app/(auth)/onboarding.tsx", "testID": "n/a (no testIDs on slides)", "priority": "HIGH"},
+      {"component": "OTP boxes (/login OTP step)", "issue": "The 6 OTP digit boxes show very low contrast text — digits typed are barely visible in dark boxes. Functionally works (auto-advance + auto-submit), but visually hard to verify. Reference: /app/frontend/app/(auth)/login.tsx", "testID": "n/a", "priority": "LOW"},
+      {"component": "Login screen phone normalisation", "issue": "User enters 10-digit phone (e.g., 9000000001) but backend seeded users use '+91-9000000001'. Frontend submits raw 10-digit (or +91 prefix without dash) so seeded users (Rahul Mehta, Priya Sharma, etc.) are unreachable via demo login — instead a new blank user gets created and routed to /setup. Either (a) normalise to '+91-{10digits}' before submit OR (b) update seed data to '+91XXXXXXXXXX' (no dash) and match. Reference: /app/frontend/app/(auth)/login.tsx", "testID": "n/a", "priority": "MEDIUM"}
+    ],
+    "integration_issues": [
+      {"flow": "Swap Request → Chat", "issue": "Could not verify in UI because session was reset between automation runs (browser localStorage cleared). Backend create_swap + chat endpoints all pass via pytest. UI navigation from card 'Swap Request Bhejo' button could not be reached after re-auth because seeded users not directly loggable (see above).", "affected_testIDs": []}
+    ],
+    "design_issues": [
+      {"screen": "Onboarding", "issues": ["Headline/subtitle/image not visible in viewport even though present in DOM", "Skip button works, Aage Badho button works — only content area is broken"]},
+      {"screen": "Login OTP step", "issues": ["6 boxes — only 2 visible in 390px viewport, others overflow horizontally (likely no scroll on row of OTP boxes)", "Text color inside boxes appears too dark to read"]}
+    ],
+    "react_native_issues": [
+      {"component": "Multiple screens", "issue": "Deprecated style prop 'shadow*' used — should migrate to 'boxShadow'. Console warning: '\"shadow*\" style props are deprecated. Use \"boxShadow\".'"},
+      {"component": "Multiple screens", "issue": "Deprecated prop 'pointerEvents' used as prop — should be moved to style. Console warning: 'props.pointerEvents is deprecated. Use style.pointerEvents'"}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Fix onboarding slide rendering — slide content (image, title, subtitle) is in DOM but invisible. Likely the slide container width is 0 or images are 404. Check Animated FlatList/ScrollView item width and image URLs.",
+    "Normalise login phone to '+91-{phone}' (dash format) before submitting to backend so demo flow can log into seeded users (Rahul Mehta etc.).",
+    "OTP screen: horizontal row of 6 boxes overflows beyond 390px viewport — reduce box width or add gap shrink so all 6 boxes fit. Increase text contrast inside boxes.",
+    "Migrate React Native style props: replace 'shadow*' shorthand with 'boxShadow' (or use shadowOffset/shadowColor with explicit values) and move pointerEvents into style object.",
+    "Re-run end-to-end UI test of: chat (agreement bubble + send message + SwapBot toggle + milestone mark), Pro upgrade modal, Boost screen, Verify quiz, Notifications screen — these were not verified in UI but backend endpoints pass."
+  ],
+  "critical_code_review_comments": [
+    "/app/backend/server.py: send_message and bot endpoints previously returned the dict that motor mutated with ObjectId. Fixed via .pop('_id', None). Consider adopting a helper or use return-by-fetch pattern consistently.",
+    "/app/backend/server.py: @app.on_event('startup'/'shutdown') is deprecated in FastAPI ≥0.93; consider lifespan context for future-proofing (non-blocking).",
+    "Seed data phones use '+91-XXXX' format; frontend login likely sends raw 10-digit. Align both."
+  ],
+  "updated_files": [
+    "/app/backend/server.py (added msg.pop('_id', None) in send_message and ask_bot)",
+    "/app/backend/tests/backend_test.py (created comprehensive 23-test pytest suite)"
+  ],
+  "success_rate": {"backend": "100% (23/23 after fix)", "frontend": "~70% (auth/setup/home/tabs work; onboarding visual broken; chat & pro/boost/verify/notifications screens not fully UI-verified due to session reset)"},
+  "seed_data_creation": "No new seed data created. Backend seeds 8 users on startup as designed.",
+  "retest_needed": true,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend stable. Focus next iteration on: (1) verify onboarding slides render visually after main-agent fix, (2) verify chat agreement bot bubble + Mark milestone done flow, (3) verify Pro upgrade / Boost / Verify (quiz) / Notifications screens render and integrate. Use phone format '+91-9000000001' through API directly to access seeded users until frontend normalisation is fixed. EMERGENT_LLM_KEY budget hits occasionally — backend has fallbacks so all endpoints still 200.",
+  "rca_of_issue": "send_message/bot 500: motor's insert_one mutates the inserted dict in-place adding ObjectId('_id'). Returning that dict triggers Pydantic serialization failure. Mitigation: explicitly remove '_id' before return (applied)."
+}
