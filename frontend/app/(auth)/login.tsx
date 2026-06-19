@@ -14,7 +14,7 @@ export default function Login() {
   const router = useRouter();
   const [phone, setPhone] = useState("");
   const [step, setStep] = useState<"phone" | "otp">("phone");
-  const [otp, setOtp] = useState(["", "", "", "", "", ""]);
+  const [otp, setOtp] = useState(["", "", "", ""]);
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
   const refs = useRef<(TextInput | null)[]>([]);
@@ -65,8 +65,8 @@ export default function Login() {
     const next = [...otp];
     next[i] = clean;
     setOtp(next);
-    if (clean && i < 5) refs.current[i + 1]?.focus();
-    if (next.every((d) => d) && next.join("").length === 6) verify(next.join(""));
+    if (clean && i < 3) refs.current[i + 1]?.focus();
+    if (next.every((d) => d) && next.join("").length === 4) verify(next.join(""));
   };
 
   return (
@@ -114,7 +114,7 @@ export default function Login() {
             transition={{ type: "timing", duration: 80 }}
           >
             <Text style={styles.h1}>OTP daalo</Text>
-            <Text style={styles.sub}>+91 {phone} pe bheja hai. Demo: 123456</Text>
+            <Text style={styles.sub}>+91 {phone} pe bheja hai. Demo: 1234</Text>
             <MotiView
               key={`shake-${shakeKey}`}
               from={{ translateX: shakeKey > 0 ? -8 : 0 }}

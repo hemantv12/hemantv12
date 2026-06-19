@@ -1,215 +1,339 @@
-import React, { useCallback, useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Image, Pressable, RefreshControl } from "react-native";
+import React, { useState } from "react";
+import { View, Text, StyleSheet, ScrollView, Image, Pressable } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { MotiView, MotiText } from "moti";
 import { LinearGradient } from "expo-linear-gradient";
+import * as Haptics from "expo-haptics";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { api, clearToken } from "@/src/api";
+import { Chip } from "@/src/components/Chip";
 import { pickImageBase64 } from "@/src/utils/image";
 import { colors, radii, cardShadow } from "@/src/theme";
-import { Chip } from "@/src/components/Chip";
+import { ME, HISTORY } from "@/src/dummy";
 
 export default function Profile() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const [me, setMe] = useState<any>(null);
-  const [refresh, setRefresh] = useState(false);
+  const [avatar, setAvatar] = useState(ME.avatar);
 
-  const load = useCallback(async () => {
-    setRefresh(true);
-    try { setMe(await api.me()); } finally { setRefresh(false); }
-  }, []);
-  useEffect(() => { load(); }, [load]);
-
-  const logout = async () => {
-    await clearToken();
-    router.replace("/(auth)/login");
+  const change = async () => {
+    const i = await pickImageBase64({ square: true });
+    if (i) setAvatar(i);
   };
-
-  const changeAvatar = async () => {
-    const img = await pickImageBase64({ square: true });
-    if (img) {
-      setMe({ ...me, avatar: img });
-      try { await api.updateMe({ avatar: img }); } catch {}
-    }
-  };
-
-  if (!me) return <View style={{ flex: 1, backgroundColor: colors.bg }} />;
 
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: colors.bg }}
-      contentContainerStyle={{ paddingTop: insets.top + 8, paddingBottom: 120 }}
-      refreshControl={<RefreshControl refreshing={refresh} onRefresh={load} tintColor={colors.brand} />}
+      contentContainerStyle={{ paddingTop: insets.top + 8, paddingBottom: 140 }}
+      showsVerticalScrollIndicator={false}
       testID="profile-screen"
     >
-      <View style={styles.headerRow}>
-        <Text style={styles.headerT}>Profile</Text>
-        <Pressable testID="profile-logout" onPress={logout} style={styles.iconBtn}>
-          <Ionicons name="log-out-outline" size={20} color={colors.text} />
+      <View style={styles.topRow}>
+        <Text style={styles.topT}>Profile</Text>
+        <Pressable style={styles.iconBtn} testID="profile-share">
+          <Ionicons name="share-social-outline" size={18} color={colors.text} />
+        </Pressable>
+        <Pressable style={styles.iconBtn} testID="profile-settings">
+          <Ionicons name="settings-outline" size={18} color={colors.text} />
         </Pressable>
       </View>
 
-      <View style={styles.hero}>
-        <Pressable testID="profile-avatar" onPress={changeAvatar} style={[styles.avatarRing, me.is_open && { borderColor: colors.brand }]}>
-          <Image
-            source={{ uri: me.avatar || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400&q=80" }}
-            style={styles.avatar}
-          />
-          <View style={styles.avatarEdit}>
-            <Ionicons name="camera" size={12} color="#0A0A0A" />
-          </View>
-          {me.is_pro && (
+      {/* Hero */}
+      <MotiView
+        from={{ opacity: 0, translateY: 20 }}
+        animate={{ opacity: 1, translateY: 0 }}
+        transition={{ type: "spring", damping: 16 }}
+        style={styles.hero}
+      >
+        <Pressable testID="profile-avatar" onPress={change}>
+          <View style={styles.avatarRing}>
+            <Image source={{ uri: avatar }} style={styles.avatar} />
             <View style={styles.proRibbon}>
               <Ionicons name="diamond" size={11} color="#0A0A0A" />
               <Text style={styles.proText}>PRO</Text>
             </View>
-          )}
+            <View style={styles.editBadge}>
+              <Ionicons name="camera" size={12} color="#0A0A0A" />
+            </View>
+          </View>
         </Pressable>
-        <Text style={styles.name}>{me.name || "User"}</Text>
-        <Text style={styles.city}>{me.city} · Member since 2026</Text>
 
-        <View style={styles.scoreWrap}>
-          <Text style={styles.scoreLabel}>SWAPSCORE</Text>
-          <MotiText
-            from={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ type: "spring" }}
-            style={styles.score}
-          >
-            {me.swap_score}
-          </MotiText>
-          <View style={styles.scoreBars}>
-            <View style={styles.scoreBar}><Text style={styles.bL}>Delivery</Text><View style={styles.barTrack}><View style={[styles.barFill, { width: "92%" }]} /></View></View>
-            <View style={styles.scoreBar}><Text style={styles.bL}>Quality</Text><View style={styles.barTrack}><View style={[styles.barFill, { width: "88%", backgroundColor: colors.teal }]} /></View></View>
-            <View style={styles.scoreBar}><Text style={styles.bL}>Comms</Text><View style={styles.barTrack}><View style={[styles.barFill, { width: "85%", backgroundColor: colors.gold }]} /></View></View>
+        <Text style={styles.name}>{ME.name}</Text>
+        <View style={styles.metaPills}>
+          <View style={styles.metaPill}>
+            <Ionicons name="location" size={11} color={colors.textDim} />
+            <Text style={styles.metaPillT}>{ME.city}</Text>
+          </View>
+          <View style={[styles.metaPill, { backgroundColor: "rgba(0,200,150,0.1)", borderColor: "rgba(0,200,150,0.3)" }]}>
+            <View style={styles.greenDot} />
+            <Text style={[styles.metaPillT, { color: colors.teal }]}>Open for Swap</Text>
           </View>
         </View>
-      </View>
+      </MotiView>
 
-      <View style={styles.statsRow}>
-        <View style={styles.stat}><Text style={styles.statN}>{me.swaps_completed}</Text><Text style={styles.statL}>Swaps</Text></View>
-        <View style={styles.statDiv} />
-        <View style={styles.stat}><Text style={styles.statN}>{me.people_helped}</Text><Text style={styles.statL}>Helped</Text></View>
-        <View style={styles.statDiv} />
-        <View style={styles.stat}><Text style={styles.statN}>{(me.offered || []).length}</Text><Text style={styles.statL}>Skills</Text></View>
-      </View>
-
-      {!me.is_pro && (
-        <MotiView
-          from={{ opacity: 0, translateY: 16 }}
-          animate={{ opacity: 1, translateY: 0 }}
-          style={styles.proCardWrap}
-        >
-          <Pressable testID="upgrade-pro-card" onPress={() => router.push("/pro")}>
-            <LinearGradient
-              colors={["#FFD700", "#FFB800", "#FF6B35"]}
-              start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-              style={styles.proCard}
+      {/* Hero SwapScore card */}
+      <MotiView
+        from={{ opacity: 0, scale: 0.96 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ delay: 120, type: "spring" }}
+        style={styles.scoreCardWrap}
+      >
+        <View style={[styles.scoreCard, cardShadow]}>
+          <LinearGradient
+            colors={["rgba(255,107,53,0.18)", "transparent"]}
+            start={{ x: 0, y: 0 }} end={{ x: 0.5, y: 1 }}
+            style={StyleSheet.absoluteFill}
+          />
+          <View style={styles.scoreHead}>
+            <Text style={styles.scoreLabel}>SWAPSCORE</Text>
+            <View style={styles.deltaPill}>
+              <Ionicons name="trending-up" size={11} color={colors.teal} />
+              <Text style={styles.deltaText}>+{ME.delta_week} this week</Text>
+            </View>
+          </View>
+          <View style={styles.scoreRow}>
+            <MotiText
+              from={{ opacity: 0, scale: 0.7 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ type: "spring", damping: 14, delay: 200 }}
+              style={styles.scoreBig}
             >
-              <View style={{ flex: 1 }}>
-                <Text style={styles.proT}>Upgrade to Pro 👑</Text>
-                <Text style={styles.proS}>Unlimited matches · Gold badge · SwapBot AI</Text>
+              {ME.swap_score}
+            </MotiText>
+            <View style={styles.scoreRight}>
+              <Text style={styles.scoreTier}>ELITE</Text>
+              <View style={styles.tierStars}>
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <Ionicons key={i} name="star" size={10} color={i <= 4 ? colors.gold : colors.textMute} />
+                ))}
               </View>
-              <Ionicons name="arrow-forward-circle" size={28} color="#0A0A0A" />
-            </LinearGradient>
-          </Pressable>
-        </MotiView>
-      )}
+              <Text style={styles.scoreRankT}>Top <Text style={{ color: colors.brand, fontWeight: "600" }}>5%</Text> in Mumbai</Text>
+            </View>
+          </View>
 
+          {/* Breakdown bars */}
+          <View style={styles.bars}>
+            <Bar label="Delivery" value={ME.delivery} color={colors.brand} />
+            <Bar label="Quality" value={ME.quality} color={colors.teal} />
+            <Bar label="Comms" value={ME.comms} color={colors.gold} />
+          </View>
+        </View>
+      </MotiView>
+
+      {/* Stats trio */}
+      <View style={styles.statsRow}>
+        <StatCell num={ME.swaps_completed} label="Swaps Done" />
+        <View style={styles.statDiv} />
+        <StatCell num={ME.people_helped} label="Helped" />
+        <View style={styles.statDiv} />
+        <StatCell num={ME.skills_exchanged} label="Skills" />
+      </View>
+
+      {/* Skills offered */}
       <View style={styles.section}>
-        <View style={styles.secHeader}>
-          <Text style={styles.secT}>Skills I Offer</Text>
-          <Pressable testID="verify-skills-btn" onPress={() => router.push("/verify")}>
-            <Text style={styles.secCta}>Verify →</Text>
+        <View style={styles.secHead}>
+          <Text style={styles.secT}>SKILLS I OFFER</Text>
+          <Pressable testID="verify-cta" onPress={() => router.push("/verify")}>
+            <Text style={styles.secCta}>Verify all →</Text>
           </Pressable>
         </View>
-        <View style={styles.chipRow}>
-          {(me.offered || []).map((s: any) => (
-            <Chip
-              key={s.name}
-              label={`${s.name}${s.verified ? "  ✓" : ""}`}
-              tone={s.verified ? "gold" : "brand"}
-              active
-              small
-            />
+        <View style={styles.chipsCol}>
+          {ME.offered.map((s) => (
+            <View key={s.name} style={[styles.skillCard, s.verified && { borderColor: "rgba(255,215,0,0.3)" }]}>
+              <View style={[styles.skillIcon, { backgroundColor: s.verified ? "rgba(255,215,0,0.15)" : "rgba(255,107,53,0.12)" }]}>
+                <Ionicons name={s.verified ? "ribbon" : "color-palette"} size={16} color={s.verified ? colors.gold : colors.brand} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.skillName}>{s.name}</Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 }}>
+                  <Text style={styles.skillLevel}>{s.level}</Text>
+                  {s.verified && (
+                    <>
+                      <View style={styles.skillDot} />
+                      <Ionicons name="shield-checkmark" size={10} color={colors.gold} />
+                      <Text style={[styles.skillLevel, { color: colors.gold }]}>Verified</Text>
+                    </>
+                  )}
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={colors.textDim} />
+            </View>
           ))}
-          {(me.offered || []).length === 0 && <Text style={{ color: colors.textDim }}>Setup mein skills add karo.</Text>}
         </View>
       </View>
 
+      {/* Skills needed */}
       <View style={styles.section}>
-        <Text style={styles.secT}>Mujhe Chahiye</Text>
-        <View style={styles.chipRow}>
-          {(me.needed || []).map((s: any) => (
+        <Text style={styles.secT}>MUJHE CHAHIYE</Text>
+        <View style={styles.chipsRow}>
+          {ME.needed.map((s) => (
             <Chip key={s.name} label={s.name} tone="teal" active small />
           ))}
         </View>
       </View>
 
-      <View style={styles.linksWrap}>
-        <ProfileLink icon="rocket" label="Boost My Listing" onPress={() => router.push("/boost")} testID="link-boost" tint={colors.brand} />
-        <ProfileLink icon="shield-checkmark" label="Skill Verification" onPress={() => router.push("/verify")} testID="link-verify" tint={colors.gold} />
-        <ProfileLink icon="notifications" label="Notifications" onPress={() => router.push("/notifications")} testID="link-notifs" />
-        <ProfileLink icon="diamond" label={me.is_pro ? "SwapKaro Pro ✓" : "SwapKaro Pro"} onPress={() => router.push("/pro")} testID="link-pro" tint={colors.gold} />
+      {/* Barter history */}
+      <View style={styles.section}>
+        <Text style={styles.secT}>BARTER HISTORY</Text>
+        <View style={{ gap: 10, marginTop: 4 }}>
+          {HISTORY.map((h, i) => (
+            <MotiView
+              key={h.id}
+              from={{ opacity: 0, translateX: -20 }}
+              animate={{ opacity: 1, translateX: 0 }}
+              transition={{ delay: 200 + i * 80 }}
+              style={styles.histCard}
+            >
+              <Image source={{ uri: h.avatar }} style={styles.histAvatar} />
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  <Text style={styles.histName}>{h.name}</Text>
+                  {h.verified && (
+                    <View style={styles.histVerified}>
+                      <Ionicons name="shield-checkmark" size={9} color={colors.teal} />
+                      <Text style={styles.histVerifiedT}>VERIFIED</Text>
+                    </View>
+                  )}
+                </View>
+                <Text style={styles.histSwap}>
+                  <Text style={{ color: colors.teal }}>{h.gave}</Text>
+                  <Text style={{ color: colors.textDim }}>  ↔  </Text>
+                  <Text style={{ color: colors.brand }}>{h.got}</Text>
+                </Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 6 }}>
+                  <View style={{ flexDirection: "row" }}>
+                    {[1, 2, 3, 4, 5].map((i) => (
+                      <Ionicons key={i} name="star" size={10} color={i <= h.rating ? colors.gold : colors.textMute} />
+                    ))}
+                  </View>
+                  <Text style={styles.histWhen}>{h.when}</Text>
+                </View>
+              </View>
+            </MotiView>
+          ))}
+        </View>
+      </View>
+
+      {/* Quick actions */}
+      <View style={styles.linksRow}>
+        <ActionTile icon="rocket" label="Boost Listing" tint={colors.brand} onPress={() => router.push("/boost")} />
+        <ActionTile icon="ribbon" label="Verify Skill" tint={colors.gold} onPress={() => router.push("/verify")} />
       </View>
     </ScrollView>
   );
 }
 
-function ProfileLink({ icon, label, onPress, testID, tint }: any) {
+function Bar({ label, value, color }: { label: string; value: number; color: string }) {
   return (
-    <Pressable testID={testID} onPress={onPress} style={({ pressed }) => [styles.link, pressed && { opacity: 0.7 }]}>
-      <View style={[styles.linkIcon, { backgroundColor: tint ? `${tint}22` : colors.bg2 }]}>
-        <Ionicons name={icon} size={18} color={tint || colors.text} />
+    <View style={styles.barRow}>
+      <Text style={styles.barLabel}>{label}</Text>
+      <View style={styles.barTrack}>
+        <MotiView
+          from={{ width: "0%" }}
+          animate={{ width: `${value}%` }}
+          transition={{ type: "timing", duration: 900, delay: 300 }}
+          style={[styles.barFill, { backgroundColor: color }]}
+        />
       </View>
-      <Text style={styles.linkLabel}>{label}</Text>
-      <Ionicons name="chevron-forward" size={18} color={colors.textDim} />
+      <Text style={[styles.barValue, { color }]}>{value}</Text>
+    </View>
+  );
+}
+
+function StatCell({ num, label }: { num: number; label: string }) {
+  return (
+    <View style={styles.statCell}>
+      <Text style={styles.statN}>{num}</Text>
+      <Text style={styles.statL}>{label}</Text>
+    </View>
+  );
+}
+
+function ActionTile({ icon, label, tint, onPress }: any) {
+  return (
+    <Pressable
+      onPress={() => { Haptics.selectionAsync(); onPress(); }}
+      style={({ pressed }) => [styles.tile, pressed && { opacity: 0.8 }]}
+    >
+      <View style={[styles.tileIcon, { backgroundColor: `${tint}22` }]}>
+        <Ionicons name={icon} size={20} color={tint} />
+      </View>
+      <Text style={styles.tileLabel}>{label}</Text>
+      <Ionicons name="arrow-forward" size={14} color={colors.textDim} />
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  headerRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingBottom: 8 },
-  headerT: { color: "#fff", fontSize: 24, fontWeight: "500", flex: 1, letterSpacing: -0.4 },
-  iconBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center" },
-  hero: { alignItems: "center", paddingHorizontal: 20, paddingTop: 12 },
-  avatarRing: { width: 108, height: 108, borderRadius: 54, padding: 4, borderWidth: 2, borderColor: colors.border, position: "relative" },
-  avatar: { width: 96, height: 96, borderRadius: 48 },
-  avatarEdit: { position: "absolute", bottom: 0, right: 0, width: 28, height: 28, borderRadius: 14, backgroundColor: colors.brand, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: colors.bg },
+  topRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 20, paddingBottom: 6, gap: 10 },
+  topT: { color: "#fff", fontSize: 22, fontWeight: "500", flex: 1, letterSpacing: -0.4 },
+  iconBtn: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.border },
+
+  hero: { alignItems: "center", paddingTop: 18, paddingHorizontal: 20 },
+  avatarRing: { width: 116, height: 116, borderRadius: 58, padding: 4, borderWidth: 2, borderColor: colors.brand, position: "relative" },
+  avatar: { width: 104, height: 104, borderRadius: 52 },
   proRibbon: {
-    position: "absolute", bottom: -2, alignSelf: "center", left: 30,
-    backgroundColor: colors.gold, paddingHorizontal: 8, paddingVertical: 3,
-    borderRadius: 100, flexDirection: "row", alignItems: "center", gap: 3,
+    position: "absolute", bottom: -6, alignSelf: "center", left: "50%", marginLeft: -28,
+    backgroundColor: colors.gold, paddingHorizontal: 9, paddingVertical: 3, borderRadius: 100,
+    flexDirection: "row", alignItems: "center", gap: 4,
   },
   proText: { color: "#0A0A0A", fontSize: 10, fontWeight: "500", letterSpacing: 1 },
-  name: { color: "#fff", fontSize: 24, fontWeight: "500", marginTop: 16, letterSpacing: -0.4 },
-  city: { color: colors.textDim, fontSize: 13, marginTop: 4 },
-  scoreWrap: { marginTop: 24, width: "100%", alignItems: "center", padding: 20, backgroundColor: colors.surface, borderRadius: 20, borderWidth: 1, borderColor: colors.border, ...cardShadow },
-  scoreLabel: { color: colors.textDim, fontSize: 10, letterSpacing: 1.2, fontWeight: "500" },
-  score: { color: colors.brand, fontSize: 64, fontWeight: "500", letterSpacing: -2, marginTop: 4 },
-  scoreBars: { width: "100%", marginTop: 12, gap: 8 },
-  scoreBar: { flexDirection: "row", alignItems: "center", gap: 10 },
-  bL: { color: colors.textDim, fontSize: 11, width: 60 },
-  barTrack: { flex: 1, height: 6, backgroundColor: colors.bg2, borderRadius: 3 },
-  barFill: { height: 6, borderRadius: 3, backgroundColor: colors.brand },
-  statsRow: { flexDirection: "row", marginHorizontal: 20, marginTop: 16, padding: 16, backgroundColor: colors.surface, borderRadius: 20, borderWidth: 1, borderColor: colors.border },
-  stat: { flex: 1, alignItems: "center" },
+  editBadge: { position: "absolute", bottom: 4, right: 4, width: 28, height: 28, borderRadius: 14, backgroundColor: colors.text, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: colors.bg },
+  name: { color: "#fff", fontSize: 26, fontWeight: "500", letterSpacing: -0.5, marginTop: 16 },
+  metaPills: { flexDirection: "row", gap: 8, marginTop: 10 },
+  metaPill: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 100, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
+  metaPillT: { color: colors.textDim, fontSize: 11, fontWeight: "500" },
+  greenDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.teal },
+
+  // Score card
+  scoreCardWrap: { paddingHorizontal: 20, marginTop: 22 },
+  scoreCard: { padding: 22, borderRadius: 22, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, overflow: "hidden" },
+  scoreHead: { flexDirection: "row", alignItems: "center" },
+  scoreLabel: { color: colors.textDim, fontSize: 10, letterSpacing: 1.6, fontWeight: "500", flex: 1 },
+  deltaPill: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 100, backgroundColor: "rgba(0,200,150,0.12)", borderWidth: 1, borderColor: "rgba(0,200,150,0.3)" },
+  deltaText: { color: colors.teal, fontSize: 10, fontWeight: "500" },
+  scoreRow: { flexDirection: "row", alignItems: "flex-end", marginTop: 10 },
+  scoreBig: { color: colors.brand, fontSize: 72, fontWeight: "500", letterSpacing: -3, lineHeight: 76 },
+  scoreRight: { marginLeft: 18, marginBottom: 8 },
+  scoreTier: { color: colors.gold, fontSize: 12, fontWeight: "500", letterSpacing: 1.4 },
+  tierStars: { flexDirection: "row", marginTop: 4, gap: 2 },
+  scoreRankT: { color: colors.textDim, fontSize: 11, marginTop: 8 },
+  bars: { marginTop: 18, gap: 10 },
+  barRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  barLabel: { color: colors.textDim, fontSize: 11, width: 60, fontWeight: "500" },
+  barTrack: { flex: 1, height: 6, backgroundColor: colors.bg2, borderRadius: 3, overflow: "hidden" },
+  barFill: { height: 6, borderRadius: 3 },
+  barValue: { fontSize: 12, fontWeight: "500", width: 26, textAlign: "right" },
+
+  statsRow: { flexDirection: "row", marginHorizontal: 20, marginTop: 14, padding: 16, backgroundColor: colors.surface, borderRadius: 18, borderWidth: 1, borderColor: colors.border },
+  statCell: { flex: 1, alignItems: "center" },
+  statN: { color: "#fff", fontSize: 22, fontWeight: "500", letterSpacing: -0.4 },
+  statL: { color: colors.textDim, fontSize: 10, letterSpacing: 0.8, marginTop: 2, fontWeight: "500" },
   statDiv: { width: 1, backgroundColor: colors.border },
-  statN: { color: "#fff", fontSize: 22, fontWeight: "500" },
-  statL: { color: colors.textDim, fontSize: 11, letterSpacing: 0.8, marginTop: 2 },
-  proCardWrap: { marginHorizontal: 20, marginTop: 16 },
-  proCard: { flexDirection: "row", alignItems: "center", padding: 18, borderRadius: 20, gap: 12 },
-  proT: { color: "#0A0A0A", fontSize: 17, fontWeight: "500" },
-  proS: { color: "rgba(10,10,10,0.7)", fontSize: 12, marginTop: 2 },
-  section: { marginHorizontal: 20, marginTop: 24 },
-  secHeader: { flexDirection: "row", alignItems: "center", marginBottom: 12 },
-  secT: { color: colors.textDim, fontSize: 11, letterSpacing: 1.2, fontWeight: "500", flex: 1 },
-  secCta: { color: colors.brand, fontSize: 13, fontWeight: "500" },
-  chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  linksWrap: { marginHorizontal: 20, marginTop: 24, gap: 4 },
-  link: { flexDirection: "row", alignItems: "center", padding: 14, gap: 14, backgroundColor: colors.surface, borderRadius: 14, borderWidth: 1, borderColor: colors.border },
-  linkIcon: { width: 36, height: 36, borderRadius: 12, alignItems: "center", justifyContent: "center" },
-  linkLabel: { color: "#fff", fontSize: 15, flex: 1, fontWeight: "500" },
+
+  section: { marginHorizontal: 20, marginTop: 26 },
+  secHead: { flexDirection: "row", alignItems: "center", marginBottom: 12 },
+  secT: { color: colors.textDim, fontSize: 10, letterSpacing: 1.6, fontWeight: "500", flex: 1 },
+  secCta: { color: colors.brand, fontSize: 12, fontWeight: "500" },
+
+  chipsCol: { gap: 8 },
+  chipsRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  skillCard: { flexDirection: "row", alignItems: "center", padding: 12, gap: 12, backgroundColor: colors.surface, borderRadius: 14, borderWidth: 1, borderColor: colors.border },
+  skillIcon: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  skillName: { color: "#fff", fontSize: 14, fontWeight: "500" },
+  skillLevel: { color: colors.textDim, fontSize: 11 },
+  skillDot: { width: 3, height: 3, borderRadius: 1.5, backgroundColor: colors.textMute },
+
+  histCard: { flexDirection: "row", padding: 12, gap: 12, backgroundColor: colors.surface, borderRadius: 14, borderWidth: 1, borderColor: colors.border, alignItems: "center" },
+  histAvatar: { width: 40, height: 40, borderRadius: 20 },
+  histName: { color: "#fff", fontSize: 14, fontWeight: "500" },
+  histVerified: { flexDirection: "row", alignItems: "center", gap: 3, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, backgroundColor: "rgba(0,200,150,0.12)" },
+  histVerifiedT: { color: colors.teal, fontSize: 8, fontWeight: "500", letterSpacing: 0.6 },
+  histSwap: { fontSize: 12, marginTop: 4, fontWeight: "500" },
+  histWhen: { color: colors.textDim, fontSize: 10 },
+
+  linksRow: { flexDirection: "row", gap: 10, marginHorizontal: 20, marginTop: 22 },
+  tile: { flex: 1, padding: 14, borderRadius: 14, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, flexDirection: "row", alignItems: "center", gap: 10 },
+  tileIcon: { width: 34, height: 34, borderRadius: 10, alignItems: "center", justifyContent: "center" },
+  tileLabel: { color: "#fff", fontSize: 13, fontWeight: "500", flex: 1 },
 });
