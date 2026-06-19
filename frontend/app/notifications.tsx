@@ -35,7 +35,7 @@ export default function Notifications() {
   return (
     <View style={[styles.c, { paddingTop: insets.top }]} testID="notifications-screen">
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.back}>
+        <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace("/(tabs)/profile"))} style={styles.back}>
           <Ionicons name="chevron-back" size={24} color={colors.text} />
         </Pressable>
         <Text style={styles.headerT}>Notifications</Text>

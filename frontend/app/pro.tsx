@@ -43,7 +43,7 @@ export default function Pro() {
   return (
     <View style={[styles.c, { paddingTop: insets.top }]} testID="pro-screen">
       <View style={styles.header}>
-        <Pressable testID="pro-close" onPress={() => router.back()} style={styles.back}>
+        <Pressable testID="pro-close" onPress={() => (router.canGoBack() ? router.back() : router.replace("/(tabs)/profile"))} style={styles.back}>
           <Ionicons name="close" size={24} color={colors.text} />
         </Pressable>
         <Text style={styles.headerT}>SwapKaro Pro</Text>

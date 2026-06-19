@@ -35,7 +35,7 @@ export default function Boost() {
   return (
     <View style={[styles.c, { paddingTop: insets.top }]} testID="boost-screen">
       <View style={styles.header}>
-        <Pressable testID="boost-back" onPress={() => router.back()} style={styles.back}>
+        <Pressable testID="boost-back" onPress={() => (router.canGoBack() ? router.back() : router.replace("/(tabs)/profile"))} style={styles.back}>
           <Ionicons name="chevron-back" size={24} color={colors.text} />
         </Pressable>
         <Text style={styles.headerT}>Boost Listing</Text>

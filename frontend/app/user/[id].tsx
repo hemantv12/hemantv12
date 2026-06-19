@@ -37,7 +37,7 @@ export default function UserDetail() {
   return (
     <View style={[styles.c, { paddingTop: insets.top }]} testID="user-detail-screen">
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.back}>
+        <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace("/(tabs)/profile"))} style={styles.back}>
           <Ionicons name="chevron-back" size={24} color={colors.text} />
         </Pressable>
         <Text style={styles.headerT}>Profile</Text>

@@ -76,7 +76,7 @@ export default function Chat() {
       testID="chat-screen"
     >
       <View style={styles.header}>
-        <Pressable testID="chat-back" onPress={() => router.back()}>
+        <Pressable testID="chat-back" onPress={() => (router.canGoBack() ? router.back() : router.replace("/(tabs)/profile"))}>
           <Ionicons name="chevron-back" size={26} color={colors.text} />
         </Pressable>
         <View style={{ flex: 1 }}>

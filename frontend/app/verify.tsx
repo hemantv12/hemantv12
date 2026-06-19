@@ -72,7 +72,7 @@ export default function Verify() {
   return (
     <View style={[styles.c, { paddingTop: insets.top }]} testID="verify-screen">
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.back}>
+        <Pressable onPress={() => (router.canGoBack() ? router.back() : router.replace("/(tabs)/profile"))} style={styles.back}>
           <Ionicons name="chevron-back" size={24} color={colors.text} />
         </Pressable>
         <Text style={styles.headerT}>Skill Verification</Text>
@@ -179,7 +179,7 @@ export default function Verify() {
               : `${score}/${questions.length} sahi. Phir try karo.`}
           </Text>
           <View style={{ height: 32 }} />
-          <Button label={passed ? "Profile dekho" : "Wapas jao"} onPress={() => router.back()} testID="verify-done" />
+          <Button label={passed ? "Profile dekho" : "Wapas jao"} onPress={() => (router.canGoBack() ? router.back() : router.replace("/(tabs)/profile"))} testID="verify-done" />
         </View>
       )}
     </View>
