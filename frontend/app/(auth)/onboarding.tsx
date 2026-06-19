@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, Pressable } from "react-native";
+import { View, Text, StyleSheet, Pressable, Platform } from "react-native";
 import { useRouter } from "expo-router";
 import { MotiView, AnimatePresence } from "moti";
 import { Ionicons } from "@expo/vector-icons";
@@ -59,7 +59,7 @@ export default function Onboarding() {
             transition={{ type: "timing", duration: 320 }}
             style={styles.slideBox}
           >
-            <View style={[styles.iconWrap, { borderColor: slide.color, shadowColor: slide.color }]}>
+            <View style={[styles.iconWrap, Platform.OS === "web" ? { boxShadow: `0 0 30px ${slide.color}80`, borderColor: slide.color } as any : { borderColor: slide.color, shadowColor: slide.color }]}>
               <Ionicons name={slide.icon} size={64} color={slide.color} />
             </View>
             <Text style={styles.title}>{slide.title}</Text>
@@ -97,18 +97,24 @@ const styles = StyleSheet.create({
   skip: { position: "absolute", top: 60, right: 20, zIndex: 2, padding: 8 },
   body: { flex: 1, alignItems: "center", justifyContent: "center", padding: 32 },
   slideBox: { alignItems: "center", justifyContent: "center" },
-  iconWrap: {
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    borderWidth: 2,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 40,
-    shadowOpacity: 0.5,
-    shadowRadius: 30,
-    elevation: 10,
-  },
+  iconWrap: Platform.select({
+    web: {
+      width: 140, height: 140, borderRadius: 70, borderWidth: 2,
+      alignItems: "center", justifyContent: "center", marginBottom: 40,
+    },
+    default: {
+      width: 140,
+      height: 140,
+      borderRadius: 70,
+      borderWidth: 2,
+      alignItems: "center",
+      justifyContent: "center",
+      marginBottom: 40,
+      shadowOpacity: 0.5,
+      shadowRadius: 30,
+      elevation: 10,
+    },
+  }) as any,
   title: { color: "#fff", fontSize: 32, fontWeight: "500", letterSpacing: -0.8, marginBottom: 12, textAlign: "center" },
   sub: { color: colors.textDim, fontSize: 15, textAlign: "center", lineHeight: 22, paddingHorizontal: 16 },
   dots: { flexDirection: "row", justifyContent: "center", gap: 6, marginBottom: 24 },

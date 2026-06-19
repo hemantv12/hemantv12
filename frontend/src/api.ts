@@ -49,7 +49,8 @@ export const api = {
   acceptSwap: (id: string) => req(`/swaps/${id}/accept`, { method: "POST" }),
   advance: (id: string) => req(`/swaps/${id}/milestone`, { method: "POST" }),
   messages: (id: string) => req(`/swaps/${id}/messages`),
-  sendMsg: (id: string, text: string) => req(`/swaps/${id}/messages`, { method: "POST", body: { text } }),
+  sendMsg: (id: string, text: string, image?: string | null) =>
+    req(`/swaps/${id}/messages`, { method: "POST", body: { text, image: image || null } }),
   askBot: (id: string, question: string) => req(`/swaps/${id}/bot`, { method: "POST", body: { question } }),
   autocomplete: (q: string) => req(`/skills/autocomplete?q=${encodeURIComponent(q)}`),
   quiz: (skill: string) => req("/skills/verify-quiz", { method: "POST", body: { skill } }),

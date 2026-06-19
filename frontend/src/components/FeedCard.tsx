@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, StyleSheet, Image, Pressable } from "react-native";
+import { View, Text, StyleSheet, Image, Pressable, Platform } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { MotiView } from "moti";
 import { LinearGradient } from "expo-linear-gradient";
@@ -130,7 +130,10 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     overflow: "hidden",
   },
-  perfectGlow: { borderColor: colors.brand, shadowColor: colors.brand, shadowOpacity: 0.4, shadowRadius: 24 },
+  perfectGlow: Platform.select({
+    web: { borderColor: colors.brand, boxShadow: "0 0 24px rgba(255,107,53,0.5)" },
+    default: { borderColor: colors.brand, shadowColor: colors.brand, shadowOpacity: 0.4, shadowRadius: 24 },
+  }) as any,
   head: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 14 },
   avatar: { width: 48, height: 48, borderRadius: 24, backgroundColor: colors.surfaceHi },
   name: { color: "#fff", fontSize: 16, fontWeight: "500" },

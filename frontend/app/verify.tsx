@@ -7,6 +7,7 @@ import * as Haptics from "expo-haptics";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button } from "@/src/components/Button";
 import { Chip } from "@/src/components/Chip";
+import { Confetti } from "@/src/components/Confetti";
 import { api } from "@/src/api";
 import { colors, cardShadow } from "@/src/theme";
 
@@ -165,6 +166,7 @@ export default function Verify() {
 
       {stage === "result" && (
         <View style={styles.center}>
+          <Confetti active={passed} />
           <MotiView
             from={{ scale: 0, rotate: "-30deg" }}
             animate={{ scale: 1, rotate: "0deg" }}

@@ -99,13 +99,15 @@ class ChatMessage(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     swap_id: str
     sender: str
-    text: str
+    text: str = ""
+    image: Optional[str] = None  # base64 data URI
     is_bot: bool = False
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class ChatSend(BaseModel):
-    text: str
+    text: str = ""
+    image: Optional[str] = None
 
 
 class BotAsk(BaseModel):
@@ -441,7 +443,9 @@ async def list_messages(swap_id: str, _: dict = Depends(current_user)) -> dict:
 
 @api.post("/swaps/{swap_id}/messages")
 async def send_message(swap_id: str, payload: ChatSend, user: dict = Depends(current_user)) -> dict:
-    msg = ChatMessage(swap_id=swap_id, sender=user["id"], text=payload.text).model_dump()
+    msg = ChatMessage(
+        swap_id=swap_id, sender=user["id"], text=payload.text, image=payload.image
+    ).model_dump()
     await db.messages.insert_one(msg)
     msg.pop("_id", None)
     return msg

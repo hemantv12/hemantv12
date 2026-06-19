@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
   View, Text, StyleSheet, TextInput, Pressable, FlatList,
-  KeyboardAvoidingView, Platform,
+  KeyboardAvoidingView, Platform, Image,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -9,6 +9,7 @@ import { MotiView } from "moti";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as Haptics from "expo-haptics";
 import { api } from "@/src/api";
+import { pickImageBase64 } from "@/src/utils/image";
 import { colors, radii } from "@/src/theme";
 
 const STEPS = ["Draft", "Started", "Mid-way", "Delivered", "Complete"];
@@ -23,6 +24,7 @@ export default function Chat() {
   const [text, setText] = useState("");
   const [botMode, setBotMode] = useState(false);
   const [sending, setSending] = useState(false);
+  const [pendingImage, setPendingImage] = useState<string | null>(null);
   const listRef = useRef<FlatList>(null);
 
   const load = async () => {
@@ -41,10 +43,12 @@ export default function Chat() {
   }, [msgs.length]);
 
   const send = async () => {
-    if (!text.trim() || sending) return;
+    if ((!text.trim() && !pendingImage) || sending) return;
     setSending(true);
     const t = text;
+    const img = pendingImage;
     setText("");
+    setPendingImage(null);
     try {
       if (botMode) {
         setMsgs((m) => [...m, { id: "tmp-u", sender: me.id, text: t }]);
@@ -52,10 +56,18 @@ export default function Chat() {
         setMsgs((m) => [...m, reply]);
         setBotMode(false);
       } else {
-        const r: any = await api.sendMsg(id, t);
+        const r: any = await api.sendMsg(id, t, img);
         setMsgs((m) => [...m, r]);
       }
     } finally { setSending(false); }
+  };
+
+  const pickImage = async () => {
+    const img = await pickImageBase64();
+    if (img) {
+      setPendingImage(img);
+      Haptics.selectionAsync();
+    }
   };
 
   const advance = async () => {
@@ -133,7 +145,12 @@ export default function Chat() {
                   bot && styles.botBubble,
                 ]}
               >
-                <Text style={[styles.text, mine && { color: "#0A0A0A" }]}>{item.text}</Text>
+                {item.image ? (
+                  <Image source={{ uri: item.image }} style={styles.bubbleImage} resizeMode="cover" />
+                ) : null}
+                {item.text ? (
+                  <Text style={[styles.text, mine && { color: "#0A0A0A" }]}>{item.text}</Text>
+                ) : null}
               </View>
             </MotiView>
           );
@@ -148,6 +165,21 @@ export default function Chat() {
       )}
 
       <View style={[styles.inputRow, { paddingBottom: Math.max(insets.bottom, 8) }]}>
+        {pendingImage && (
+          <View style={styles.previewWrap}>
+            <Image source={{ uri: pendingImage }} style={styles.previewImg} />
+            <Pressable
+              testID="chat-clear-image"
+              onPress={() => setPendingImage(null)}
+              style={styles.previewClose}
+            >
+              <Ionicons name="close" size={14} color="#0A0A0A" />
+            </Pressable>
+          </View>
+        )}
+        <Pressable testID="chat-pick-image" onPress={pickImage} style={styles.attachBtn}>
+          <Ionicons name="image" size={20} color={colors.textDim} />
+        </Pressable>
         <TextInput
           testID="chat-input"
           value={text}
@@ -184,7 +216,12 @@ const styles = StyleSheet.create({
   botLabel: { color: colors.gold, fontSize: 10, fontWeight: "500", letterSpacing: 1, marginBottom: 4, marginLeft: 4 },
   milestoneBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, marginHorizontal: 16, marginBottom: 8, padding: 12, borderRadius: 12, backgroundColor: "rgba(0,200,150,0.1)", borderWidth: 1, borderColor: "rgba(0,200,150,0.3)" },
   milestoneText: { color: colors.teal, fontWeight: "500", fontSize: 13 },
-  inputRow: { flexDirection: "row", alignItems: "flex-end", padding: 12, gap: 8, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.bg },
+  inputRow: { flexDirection: "row", alignItems: "flex-end", padding: 12, gap: 8, borderTopWidth: 1, borderTopColor: colors.border, backgroundColor: colors.bg, flexWrap: "wrap" },
   input: { flex: 1, minHeight: 44, maxHeight: 120, paddingHorizontal: 16, paddingVertical: 10, borderRadius: radii.md, backgroundColor: colors.surface, color: "#fff", fontSize: 14, borderWidth: 1, borderColor: colors.border },
   sendBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.brand, alignItems: "center", justifyContent: "center" },
+  attachBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.border },
+  bubbleImage: { width: 200, height: 200, borderRadius: 12, marginBottom: 6 },
+  previewWrap: { width: "100%", marginBottom: 4 },
+  previewImg: { width: 80, height: 80, borderRadius: 10 },
+  previewClose: { position: "absolute", top: 4, left: 64, backgroundColor: colors.brand, width: 20, height: 20, borderRadius: 10, alignItems: "center", justifyContent: "center" },
 });

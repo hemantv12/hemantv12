@@ -9,6 +9,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api } from "@/src/api";
 import { colors, cardShadow, radii } from "@/src/theme";
 import { Button } from "@/src/components/Button";
+import { Confetti } from "@/src/components/Confetti";
 
 export default function Matches() {
   const insets = useSafeAreaInsets();
@@ -17,9 +18,11 @@ export default function Matches() {
   const [matches, setMatches] = useState<any[]>([]);
   const [me, setMe] = useState<any>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [celebrate, setCelebrate] = useState(false);
 
   const load = async () => {
     setScanning(true);
+    setCelebrate(false);
     try {
       const [u, r] = await Promise.all([api.me(), api.aiMatches()]);
       setMe(u);
@@ -27,7 +30,9 @@ export default function Matches() {
       setTimeout(() => {
         setMatches(r.matches);
         setScanning(false);
+        setCelebrate(true);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        setTimeout(() => setCelebrate(false), 2400);
       }, 1500);
     } catch {
       setScanning(false);
@@ -49,6 +54,7 @@ export default function Matches() {
 
   return (
     <View style={[styles.c, { paddingTop: insets.top + 8 }]} testID="matches-screen">
+      <Confetti active={celebrate} count={40} />
       <View style={styles.header}>
         <View>
           <Text style={styles.title}>AI Matches</Text>

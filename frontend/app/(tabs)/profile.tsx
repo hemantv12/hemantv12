@@ -6,6 +6,7 @@ import { MotiView, MotiText } from "moti";
 import { LinearGradient } from "expo-linear-gradient";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { api, clearToken } from "@/src/api";
+import { pickImageBase64 } from "@/src/utils/image";
 import { colors, radii, cardShadow } from "@/src/theme";
 import { Chip } from "@/src/components/Chip";
 
@@ -26,6 +27,14 @@ export default function Profile() {
     router.replace("/(auth)/login");
   };
 
+  const changeAvatar = async () => {
+    const img = await pickImageBase64({ square: true });
+    if (img) {
+      setMe({ ...me, avatar: img });
+      try { await api.updateMe({ avatar: img }); } catch {}
+    }
+  };
+
   if (!me) return <View style={{ flex: 1, backgroundColor: colors.bg }} />;
 
   return (
@@ -43,18 +52,21 @@ export default function Profile() {
       </View>
 
       <View style={styles.hero}>
-        <View style={[styles.avatarRing, me.is_open && { borderColor: colors.brand }]}>
+        <Pressable testID="profile-avatar" onPress={changeAvatar} style={[styles.avatarRing, me.is_open && { borderColor: colors.brand }]}>
           <Image
             source={{ uri: me.avatar || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400&q=80" }}
             style={styles.avatar}
           />
+          <View style={styles.avatarEdit}>
+            <Ionicons name="camera" size={12} color="#0A0A0A" />
+          </View>
           {me.is_pro && (
             <View style={styles.proRibbon}>
               <Ionicons name="diamond" size={11} color="#0A0A0A" />
               <Text style={styles.proText}>PRO</Text>
             </View>
           )}
-        </View>
+        </Pressable>
         <Text style={styles.name}>{me.name || "User"}</Text>
         <Text style={styles.city}>{me.city} · Member since 2026</Text>
 
@@ -165,6 +177,7 @@ const styles = StyleSheet.create({
   hero: { alignItems: "center", paddingHorizontal: 20, paddingTop: 12 },
   avatarRing: { width: 108, height: 108, borderRadius: 54, padding: 4, borderWidth: 2, borderColor: colors.border, position: "relative" },
   avatar: { width: 96, height: 96, borderRadius: 48 },
+  avatarEdit: { position: "absolute", bottom: 0, right: 0, width: 28, height: 28, borderRadius: 14, backgroundColor: colors.brand, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: colors.bg },
   proRibbon: {
     position: "absolute", bottom: -2, alignSelf: "center", left: 30,
     backgroundColor: colors.gold, paddingHorizontal: 8, paddingVertical: 3,

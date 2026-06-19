@@ -7,6 +7,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button } from "@/src/components/Button";
+import { Confetti } from "@/src/components/Confetti";
 import { api } from "@/src/api";
 import { colors, cardShadow } from "@/src/theme";
 
@@ -26,6 +27,7 @@ export default function Pro() {
   const [me, setMe] = useState<any>(null);
   const [plan, setPlan] = useState<"monthly" | "yearly">("yearly");
   const [busy, setBusy] = useState(false);
+  const [justUpgraded, setJustUpgraded] = useState(false);
 
   useEffect(() => { (async () => setMe(await api.me()))(); }, []);
 
@@ -36,12 +38,14 @@ export default function Pro() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       const u = await api.me();
       setMe(u);
-      setTimeout(() => router.back(), 1500);
+      setJustUpgraded(true);
+      setTimeout(() => (router.canGoBack() ? router.back() : router.replace("/(tabs)/profile")), 2400);
     } finally { setBusy(false); }
   };
 
   return (
     <View style={[styles.c, { paddingTop: insets.top }]} testID="pro-screen">
+      <Confetti active={justUpgraded} count={50} />
       <View style={styles.header}>
         <Pressable testID="pro-close" onPress={() => (router.canGoBack() ? router.back() : router.replace("/(tabs)/profile"))} style={styles.back}>
           <Ionicons name="close" size={24} color={colors.text} />

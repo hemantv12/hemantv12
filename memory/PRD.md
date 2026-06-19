@@ -40,3 +40,11 @@ India's first AI-powered skill barter network. No cash — only skills.
 
 ## Design Tokens
 Background `#0A0A0A` · Surface `#1C1C1C` · Brand `#FF6B35` · Teal `#00C896` · Gold `#FFD700`. Premium CRED-style dark UI, generous spacing, micro-animations everywhere.
+
+## v2 Polish (added after MVP)
+- **Confetti micro-celebration** — pure-Reanimated 30/40/50-piece confetti on AI matches found, Pro upgrade, and Skill Verification pass
+- **Image uploads** (expo-image-picker, base64 storage)
+  - Profile avatar (square crop) — tap avatar to replace
+  - Chat image attachments — paperclip icon, preview chip, image bubble rendering
+- **Permissions wired** — `NSPhotoLibraryUsageDescription`, `NSCameraUsageDescription`, Android `READ_MEDIA_IMAGES`, expo-image-picker plugin in `app.json`
+- **Web shadow cleanup** — `cardShadow`, `glow`, onboarding `iconWrap`, `perfectGlow` now Platform.select between native `shadow*` and web `boxShadow`; eliminates RN deprecation warnings on the preview build
