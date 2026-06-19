@@ -1,13 +1,11 @@
-import React, { useRef, useState } from "react";
-import { View, Text, StyleSheet, FlatList, Dimensions, Pressable } from "react-native";
+import React, { useState } from "react";
+import { View, Text, StyleSheet, Pressable } from "react-native";
 import { useRouter } from "expo-router";
-import { MotiView } from "moti";
+import { MotiView, AnimatePresence } from "moti";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Button } from "@/src/components/Button";
-import { colors, space } from "@/src/theme";
-
-const { width: W } = Dimensions.get("window");
+import { colors } from "@/src/theme";
 
 const slides = [
   {
@@ -32,8 +30,8 @@ const slides = [
 
 export default function Onboarding() {
   const router = useRouter();
-  const ref = useRef<FlatList>(null);
   const [idx, setIdx] = useState(0);
+  const slide = slides[idx];
 
   const finish = async () => {
     await AsyncStorage.setItem("swapkaro_onboarded", "1");
@@ -41,11 +39,8 @@ export default function Onboarding() {
   };
 
   const next = () => {
-    if (idx < 2) {
-      const ni = idx + 1;
-      setIdx(ni);
-      ref.current?.scrollToIndex({ index: ni, animated: true });
-    } else finish();
+    if (idx < 2) setIdx(idx + 1);
+    else finish();
   };
 
   return (
@@ -53,39 +48,39 @@ export default function Onboarding() {
       <Pressable testID="onboarding-skip" onPress={finish} style={styles.skip}>
         <Text style={{ color: colors.textDim, fontSize: 14 }}>Skip</Text>
       </Pressable>
-      <FlatList
-        ref={ref}
-        data={slides}
-        horizontal
-        pagingEnabled
-        showsHorizontalScrollIndicator={false}
-        onMomentumScrollEnd={(e) => setIdx(Math.round(e.nativeEvent.contentOffset.x / W))}
-        renderItem={({ item, index }) => (
-          <View style={{ width: W, alignItems: "center", justifyContent: "center", padding: 32 }}>
-            <MotiView
-              from={{ scale: 0.6, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ type: "spring", damping: 12 }}
-              key={index === idx ? "in" : "out"}
-              style={[styles.iconWrap, { borderColor: item.color, shadowColor: item.color }]}
-            >
-              <Ionicons name={item.icon} size={64} color={item.color} />
-            </MotiView>
-            <Text style={styles.title}>{item.title}</Text>
-            <Text style={styles.sub}>{item.sub}</Text>
-          </View>
-        )}
-        keyExtractor={(_, i) => String(i)}
-      />
+
+      <View style={styles.body}>
+        <AnimatePresence exitBeforeEnter>
+          <MotiView
+            key={idx}
+            from={{ opacity: 0, translateX: 40 }}
+            animate={{ opacity: 1, translateX: 0 }}
+            exit={{ opacity: 0, translateX: -40 }}
+            transition={{ type: "timing", duration: 320 }}
+            style={styles.slideBox}
+          >
+            <View style={[styles.iconWrap, { borderColor: slide.color, shadowColor: slide.color }]}>
+              <Ionicons name={slide.icon} size={64} color={slide.color} />
+            </View>
+            <Text style={styles.title}>{slide.title}</Text>
+            <Text style={styles.sub}>{slide.sub}</Text>
+          </MotiView>
+        </AnimatePresence>
+      </View>
+
       <View style={styles.dots}>
         {slides.map((_, i) => (
           <MotiView
             key={i}
-            animate={{ width: idx === i ? 24 : 8, backgroundColor: idx === i ? colors.brand : colors.surface }}
+            animate={{
+              width: idx === i ? 24 : 8,
+              backgroundColor: idx === i ? colors.brand : colors.surface,
+            }}
             style={styles.dot}
           />
         ))}
       </View>
+
       <View style={styles.cta}>
         <Button
           testID="onboarding-next-btn"
@@ -100,6 +95,8 @@ export default function Onboarding() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.bg, paddingTop: 60 },
   skip: { position: "absolute", top: 60, right: 20, zIndex: 2, padding: 8 },
+  body: { flex: 1, alignItems: "center", justifyContent: "center", padding: 32 },
+  slideBox: { alignItems: "center", justifyContent: "center" },
   iconWrap: {
     width: 140,
     height: 140,
@@ -112,7 +109,7 @@ const styles = StyleSheet.create({
     shadowRadius: 30,
     elevation: 10,
   },
-  title: { color: "#fff", fontSize: 32, fontWeight: "500", letterSpacing: -0.8, marginBottom: 12 },
+  title: { color: "#fff", fontSize: 32, fontWeight: "500", letterSpacing: -0.8, marginBottom: 12, textAlign: "center" },
   sub: { color: colors.textDim, fontSize: 15, textAlign: "center", lineHeight: 22, paddingHorizontal: 16 },
   dots: { flexDirection: "row", justifyContent: "center", gap: 6, marginBottom: 24 },
   dot: { height: 8, borderRadius: 4 },

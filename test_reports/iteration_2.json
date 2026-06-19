@@ -1,0 +1,41 @@
+{
+  "summary": "Iteration 2 full retest after main-agent fixes. Backend: 23/23 pytest cases still PASS (no regressions). Frontend: All previously-broken flows now work end-to-end. (1) Onboarding renders all 3 slides correctly ('Apna Hunar Do', 'AI Dhundega Match', 'Barter Karo, Badho') with images, headlines, dots indicator and Aage Badho → Shuru Karo CTA routes to /login. (2) Login flow with phone 9999999999 + OTP 123456 now succeeds — existing user routes to /home, OTP boxes (all 6) fit visibly in 390px viewport with bright digits. (3) Chat screen: AI agreement bot bubble (full Hinglish barter agreement) appears as first message; sending user message works; Mark milestone advances 0→1 with bot acknowledgement 'Milestone advanced → Started.' (4) Pro upgrade: comparison table renders; tapping 'Start 7-Day Free Trial' calls /api/pro/upgrade and flips to 'You're Pro 👑' / 'You're already Pro' state. (5) Boost: 3 duration options, 'Boost Karo · ₹49' calls /api/boost and shows 'Boost activated 🚀'. (6) Verify: tapping Logo Design chip loads AI quiz 'Question 1 of 3' with 4 options. (7) Notifications: 4 items render with type icons (milestone/boost/match/score). (8) Profile: SwapScore=720, Delivery/Quality/Comms bars, 0/0/1 counts, Pro upsell, links to Boost/Verify/Notifications/Pro all present. (9) Swaps: Active Swaps list with milestone timeline (Draft→Started→Mid-way→Delivered→Complete) renders. (10) Matches: scanning ring animation displays. Deprecated React Native style warnings still emitted (shadow*, pointerEvents) but non-blocking. Minor console error on /pro and /boost back button: GO_BACK has no parent navigator when these routes are deep-linked.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/pro, /boost, /verify, /notifications", "issues": ["Back chevron triggers 'GO_BACK action not handled by any navigator' when these routes are deep-linked (no parent stack). Should use router.replace('/profile') or router.canGoBack() guard."]}
+    ],
+    "react_native_issues": [
+      {"component": "Multiple screens", "issue": "Deprecated style prop 'shadow*' still emits console warnings. Should migrate to 'boxShadow'. Reference: across screens."},
+      {"component": "Multiple screens", "issue": "Deprecated prop 'pointerEvents' used as prop, should move to style.pointerEvents. Console warning: 'props.pointerEvents is deprecated. Use style.pointerEvents'."}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "(LOW) Replace 'shadow*' style shorthand with 'boxShadow' (or full shadowOffset/shadowColor on iOS + elevation on Android) to silence deprecation warnings.",
+    "(LOW) Move pointerEvents from props to style object on the affected View(s) to silence pointerEvents deprecation warning.",
+    "(LOW) Guard back navigation on /pro, /boost, /verify, /notifications: replace router.back() with `if (router.canGoBack()) router.back(); else router.replace('/profile')` to avoid 'GO_BACK action not handled by any navigator' error when these are entered as a fresh route.",
+    "(INFO) Setup screen (/(auth)/setup) was not visually re-verified this run because phone 9999999999 already had a name from prior runs and was treated as returning user. Backend new-user flow (is_new=true) is covered by pytest TestAuth::test_verify_otp_correct_returns_token; routing to /(auth)/setup was verified in iteration 1."
+  ],
+  "critical_code_review_comments": [
+    "Onboarding now uses state-driven render with index state — slides render correctly. Good fix.",
+    "Login prepends +91- before submitting to /auth/verify-otp — confirmed by successful auth against seeded users in iteration 1; new test user 9999999999 also lands on /home.",
+    "OTP boxes use flex: 1 with gap: 8 — all 6 boxes fit in 390px viewport with high-contrast white digits.",
+    "Backend startup uses @app.on_event (deprecated in FastAPI ≥0.93). Consider lifespan() context — non-blocking."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (23/23)", "frontend": "~98% (all 4 tabs + Chat + Pro + Boost + Verify + Notifications + Onboarding + Login all functional; only minor deprecation warnings + back-button edge case remain)"},
+  "seed_data_creation": "None. Backend seeds 8 users on startup as designed.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "App is in great shape. All requested fixes verified. Only cosmetic items remain: (a) React Native shadow*/pointerEvents deprecation warnings, (b) back-button on deep-linked Pro/Boost/Verify/Notifications routes triggers a non-fatal GO_BACK warning. Backend stable at 23/23 pytest pass. EMERGENT_LLM_KEY worked for all AI calls (matches/ai, quiz, agreement, bot) during this run with no fallback hits observed.",
+  "rca_of_issue": "Previous-iteration onboarding bug was caused by horizontal FlatList with item-width mismatch (DOM had content but visually hidden). Main agent replaced with state-index + AnimatePresence — confirmed each of 3 slides now renders fully (image, headline, subtitle, dots) and CTA advances index, ending in router.replace('/(auth)/login'). OTP overflow was caused by fixed 56px box widths × 6 + margins > 390px viewport; switched to flex: 1 with gap: 8 — confirmed visually all 6 boxes fit. Phone mismatch was fixed by frontend prepending '+91-' before the 10-digit phone in auth/request-otp + auth/verify-otp payloads."
+}

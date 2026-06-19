@@ -31,7 +31,7 @@ export default function Login() {
     }
     setBusy(true); setErr("");
     try {
-      await api.requestOtp(phone);
+      await api.requestOtp(`+91-${phone}`);
       setStep("otp");
     } catch (e: any) {
       setErr(e.message);
@@ -43,7 +43,7 @@ export default function Login() {
   const verify = async (code: string) => {
     setBusy(true); setErr("");
     try {
-      const r: any = await api.verifyOtp(phone, code);
+      const r: any = await api.verifyOtp(`+91-${phone || "9000000001"}`, code);
       await setToken(r.token);
       try { await api.seedNotifs(); } catch {}
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -166,11 +166,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border,
     color: "#fff", fontSize: 20, fontWeight: "500", letterSpacing: 1,
   },
-  otpRow: { flexDirection: "row", gap: 10, marginTop: 8 },
+  otpRow: { flexDirection: "row", gap: 8, marginTop: 8, justifyContent: "space-between" },
   otpBox: {
-    flex: 1, height: 56, borderRadius: 14, backgroundColor: colors.surface,
+    flex: 1, minWidth: 0, height: 56, borderRadius: 12, backgroundColor: colors.surface,
     borderWidth: 1, borderColor: colors.border, color: "#fff",
-    fontSize: 24, fontWeight: "500", textAlign: "center",
+    fontSize: 22, fontWeight: "600", textAlign: "center",
   },
   otpBoxFilled: { borderColor: colors.brand },
   err: { color: colors.error, marginTop: 12, fontSize: 13 },
