@@ -1,0 +1,221 @@
+{
+  "app_name": "SwapKaro",
+  "personality": "Fusion of 6 Glass / Luxe DARK structure with 7 Dark-First Utility metrics & neon accents",
+  "personality_one_liner": "A cinematic, ultra-premium dark mode barter exchange that feels like a high-end fintech command center rather than a social app.",
+  "color": {
+    "surface": "#0A0A0A",
+    "onSurface": "#FFFFFF",
+    "surfaceSecondary": "#141414",
+    "onSurfaceSecondary": "#FFFFFF",
+    "surfaceTertiary": "#1C1C1C",
+    "onSurfaceTertiary": "#FFFFFF",
+    "surfaceInverse": "#FFFFFF",
+    "onSurfaceInverse": "#0A0A0A",
+    "brand": "#FF6B35",
+    "brandPrimary": "#FF6B35",
+    "onBrandPrimary": "#0A0A0A",
+    "brandSecondary": "#00C896",
+    "onBrandSecondary": "#0A0A0A",
+    "brandTertiary": "#FFD700",
+    "onBrandTertiary": "#0A0A0A",
+    "success": "#00C896",
+    "onSuccess": "#0A0A0A",
+    "warning": "#FFB800",
+    "onWarning": "#0A0A0A",
+    "error": "#FF4444",
+    "onError": "#FFFFFF",
+    "border": "rgba(255,255,255,0.08)",
+    "borderStrong": "rgba(255,255,255,0.15)",
+    "divider": "rgba(255,255,255,0.08)"
+  },
+  "typography": {
+    "displayFontFamily": "Space Grotesk",
+    "textFontFamily": "Manrope",
+    "scale": {
+      "sm": 12,
+      "base": 14,
+      "lg": 16,
+      "xl": 20,
+      "2xl": 24,
+      "3xl": 32,
+      "4xl": 40
+    }
+  },
+  "spacing": {
+    "rule": "Use 4px base unit. Cards have 20px padding. Generous vertical breathing room. Whitespace carries the premium feel.",
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 24,
+    "2xl": 32,
+    "3xl": 48
+  },
+  "radius_tokens": {
+    "sm": 6,
+    "md": 14,
+    "lg": 20,
+    "pill": 100
+  },
+  "shadow_tier": "2",
+  "navigation": "bottom_tabs",
+  "icon_set": "Ionicons",
+  "glassmorphism": {
+    "enabled": true,
+    "do's": [
+      "Use blur extensively on bottom tab bar, sticky headers, and Match sheet backgrounds.",
+      "Use heavy tint (>75% surface) under the blur to ensure text readability.",
+      "Apply glass effects on floating action buttons (FABs) and premium callouts."
+    ],
+    "dont's": [
+      "Never blur body text regions or form fields.",
+      "Avoid applying blur on dense data metrics."
+    ]
+  },
+  "platform_libraries": {
+    "glass": {
+      "ios": "expo-glass-effect",
+      "android": "expo-blur",
+      "low_end_android_fallback": "solid surfaceSecondary"
+    },
+    "image": "expo-image",
+    "blur": "expo-blur",
+    "bottom_sheet": "@gorhom/bottom-sheet",
+    "animation": "react-native-reanimated",
+    "gesture": "react-native-gesture-handler"
+  },
+  "haptics": {
+    "events": {
+      "tab_press": "selection",
+      "button_primary": "medium",
+      "match_success": "success",
+      "swipe_card": "light",
+      "skill_verify_complete": "success"
+    }
+  },
+  "screens": [
+    {
+      "name": "Splash",
+      "purpose": "A premium cinematic entry using heavy dark tones and the saffron orange brand mark.",
+      "states": {
+        "loading": "Subtle orange glow pulse around a central logo.",
+        "empty": "N/A",
+        "error": "N/A"
+      },
+      "layout": "Center aligned. Solid `#0A0A0A` background. Abstract orange/gold subtle texture overlaid via glass. Large 'SwapKaro' Space Grotesk text. Minimalist."
+    },
+    {
+      "name": "Onboarding",
+      "purpose": "3-slide premium tutorial on skill barter without cash.",
+      "states": {
+        "loading": "N/A",
+        "empty": "N/A",
+        "error": "N/A"
+      },
+      "layout": "Full-bleed imagery with bottom-heavy text block. Dark-to-black vertical gradient scrim underneath the text. Pagination dots in brandPrimary. Primary sticky 'Continue' CTA at safe-area bottom."
+    },
+    {
+      "name": "Login_OTP",
+      "purpose": "High-trust numeric entry for mobile number and OTP.",
+      "states": {
+        "loading": "Spinner overlaid on CTA.",
+        "empty": "N/A",
+        "error": "Inline red text below input with light haptic error."
+      },
+      "layout": "Keyboard-avoiding view. Top-aligned large display text ('Enter your digits'). Single-column, large bordered inputs (border radius 14px). Sticky bottom CTA."
+    },
+    {
+      "name": "ProfileSetup",
+      "purpose": "2-step flow capturing 'Skills I have' and 'Skills I need'.",
+      "states": {
+        "loading": "Central spinner.",
+        "empty": "N/A",
+        "error": "Alert toast."
+      },
+      "layout": "Pill-based selection. Grid of selectable skills using surfaceTertiary chips. Active state flips to brandPrimary background with onBrandPrimary text. Smooth transitions between steps."
+    },
+    {
+      "name": "HomeFeed",
+      "purpose": "The 'Barter Board' showcasing potential matches.",
+      "states": {
+        "loading": "Card skeletons in surfaceSecondary.",
+        "empty": "Icon + 'No barters found nearby. Try expanding your search.' + CTA.",
+        "error": "Readable error message + Retry."
+      },
+      "layout": "Stacked rich cards (radius 20px) on #0A0A0A background. Each card uses surfaceSecondary, highlighting user avatar, 'Has: Design', 'Needs: Tax'. Heavy contrast. Sticky top glass header."
+    },
+    {
+      "name": "AIMatchModal",
+      "purpose": "A celebratory, dating-app style bottom sheet that appears when a Perfect Match is found.",
+      "states": {
+        "loading": "AI scanning animation (pulsing glow).",
+        "empty": "N/A",
+        "error": "N/A"
+      },
+      "layout": "Full-screen or high bottom sheet with glassmorphism backdrop. Dual overlapping avatars. Large success typography. 'Message Now' as primary CTA (saffron orange). Clean, minimal, one-handed operation."
+    },
+    {
+      "name": "SwapAgreement",
+      "purpose": "Milestone-driven chat and agreement screen.",
+      "states": {
+        "loading": "Message skeletons.",
+        "empty": "Start the negotiation.",
+        "error": "Failed to send."
+      },
+      "layout": "Top section: Sticky agreement tracker (Milestones: 1. Draft 2. Finalize). Below: Chat UI. Dark theme bubbles. surfaceTertiary for received, surfaceSecondary with brandPrimary border for sent."
+    },
+    {
+      "name": "Profile",
+      "purpose": "User identity and SwapScore dashboard.",
+      "states": {
+        "loading": "Skeleton overlay.",
+        "empty": "N/A",
+        "error": "N/A"
+      },
+      "layout": "Massive typography for SwapScore at the top (e.g. 847) in Space Grotesk. Condensed layout. List items for 'Active Swaps', 'Past Swaps', 'Settings'. Dark, utility-driven metrics focus."
+    },
+    {
+      "name": "SwapKaroPro",
+      "purpose": "Upsell screen for premium features.",
+      "states": {
+        "loading": "Spinner on button.",
+        "empty": "N/A",
+        "error": "Payment failed toast."
+      },
+      "layout": "Full-bleed abstract gold/orange background image with heavy dark gradient scrim. Feature list with gold (brandTertiary) checkmarks. Sticky bottom CTA 'Upgrade to Pro' with gold tint."
+    },
+    {
+      "name": "SkillVerification",
+      "purpose": "Upload proof or take AI quiz to verify a skill.",
+      "states": {
+        "loading": "Uploading proof...",
+        "empty": "N/A",
+        "error": "Verification failed."
+      },
+      "layout": "Step-by-step wizard. File upload drop zone styled as dashed border container on surfaceSecondary. Large typography, clear instructions."
+    }
+  ],
+  "images": {
+    "avatar_user_1": {
+      "url": "https://images.unsplash.com/photo-1590098446345-7d26046c81b7?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzNzl8MHwxfHNlYXJjaHwzfHxpbmRpYW4lMjBwcm9mZXNzaW9uYWwlMjBwb3J0cmFpdCUyMGRhcmslMjBzdHVkaW98ZW58MHx8fHwxNzgxODYxNzY5fDA&ixlib=rb-4.1.0&q=85",
+      "alt": "Indian professional in black button up"
+    },
+    "avatar_user_2": {
+      "url": "https://images.pexels.com/photos/10620268/pexels-photo-10620268.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "alt": "Sophisticated portrait of a woman in formal suit"
+    },
+    "pro_upsell_bg": {
+      "url": "https://images.pexels.com/photos/31622917/pexels-photo-31622917.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "alt": "Intricate gold abstract sculpture flowing lines"
+    }
+  },
+  "instructions_to_main_agent": [
+    "CRITICAL: The user requested font weights of 700/800. Our system rules STRICTLY FORBID specifying weights over 500 (`Never specify 600, 700, 800`). You MUST use weight `500` max and rely on the display font ('Space Grotesk' or similar) and large sizing to achieve the heavy, bold impact the user wants. Do not use 700/800 in code.",
+    "Implement a strict dark theme (CRED-style). Base background is always `#0A0A0A`, cards are `#1C1C1C`. Never use white backgrounds.",
+    "The primary action button should use `#FF6B35` with `#0A0A0A` text for maximum contrast and punch.",
+    "Shadows should be dark and deep. Use `rgba(0,0,0,0.4)` for card dropshadows and a subtle `rgba(255,107,53,0.15)` glow around primary orange elements.",
+    "The AI Match Modal should be implemented as a bottom sheet (`@gorhom/bottom-sheet`) with a blur backdrop. It must be thumb-accessible, swipe-to-close, with 'Message Now' as the prominent action.",
+    "Copy should be conversational Hinglish (e.g., 'Main tera logo design karunga, tu mera tax bharda'). Integrate this naturally in empty states and onboarding.",
+    "Any text overlaid on background images (e.g., Onboarding, SwapKaro Pro) MUST have a 3-stop top-to-bottom vertical gradient scrim ranging from transparent to at least 75% surfaceInverse/black to ensure absolute text readability."
+  ]
+}
