@@ -263,8 +263,8 @@ async def request_otp(payload: OTPRequest) -> dict:
 
 @api.post("/auth/verify-otp")
 async def verify_otp(payload: OTPVerify) -> dict:
-    if payload.otp != "1234":
-        raise HTTPException(400, "Galat OTP. Try 1234")
+    if payload.otp != "123456":
+        raise HTTPException(400, "Galat OTP. Try 123456")
     user = await db.users.find_one({"phone": payload.phone}, {"_id": 0})
     if not user:
         new_user = UserProfile(phone=payload.phone, name="").model_dump()
