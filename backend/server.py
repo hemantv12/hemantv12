@@ -23,9 +23,8 @@ load_dotenv(ROOT_DIR / ".env")
 
 # --- Config ---------------------------------------------------------------
 MONGO_URL = os.environ["MONGO_URL"]
-DB_NAME = os.environ["DB_NAME"]
+DB_NAME = os.environ.get("DB_NAME", "swapkaro")
 JWT_SECRET = os.environ.get("JWT_SECRET", "dev-secret")
-EMERGENT_LLM_KEY = os.environ.get("EMERGENT_LLM_KEY", "")
 JWT_ALGO = "HS256"
 
 client = AsyncIOMotorClient(MONGO_URL)
@@ -244,14 +243,15 @@ SEED_USERS = [
 
 @app.on_event("startup")
 async def seed_users() -> None:
-    if await db.users.count_documents({}) >= len(SEED_USERS):
-        return
     for s in SEED_USERS:
-        if await db.users.find_one({"phone": s["phone"]}):
+        existing = await db.users.find_one({"phone": s["phone"]})
+        if existing:
+            # Make sure is_open is True so they show in feed
+            await db.users.update_one({"phone": s["phone"]}, {"$set": {"is_open": True}})
             continue
-        user = UserProfile(**s).model_dump()
+        user = UserProfile(**s, is_open=True).model_dump()
         await db.users.insert_one(user)
-    logger.info("Seeded %d users", len(SEED_USERS))
+    logger.info("Seed check complete for %d users", len(SEED_USERS))
 
 
 # --- Auth (mock OTP) ------------------------------------------------------
@@ -320,16 +320,20 @@ async def get_user(user_id: str, _: dict = Depends(current_user)) -> dict:
 # --- AI helpers (Claude Sonnet 4.6) ---------------------------------------
 async def _ask_claude(system: str, prompt: str, session: str) -> str:
     """One-shot Claude call (non-streaming) — used for short JSON-ish replies."""
-    from emergentintegrations.llm.chat import LlmChat, UserMessage
+    import anthropic
 
-    if not EMERGENT_LLM_KEY:
+    ANTHROPIC_KEY = os.environ.get("ANTHROPIC_API_KEY", "")
+    if not ANTHROPIC_KEY:
         return ""
-    chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=session, system_message=system).with_model(
-        "anthropic", "claude-sonnet-4-6"
-    )
     try:
-        resp = await chat.send_message(UserMessage(text=prompt))
-        return str(resp)
+        client_ai = anthropic.Anthropic(api_key=ANTHROPIC_KEY)
+        message = client_ai.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=256,
+            system=system,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return message.content[0].text if message.content else ""
     except Exception as e:  # noqa: BLE001
         logger.warning("Claude call failed: %s", e)
         return ""
