@@ -1,0 +1,33 @@
+# SubSathi Android frontend
+
+React Native + Expo Android application for subscription tracking, renewal reminders, spending insights and optional Gmail-driven discovery.
+
+## Implemented frontend flows
+
+- Local SQLite subscription tracker with add/edit/delete.
+- Monthly/yearly spend estimates, upcoming renewals, category insights and local reminders.
+- Connect Gmail using the backend's Google OAuth flow (never asks for a Gmail password).
+- OAuth returns a one-time code to `subsathi://auth`; the app exchanges it with the API for a session and stores the session using Expo SecureStore.
+- After connecting Gmail, the app triggers a scan. Opening the Email scan screen while connected triggers another scan.
+- Review detections and import selected candidates into the local tracker.
+- Missing price or billing-cycle metadata cannot be silently imported as verified; missing renewal dates are left empty for review.
+- Disconnect Gmail and delete the server account from Settings. Locally imported tracker entries are kept unless the user clears local data separately.
+
+## Configure backend URL
+
+Copy `.env.example` to `.env` and set `EXPO_PUBLIC_API_BASE_URL`.
+
+- Android Studio emulator: `http://10.0.2.2:8000`
+- Physical Android phone: use the development computer's LAN IP, with phone and computer on the same network.
+- Production: use the hosted HTTPS API URL.
+
+```bash
+npm install
+npx expo start
+```
+
+Use Expo SDK-compatible Android development tooling. To create a test APK, configure EAS with your own account and run `eas build --platform android --profile preview`.
+
+## Honest current limitations
+
+Gmail reading works only after the backend is deployed and its Google OAuth client, Gmail API, token encryption key, JWT secret and database are configured. General-public access may require Google verification and a security assessment. The backend scans supported receipt evidence; it cannot detect phone-only registrations without a separate source. Full subscription list cloud sync is not implemented in this local-first MVP.

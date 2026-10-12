@@ -1,0 +1,14 @@
+.env
+**/.env
+.venv/
+**/.venv/
+node_modules/
+**/node_modules/
+.expo/
+**/.expo/
+dist/
+web-build/
+*.db
+__pycache__/
+.pytest_cache/
+*.pyc

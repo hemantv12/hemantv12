@@ -1,0 +1,36 @@
+{
+  "expo": {
+    "name": "SubSathi",
+    "slug": "subsathi",
+    "version": "0.2.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "scheme": "subsathi",
+    "android": {
+      "package": "in.subsathi.app",
+      "versionCode": 2,
+      "adaptiveIcon": {
+        "backgroundColor": "#0D2330",
+        "foregroundImage": "./assets/adaptive-icon.png"
+      }
+    },
+    "plugins": [
+      "expo-sqlite",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#15A879",
+          "defaultChannel": "renewals"
+        }
+      ],
+      "expo-secure-store",
+      "expo-web-browser"
+    ],
+    "extra": {
+      "appStage": "oauth-scan-mvp",
+      "gmailIntegration": "backend-required"
+    },
+    "icon": "./assets/icon.png"
+  }
+}
