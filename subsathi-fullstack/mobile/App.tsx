@@ -64,7 +64,7 @@ type GmailCandidate = {
   alreadyImported: boolean;
 };
 
-const API_BASE_URL = (process.env.EXPO_PUBLIC_API_BASE_URL || 'http://10.0.2.2:8000').replace(/\/$/, '');
+const API_BASE_URL = (process.env.EXPO_PUBLIC_API_BASE_URL || 'https://subsathi-api.onrender.com').replace(/\/$/, '');
 const SESSION_KEY = 'subsathi_api_session_v1';
 const GOOGLE_AUTH_RETURN_URL = 'subsathi://auth';
 

@@ -1,0 +1,53 @@
+name: Build SubSathi Android test APK
+
+on:
+  push:
+    branches:
+      - subsathi-launch
+    paths:
+      - 'subsathi-fullstack/mobile/**'
+      - '.github/workflows/subsathi-android.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android-apk:
+    name: Build installable Android test APK
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: subsathi-fullstack/mobile
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Configure Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Configure Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Install Android SDK
+        uses: android-actions/setup-android@v3
+      - name: Install Android build tools
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools"
+      - name: Install JavaScript dependencies
+        run: npm install --no-audit --no-fund
+      - name: Generate native Android project
+        run: npx expo prebuild --platform android --non-interactive --no-install
+      - name: Build debug APK
+        run: |
+          chmod +x android/gradlew
+          cd android
+          ./gradlew assembleDebug --no-daemon
+      - name: Upload test APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: SubSathi-Android-test-APK
+          path: subsathi-fullstack/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
