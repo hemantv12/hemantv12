@@ -298,7 +298,12 @@ def parse_billing_message(*, message_id: str, subject: str, sender: str, date_he
         if not candidate_name or len(candidate_name) > 100:
             return None
         # Reject generic subjects that do not identify a product/service.
-        if candidate_name.lower() in {"subscription", "membership", "payment", "invoice", "receipt", "renewal", "billing"}:
+        if candidate_name.lower() in {
+            "subscription", "membership", "payment", "invoice", "receipt", "renewal", "billing",
+            "confirmation", "confirmed", "successful", "success", "notification", "update",
+            "notice", "account update", "payment confirmation", "payment successful",
+            "transaction notice", "billing notice", "subscription notice",
+        }:
             return None
         merchant_name, category, manage_url = candidate_name, "Other", ""
 
