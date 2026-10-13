@@ -42,6 +42,9 @@ class OAuthState(Base):
 
     state: Mapped[str] = mapped_column(String(128), primary_key=True)
     redirect_target: Mapped[str] = mapped_column(String(20), default="mobile")
+    # PKCE verifier generated for this authorization attempt. Short-lived and deleted
+    # with the state record after callback validation.
+    code_verifier: Mapped[str | None] = mapped_column(String(128), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     expires_at: Mapped[datetime] = mapped_column(DateTime, index=True)
 
