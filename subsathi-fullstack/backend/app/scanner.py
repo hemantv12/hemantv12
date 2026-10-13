@@ -299,10 +299,10 @@ def parse_billing_message(*, message_id: str, subject: str, sender: str, date_he
         if not transactional_subject:
             return None
         clean_subject = re.sub(
-            r"(?i)^(your|the)\\s+|^(receipt|invoice|payment|renewal|subscription|membership)\\s*[:#-]?\\s*",
+            r"(?i)^(your|the)\s+|^(receipt|invoice|payment|renewal|subscription|membership)\s*[:#-]?\s*",
             "",
             subject,
-        ).strip(" \\t:-")
+        ).strip(" \t:-")
         # Trim renewal boilerplate and duration from a real product name, e.g.
         # "Zomato Gold has been renewed successfully for 3 months" -> "Zomato Gold".
         clean_subject = re.sub(
