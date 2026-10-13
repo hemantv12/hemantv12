@@ -5,6 +5,8 @@ import secrets
 import hashlib
 import logging
 import os
+from concurrent.futures import ThreadPoolExecutor
+from threading import local
 from datetime import datetime, timedelta, timezone
 from typing import Any
 from urllib.parse import quote
@@ -396,8 +398,27 @@ def _body_from_gmail_payload(payload: dict[str, Any]) -> str:
     return extract_message_text(payload)
 
 
+_gmail_scan_worker = local()
+
+
+def _init_gmail_scan_worker(credentials: Credentials) -> None:
+    """Give each scan worker its own HTTP transport; httplib2 transports aren't thread-safe."""
+    _gmail_scan_worker.service = build("gmail", "v1", credentials=credentials, cache_discovery=False)
+
+
+def _fetch_gmail_message_for_scan(message_id: str) -> dict[str, Any] | None:
+    service = getattr(_gmail_scan_worker, "service", None)
+    if service is None:
+        raise RuntimeError("Gmail scan worker was not initialized.")
+    try:
+        return service.users().messages().get(userId="me", id=message_id, format="full").execute()
+    except HttpError:
+        # A single removed/restricted email should not fail the user's whole scan.
+        return None
+
+
 @app.post("/api/gmail/scan")
-def scan_gmail(max_messages: int = Query(150, ge=1, le=500), user: User = Depends(current_user), db: Session = Depends(get_db)) -> dict[str, Any]:
+def scan_gmail(max_messages: int = Query(100, ge=1, le=200), user: User = Depends(current_user), db: Session = Depends(get_db)) -> dict[str, Any]:
     credentials = credentials_for_user(db, user)
     try:
         service = build("gmail", "v1", credentials=credentials, cache_discovery=False)
@@ -413,11 +434,23 @@ def scan_gmail(max_messages: int = Query(150, ge=1, le=500), user: User = Depend
             page_token = page.get("nextPageToken")
             if not page_token or not page.get("messages"):
                 break
+
+        # Fetch message details concurrently. The previous implementation made up
+        # to 150+ full-message Gmail API calls sequentially, causing long waits.
+        message_ids = [str(ref.get("id", "")) for ref in refs if ref.get("id")]
+        if message_ids:
+            with ThreadPoolExecutor(
+                max_workers=min(8, len(message_ids)),
+                initializer=_init_gmail_scan_worker,
+                initargs=(credentials,),
+            ) as executor:
+                messages = list(executor.map(_fetch_gmail_message_for_scan, message_ids))
+        else:
+            messages = []
+
         parsed: list[dict[str, Any]] = []
-        for ref in refs:
-            try:
-                message = service.users().messages().get(userId="me", id=ref["id"], format="full").execute()
-            except HttpError:
+        for message_id, message in zip(message_ids, messages):
+            if not message:
                 continue
             payload = message.get("payload") or {}
             headers = {str(item.get("name", "")).lower(): str(item.get("value", "")) for item in payload.get("headers") or []}
@@ -425,7 +458,7 @@ def scan_gmail(max_messages: int = Query(150, ge=1, le=500), user: User = Depend
             sender = headers.get("from", "")
             date_header = headers.get("date", "")
             body = _body_from_gmail_payload(payload)
-            candidate = parse_billing_message(message_id=str(ref.get("id", "")), subject=subject, sender=sender, date_header=date_header, body=body)
+            candidate = parse_billing_message(message_id=message_id, subject=subject, sender=sender, date_header=date_header, body=body)
             if candidate:
                 parsed.append(candidate)
         grouped = group_billing_evidence(parsed)
@@ -449,12 +482,14 @@ def scan_gmail(max_messages: int = Query(150, ge=1, le=500), user: User = Depend
         db.commit()
         saved = db.scalars(select(ScanCandidate).where(ScanCandidate.user_id == user.id).order_by(ScanCandidate.imported.asc(), ScanCandidate.updated_at.desc())).all()
         return {
-            "scanned_messages": len(refs),
+            "scanned_messages": len(message_ids),
             "matched_receipts": len(parsed),
             "candidate_count": len(grouped),
             "scanned_at": now_utc().isoformat() + "Z",
             "candidates": [candidate_public(item) for item in saved[:100]],
             "notice": "Detection is evidence-based, not perfect. Review prices and dates before relying on them.",
+            "scan_limit": limit,
+            "scan_note": "Recent billing/renewal messages are fetched in parallel; review all details before importing.",
         }
     except HTTPException:
         raise
