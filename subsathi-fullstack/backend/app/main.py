@@ -254,6 +254,8 @@ def google_callback(code: str | None = None, state: str | None = None, error: st
             stage, type(exc).__name__, oauth_error or "none", upstream_status or "none",
         )
         # Never expose provider tokens or raw exception details on a public callback page/deep link.
+        if stage == "exchange_authorization_code" and type(exc).__name__ == "InvalidClientError":
+            return callback_deeplink(error="Google rejected the OAuth client credentials. Update GOOGLE_CLIENT_SECRET in Render using a fresh secret from this exact Web OAuth client, then reconnect.")
         return callback_deeplink(error="Could not complete Google authorization. Check server OAuth settings and try again.")
 
 
