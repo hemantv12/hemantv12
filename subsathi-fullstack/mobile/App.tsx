@@ -357,6 +357,7 @@ function AppContent() {
   const [scanCandidates, setScanCandidates] = useState<GmailCandidate[]>([]);
   const [selectedCandidateIds, setSelectedCandidateIds] = useState<number[]>([]);
   const [candidateEdits, setCandidateEdits] = useState<Record<number, GmailCandidateDraft>>({});
+  const [scanSummary, setScanSummary] = useState<{ scannedMessages: number; candidateCount: number } | null>(null);
   const [apiReachable, setApiReachable] = useState<boolean | null>(null);
   const [googleOAuthConfigured, setGoogleOAuthConfigured] = useState<boolean | null>(null);
   const autoScanSessionRef = useRef<string | null>(null);
@@ -680,6 +681,7 @@ function AppContent() {
     const session = sessionOverride || apiSession;
     if (!session) { setScanError('Connect Gmail first.'); return; }
     setScanError('');
+    setScanSummary(null);
     setScanLoading(true);
     try {
       const response = await fetch(`${API_BASE_URL}/api/gmail/scan`, {
@@ -715,6 +717,7 @@ function AppContent() {
         renewalText: item.nextRenewal || '',
       }])));
       setSelectedCandidateIds(adjusted.filter((item) => !item.alreadyImported && item.amount !== null && item.cycle !== 'Unknown').map((item) => item.id));
+      setScanSummary({ scannedMessages: Number(payload.scanned_messages || 0), candidateCount: Number(payload.candidate_count || adjusted.length) });
     } catch (error) {
       setScanError(error instanceof Error ? error.message : 'Could not scan Gmail. Please retry.');
     } finally {
@@ -1141,13 +1144,90 @@ function AppContent() {
               {scanLoading ? <View style={{ paddingVertical: 18, alignItems: 'center' }}><ActivityIndicator color={C.green} size="large" /><Text style={styles.settingBody}>{gmailEmail ? 'Scanning billing-related messages…' : 'Opening Google authorization…'}</Text></View> : null}
               {!gmailEmail ? <PrimaryButton title={googleOAuthConfigured === false ? 'Check Gmail setup again' : 'Connect Gmail securely'} onPress={() => { void connectGmail(); }} /> : <View style={{ gap: 9 }}><PrimaryButton title={scanLoading ? 'Scanning…' : 'Scan my billing emails'} onPress={() => { if (!scanLoading) void scanGmail(); }} /><GhostButton title="Disconnect Gmail" onPress={() => { Alert.alert('Disconnect Gmail?', 'SubSathi will delete the server-stored Gmail credential and cached scan results. Plans already imported to this phone will remain.', [{ text: 'Keep connected', style: 'cancel' }, { text: 'Disconnect', style: 'destructive', onPress: () => { void disconnectGmail(); } }]); }} /></View>}
             </View>
-            {gmailEmail && scanCandidates.length > 0 ? <View style={{ marginBottom: 18 }}><SectionTitle title="Detected subscriptions" action={`${scanCandidates.filter((item) => !item.alreadyImported && item.amount !== null && item.cycle !== 'Unknown').length} importable`} /><Text style={styles.fieldHint}>Select plans to import. Missing price or billing cycle needs manual confirmation. Estimates are never treated as verified renewal dates.</Text>{scanCandidates.map((candidate) => {
-              const selected = selectedCandidateIds.includes(candidate.id);
-              const eligible = !candidate.alreadyImported && candidate.amount !== null && candidate.amount > 0 && candidate.cycle !== 'Unknown';
-              const categoryMetaItem = categoryMeta(candidate.category);
-              return <Pressable key={candidate.id} disabled={!eligible} onPress={() => setSelectedCandidateIds((current) => selected ? current.filter((id) => id !== candidate.id) : [...current, candidate.id])} style={{ flexDirection: 'row', gap: 10, alignItems: 'center', backgroundColor: C.white, borderColor: selected ? C.green : C.line, borderWidth: selected ? 1.5 : 1, borderRadius: 15, padding: 12, marginTop: 9, opacity: eligible ? 1 : 0.6 }}><View style={{ width: 23, height: 23, borderRadius: 7, borderWidth: 1, borderColor: selected ? C.green : '#CBD7D2', backgroundColor: selected ? C.green : C.white, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: C.white, fontSize: 14, fontWeight: '900' }}>{selected ? '✓' : ''}</Text></View><View style={[styles.serviceIcon, { backgroundColor: categoryMetaItem.tint }]}><Text style={styles.serviceEmoji}>{categoryMetaItem.emoji}</Text></View><View style={{ flex: 1 }}><Text style={styles.serviceName}>{candidate.name}</Text><Text style={styles.serviceSub}>{candidate.evidenceCount} billing email(s) · Confidence {candidate.confidence}%</Text><Text style={styles.serviceSub}>{candidate.nextRenewal ? `Renewal: ${formatDate(candidate.nextRenewal)}` : 'Renewal date not found — review required'}{candidate.cycle === 'Unknown' ? ' · Billing cycle not clear' : ` · ${candidate.cycle}`}</Text>{candidate.alreadyImported ? <Pill tone="grey">Already tracked</Pill> : candidate.needsReview ? <Pill tone="orange">Check details</Pill> : <Pill tone="green">Detected</Pill>}</View><View style={{ alignItems: 'flex-end' }}><Text style={styles.serviceAmount}>{candidate.amount !== null ? money(candidate.amount) : 'Price ?'}</Text><Text style={styles.serviceSub}>{candidate.amount !== null ? `per ${candidate.cycle.toLowerCase()}` : 'Need review'}</Text></View></Pressable>;
-            })}<View style={{ marginTop: 14 }}><PrimaryButton title={scanLoading ? 'Importing…' : `Import ${selectedCandidateIds.length} selected`} onPress={() => { if (!scanLoading) void importGmailCandidates(); }} /></View></View> : null}
-            {gmailEmail && !scanCandidates.length && !scanLoading ? <View style={styles.emptyCard}><View style={styles.emptyIcon}><Text style={{ fontSize: 26 }}>🔎</Text></View><Text style={styles.emptyTitle}>Ready to find your subscriptions</Text><Text style={styles.emptyBody}>Scan billing emails to discover supported plans. Some providers may not include their renewal price or date in the email.</Text></View> : null}
+            {gmailEmail && scanSummary ? <View style={{ backgroundColor: C.greenPale, borderRadius: 13, padding: 12, marginBottom: 14 }}>
+              <Text style={{ color: C.greenDark, fontSize: 11, fontWeight: '800' }}>Checked {scanSummary.scannedMessages} recent billing-related emails</Text>
+              <Text style={{ color: '#42695E', fontSize: 10, lineHeight: 15, marginTop: 4 }}>{scanSummary.candidateCount > 0 ? `Found ${scanSummary.candidateCount} likely subscription(s). Review each result before importing.` : 'No strong subscription matches found in this batch. Try again later after a renewal or receipt email arrives.'}</Text>
+            </View> : null}
+            {gmailEmail && scanCandidates.length > 0 ? <View style={{ marginBottom: 18 }}>
+              <SectionTitle
+                title="Detected subscriptions"
+                action={selectedCandidateIds.length ? 'Clear selection' : 'Select ready'}
+                onAction={() => setSelectedCandidateIds((current) => current.length
+                  ? []
+                  : scanCandidates.filter((item) => !item.alreadyImported && item.amount !== null && item.amount > 0 && item.cycle !== 'Unknown').map((item) => item.id))}
+              />
+              <Text style={styles.fieldHint}>Tap a row to select it. We will never invent a price, billing cycle or renewal date. Items missing a price or cycle can be selected and completed below.</Text>
+              {scanCandidates.map((candidate) => {
+                const selected = selectedCandidateIds.includes(candidate.id);
+                const categoryMetaItem = categoryMeta(candidate.category);
+                const needsFieldReview = candidate.amount === null || candidate.cycle === 'Unknown';
+                const draft = candidateEdits[candidate.id] || {
+                  amountText: candidate.amount === null ? '' : String(candidate.amount),
+                  cycle: candidate.cycle,
+                  renewalText: candidate.nextRenewal || '',
+                };
+                return <View key={candidate.id} style={{ backgroundColor: C.white, borderColor: selected ? C.green : C.line, borderWidth: selected ? 1.5 : 1, borderRadius: 15, marginTop: 9, overflow: 'hidden', opacity: candidate.alreadyImported ? 0.7 : 1 }}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`${selected ? 'Deselect' : 'Select'} ${candidate.name}`}
+                    disabled={candidate.alreadyImported}
+                    onPress={() => setSelectedCandidateIds((current) => selected ? current.filter((id) => id !== candidate.id) : [...current, candidate.id])}
+                    style={{ flexDirection: 'row', gap: 10, alignItems: 'center', padding: 12, minHeight: 80 }}
+                  >
+                    <View style={{ width: 25, height: 25, borderRadius: 8, borderWidth: 1.5, borderColor: selected ? C.green : '#CBD7D2', backgroundColor: selected ? C.green : C.white, alignItems: 'center', justifyContent: 'center' }}>
+                      <Text style={{ color: C.white, fontSize: 14, fontWeight: '900' }}>{selected ? '✓' : ''}</Text>
+                    </View>
+                    <View style={[styles.serviceIcon, { backgroundColor: categoryMetaItem.tint }]}><Text style={styles.serviceEmoji}>{categoryMetaItem.emoji}</Text></View>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={styles.serviceName}>{candidate.name}</Text>
+                      <Text style={styles.serviceSub}>{candidate.evidenceCount} billing email(s) · Confidence {candidate.confidence}%</Text>
+                      <Text style={styles.serviceSub}>{candidate.nextRenewal ? `Renewal: ${formatDate(candidate.nextRenewal)}` : 'Renewal date not found — no date will be guessed'}{candidate.cycle === 'Unknown' ? ' · Cycle needs review' : ` · ${candidate.cycle}`}</Text>
+                      {candidate.alreadyImported ? <Pill tone="grey">Already tracked</Pill> : candidate.needsReview ? <Pill tone="orange">Review details</Pill> : <Pill tone="green">Detected</Pill>}
+                    </View>
+                    <View style={{ alignItems: 'flex-end', maxWidth: 100 }}>
+                      <Text style={styles.serviceAmount}>{candidate.amount !== null ? money(candidate.amount) : 'Price needed'}</Text>
+                      <Text style={[styles.serviceSub, { textAlign: 'right' }]}>{candidate.amount !== null ? `per ${candidate.cycle.toLowerCase()}` : 'Enter manually'}</Text>
+                    </View>
+                  </Pressable>
+                  {selected && !candidate.alreadyImported && needsFieldReview ? <View style={{ borderTopWidth: 1, borderTopColor: C.line, backgroundColor: '#F8FBF9', padding: 13 }}>
+                    {candidate.amount === null ? <>
+                      <Text style={styles.fieldLabel}>CONFIRM PRICE (INR) *</Text>
+                      <TextInput
+                        value={draft.amountText}
+                        onChangeText={(value) => setCandidateEdits((current) => ({ ...current, [candidate.id]: { ...draft, amountText: value } }))}
+                        placeholder="e.g. 199"
+                        placeholderTextColor="#97A5A8"
+                        style={styles.input}
+                        keyboardType="decimal-pad"
+                        accessibilityLabel={`Price for ${candidate.name}`}
+                      />
+                    </> : null}
+                    {candidate.cycle === 'Unknown' ? <>
+                      <Text style={[styles.fieldLabel, { marginTop: 12 }]}>BILLING CYCLE *</Text>
+                      <View style={styles.cycleRow}>{CYCLES.map((cycle) => <Pressable key={cycle} onPress={() => setCandidateEdits((current) => ({ ...current, [candidate.id]: { ...draft, cycle } }))} style={[styles.cycleChip, draft.cycle === cycle && styles.cycleChipActive]}><Text style={[styles.cycleChipText, draft.cycle === cycle && styles.cycleChipTextActive]}>{cycle}</Text></Pressable>)}</View>
+                    </> : null}
+                    {!candidate.nextRenewal ? <>
+                      <Text style={[styles.fieldLabel, { marginTop: 12 }]}>RENEWAL DATE (OPTIONAL)</Text>
+                      <TextInput
+                        value={draft.renewalText}
+                        onChangeText={(value) => setCandidateEdits((current) => ({ ...current, [candidate.id]: { ...draft, renewalText: value } }))}
+                        placeholder="YYYY-MM-DD — leave blank if unknown"
+                        placeholderTextColor="#97A5A8"
+                        style={styles.input}
+                        autoCapitalize="none"
+                        maxLength={10}
+                        accessibilityLabel={`Renewal date for ${candidate.name}`}
+                      />
+                      <Text style={styles.fieldHint}>Only enter a date confirmed by the provider. The app will not guess one.</Text>
+                    </> : null}
+                  </View> : null}
+                </View>;
+              })}
+              <View style={{ marginTop: 14 }}>
+                <PrimaryButton title={scanLoading ? 'Importing…' : selectedCandidateIds.length ? `Import ${selectedCandidateIds.length} selected` : 'Select a subscription to import'} onPress={() => { if (!scanLoading && selectedCandidateIds.length) void importGmailCandidates(); }} />
+              </View>
+            </View> : null}
+            {gmailEmail && !scanCandidates.length && !scanLoading ? <View style={styles.emptyCard}><View style={styles.emptyIcon}><Text style={{ fontSize: 26 }}>🔎</Text></View><Text style={styles.emptyTitle}>{scanSummary ? 'No subscriptions confidently identified' : 'Ready to find your subscriptions'}</Text><Text style={styles.emptyBody}>{scanSummary ? `SubSathi checked ${scanSummary.scannedMessages} recent billing-related emails but did not find a strong match. Try scanning again after a provider receipt or renewal email arrives.` : 'Scan billing emails to discover supported plans. Some providers may not include their renewal price or date in the email.'}</Text></View> : null}
             <Text style={styles.formPrivacyNote}>Only the supported metadata from billing-related email results is retained by the server. Full email bodies are processed for extraction and are not stored by the scanner. Disconnect access if you no longer want SubSathi to scan Gmail.</Text>
           </ScrollView>
         </SafeAreaView>
