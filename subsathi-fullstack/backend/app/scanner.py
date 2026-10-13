@@ -142,47 +142,149 @@ def parse_sender_domain(sender: str) -> str:
     return match.group(1).lower() if match else ""
 
 
+STRONG_RECURRING_EVIDENCE = re.compile(
+    r"\\b("
+    r"auto[- ]?renew|recurring payment|billing cycle|next (?:payment|billing|charge|renewal)|"
+    r"renewal(?: date)?|renewed|renews|renews on|will be charged|charged again|"
+    r"trial ends?(?: on)?|subscription (?:receipt|invoice|payment|renewal|renewed|was renewed|has been renewed|confirmed|activated)|"
+    r"membership (?:renewal|renewed|extended)|you (?:have )?subscribed|"
+    r"payment confirmation|payment successful|your plan renews|plan will continue|"
+    r"subscription period"
+    r")\\b",
+    re.IGNORECASE,
+)
+
+MERCHANT_SENDER_DOMAINS: dict[str, tuple[str, ...]] = {
+    "Adobe Creative Cloud": ("adobe.com",),
+    "Netflix": ("netflix.com",),
+    "Spotify Premium": ("spotify.com",),
+    "Canva Pro": ("canva.com",),
+    "YouTube Premium": ("youtube.com", "google.com"),
+    "Apple iCloud+": ("apple.com", "icloud.com"),
+    "Amazon Prime": ("amazon.com", "amazon.in"),
+    "Google One": ("google.com", "googlemail.com"),
+    "Microsoft 365": ("microsoft.com", "office.com"),
+    "JioHotstar": ("hotstar.com", "jio.com"),
+    "ChatGPT Plus": ("openai.com",),
+    "Dropbox Plus": ("dropbox.com",),
+    "Notion": ("notion.so", "notion.com"),
+    "LinkedIn Premium": ("linkedin.com",),
+    "Zoom Pro": ("zoom.us", "zoom.com"),
+    "Duolingo Super": ("duolingo.com",),
+    "SonyLIV": ("sonyliv.com",),
+    "ZEE5": ("zee5.com",),
+    "Figma": ("figma.com",),
+    "Amazon Music": ("amazon.com", "amazon.in"),
+}
+
+
+def _domain_matches(domain: str, roots: tuple[str, ...]) -> bool:
+    return bool(domain) and any(domain == root or domain.endswith("." + root) for root in roots)
+
+
 def parse_billing_message(*, message_id: str, subject: str, sender: str, date_header: str, body: str) -> dict[str, Any] | None:
-    """Extract metadata from one email; never returns the message body or full subject."""
-    combined = f"{subject}\n{body}"[:50000]
-    if not RECURRING_TERMS.search(combined):
+    """Extract a likely recurring subscription from a billing/renewal email.
+
+    Marketing and one-off purchase emails are rejected unless they contain a
+    strong transaction/renewal cue. Full message content is never returned.
+    """
+    subject = decode_header(subject or "")
+    sender = decode_header(sender or "")
+    combined = f"{subject}\\n{body}"[:50000]
+    # Cheap first-pass filter; words like "monthly" alone are not sufficient evidence.
+    if not RECURRING_TERMS.search(combined) or not STRONG_RECURRING_EVIDENCE.search(combined):
         return None
-    lowered = combined.lower()
+
+    sender_lower = sender.lower()
+    sender_domain = parse_sender_domain(sender)
+    subject_lower = subject.lower()
     match_info: tuple[Merchant, int] | None = None
-    sender_lower = (sender or "").lower()
+    match_identity_confident = False
+
+    # Prefer a service named in the subject, then a trusted provider sender,
+    # then a body mention. This avoids picking a brand from a footer/advert.
     for merchant in MERCHANTS:
-        for alias in merchant.aliases:
-            match = re.search(re.escape(alias), combined, re.I)
-            if match:
-                # Prefer matches in subject/body near the beginning and authoritative sender-domain matches.
-                score = match.start()
-                if match_info is None or score < match_info[1]:
-                    match_info = (merchant, score)
-                break
-    merchant = match_info[0] if match_info else None
-    amount = parse_amount_near(combined, match_info[1] if match_info else 0)
+        domains = MERCHANT_SENDER_DOMAINS.get(merchant.name, ())
+        sender_trusted = _domain_matches(sender_domain, domains)
+        sender_brand = any(alias.lower() in sender_lower for alias in merchant.aliases)
+        subject_positions = [
+            match.start() for alias in merchant.aliases
+            if (match := re.search(re.escape(alias), subject, re.IGNORECASE))
+        ]
+        all_positions = [
+            match.start() for alias in merchant.aliases
+            if (match := re.search(re.escape(alias), combined, re.IGNORECASE))
+        ]
+        if not all_positions:
+            continue
+        subject_match = bool(subject_positions)
+        identity_confident = subject_match or sender_trusted or sender_brand
+        score = (
+            -10000 if subject_match else
+            -5000 if sender_trusted or sender_brand else
+            0
+        ) + min(subject_positions or all_positions)
+        if match_info is None or score < match_info[1]:
+            match_info = (merchant, score)
+            match_identity_confident = identity_confident
+
+    amount = parse_amount_near(combined, max(0, match_info[1] if match_info else 0))
     cycle = parse_cycle(combined)
     next_renewal = parse_date(combined)
     evidence_date = ""
     try:
-        parsed = parsedate_to_datetime(date_header)
-        evidence_date = parsed.isoformat() if parsed else ""
+        parsed_date = parsedate_to_datetime(date_header)
+        evidence_date = parsed_date.isoformat() if parsed_date else ""
     except (TypeError, ValueError, OverflowError):
         evidence_date = ""
 
-    # Avoid turning a one-off product purchase into a recurring plan.
-    if merchant is None:
-        if not re.search(r"\b(subscription|auto[- ]?renew|recurring payment|membership renewal|your plan renews|billing cycle)\b", combined, re.I):
+    merchant = match_info[0] if match_info else None
+    if merchant is not None:
+        # A service name buried in an unrelated email is not enough. When the
+        # subject/sender doesn't identify the provider, require amount plus
+        # an explicit cycle or renewal date as corroborating billing evidence.
+        if not match_identity_confident and not (amount is not None and (cycle or next_renewal)):
             return None
-        # Unknown services can be suggested only when the sender/subject provides a recognisable label.
-        clean_subject = re.sub(r"(?i)^(receipt|invoice|payment|renewal|subscription|order confirmation)\s*[:#-]?\s*", "", subject or "").strip()
-        candidate_name = (clean_subject or parse_sender_domain(sender).split(".")[0].replace("-", " ").title()).strip()
+        merchant_name, category, manage_url = merchant.name, merchant.category, merchant.manage_url
+    else:
+        # Unknown providers need a strong recurring cue and a transaction-like
+        # subject; don't create a subscription for any generic email mentioning
+        # "monthly", "membership", or a free trial.
+        transactional_subject = re.search(
+            r"\\b(receipt|invoice|payment|billing|renewal|renewed|subscription|membership|trial ends?|charge)\\b",
+            subject,
+            re.IGNORECASE,
+        )
+        if not transactional_subject:
+            return None
+        clean_subject = re.sub(
+            r"(?i)^(your|the)\\s+|^(receipt|invoice|payment|renewal|subscription|membership)\\s*[:#-]?\\s*",
+            "",
+            subject,
+        ).strip(" \\t:-")
+        clean_subject = re.sub(
+            r"(?i)\\s+(?:subscription|membership|plan)?\\s*(?:receipt|invoice|payment confirmation|has been renewed|was renewed|renewed|renewal notice|billing notice)\\s*[.!-]*$",
+            "",
+            clean_subject,
+        ).strip(" \\t:-")
+        sender_label = sender_domain.split(".")[0].replace("-", " ").title()
+        candidate_name = (clean_subject or sender_label).strip()
         if not candidate_name or len(candidate_name) > 100:
             return None
+        # Reject generic subjects that do not identify a product/service.
+        if candidate_name.lower() in {"subscription", "membership", "payment", "invoice", "receipt", "renewal", "billing"}:
+            return None
         merchant_name, category, manage_url = candidate_name, "Other", ""
-    else:
-        merchant_name, category, manage_url = merchant.name, merchant.category, merchant.manage_url
 
+    confidence = 40
+    if amount is not None:
+        confidence += 18
+    if cycle:
+        confidence += 14
+    if next_renewal:
+        confidence += 14
+    if match_info and match_identity_confident:
+        confidence += 12
     evidence = {
         "message_id": message_id,
         "amount": amount,
@@ -192,10 +294,9 @@ def parse_billing_message(*, message_id: str, subject: str, sender: str, date_he
         "category": category,
         "manage_url": manage_url,
         "service_name": merchant_name,
-        "sender_domain": parse_sender_domain(sender),
+        "sender_domain": sender_domain,
+        "confidence": min(98, confidence),
     }
-    # A known merchant plus a recurring indicator is a candidate even when the amount or date is absent.
-    evidence["confidence"] = max(35, min(97, 65 + (12 if amount is not None else 0) + (12 if next_renewal else 0) + (8 if cycle else 0)))
     return evidence
 
 
