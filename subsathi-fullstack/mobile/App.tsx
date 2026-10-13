@@ -7,7 +7,6 @@ import {
   Modal,
   Platform,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -20,6 +19,8 @@ import * as SQLite from 'expo-sqlite';
 import * as Notifications from 'expo-notifications';
 import * as SecureStore from 'expo-secure-store';
 import * as WebBrowser from 'expo-web-browser';
+import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import mobileAds, { AdsConsent, BannerAd, BannerAdSize, TestIds } from 'react-native-google-mobile-ads';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -232,7 +233,12 @@ function BrandMark({ size = 42 }: { size?: number }) {
   return <View style={[styles.brandMark, { width: size, height: size, borderRadius: size * 0.32 }]}><Text style={{ fontSize: size * 0.45 }}>↻</Text></View>;
 }
 
-export default function App() {
+function AppContent() {
+  const insets = useSafeAreaInsets();
+  const adUnitFromEnv = (process.env.EXPO_PUBLIC_ADMOB_ANDROID_BANNER_ID || '').trim();
+  const adUnitId = adUnitFromEnv || TestIds.ADAPTIVE_BANNER;
+  const isTestAds = !adUnitFromEnv;
+  const adsInitializedRef = useRef(false);
   const dbRef = useRef<SQLite.SQLiteDatabase | null>(null);
   const [ready, setReady] = useState(false);
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
@@ -243,6 +249,9 @@ export default function App() {
   const [editing, setEditing] = useState<Subscription | null>(null);
   const [scanInfoOpen, setScanInfoOpen] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [adsReady, setAdsReady] = useState(false);
+  const [adFailed, setAdFailed] = useState(false);
+  const [privacyOptionsRequired, setPrivacyOptionsRequired] = useState(false);
   const [apiSession, setApiSession] = useState<string | null>(null);
   const [gmailEmail, setGmailEmail] = useState<string | null>(null);
   const [scanLoading, setScanLoading] = useState(false);
@@ -302,6 +311,29 @@ export default function App() {
       } catch (error) {
         // API may be offline during app startup. Local subscription tracking remains usable.
         console.warn('Could not restore SubSathi cloud session', error);
+      }
+    })();
+    return () => { mounted = false; };
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        let info = await AdsConsent.requestInfoUpdate();
+        if (info.isConsentFormAvailable) {
+          info = await AdsConsent.loadAndShowConsentFormIfRequired();
+        }
+        if (!mounted) return;
+        setPrivacyOptionsRequired(info.privacyOptionsRequirementStatus === 'REQUIRED');
+        if (info.canRequestAds) {
+          await mobileAds().initialize();
+          adsInitializedRef.current = true;
+          if (mounted) setAdsReady(true);
+        }
+      } catch (error) {
+        // Ads must never block the core subscription tracker if consent or ad services are unavailable.
+        console.warn('Ads consent or initialization is not available yet', error);
       }
     })();
     return () => { mounted = false; };
@@ -550,6 +582,26 @@ export default function App() {
 
   const toastLocal = (message: string) => Alert.alert('SubSathi', message);
 
+  const openAdPrivacyOptions = async () => {
+    try {
+      const info = await AdsConsent.showPrivacyOptionsForm();
+      setPrivacyOptionsRequired(info.privacyOptionsRequirementStatus === 'REQUIRED');
+      if (info.canRequestAds) {
+        if (!adsInitializedRef.current) {
+          await mobileAds().initialize();
+          adsInitializedRef.current = true;
+        }
+        setAdsReady(true);
+      } else {
+        setAdsReady(false);
+      }
+      toastLocal('Advertising privacy choices updated.');
+    } catch (error) {
+      console.warn('Could not open advertising privacy options', error);
+      toastLocal('Privacy options are not available on this device right now.');
+    }
+  };
+
   const openScanner = () => {
     setScanError('');
     setScanInfoOpen(true);
@@ -646,6 +698,7 @@ export default function App() {
         <Text style={styles.settingsSectionLabel}>CONNECTED SERVICES</Text>
         <Pressable onPress={openScanner} style={styles.settingRow}><View style={[styles.settingIcon, { backgroundColor: C.bluePale }]}><Text>✉</Text></View><View style={styles.settingCopy}><Text style={styles.settingTitle}>Gmail auto-detection</Text><Text style={styles.settingBody}>{gmailEmail ? `Connected to ${gmailEmail} · scan receipts on demand.` : 'Not connected · secure Google OAuth setup required.'}</Text></View><Text style={styles.settingArrow}>›</Text></Pressable>
         <View style={styles.innerDivider} />
+         {privacyOptionsRequired ? <><View style={styles.innerDivider} /><Pressable onPress={() => { void openAdPrivacyOptions(); }} style={styles.settingRow}><View style={[styles.settingIcon, { backgroundColor: C.greenPale }]}><Text>◈</Text></View><View style={styles.settingCopy}><Text style={styles.settingTitle}>Advertising privacy choices</Text><Text style={styles.settingBody}>Review or change the choices shown by Google's consent form.</Text></View><Text style={styles.settingArrow}>›</Text></Pressable></> : null}
         <View style={styles.settingRow}><View style={styles.settingIcon}><Text>🔐</Text></View><View style={styles.settingCopy}><Text style={styles.settingTitle}>Local-first data</Text><Text style={styles.settingBody}>{gmailEmail ? 'Tracker entries remain on this device. Gmail credentials are encrypted on the SubSathi server; receipt contents are parsed for subscription evidence and not saved as full messages.' : 'This MVP stores your tracker entries in local SQLite. No bank, SMS or payment account is connected.'}</Text></View></View>
       </View>
       <View style={styles.panel}>
@@ -659,15 +712,29 @@ export default function App() {
     </ScrollView>
   );
 
-  if (!ready) return <SafeAreaView style={styles.loadingScreen}><StatusBar barStyle="dark-content" backgroundColor={C.cream} /><BrandMark size={58} /><Text style={styles.loadingTitle}>SubSathi</Text><ActivityIndicator color={C.green} style={{ marginTop: 12 }} /><Text style={styles.loadingSub}>Getting your subscriptions ready...</Text></SafeAreaView>;
+  if (!ready) return <SafeAreaView edges={['top', 'bottom']} style={styles.loadingScreen}><StatusBar barStyle="dark-content" backgroundColor={C.cream} /><BrandMark size={58} /><Text style={styles.loadingTitle}>SubSathi</Text><ActivityIndicator color={C.green} style={{ marginTop: 12 }} /><Text style={styles.loadingSub}>Getting your subscriptions ready...</Text></SafeAreaView>;
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView edges={['top']} style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor={C.cream} />
       <View style={styles.appContent}>
         {tab === 'Home' ? renderHome() : tab === 'Subscriptions' ? renderSubscriptions() : tab === 'Insights' ? renderInsights() : renderSettings()}
       </View>
-      <View style={styles.bottomNav}>
+      {adsReady && !adFailed ? <View style={styles.adContainer}>
+        {isTestAds ? <Text style={styles.adTestLabel}>TEST AD · NOT PAID</Text> : null}
+        <BannerAd
+          key={adUnitId}
+          unitId={adUnitId}
+          size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
+          requestOptions={{ requestNonPersonalizedAdsOnly: true }}
+          onAdLoaded={() => setAdFailed(false)}
+          onAdFailedToLoad={(error) => {
+            console.warn('SubSathi banner ad failed to load', error);
+            setAdFailed(true);
+          }}
+        />
+      </View> : null}
+      <View style={[styles.bottomNav, { height: 72 + insets.bottom, paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 8 : 0) }]}>
         {([['Home', '⌂'], ['Subscriptions', '▤'], ['Insights', '◔'], ['Settings', '⚙']] as [Tab, string][]).map(([name, icon]) => <Pressable key={name} onPress={() => setTab(name)} style={styles.navItem}><View style={[styles.navIconWrap, tab === name && styles.navIconActive]}><Text style={[styles.navIcon, tab === name && styles.navIconSelected]}>{icon}</Text></View><Text style={[styles.navLabel, tab === name && styles.navLabelSelected]}>{name}</Text></Pressable>)}
       </View>
       <SubscriptionEditor visible={editorOpen} initial={editing} onClose={() => { setEditorOpen(false); setEditing(null); }} onSave={saveSubscription} onDelete={editing ? () => deleteSubscription(editing) : undefined} />
@@ -782,17 +849,25 @@ const pillGrey = StyleSheet.create({ base: { alignSelf: 'flex-start', background
 const pillRed = StyleSheet.create({ base: { alignSelf: 'flex-start', backgroundColor: C.redPale, borderRadius: 20, paddingHorizontal: 9, paddingVertical: 5 }, text: { fontSize: 10, fontWeight: '700', color: C.red } });
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: C.cream }, appContent: { flex: 1 }, scrollContent: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 24 },
+  safeArea: { flex: 1, backgroundColor: C.cream }, appContent: { flex: 1, minHeight: 0 }, adContainer: { minHeight: 58, alignItems: 'center', justifyContent: 'center', backgroundColor: C.white, borderTopWidth: 1, borderTopColor: C.line, paddingTop: 2, paddingBottom: 2 }, adTestLabel: { color: '#829398', fontSize: 8, fontWeight: '800', letterSpacing: 1, marginBottom: 1 }, scrollContent: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 24 },
   loadingScreen: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: C.cream }, loadingTitle: { marginTop: 12, color: C.ink, fontSize: 24, fontWeight: '800' }, loadingSub: { marginTop: 10, fontSize: 13, color: C.muted },
   brandMark: { alignItems: 'center', justifyContent: 'center', backgroundColor: C.green, overflow: 'hidden' }, brandName: { fontSize: 20, color: C.ink, fontWeight: '800', letterSpacing: -0.6 }, brandTagline: { marginTop: 2, fontSize: 11, color: C.muted }, brandLockup: { flexDirection: 'row', alignItems: 'center', gap: 10 }, homeTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 19 }, profileCircle: { height: 40, width: 40, borderRadius: 20, backgroundColor: '#E1ECE8', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#D2E1DB' }, profileText: { color: C.greenDark, fontWeight: '800', fontSize: 16 },
   heroCard: { borderRadius: 24, backgroundColor: C.navy, padding: 20, overflow: 'hidden' }, heroTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }, heroEyebrow: { fontSize: 10, letterSpacing: 1.2, color: '#B7CDD2', fontWeight: '700' }, heroAmount: { marginTop: 7, fontSize: 31, fontWeight: '800', color: C.white, letterSpacing: -1 }, heroPer: { fontSize: 13, fontWeight: '500', color: '#B7CDD2', letterSpacing: 0 }, heroIconBubble: { width: 52, height: 52, borderRadius: 17, backgroundColor: '#18434A', alignItems: 'center', justifyContent: 'center' }, heroDivider: { height: 1, backgroundColor: '#2C4650', marginVertical: 18 }, heroStatsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, heroStatLabel: { color: '#B7CDD2', fontSize: 10, marginBottom: 6 }, heroStatValue: { color: C.white, fontSize: 13, fontWeight: '700' }, heroStatsSeparator: { width: 1, height: 30, backgroundColor: '#2C4650', marginHorizontal: 3 },
   quickActionRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 20, marginBottom: 24 }, quickAction: { alignItems: 'center', width: '24%' }, quickActionIcon: { height: 52, width: 52, borderRadius: 18, alignItems: 'center', justifyContent: 'center' }, quickActionLabel: { color: C.ink, fontSize: 11, fontWeight: '600', marginTop: 8 }, sectionTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, marginTop: 1 }, sectionTitle: { color: C.ink, fontSize: 17, fontWeight: '800', letterSpacing: -0.4 }, sectionAction: { color: C.greenDark, fontSize: 12, fontWeight: '700' },
   listCard: { backgroundColor: C.white, borderRadius: 18, borderWidth: 1, borderColor: C.line, paddingHorizontal: 14, paddingVertical: 4 }, subscriptionCard: { flexDirection: 'row', alignItems: 'center', paddingVertical: 13, gap: 11 }, compactCard: { paddingVertical: 11 }, serviceIcon: { width: 46, height: 46, borderRadius: 15, alignItems: 'center', justifyContent: 'center' }, serviceEmoji: { fontSize: 20 }, subscriptionMain: { flex: 1, minWidth: 0 }, serviceName: { color: C.ink, fontSize: 13, fontWeight: '800' }, serviceSub: { color: C.muted, fontSize: 10, marginTop: 4 }, duePillRow: { marginTop: 7 }, subscriptionRight: { alignItems: 'flex-end', minWidth: 75 }, serviceAmount: { color: C.ink, fontSize: 13, fontWeight: '800' }, manageMini: { paddingTop: 8, paddingBottom: 2 }, manageMiniText: { color: C.greenDark, fontSize: 10, fontWeight: '700' }, innerDivider: { height: 1, backgroundColor: '#EEF2F1', marginLeft: 0 }, listDivider: { height: 1, backgroundColor: C.line }, cardActionsRow: { flexDirection: 'row', alignItems: 'center', paddingBottom: 11, gap: 8 }, cardAction: { fontSize: 11, color: C.greenDark, fontWeight: '700' }, actionDot: { color: '#ADB9BA' },
   emptyCard: { paddingHorizontal: 24, paddingVertical: 28, borderRadius: 20, borderWidth: 1, borderColor: C.line, borderStyle: 'dashed', backgroundColor: C.white, alignItems: 'center' }, emptyIcon: { width: 56, height: 56, borderRadius: 20, backgroundColor: C.greenPale, alignItems: 'center', justifyContent: 'center', marginBottom: 12 }, emptyTitle: { textAlign: 'center', color: C.ink, fontSize: 16, fontWeight: '800' }, emptyBody: { textAlign: 'center', color: C.muted, fontSize: 12, lineHeight: 18, marginTop: 7, marginBottom: 17 }, primaryButton: { backgroundColor: C.green, borderRadius: 14, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 18, paddingVertical: 14, minHeight: 47 }, primaryButtonSmall: { minHeight: 38, paddingVertical: 9 }, primaryButtonText: { color: C.white, fontSize: 13, fontWeight: '800' }, ghostButton: { borderWidth: 1, borderColor: C.line, paddingHorizontal: 14, paddingVertical: 11, borderRadius: 12 }, ghostButtonText: { color: C.ink, fontSize: 12, fontWeight: '700' }, tipCard: { flexDirection: 'row', alignItems: 'flex-start', marginTop: 15, padding: 14, backgroundColor: '#EAF4F0', borderRadius: 16, gap: 10 }, tipIcon: { width: 36, height: 36, backgroundColor: C.white, borderRadius: 12, alignItems: 'center', justifyContent: 'center' }, tipCopy: { flex: 1 }, tipTitle: { color: C.ink, fontSize: 12, fontWeight: '800' }, tipBody: { marginTop: 5, color: '#56716C', fontSize: 11, lineHeight: 17 }, footerNote: { color: '#8B999C', fontSize: 10, lineHeight: 16, textAlign: 'center', marginTop: 16, marginHorizontal: 8 },
-  bottomNav: { height: 72, flexDirection: 'row', backgroundColor: C.white, borderTopWidth: 1, borderTopColor: C.line, paddingHorizontal: 8, justifyContent: 'space-around', alignItems: 'center', paddingBottom: Platform.OS === 'android' ? 4 : 0 }, navItem: { alignItems: 'center', justifyContent: 'center', width: '25%', gap: 3 }, navIconWrap: { height: 30, minWidth: 48, borderRadius: 13, justifyContent: 'center', alignItems: 'center' }, navIconActive: { backgroundColor: C.greenPale }, navIcon: { color: '#829297', fontSize: 21, fontWeight: '600' }, navIconSelected: { color: C.greenDark }, navLabel: { color: '#89999D', fontSize: 9, fontWeight: '600' }, navLabelSelected: { color: C.greenDark, fontWeight: '800' },
+  bottomNav: { height: 72, flexDirection: 'row', backgroundColor: C.white, borderTopWidth: 1, borderTopColor: C.line, paddingHorizontal: 8, justifyContent: 'space-around', alignItems: 'center' }, navItem: { alignItems: 'center', justifyContent: 'center', width: '25%', gap: 3 }, navIconWrap: { height: 30, minWidth: 48, borderRadius: 13, justifyContent: 'center', alignItems: 'center' }, navIconActive: { backgroundColor: C.greenPale }, navIcon: { color: '#829297', fontSize: 21, fontWeight: '600' }, navIconSelected: { color: C.greenDark }, navLabel: { color: '#89999D', fontSize: 9, fontWeight: '600' }, navLabelSelected: { color: C.greenDark, fontWeight: '800' },
   pageHeader: { marginTop: 9, marginBottom: 20 }, pageEyebrow: { color: C.greenDark, fontSize: 10, fontWeight: '800', letterSpacing: 1.4, marginBottom: 7 }, pageTitle: { color: C.ink, fontSize: 29, fontWeight: '800', letterSpacing: -1 }, pageSub: { color: C.muted, fontSize: 12, marginTop: 6, lineHeight: 18 }, searchBox: { height: 52, flexDirection: 'row', alignItems: 'center', backgroundColor: C.white, borderRadius: 15, borderWidth: 1, borderColor: C.line, paddingLeft: 13, paddingRight: 7, marginBottom: 13 }, searchIcon: { fontSize: 26, color: '#8B9A9E', marginRight: 9 }, searchInput: { flex: 1, fontSize: 13, color: C.ink, paddingVertical: 7 }, searchAdd: { width: 37, height: 37, borderRadius: 12, backgroundColor: C.green, alignItems: 'center', justifyContent: 'center' }, searchAddText: { color: C.white, fontSize: 24, fontWeight: '500', marginTop: -2 }, filterRow: { gap: 7, paddingBottom: 14 }, filterChip: { paddingHorizontal: 14, paddingVertical: 9, borderRadius: 20, backgroundColor: C.white, borderWidth: 1, borderColor: C.line }, filterChipActive: { backgroundColor: C.navy, borderColor: C.navy }, filterText: { fontSize: 11, color: C.muted, fontWeight: '700' }, filterTextActive: { color: C.white }, noteBanner: { marginTop: 14, padding: 13, backgroundColor: C.bluePale, borderRadius: 12, flexDirection: 'row', alignItems: 'flex-start', gap: 8 }, noteBannerIcon: { color: '#3865A8', fontWeight: '800' }, noteBannerText: { color: '#496B91', fontSize: 10, lineHeight: 16, flex: 1 },
   insightHero: { backgroundColor: C.navy, borderRadius: 22, padding: 20, marginBottom: 23 }, insightHeroLabel: { color: '#B7CDD2', fontSize: 10, fontWeight: '800', letterSpacing: 1 }, insightHeroAmount: { color: C.white, fontSize: 31, fontWeight: '800', marginTop: 7, letterSpacing: -1 }, insightHeroNote: { color: '#B7CDD2', fontSize: 10, marginTop: 6, lineHeight: 15 }, insightMetricRow: { flexDirection: 'row', gap: 12, borderTopColor: '#2C4650', borderTopWidth: 1, marginTop: 17, paddingTop: 15 }, insightMetric: { flex: 1 }, insightMetricLabel: { color: '#B7CDD2', fontSize: 10 }, insightMetricValue: { color: C.white, fontSize: 14, fontWeight: '800', marginTop: 5 }, panel: { backgroundColor: C.white, borderRadius: 18, borderWidth: 1, borderColor: C.line, paddingHorizontal: 15, paddingVertical: 7, marginBottom: 21 }, categorySpendRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, gap: 11 }, categorySpendIcon: { width: 38, height: 38, borderRadius: 13, alignItems: 'center', justifyContent: 'center' }, categorySpendMain: { flex: 1 }, categorySpendNameRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, categorySpendName: { color: C.ink, fontSize: 12, fontWeight: '700' }, categorySpendAmount: { color: C.ink, fontSize: 11, fontWeight: '800' }, categoryMonthly: { color: C.muted, fontWeight: '500', fontSize: 9 }, barTrack: { height: 5, backgroundColor: '#EEF2F1', borderRadius: 5, overflow: 'hidden', marginTop: 9 }, barFill: { height: 5, borderRadius: 5, backgroundColor: C.green }, reviewRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 13, gap: 10 }, reviewIcon: { height: 38, width: 38, borderRadius: 13, alignItems: 'center', justifyContent: 'center' }, reviewCopy: { flex: 1 }, reviewTitle: { color: C.ink, fontSize: 12, fontWeight: '800' }, reviewBody: { color: C.muted, fontSize: 10, lineHeight: 16, marginTop: 4 }, reviewArrow: { color: C.muted, fontSize: 24 },
   profilePanel: { flexDirection: 'row', alignItems: 'center', padding: 15, gap: 12, backgroundColor: C.white, borderRadius: 18, borderWidth: 1, borderColor: C.line, marginBottom: 16 }, profilePanelTitle: { color: C.ink, fontSize: 15, fontWeight: '800' }, profilePanelSub: { color: C.muted, fontSize: 11, marginTop: 4 }, settingsSectionLabel: { color: '#829398', fontSize: 9, fontWeight: '800', letterSpacing: 1.2, marginTop: 13, marginBottom: 5 }, settingRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 13, gap: 10 }, settingIcon: { width: 37, height: 37, borderRadius: 13, backgroundColor: '#EFF4F2', alignItems: 'center', justifyContent: 'center' }, settingCopy: { flex: 1 }, settingTitle: { color: C.ink, fontSize: 12, fontWeight: '800' }, settingBody: { color: C.muted, fontSize: 10, lineHeight: 15, marginTop: 4 }, settingArrow: { color: '#8DA0A4', fontSize: 23, paddingLeft: 4 }, settingsActionRow: { paddingVertical: 15, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, settingsAction: { color: C.ink, fontSize: 12, fontWeight: '700' },
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(9, 28, 36, 0.48)', justifyContent: 'center', alignItems: 'center', padding: 22 }, infoModal: { backgroundColor: C.white, borderRadius: 25, padding: 23, width: '100%', maxWidth: 430 }, infoModalIcon: { width: 58, height: 58, backgroundColor: C.bluePale, borderRadius: 19, justifyContent: 'center', alignItems: 'center', marginBottom: 15 }, modalTitle: { color: C.ink, fontSize: 21, fontWeight: '800', letterSpacing: -0.6 }, modalIntro: { color: C.muted, fontSize: 12, lineHeight: 19, marginTop: 10 }, infoChecklist: { gap: 11, backgroundColor: C.cream, borderRadius: 15, padding: 14, marginTop: 16, marginBottom: 18 }, infoChecklistLine: { color: C.ink, fontSize: 11, fontWeight: '600' },
   editorSafeArea: { flex: 1, backgroundColor: C.cream }, editorHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, paddingTop: 12, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: C.line, backgroundColor: C.white }, editorClose: { width: 38, height: 38, borderRadius: 13, backgroundColor: '#F0F4F3', alignItems: 'center', justifyContent: 'center' }, editorCloseText: { color: C.ink, fontSize: 17 }, editorTitle: { color: C.ink, fontSize: 18, fontWeight: '800' }, editorSubtitle: { color: C.muted, fontSize: 10, marginTop: 3 }, editorScroll: { padding: 20, paddingBottom: 35 }, fieldLabel: { color: '#62777D', fontWeight: '800', fontSize: 10, letterSpacing: 1, marginTop: 18, marginBottom: 9 }, input: { backgroundColor: C.white, borderWidth: 1, borderColor: C.line, borderRadius: 13, color: C.ink, fontSize: 13, minHeight: 49, paddingHorizontal: 14, paddingVertical: 12 }, categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }, categoryOption: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 10, borderRadius: 12, backgroundColor: C.white, borderWidth: 1, borderColor: C.line }, categoryOptionActive: { backgroundColor: C.greenPale, borderColor: C.green }, categoryOptionText: { color: C.muted, fontSize: 10, fontWeight: '700' }, categoryOptionTextActive: { color: C.greenDark }, amountInputWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.white, borderWidth: 1, borderColor: C.line, borderRadius: 13, paddingLeft: 15 }, rupeeSign: { color: C.ink, fontSize: 20, fontWeight: '700' }, amountInput: { flex: 1, minHeight: 49, paddingHorizontal: 10, color: C.ink, fontSize: 18, fontWeight: '700' }, cycleRow: { flexDirection: 'row', gap: 7 }, cycleChip: { flex: 1, alignItems: 'center', paddingVertical: 11, borderRadius: 12, borderWidth: 1, borderColor: C.line, backgroundColor: C.white }, cycleChipActive: { backgroundColor: C.navy, borderColor: C.navy }, cycleChipText: { color: C.muted, fontSize: 10, fontWeight: '700' }, cycleChipTextActive: { color: C.white }, fieldHint: { fontSize: 10, lineHeight: 15, color: C.muted, marginTop: 6 }, notesInput: { minHeight: 78, textAlignVertical: 'top' }, reminderRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginVertical: 20, borderRadius: 15, backgroundColor: C.white, borderWidth: 1, borderColor: C.line, padding: 14 }, deleteFromEditor: { alignItems: 'center', paddingVertical: 14 }, deleteFromEditorText: { color: C.red, fontSize: 12, fontWeight: '800' }, formPrivacyNote: { color: '#8B999C', fontSize: 10, lineHeight: 16, textAlign: 'center', marginTop: 14, marginBottom: 10 },
 });
+
+export default function App() {
+  return (
+    <SafeAreaProvider>
+      <AppContent />
+    </SafeAreaProvider>
+  );
+}
