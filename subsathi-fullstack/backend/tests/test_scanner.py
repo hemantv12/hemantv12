@@ -42,3 +42,40 @@ def test_parse_date_supported_formats():
     assert parse_date("Your plan renews on November 18, 2026") == "2026-11-18"
     assert parse_date("Trial ends on 18 Nov 2026") == "2026-11-18"
     assert parse_date("Nothing here") is None
+
+
+def test_ignores_known_brand_marketing_email_with_generic_monthly_word():
+    result = parse_billing_message(
+        message_id="m4",
+        subject="Canva Pro: choose a monthly plan that works for you",
+        sender="Canva <news@canva.com>",
+        date_header="Mon, 12 Oct 2026 10:00:00 +0000",
+        body="Explore our design tools and monthly options. Start creating today.",
+    )
+    assert result is None
+
+
+def test_requires_recurring_transaction_evidence_when_brand_only_appears_in_body():
+    result = parse_billing_message(
+        message_id="m5",
+        subject="October product update",
+        sender="updates@example.com",
+        date_header="Mon, 12 Oct 2026 10:00:00 +0000",
+        body="We love Spotify and our monthly newsletter. Read about music plans.",
+    )
+    assert result is None
+
+
+def test_accepts_explicit_subscription_receipt_even_if_cycle_is_missing():
+    result = parse_billing_message(
+        message_id="m6",
+        subject="Your Netflix subscription receipt",
+        sender="Netflix <billing@netflix.com>",
+        date_header="Mon, 12 Oct 2026 10:00:00 +0000",
+        body="Your subscription was renewed. Total charged ₹649.",
+    )
+    assert result is not None
+    assert result["service_name"] == "Netflix"
+    assert result["amount"] == 649
+    assert result["cycle"] is None
+    assert result["next_renewal"] is None
