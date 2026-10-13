@@ -534,7 +534,14 @@ def scan_gmail(max_messages: int = Query(100, ge=1, le=200), user: User = Depend
             existing.evidence_date = str(candidate.get("evidence_date") or "")
             existing.updated_at = utcnow()
         db.commit()
-        saved = db.scalars(select(ScanCandidate).where(ScanCandidate.user_id == user.id).order_by(ScanCandidate.imported.asc(), ScanCandidate.updated_at.desc())).all()
+        # Return only suggestions that have not already been imported. Imported plans
+        # live in the user's local tracker; repeating them here clutters discovery and
+        # makes a noisy prior scan look like a fresh set of detections.
+        saved = db.scalars(
+            select(ScanCandidate)
+            .where(ScanCandidate.user_id == user.id, ScanCandidate.imported.is_(False))
+            .order_by(ScanCandidate.updated_at.desc())
+        ).all()
         return {
             "scanned_messages": len(message_ids),
             "full_messages_fetched": len(relevant_ids),
