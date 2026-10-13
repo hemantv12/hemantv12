@@ -836,7 +836,7 @@ function AppContent() {
                 <Text style={styles.infoChecklistLine}>✓ Never invent a missing renewal date</Text>
                 <Text style={styles.infoChecklistLine}>✓ Review detections before importing</Text>
               </View>
-              {scanError ? <View style={{ borderRadius: 12, backgroundColor: C.redPale, padding: 12, marginBottom: 12 }}><Text style={{ color: C.red, fontSize: 11, lineHeight: 16 }}>{scanError}</Text></View> : null}
+              {scanError && googleOAuthConfigured !== false ? <View style={{ borderRadius: 12, backgroundColor: C.redPale, padding: 12, marginBottom: 12 }}><Text style={{ color: C.red, fontSize: 11, lineHeight: 16 }}>{scanError}</Text></View> : null}
               {scanLoading ? <View style={{ paddingVertical: 18, alignItems: 'center' }}><ActivityIndicator color={C.green} size="large" /><Text style={styles.settingBody}>{gmailEmail ? 'Scanning billing-related messages…' : 'Opening Google authorization…'}</Text></View> : null}
               {!gmailEmail ? <PrimaryButton title={googleOAuthConfigured === false ? 'Check Gmail setup again' : 'Connect Gmail securely'} onPress={() => { void connectGmail(); }} /> : <View style={{ gap: 9 }}><PrimaryButton title={scanLoading ? 'Scanning…' : 'Scan my billing emails'} onPress={() => { if (!scanLoading) void scanGmail(); }} /><GhostButton title="Disconnect Gmail" onPress={() => { Alert.alert('Disconnect Gmail?', 'SubSathi will delete the server-stored Gmail credential and cached scan results. Plans already imported to this phone will remain.', [{ text: 'Keep connected', style: 'cancel' }, { text: 'Disconnect', style: 'destructive', onPress: () => { void disconnectGmail(); } }]); }} /></View>}
             </View>
