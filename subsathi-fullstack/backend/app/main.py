@@ -163,7 +163,7 @@ def health() -> dict[str, Any]:
 
 
 @app.get("/api/auth/google/url")
-def google_authorization_url(redirect_target: str = Query("mobile", pattern="^mobile$"), db: Session = Depends(get_db)) -> dict[str, str]:
+def google_authorization_url(redirect_target: str = Query("mobile", pattern="^mobile$"), db: Session = Depends(get_db)) -> dict[str, Any]:
     flow = google_flow()
     auth_url, state = flow.authorization_url(
         access_type="offline",
