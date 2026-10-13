@@ -7,6 +7,7 @@ import logging
 import os
 from concurrent.futures import ThreadPoolExecutor
 from threading import local
+from time import perf_counter
 from datetime import datetime, timedelta, timezone
 from typing import Any
 from urllib.parse import quote
@@ -427,6 +428,7 @@ def _fetch_gmail_message_for_scan(message_id: str) -> dict[str, Any] | None:
 
 @app.post("/api/gmail/scan")
 def scan_gmail(max_messages: int = Query(100, ge=1, le=200), user: User = Depends(current_user), db: Session = Depends(get_db)) -> dict[str, Any]:
+    scan_started = perf_counter()
     credentials = credentials_for_user(db, user)
     try:
         service = build("gmail", "v1", credentials=credentials, cache_discovery=False)
@@ -470,6 +472,11 @@ def scan_gmail(max_messages: int = Query(100, ge=1, le=200), user: User = Depend
             if candidate:
                 parsed.append(candidate)
         grouped = group_billing_evidence(parsed)
+        duration_ms = round((perf_counter() - scan_started) * 1000)
+        logging.getLogger("uvicorn.error").info(
+            "Gmail scan complete: messages=%s matched=%s candidates=%s duration_ms=%s workers=%s",
+            len(message_ids), len(parsed), len(grouped), duration_ms, min(8, len(message_ids)),
+        )
         # Replace stale, not-yet-imported detections with the latest scan so old prices don't pile up.
         db.query(ScanCandidate).filter(ScanCandidate.user_id == user.id, ScanCandidate.imported.is_(False)).delete(synchronize_session=False)
         for candidate in grouped:
@@ -497,6 +504,8 @@ def scan_gmail(max_messages: int = Query(100, ge=1, le=200), user: User = Depend
             "candidates": [candidate_public(item) for item in saved[:100]],
             "notice": "Detection is evidence-based, not perfect. Review prices and dates before relying on them.",
             "scan_limit": limit,
+            "scan_duration_ms": duration_ms,
+            "scan_workers": min(8, len(message_ids)),
             "scan_note": "Recent billing/renewal messages are fetched in parallel; review all details before importing.",
         }
     except HTTPException:
