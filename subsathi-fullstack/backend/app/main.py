@@ -44,6 +44,23 @@ def normalize_scope_set(scopes: list[str] | tuple[str, ...] | None) -> set[str]:
 
 
 app = FastAPI(title="SubSathi API", version="1.0.0", description="Secure subscription discovery API. Gmail scans run only after explicit OAuth consent.")
+
+
+class OAuthCallbackAccessLogRedactor(logging.Filter):
+    """Redact one-time OAuth codes and state values from Uvicorn access logs."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if record.name == "uvicorn.access" and isinstance(record.args, tuple) and len(record.args) >= 3:
+            args = list(record.args)
+            request_target = args[2]
+            if isinstance(request_target, str) and request_target.startswith("/api/auth/google/callback"):
+                args[2] = "/api/auth/google/callback?[redacted]"
+                record.args = tuple(args)
+        return True
+
+
+logging.getLogger("uvicorn.access").addFilter(OAuthCallbackAccessLogRedactor())
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=list(settings.cors_origins),
@@ -254,7 +271,18 @@ def google_callback(code: str | None = None, state: str | None = None, error: st
         flow.fetch_token(code=code)
         google_credentials = flow.credentials
         stage = "validate_granted_scopes"
-        granted_scopes = normalize_scope_set(google_credentials.scopes)
+        raw_granted_scopes = getattr(google_credentials, "granted_scopes", None)
+        if not raw_granted_scopes:
+            token_scope = (flow.oauth2session.token or {}).get("scope")
+            if isinstance(token_scope, str):
+                raw_granted_scopes = token_scope.split()
+            elif isinstance(token_scope, (list, tuple)):
+                raw_granted_scopes = list(token_scope)
+        if isinstance(raw_granted_scopes, str):
+            raw_granted_scopes = raw_granted_scopes.split()
+        if not raw_granted_scopes:
+            return callback_deeplink(error="Google did not return granted permissions we can verify. Please reconnect and approve Gmail read access.")
+        granted_scopes = normalize_scope_set(list(raw_granted_scopes))
         required_scopes = normalize_scope_set(SCOPES)
         if not required_scopes.issubset(granted_scopes):
             missing_scopes = required_scopes - granted_scopes
