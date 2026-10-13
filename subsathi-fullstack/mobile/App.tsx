@@ -1164,7 +1164,7 @@ function AppContent() {
               {scanCandidates.map((candidate) => {
                 const selected = selectedCandidateIds.includes(candidate.id);
                 const categoryMetaItem = categoryMeta(candidate.category);
-                const needsFieldReview = candidate.amount === null || candidate.cycle === 'Unknown';
+                const needsFieldReview = candidate.amount === null || candidate.cycle === 'Unknown' || !candidate.nextRenewal;
                 const draft = candidateEdits[candidate.id] || {
                   amountText: candidate.amount === null ? '' : String(candidate.amount),
                   cycle: candidate.cycle,
