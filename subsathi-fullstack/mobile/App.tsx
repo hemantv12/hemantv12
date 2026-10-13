@@ -72,6 +72,11 @@ type GmailCandidate = {
   manageUrl: string;
   alreadyImported: boolean;
 };
+type GmailCandidateDraft = {
+  amountText: string;
+  cycle: Cycle | 'Unknown';
+  renewalText: string;
+};
 
 const API_BASE_URL = (process.env.EXPO_PUBLIC_API_BASE_URL || 'https://subsathi-api.onrender.com').replace(/\/$/, '');
 const SESSION_KEY = 'subsathi_api_session_v1';
@@ -351,6 +356,7 @@ function AppContent() {
   const [scanError, setScanError] = useState('');
   const [scanCandidates, setScanCandidates] = useState<GmailCandidate[]>([]);
   const [selectedCandidateIds, setSelectedCandidateIds] = useState<number[]>([]);
+  const [candidateEdits, setCandidateEdits] = useState<Record<number, GmailCandidateDraft>>({});
   const [apiReachable, setApiReachable] = useState<boolean | null>(null);
   const [googleOAuthConfigured, setGoogleOAuthConfigured] = useState<boolean | null>(null);
   const autoScanSessionRef = useRef<string | null>(null);
@@ -650,6 +656,7 @@ function AppContent() {
       setGmailEmail(profile.gmail_email || profile.email || callback.searchParams.get('email'));
       setScanCandidates([]);
       setSelectedCandidateIds([]);
+      setCandidateEdits({});
       Alert.alert('Gmail connected', `Automatic subscription discovery is starting for ${profile.gmail_email || profile.email || 'your Google account'}. Review detections in Email scan before importing any plans.`);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Could not connect Gmail. Check your internet connection and API settings.';
@@ -702,6 +709,11 @@ function AppContent() {
       const locallyTrackedNames = new Set(subscriptions.map((item) => item.name.toLowerCase().replace(/[^a-z0-9]/g, '')));
       const adjusted = mapped.map((item) => ({ ...item, alreadyImported: item.alreadyImported || locallyTrackedNames.has(item.name.toLowerCase().replace(/[^a-z0-9]/g, '')) }));
       setScanCandidates(adjusted);
+      setCandidateEdits(Object.fromEntries(adjusted.map((item) => [item.id, {
+        amountText: item.amount === null ? '' : String(item.amount),
+        cycle: item.cycle,
+        renewalText: item.nextRenewal || '',
+      }])));
       setSelectedCandidateIds(adjusted.filter((item) => !item.alreadyImported && item.amount !== null && item.cycle !== 'Unknown').map((item) => item.id));
     } catch (error) {
       setScanError(error instanceof Error ? error.message : 'Could not scan Gmail. Please retry.');
@@ -727,10 +739,39 @@ function AppContent() {
     setScanError('');
     setScanLoading(true);
     try {
+      const selectedCandidates = selectedCandidateIds
+        .map((id) => scanCandidates.find((candidate) => candidate.id === id))
+        .filter((candidate): candidate is GmailCandidate => Boolean(candidate && !candidate.alreadyImported));
+      const overrides: { candidate_id: number; amount?: number; cycle?: Cycle; next_renewal?: string }[] = [];
+      for (const candidate of selectedCandidates) {
+        const draft = candidateEdits[candidate.id] || {
+          amountText: candidate.amount === null ? '' : String(candidate.amount),
+          cycle: candidate.cycle,
+          renewalText: candidate.nextRenewal || '',
+        };
+        const parsedAmount = Number(draft.amountText.replace(/,/g, '').trim());
+        if ((candidate.amount === null || candidate.amount <= 0) && (!Number.isFinite(parsedAmount) || parsedAmount <= 0 || parsedAmount > 10000000)) {
+          Alert.alert('Add the missing price', `Enter a valid price for ${candidate.name} before importing.`);
+          return;
+        }
+        if (candidate.cycle === 'Unknown' && !CYCLES.includes(draft.cycle as Cycle)) {
+          Alert.alert('Choose a billing cycle', `Select weekly, monthly, quarterly or yearly for ${candidate.name} before importing.`);
+          return;
+        }
+        if (draft.renewalText.trim() && !validDate(draft.renewalText.trim())) {
+          Alert.alert('Check the renewal date', `Enter ${candidate.name}'s date as YYYY-MM-DD, or leave it blank if the email did not contain a date.`);
+          return;
+        }
+        const override: { candidate_id: number; amount?: number; cycle?: Cycle; next_renewal?: string } = { candidate_id: candidate.id };
+        if (candidate.amount === null || candidate.amount <= 0) override.amount = parsedAmount;
+        if (candidate.cycle === 'Unknown') override.cycle = draft.cycle as Cycle;
+        if (!candidate.nextRenewal && draft.renewalText.trim()) override.next_renewal = draft.renewalText.trim();
+        if (Object.keys(override).length > 1) overrides.push(override);
+      }
       const response = await fetch(`${API_BASE_URL}/api/gmail/import`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${apiSession}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ candidate_ids: selectedCandidateIds }),
+        body: JSON.stringify({ candidate_ids: selectedCandidateIds, overrides }),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.detail || 'Could not import selected detections.');
