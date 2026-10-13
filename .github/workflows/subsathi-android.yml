@@ -1,4 +1,4 @@
-name: Build SubSathi Android test APK
+name: Build SubSathi standalone Android test APK
 
 on:
   push:
@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   android-apk:
-    name: Build installable Android test APK
+    name: Build standalone Android test APK
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -45,15 +45,26 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Generate native Android project
         run: npx expo prebuild --platform android --non-interactive --no-install
-      - name: Build debug APK
+      - name: Build standalone release APK
         run: |
           chmod +x android/gradlew
           cd android
-          ./gradlew assembleDebug --no-daemon
-      - name: Upload test APK
+          ./gradlew assembleRelease --no-daemon
+          APK="app/build/outputs/apk/release/app-release.apk"
+          if [ ! -s "$APK" ]; then
+            echo "Release APK was not generated: $APK"
+            exit 1
+          fi
+          if ! unzip -l "$APK" | grep -qE 'assets/index\.android\.bundle$'; then
+            echo "The APK does not contain the bundled React Native JavaScript; refusing to upload a broken APK."
+            unzip -l "$APK" | grep -E 'assets/.*bundle' || true
+            exit 1
+          fi
+          echo "Standalone APK contains its JavaScript bundle."
+      - name: Upload standalone test APK
         uses: actions/upload-artifact@v4
         with:
-          name: SubSathi-Android-test-APK
-          path: subsathi-fullstack/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          name: SubSathi-Standalone-Android-Test-APK
+          path: subsathi-fullstack/mobile/android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 30
