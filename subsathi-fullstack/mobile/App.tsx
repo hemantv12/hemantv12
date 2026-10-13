@@ -503,10 +503,17 @@ function AppContent() {
       Alert.alert('Gmail connected', `Automatic subscription discovery is starting for ${profile.gmail_email || profile.email || 'your Google account'}. Review detections in Email scan before importing any plans.`);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Could not connect Gmail. Check your internet connection and API settings.';
-      const friendlyMessage = message.includes('Network request failed') || message.includes('Aborted')
-        ? `Could not reach the SubSathi server at ${API_BASE_URL}. The free server may be waking up; check your connection and retry.`
-        : message;
-      setScanError(friendlyMessage);
+      const oauthSetupIsMissing = message.includes('does not have Google OAuth credentials configured');
+      if (oauthSetupIsMissing) {
+        // Keep the single amber setup notice visible; don't repeat the same issue in a red error box.
+        setGoogleOAuthConfigured(false);
+        setScanError('');
+      } else {
+        const friendlyMessage = message.includes('Network request failed') || message.includes('Aborted')
+          ? `Could not reach the SubSathi server at ${API_BASE_URL}. The free server may be waking up; check your connection and retry.`
+          : message;
+        setScanError(friendlyMessage);
+      }
     } finally {
       setScanLoading(false);
     }
@@ -831,7 +838,7 @@ function AppContent() {
               </View>
               {scanError ? <View style={{ borderRadius: 12, backgroundColor: C.redPale, padding: 12, marginBottom: 12 }}><Text style={{ color: C.red, fontSize: 11, lineHeight: 16 }}>{scanError}</Text></View> : null}
               {scanLoading ? <View style={{ paddingVertical: 18, alignItems: 'center' }}><ActivityIndicator color={C.green} size="large" /><Text style={styles.settingBody}>{gmailEmail ? 'Scanning billing-related messages…' : 'Opening Google authorization…'}</Text></View> : null}
-              {!gmailEmail ? <PrimaryButton title="Connect Gmail securely" onPress={() => { void connectGmail(); }} /> : <View style={{ gap: 9 }}><PrimaryButton title={scanLoading ? 'Scanning…' : 'Scan my billing emails'} onPress={() => { if (!scanLoading) void scanGmail(); }} /><GhostButton title="Disconnect Gmail" onPress={() => { Alert.alert('Disconnect Gmail?', 'SubSathi will delete the server-stored Gmail credential and cached scan results. Plans already imported to this phone will remain.', [{ text: 'Keep connected', style: 'cancel' }, { text: 'Disconnect', style: 'destructive', onPress: () => { void disconnectGmail(); } }]); }} /></View>}
+              {!gmailEmail ? <PrimaryButton title={googleOAuthConfigured === false ? 'Check Gmail setup again' : 'Connect Gmail securely'} onPress={() => { void connectGmail(); }} /> : <View style={{ gap: 9 }}><PrimaryButton title={scanLoading ? 'Scanning…' : 'Scan my billing emails'} onPress={() => { if (!scanLoading) void scanGmail(); }} /><GhostButton title="Disconnect Gmail" onPress={() => { Alert.alert('Disconnect Gmail?', 'SubSathi will delete the server-stored Gmail credential and cached scan results. Plans already imported to this phone will remain.', [{ text: 'Keep connected', style: 'cancel' }, { text: 'Disconnect', style: 'destructive', onPress: () => { void disconnectGmail(); } }]); }} /></View>}
             </View>
             {gmailEmail && scanCandidates.length > 0 ? <View style={{ marginBottom: 18 }}><SectionTitle title="Detected subscriptions" action={`${scanCandidates.filter((item) => !item.alreadyImported && item.amount !== null && item.cycle !== 'Unknown').length} importable`} /><Text style={styles.fieldHint}>Select plans to import. Missing price or billing cycle needs manual confirmation. Estimates are never treated as verified renewal dates.</Text>{scanCandidates.map((candidate) => {
               const selected = selectedCandidateIds.includes(candidate.id);
