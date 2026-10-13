@@ -6,6 +6,7 @@ on:
       - subsathi-launch
     paths:
       - '.github/workflows/subsathi-backend-smoke.yml'
+      - 'subsathi-fullstack/backend/app/main.py'
 
 permissions:
   contents: read
