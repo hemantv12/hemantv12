@@ -357,7 +357,7 @@ function AppContent() {
   const [scanCandidates, setScanCandidates] = useState<GmailCandidate[]>([]);
   const [selectedCandidateIds, setSelectedCandidateIds] = useState<number[]>([]);
   const [candidateEdits, setCandidateEdits] = useState<Record<number, GmailCandidateDraft>>({});
-  const [scanSummary, setScanSummary] = useState<{ scannedMessages: number; candidateCount: number } | null>(null);
+  const [scanSummary, setScanSummary] = useState<{ scannedMessages: number; candidateCount: number; durationMs: number } | null>(null);
   const [apiReachable, setApiReachable] = useState<boolean | null>(null);
   const [googleOAuthConfigured, setGoogleOAuthConfigured] = useState<boolean | null>(null);
   const autoScanSessionRef = useRef<string | null>(null);
@@ -717,7 +717,11 @@ function AppContent() {
         renewalText: item.nextRenewal || '',
       }])));
       setSelectedCandidateIds(adjusted.filter((item) => !item.alreadyImported && item.amount !== null && item.cycle !== 'Unknown').map((item) => item.id));
-      setScanSummary({ scannedMessages: Number(payload.scanned_messages || 0), candidateCount: Number(payload.candidate_count || adjusted.length) });
+      setScanSummary({
+        scannedMessages: Number(payload.scanned_messages || 0),
+        candidateCount: Number(payload.candidate_count ?? adjusted.length),
+        durationMs: Number(payload.scan_duration_ms || 0),
+      });
     } catch (error) {
       setScanError(error instanceof Error ? error.message : 'Could not scan Gmail. Please retry.');
     } finally {
@@ -1141,11 +1145,11 @@ function AppContent() {
                 <Text style={styles.infoChecklistLine}>✓ Review detections before importing</Text>
               </View>
               {scanError && googleOAuthConfigured !== false ? <View style={{ borderRadius: 12, backgroundColor: C.redPale, padding: 12, marginBottom: 12 }}><Text style={{ color: C.red, fontSize: 11, lineHeight: 16 }}>{scanError}</Text></View> : null}
-              {scanLoading ? <View style={{ paddingVertical: 18, alignItems: 'center' }}><ActivityIndicator color={C.green} size="large" /><Text style={styles.settingBody}>{gmailEmail ? 'Scanning billing-related messages…' : 'Opening Google authorization…'}</Text></View> : null}
+              {scanLoading ? <View style={{ paddingVertical: 18, alignItems: 'center' }}><ActivityIndicator color={C.green} size="large" /><Text style={styles.settingBody}>{gmailEmail ? 'Checking recent receipts and renewals in parallel…' : 'Opening Google authorization…'}</Text><Text style={[styles.fieldHint, { textAlign: 'center', marginTop: 5 }]}>Only likely billing emails are analysed. This should be much quicker than checking every message one by one.</Text></View> : null}
               {!gmailEmail ? <PrimaryButton title={googleOAuthConfigured === false ? 'Check Gmail setup again' : 'Connect Gmail securely'} onPress={() => { void connectGmail(); }} /> : <View style={{ gap: 9 }}><PrimaryButton title={scanLoading ? 'Scanning…' : 'Scan my billing emails'} onPress={() => { if (!scanLoading) void scanGmail(); }} /><GhostButton title="Disconnect Gmail" onPress={() => { Alert.alert('Disconnect Gmail?', 'SubSathi will delete the server-stored Gmail credential and cached scan results. Plans already imported to this phone will remain.', [{ text: 'Keep connected', style: 'cancel' }, { text: 'Disconnect', style: 'destructive', onPress: () => { void disconnectGmail(); } }]); }} /></View>}
             </View>
             {gmailEmail && scanSummary ? <View style={{ backgroundColor: C.greenPale, borderRadius: 13, padding: 12, marginBottom: 14 }}>
-              <Text style={{ color: C.greenDark, fontSize: 11, fontWeight: '800' }}>Checked {scanSummary.scannedMessages} recent billing-related emails</Text>
+              <Text style={{ color: C.greenDark, fontSize: 11, fontWeight: '800' }}>Checked {scanSummary.scannedMessages} recent billing-related emails{scanSummary.durationMs > 0 ? ` in ${(scanSummary.durationMs / 1000).toFixed(1)}s` : ''}</Text>
               <Text style={{ color: '#42695E', fontSize: 10, lineHeight: 15, marginTop: 4 }}>{scanSummary.candidateCount > 0 ? `Found ${scanSummary.candidateCount} likely subscription(s). Review each result before importing.` : 'No strong subscription matches found in this batch. Try again later after a renewal or receipt email arrives.'}</Text>
             </View> : null}
             {gmailEmail && scanCandidates.length > 0 ? <View style={{ marginBottom: 18 }}>
