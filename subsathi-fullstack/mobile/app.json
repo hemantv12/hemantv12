@@ -2,13 +2,13 @@
   "expo": {
     "name": "SubSathi",
     "slug": "subsathi",
-    "version": "0.4.1",
+    "version": "0.5.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "scheme": "subsathi",
     "android": {
       "package": "in.subsathi.app",
-      "versionCode": 5,
+      "versionCode": 6,
       "adaptiveIcon": {
         "backgroundColor": "#0D2330",
         "foregroundImage": "./assets/adaptive-icon.png"
@@ -32,10 +32,17 @@
           "androidAppId": "ca-app-pub-3940256099942544~3347511713",
           "androidSdk": "classic"
         }
+      ],
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Allow SubSathi to use the microphone when you ask a voice question.",
+          "speechRecognitionPermission": "Allow SubSathi to convert your voice question into text."
+        }
       ]
     ],
     "extra": {
-      "appStage": "polished-beta",
+      "appStage": "smart-coach-voice-beta",
       "gmailIntegration": "requires-owner-oauth-credentials"
     },
     "icon": "./assets/icon.png"
