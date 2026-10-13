@@ -39,7 +39,7 @@ class Settings:
     scan_max_messages: int = int(os.getenv("SCAN_MAX_MESSAGES", "200"))
     gmail_query: str = os.getenv(
         "GMAIL_SCAN_QUERY",
-        'newer_than:3y {receipt invoice subscription renewal membership payment "auto-renew" "trial ends"}',
+        'newer_than:3y {subject:receipt subject:invoice subject:subscription subject:renewal subject:renewed subject:membership subject:billing "auto-renew" "recurring payment" "billing cycle" "trial ends" "next payment" "your plan renews"}',
     )
 
     @property
