@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import secrets
 import hashlib
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
 from urllib.parse import quote
@@ -191,10 +192,13 @@ def google_callback(code: str | None = None, state: str | None = None, error: st
         return callback_deeplink(error="Authorization link expired. Please try again.")
     db.delete(state_row)
     db.commit()
+    stage = "create_google_flow"
     try:
         flow = google_flow(state=state)
+        stage = "exchange_authorization_code"
         flow.fetch_token(code=code)
         google_credentials = flow.credentials
+        stage = "verify_google_identity_token"
         claims = id_token.verify_oauth2_token(google_credentials.id_token, GoogleRequest(), settings.google_client_id)
         if not claims.get("email_verified") or not claims.get("email") or not claims.get("sub"):
             return callback_deeplink(error="Google did not return a verified account email.")
@@ -235,8 +239,20 @@ def google_callback(code: str | None = None, state: str | None = None, error: st
         return callback_deeplink(code=one_time_code, email=email)
     except HTTPException:
         raise
-    except Exception:
+    except Exception as exc:
         db.rollback()
+        # Log only a safe diagnostic classification. Never log tokens, auth codes,
+        # the client secret, full provider response bodies, or raw exception messages.
+        oauth_error = getattr(exc, "error", "")
+        if not isinstance(oauth_error, str):
+            oauth_error = ""
+        oauth_error = "".join(ch for ch in oauth_error if ch.isalnum() or ch in "_-")[:48]
+        response = getattr(exc, "response", None)
+        upstream_status = getattr(response, "status_code", None)
+        logging.getLogger("uvicorn.error").error(
+            "Google OAuth callback failed: stage=%s exception=%s oauth_error=%s upstream_status=%s",
+            stage, type(exc).__name__, oauth_error or "none", upstream_status or "none",
+        )
         # Never expose provider tokens or raw exception details on a public callback page/deep link.
         return callback_deeplink(error="Could not complete Google authorization. Check server OAuth settings and try again.")
 
