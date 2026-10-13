@@ -69,3 +69,15 @@ jobs:
           if "https://www.googleapis.com/auth/gmail.readonly" not in scopes:
               raise SystemExit("gmail.readonly scope is missing")
           '
+          AUTH_URL="$(python3 -c 'import json; print(json.load(open("/tmp/subsathi-oauth.json"))["authorization_url"])')"
+          GOOGLE_HTTP_CODE="$(curl --location --silent --show-error --max-time 25 -o /tmp/google-oauth-page.html -w '%{http_code}' "$AUTH_URL")"
+          echo "google_authorization_page_http=$GOOGLE_HTTP_CODE"
+          if [ "$GOOGLE_HTTP_CODE" -lt 200 ] || [ "$GOOGLE_HTTP_CODE" -ge 400 ]; then
+            echo "Google authorization page could not be reached"
+            exit 1
+          fi
+          if grep -Eiq 'redirect_uri_mismatch|invalid_client|OAuth client was not found|Error 400' /tmp/google-oauth-page.html; then
+            echo "Google rejected the OAuth client or registered callback URI. Check the Web OAuth client and its exact redirect URI."
+            exit 1
+          fi
+          echo "Google accepted the authorization request far enough to render its sign-in/consent page."
