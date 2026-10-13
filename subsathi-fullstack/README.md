@@ -23,6 +23,12 @@ SubSathi is an Android-first subscription organiser. This project contains a Rea
 - Connected Gmail status; scans automatically after connection, when an existing authorised session is restored at app launch, and again whenever the Email scan screen is opened. Users review detected plans before importing.
 - Disconnect Gmail removes server-stored connection/candidate cache; already imported local tracker entries remain.
 
+### SmartSathi AI and voice assistant (`mobile/`)
+- Local subscription money coach with Hindi/English questions, personalised monthly/yearly estimates, upcoming-renewal summaries, highest-cost plan review and exact-name duplicate warnings.
+- Voice input uses the native speech-recognition service; voice replies use device text-to-speech. Users must grant microphone/speech permissions, and actual recognition availability depends on the device's installed speech service.
+- This release is a local, rule-based money helper rather than a cloud generative LLM. Saved tracker data and typed chat prompts are not sent to a cloud AI API; voice transcription may be processed by the device's configured speech service.
+- Android version 0.5.0 (versionCode 6) includes the native voice-recognition config plugin and needs a fresh APK plus real-device microphone/speech validation.
+
 ### API backend (`backend/`)
 - FastAPI health check, Google OAuth start/callback and session endpoint.
 - Gmail scanning with a configurable billing-focused Gmail query and a scan cap.
@@ -41,7 +47,7 @@ SubSathi is an Android-first subscription organiser. This project contains a Rea
 - The mobile tracker stores imported subscriptions locally on the device. The backend stores encrypted Google credentials and scan candidates, but this current MVP does not yet synchronise the user's entire tracker across devices.
 - SMS, phone-number-only subscriptions, banks, cards and UPI AutoPay are not automatically accessible. These require separate supported user-provided imports or authorised provider/banking integrations; Gmail alone cannot discover them.
 - No universal third-party renew/cancel API exists. The app opens provider-owned management pages where known; it does not promise that every provider can be renewed or cancelled inside SubSathi.
-- The web workspace and API are live, and a debug Android APK exists. This does not mean a full production release is approved: real Gmail login is disabled until Google OAuth is configured and verified, PostgreSQL must be linked, legal/contact details must be finalised, and the Android build needs production signing plus real-device testing.
+- The web workspace and API are live, and a debug Android APK exists. The SmartSathi AI/voice update needs a new native APK build and real-device microphone/speech validation. This does not mean a full production release is approved: real Gmail login is disabled until Google OAuth is configured and verified, PostgreSQL must be linked, legal/contact details must be finalised, and the Android build needs production signing plus real-device testing.
 
 ## 1. Run the backend locally
 
@@ -139,3 +145,7 @@ backend/tests/ receipt parser tests
 backend/Dockerfile
 render.yaml
 ```
+
+## SmartSathi AI / voice behaviour
+
+The AI tab is intentionally local and keyless in this release. It computes subscription cost equivalents, highlights upcoming dates, flags exact same-name entries for review, and answers common English/Hinglish questions. It is not a cloud LLM and will not invent provider-side billing facts. Voice input requires a compatible Android speech-recognition service and explicit microphone permission; text-to-speech uses the device voice engine. Check device privacy settings for the speech service's handling of audio.
