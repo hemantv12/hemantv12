@@ -97,3 +97,15 @@ def test_header_filter_skips_unrelated_provider_newsletter():
 
     assert not should_fetch_full_message("Your weekend music picks", "news@spotify.com")
     assert not should_fetch_full_message("October company news", "updates@example.com")
+
+
+
+def test_ignores_generic_payment_confirmation_without_identifiable_service():
+    result = parse_billing_message(
+        message_id="m7",
+        subject="Payment confirmation",
+        sender="notify@unknown-example.com",
+        date_header="Mon, 12 Oct 2026 10:00:00 +0000",
+        body="Your subscription payment was successful. Thank you.",
+    )
+    assert result is None
