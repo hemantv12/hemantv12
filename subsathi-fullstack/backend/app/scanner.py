@@ -5,7 +5,7 @@ import html
 import re
 from dataclasses import dataclass
 from datetime import datetime
-from email.header import decode_header, make_header
+from email.header import decode_header as _decode_header_parts, make_header
 from email.utils import parsedate_to_datetime
 from typing import Any
 
@@ -58,7 +58,7 @@ RENEWAL_DATE_PATTERNS = (
 
 def decode_header(value: str) -> str:
     try:
-        return str(make_header(decode_header(value or "")))
+        return str(make_header(_decode_header_parts(value or "")))
     except (LookupError, UnicodeDecodeError, ValueError):
         return value or ""
 
@@ -143,14 +143,14 @@ def parse_sender_domain(sender: str) -> str:
 
 
 STRONG_RECURRING_EVIDENCE = re.compile(
-    r"\\b("
+    r"\b("
     r"auto[- ]?renew|recurring payment|billing cycle|next (?:payment|billing|charge|renewal)|"
     r"renewal(?: date)?|renewed|renews|renews on|will be charged|charged again|"
     r"trial ends?(?: on)?|subscription (?:receipt|invoice|payment|renewal|renewed|was renewed|has been renewed|confirmed|activated)|"
     r"membership (?:renewal|renewed|extended)|you (?:have )?subscribed|"
     r"payment confirmation|payment successful|your plan renews|plan will continue|"
     r"subscription period"
-    r")\\b",
+    r")\b",
     re.IGNORECASE,
 )
 
@@ -190,7 +190,7 @@ def parse_billing_message(*, message_id: str, subject: str, sender: str, date_he
     """
     subject = decode_header(subject or "")
     sender = decode_header(sender or "")
-    combined = f"{subject}\\n{body}"[:50000]
+    combined = f"{subject}\n{body}"[:50000]
     # Cheap first-pass filter; words like "monthly" alone are not sufficient evidence.
     if not RECURRING_TERMS.search(combined) or not STRONG_RECURRING_EVIDENCE.search(combined):
         return None
@@ -251,22 +251,22 @@ def parse_billing_message(*, message_id: str, subject: str, sender: str, date_he
         # subject; don't create a subscription for any generic email mentioning
         # "monthly", "membership", or a free trial.
         transactional_subject = re.search(
-            r"\\b(receipt|invoice|payment|billing|renewal|renewed|subscription|membership|trial ends?|charge)\\b",
+            r"\b(receipt|invoice|payment|billing|renewal|renewed|subscription|membership|trial ends?|charge)\b",
             subject,
             re.IGNORECASE,
         )
         if not transactional_subject:
             return None
         clean_subject = re.sub(
-            r"(?i)^(your|the)\\s+|^(receipt|invoice|payment|renewal|subscription|membership)\\s*[:#-]?\\s*",
+            r"(?i)^(your|the)\s+|^(receipt|invoice|payment|renewal|subscription|membership)\s*[:#-]?\s*",
             "",
             subject,
-        ).strip(" \\t:-")
+        ).strip(" \t:-")
         clean_subject = re.sub(
-            r"(?i)\\s+(?:subscription|membership|plan)?\\s*(?:receipt|invoice|payment confirmation|has been renewed|was renewed|renewed|renewal notice|billing notice)\\s*[.!-]*$",
+            r"(?i)\s+(?:subscription|membership|plan)?\s*(?:receipt|invoice|payment confirmation|has been renewed|was renewed|renewed|renewal notice|billing notice)\s*[.!-]*$",
             "",
             clean_subject,
-        ).strip(" \\t:-")
+        ).strip(" \t:-")
         sender_label = sender_domain.split(".")[0].replace("-", " ").title()
         candidate_name = (clean_subject or sender_label).strip()
         if not candidate_name or len(candidate_name) > 100:
