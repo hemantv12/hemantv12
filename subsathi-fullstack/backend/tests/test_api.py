@@ -106,3 +106,33 @@ def test_google_identity_scope_aliases_normalize_without_relaxing_gmail_scope():
     normalized = normalize_scope_set(actual_google_response_scopes)
     assert normalized == expected
     assert "https://www.googleapis.com/auth/gmail.readonly" in normalized
+
+
+
+def test_gmail_import_request_accepts_user_reviewed_price_cycle_and_renewal():
+    from app.main import CandidateImportRequest
+
+    payload = CandidateImportRequest(
+        candidate_ids=[11],
+        overrides=[{
+            "candidate_id": 11,
+            "amount": 199,
+            "cycle": "Monthly",
+            "next_renewal": "2026-11-18",
+        }],
+    )
+    assert payload.candidate_ids == [11]
+    assert payload.overrides[0].amount == 199
+    assert payload.overrides[0].cycle == "Monthly"
+    assert payload.overrides[0].next_renewal == "2026-11-18"
+
+
+def test_gmail_import_request_rejects_invalid_reviewed_cycle():
+    from pydantic import ValidationError
+    from app.main import CandidateImportRequest
+
+    with pytest.raises(ValidationError):
+        CandidateImportRequest(
+            candidate_ids=[11],
+            overrides=[{"candidate_id": 11, "cycle": "Every 2 weeks"}],
+        )
