@@ -39,3 +39,46 @@ def test_gmail_oauth_url_is_clear_when_not_configured():
     assert response.status_code in (200, 503)
     if response.status_code == 503:
         assert 'not configured' in response.json()['detail'].lower()
+
+
+def test_google_oauth_start_persists_pkce_verifier_for_callback(monkeypatch):
+    from types import SimpleNamespace
+    from urllib.parse import parse_qs, urlparse
+
+    import app.main as main
+    from app.database import SessionLocal
+    from app.models import OAuthState
+
+    monkeypatch.setattr(main, "settings", SimpleNamespace(
+        google_configured=True,
+        google_client_id="test-client.apps.googleusercontent.com",
+        google_client_secret="test-client-secret",
+        google_redirect_uri="https://example.com/api/auth/google/callback",
+    ))
+
+    response = client.get("/api/auth/google/url?redirect_target=mobile")
+    assert response.status_code == 200
+    authorization_url = response.json()["authorization_url"]
+    query = parse_qs(urlparse(authorization_url).query)
+    state = query["state"][0]
+    assert query.get("code_challenge_method") == ["S256"]
+    assert query.get("code_challenge")
+
+    db = SessionLocal()
+    try:
+        saved_state = db.get(OAuthState, state)
+        assert saved_state is not None
+        assert saved_state.code_verifier
+        assert len(saved_state.code_verifier) == 128
+
+        callback_flow = main.google_flow(
+            state=state,
+            code_verifier=saved_state.code_verifier,
+            autogenerate_code_verifier=False,
+        )
+        assert callback_flow.code_verifier == saved_state.code_verifier
+        assert callback_flow.autogenerate_code_verifier is False
+        db.delete(saved_state)
+        db.commit()
+    finally:
+        db.close()
