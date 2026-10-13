@@ -36,17 +36,25 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          HTTP_CODE="$(curl --silent --show-error --max-time 25 -o /tmp/subsathi-oauth.json -w '%{http_code}' 'https://subsathi-api.onrender.com/api/auth/google/url?redirect_target=mobile')"
+          # Render deploys on each branch commit, so allow the live service time to restart.
+          HTTP_CODE="000"
+          for attempt in $(seq 1 24); do
+            HTTP_CODE="$(curl --silent --show-error --max-time 15 -o /tmp/subsathi-oauth.json -w '%{http_code}' 'https://subsathi-api.onrender.com/api/auth/google/url?redirect_target=mobile' || true)"
+            if [ "$HTTP_CODE" = "200" ]; then
+              break
+            fi
+            echo "OAuth endpoint attempt $attempt returned HTTP $HTTP_CODE; retrying after service restart window."
+            sleep 5
+          done
           if [ "$HTTP_CODE" != "200" ]; then
-            echo "OAuth authorization endpoint returned HTTP $HTTP_CODE"
-            python3 -c 'import json; p="/tmp/subsathi-oauth.json"; print(json.load(open(p)).get("detail", "No error detail returned"))' || true
+            echo "OAuth authorization endpoint did not become ready (last HTTP $HTTP_CODE)"
+            cat /tmp/subsathi-oauth.json 2>/dev/null | head -c 500 || true
             exit 1
           fi
           python3 -c '
-          import json, sys
+          import json
           body = json.load(open("/tmp/subsathi-oauth.json"))
           url = body.get("authorization_url") or body.get("auth_url") or body.get("url") or ""
-          # The endpoint currently returns authorization_url; do not print the URL.
           if not url:
               raise SystemExit("OAuth endpoint returned HTTP 200 but did not include a recognized authorization URL field")
           from urllib.parse import urlparse, parse_qs
@@ -55,6 +63,7 @@ jobs:
           scopes = " ".join(qs.get("scope", []))
           print("google_authorization_host=" + str(parsed.hostname))
           print("gmail_readonly_scope_requested=" + str("https://www.googleapis.com/auth/gmail.readonly" in scopes))
+          print("oauth_authorization_url_ready=" + str(parsed.hostname == "accounts.google.com"))
           if parsed.hostname != "accounts.google.com":
               raise SystemExit("Authorization URL does not point to Google Accounts")
           if "https://www.googleapis.com/auth/gmail.readonly" not in scopes:
