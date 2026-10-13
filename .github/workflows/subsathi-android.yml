@@ -20,6 +20,7 @@ jobs:
   android-apk:
     name: Build standalone Android test APK
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: subsathi-fullstack/mobile
@@ -55,7 +56,7 @@ jobs:
         run: |
           chmod +x android/gradlew
           cd android
-          ./gradlew assembleRelease --no-daemon
+          ./gradlew assembleRelease --no-daemon --stacktrace --console=plain --max-workers=2
           APK="app/build/outputs/apk/release/app-release.apk"
           if [ ! -s "$APK" ]; then
             echo "Release APK was not generated: $APK"
