@@ -182,6 +182,25 @@ def _domain_matches(domain: str, roots: tuple[str, ...]) -> bool:
     return bool(domain) and any(domain == root or domain.endswith("." + root) for root in roots)
 
 
+HEADER_TRANSACTION_CUES = re.compile(
+    r"\\b(receipt|invoice|payment|billing|renewal|renewed|subscription|membership|trial ends?|charge|charged)\\b",
+    re.IGNORECASE,
+)
+
+
+def should_fetch_full_message(subject: str, sender: str) -> bool:
+    """Use cheap Gmail headers to avoid fetching full bodies of unrelated search hits."""
+    decoded_subject = decode_header(subject or "")
+    decoded_sender = decode_header(sender or "")
+    if HEADER_TRANSACTION_CUES.search(decoded_subject):
+        return True
+    domain = parse_sender_domain(decoded_sender)
+    return any(
+        _domain_matches(domain, roots)
+        for roots in MERCHANT_SENDER_DOMAINS.values()
+    )
+
+
 def parse_billing_message(*, message_id: str, subject: str, sender: str, date_header: str, body: str) -> dict[str, Any] | None:
     """Extract a likely recurring subscription from a billing/renewal email.
 
