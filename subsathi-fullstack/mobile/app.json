@@ -2,13 +2,13 @@
   "expo": {
     "name": "SubSathi",
     "slug": "subsathi",
-    "version": "0.5.0",
+    "version": "0.5.1",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "scheme": "subsathi",
     "android": {
       "package": "in.subsathi.app",
-      "versionCode": 6,
+      "versionCode": 7,
       "adaptiveIcon": {
         "backgroundColor": "#0D2330",
         "foregroundImage": "./assets/adaptive-icon.png"
@@ -42,7 +42,7 @@
       ]
     ],
     "extra": {
-      "appStage": "smart-coach-voice-beta",
+      "appStage": "gmail-scan-fixes",
       "gmailIntegration": "requires-owner-oauth-credentials"
     },
     "icon": "./assets/icon.png"
