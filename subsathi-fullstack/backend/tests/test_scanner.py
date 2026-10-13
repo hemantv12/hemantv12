@@ -109,3 +109,28 @@ def test_ignores_generic_payment_confirmation_without_identifiable_service():
         body="Your subscription payment was successful. Thank you.",
     )
     assert result is None
+
+
+def test_rejects_generic_payment_invoice_without_explicit_recurring_evidence():
+    result = parse_billing_message(
+        message_id="m8",
+        subject="Payment Invoice #0009246603 | pearlorganisation.com",
+        sender="Accounts <billing@pearlorganisation.com>",
+        date_header="Mon, 12 Oct 2026 10:00:00 +0000",
+        body="Payment successful. Your order invoice is available in the account portal. Subscription-related help is available online.",
+    )
+    assert result is None
+
+
+def test_extracts_product_name_and_cycle_from_explicit_three_month_renewal():
+    result = parse_billing_message(
+        message_id="m9",
+        subject="Zomato Gold has been renewed successfully for 3 months!",
+        sender="Zomato <no-reply@zomato.com>",
+        date_header="Mon, 12 Oct 2026 10:00:00 +0000",
+        body="Zomato Gold has been renewed successfully for 3 months!",
+    )
+    assert result is not None
+    assert result["service_name"] == "Zomato Gold"
+    assert result["cycle"] == "Quarterly"
+    assert result["next_renewal"] is None

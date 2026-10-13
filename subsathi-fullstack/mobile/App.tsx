@@ -361,6 +361,7 @@ function AppContent() {
   const [apiReachable, setApiReachable] = useState<boolean | null>(null);
   const [googleOAuthConfigured, setGoogleOAuthConfigured] = useState<boolean | null>(null);
   const autoScanSessionRef = useRef<string | null>(null);
+  const scanInFlightRef = useRef(false);
   const screenProgress = useRef(new Animated.Value(1)).current;
   const [assistantLanguage, setAssistantLanguage] = useState<AssistantLanguage>('hi-IN');
   const [voiceListening, setVoiceListening] = useState(false);
@@ -680,6 +681,10 @@ function AppContent() {
   const scanGmail = async (sessionOverride?: string) => {
     const session = sessionOverride || apiSession;
     if (!session) { setScanError('Connect Gmail first.'); return; }
+    // Connecting Gmail and opening the scanner can both request a scan. Never run
+    // overlapping scans: they waste Gmail quota and can trigger API rate limits.
+    if (scanInFlightRef.current) return;
+    scanInFlightRef.current = true;
     setScanError('');
     setScanSummary(null);
     setScanLoading(true);
@@ -725,6 +730,7 @@ function AppContent() {
     } catch (error) {
       setScanError(error instanceof Error ? error.message : 'Could not scan Gmail. Please retry.');
     } finally {
+      scanInFlightRef.current = false;
       setScanLoading(false);
     }
   };
@@ -749,6 +755,10 @@ function AppContent() {
       const selectedCandidates = selectedCandidateIds
         .map((id) => scanCandidates.find((candidate) => candidate.id === id))
         .filter((candidate): candidate is GmailCandidate => Boolean(candidate && !candidate.alreadyImported));
+      if (!selectedCandidates.length) {
+        setSelectedCandidateIds([]);
+        return;
+      }
       const overrides: { candidate_id: number; amount?: number; cycle?: Cycle; next_renewal?: string }[] = [];
       for (const candidate of selectedCandidates) {
         const draft = candidateEdits[candidate.id] || {
@@ -778,7 +788,7 @@ function AppContent() {
       const response = await fetch(`${API_BASE_URL}/api/gmail/import`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${apiSession}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ candidate_ids: selectedCandidateIds, overrides }),
+        body: JSON.stringify({ candidate_ids: selectedCandidates.map((candidate) => candidate.id), overrides }),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.detail || 'Could not import selected detections.');

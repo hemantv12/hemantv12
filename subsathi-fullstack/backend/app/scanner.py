@@ -45,7 +45,7 @@ CURRENCY_AMOUNT = re.compile(r"(?:₹\s*|INR\s*|Rs\.?\s*)([\d,]+(?:\.\d{1,2})?)"
 RECURRING_TERMS = re.compile(r"\b(subscription|subscribed|recurring|auto[- ]?renew|renew(?:al|s|ed)?|monthly|annually|annual|yearly|per month|per year|membership|billing cycle|free trial|trial ends|plan will continue)\b", re.IGNORECASE)
 CYCLE_PATTERNS = (
     (re.compile(r"\b(weekly|every week|per week)\b", re.I), "Weekly"),
-    (re.compile(r"\b(quarterly|every 3 months|per quarter)\b", re.I), "Quarterly"),
+    (re.compile(r"\b(quarterly|every 3 months|per quarter|for 3 months|3-month)\b", re.I), "Quarterly"),
     (re.compile(r"\b(annual|annually|yearly|per year|every 12 months|12-month)\b", re.I), "Yearly"),
     (re.compile(r"\b(monthly|every month|per month|each month)\b", re.I), "Monthly"),
 )
@@ -150,6 +150,20 @@ STRONG_RECURRING_EVIDENCE = re.compile(
     r"membership (?:renewal|renewed|extended)|you (?:have )?subscribed|"
     r"payment confirmation|payment successful|your plan renews|plan will continue|"
     r"subscription period"
+    r")\b",
+    re.IGNORECASE,
+)
+
+# Unknown providers require explicit renewal/recurrence evidence; generic invoice/payment
+# wording must not become a subscription candidate on its own.
+UNKNOWN_RECURRING_EVIDENCE = re.compile(
+    r"\b(?:"
+    r"auto[- ]?renew(?:al|s|ed|ing)?|recurring (?:payment|charge|subscription)|"
+    r"next (?:payment|billing|charge|renewal)|renew(?:s|ed)?\s+(?:on|every|each)|"
+    r"will be charged (?:again|every|each|on)|charged again|"
+    r"subscription (?:has been|was|will be) renewed|membership (?:has been|was|will be) renewed|"
+    r"renewed(?:\s+\w+){0,4}\s+for\s+\d+\s+(?:days?|weeks?|months?|years?)|"
+    r"subscription period|billing every\s+\d+\s+(?:days?|weeks?|months?|years?)"
     r")\b",
     re.IGNORECASE,
 )
@@ -273,9 +287,10 @@ def parse_billing_message(*, message_id: str, subject: str, sender: str, date_he
             return None
         merchant_name, category, manage_url = merchant.name, merchant.category, merchant.manage_url
     else:
-        # Unknown providers need a strong recurring cue and a transaction-like
-        # subject; don't create a subscription for any generic email mentioning
-        # "monthly", "membership", or a free trial.
+        # Unknown providers need evidence of actual recurrence, not just invoice
+        # boilerplate, a one-off payment, or words in a footer.
+        if not UNKNOWN_RECURRING_EVIDENCE.search(combined):
+            return None
         transactional_subject = re.search(
             r"\b(receipt|invoice|payment|billing|renewal|renewed|subscription|membership|trial ends?|charge)\b",
             subject,
@@ -283,13 +298,10 @@ def parse_billing_message(*, message_id: str, subject: str, sender: str, date_he
         )
         if not transactional_subject:
             return None
+        # Trim renewal boilerplate and duration from a real product name, e.g.
+        # "Zomato Gold has been renewed successfully for 3 months" -> "Zomato Gold".
         clean_subject = re.sub(
-            r"(?i)^(your|the)\s+|^(receipt|invoice|payment|renewal|subscription|membership)\s*[:#-]?\s*",
-            "",
-            subject,
-        ).strip(" \t:-")
-        clean_subject = re.sub(
-            r"(?i)\s+(?:subscription|membership|plan)?\s*(?:receipt|invoice|payment confirmation|has been renewed|was renewed|renewed|renewal notice|billing notice)\s*[.!-]*$",
+            r"(?i)\s+(?:(?:has\s+been|was|is)\s+)?(?:successfully\s+)?(?:renewed|renewal notice|subscription renewal|billing notice|payment confirmation|subscription receipt|invoice|receipt)(?:\s+successfully)?(?:\s+for\s+\d+\s+(?:days?|weeks?|months?|years?))?.*$",
             "",
             clean_subject,
         ).strip(" \t:-")

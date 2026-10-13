@@ -425,9 +425,13 @@ def _fetch_gmail_message_metadata_for_scan(message_id: str) -> dict[str, Any] | 
             id=message_id,
             format="metadata",
             metadataHeaders=["Subject", "From", "Date"],
-        ).execute()
-    except HttpError:
-        return None
+        ).execute(num_retries=2)
+    except HttpError as exc:
+        # A message deleted between list/get is harmless. Quota, access and server
+        # errors must propagate rather than being silently treated as irrelevant.
+        if int(getattr(getattr(exc, "resp", None), "status", 0) or 0) == 404:
+            return None
+        raise
 
 
 def _fetch_gmail_message_for_scan(message_id: str) -> dict[str, Any] | None:
@@ -435,14 +439,50 @@ def _fetch_gmail_message_for_scan(message_id: str) -> dict[str, Any] | None:
     if service is None:
         raise RuntimeError("Gmail scan worker was not initialized.")
     try:
-        return service.users().messages().get(userId="me", id=message_id, format="full").execute()
-    except HttpError:
-        # A single removed/restricted email should not fail the user's whole scan.
-        return None
+        return service.users().messages().get(userId="me", id=message_id, format="full").execute(num_retries=2)
+    except HttpError as exc:
+        if int(getattr(getattr(exc, "resp", None), "status", 0) or 0) == 404:
+            return None
+        raise
+
+
+def _gmail_http_error_context(exc: HttpError) -> tuple[int, str]:
+    """Return safe, bounded diagnostics without logging email data or credentials."""
+    status_code = int(getattr(getattr(exc, "resp", None), "status", 0) or 0)
+    reason = ""
+    try:
+        payload = json.loads((exc.content or b"").decode("utf-8", errors="replace"))
+        error = payload.get("error", {}) if isinstance(payload, dict) else {}
+        if isinstance(error, dict):
+            reason = str(error.get("status") or "")
+            details = error.get("errors") or []
+            if not reason and details and isinstance(details[0], dict):
+                reason = str(details[0].get("reason") or "")
+    except (ValueError, TypeError, AttributeError):
+        pass
+    reason = "".join(ch for ch in reason if ch.isalnum() or ch in "_.-")[:64] or "unknown"
+    return status_code, reason
+
+
+def _gmail_http_error_message(status_code: int, reason: str) -> str:
+    normalized = reason.lower()
+    if status_code == 401:
+        return "Google rejected the Gmail authorization. Disconnect Gmail in SubSathi, reconnect it, and approve Gmail read access."
+    if status_code == 403 and ("accessnotconfigured" in normalized or "servicedisabled" in normalized):
+        return "Gmail API is not enabled for the Google Cloud project used by this OAuth client. Enable Gmail API in that same project, then reconnect Gmail."
+    if status_code in {403, 429} and any(token in normalized for token in ("ratelimit", "userratelimit", "quota", "resourceexhausted")):
+        return "Google is rate-limiting Gmail scans. Wait about a minute and retry; SubSathi now limits parallel requests and retries temporary failures."
+    if status_code == 403:
+        return "Google did not allow Gmail read access. Disconnect Gmail, reconnect, and approve the requested Gmail read permission. If it persists, check the OAuth consent screen and Gmail API enablement."
+    if status_code == 429:
+        return "Google temporarily rate-limited this Gmail scan. Wait about a minute and retry."
+    if status_code in {500, 502, 503, 504}:
+        return "Google's Gmail service temporarily failed. Please wait briefly and retry the scan."
+    return f"Gmail API request failed (HTTP {status_code or 'unknown'}, reason {reason}). Please retry; if it repeats, check the server logs."
 
 
 @app.post("/api/gmail/scan")
-def scan_gmail(max_messages: int = Query(100, ge=1, le=200), user: User = Depends(current_user), db: Session = Depends(get_db)) -> dict[str, Any]:
+def scan_gmail(max_messages: int = Query(50, ge=1, le=100), user: User = Depends(current_user), db: Session = Depends(get_db)) -> dict[str, Any]:
     scan_started = perf_counter()
     credentials = credentials_for_user(db, user)
     try:
@@ -454,7 +494,7 @@ def scan_gmail(max_messages: int = Query(100, ge=1, le=200), user: User = Depend
         while len(refs) < limit:
             page = service.users().messages().list(
                 userId="me", q=query, maxResults=min(100, limit - len(refs)), pageToken=page_token,
-            ).execute()
+            ).execute(num_retries=2)
             refs.extend(page.get("messages") or [])
             page_token = page.get("nextPageToken")
             if not page_token or not page.get("messages"):
@@ -465,7 +505,7 @@ def scan_gmail(max_messages: int = Query(100, ge=1, le=200), user: User = Depend
         message_ids = [str(ref.get("id", "")) for ref in refs if ref.get("id")]
         if message_ids:
             with ThreadPoolExecutor(
-                max_workers=min(12, len(message_ids)),
+                max_workers=min(4, len(message_ids)),
                 initializer=_init_gmail_scan_worker,
                 initargs=(credentials,),
             ) as executor:
@@ -488,7 +528,7 @@ def scan_gmail(max_messages: int = Query(100, ge=1, le=200), user: User = Depend
 
         if relevant_ids:
             with ThreadPoolExecutor(
-                max_workers=min(12, len(relevant_ids)),
+                max_workers=min(4, len(relevant_ids)),
                 initializer=_init_gmail_scan_worker,
                 initargs=(credentials,),
             ) as executor:
@@ -514,7 +554,7 @@ def scan_gmail(max_messages: int = Query(100, ge=1, le=200), user: User = Depend
         duration_ms = round((perf_counter() - scan_started) * 1000)
         logging.getLogger("uvicorn.error").info(
             "Gmail scan complete: searched=%s full_fetched=%s matched=%s candidates=%s duration_ms=%s workers=%s",
-            len(message_ids), len(relevant_ids), len(parsed), len(grouped), duration_ms, min(12, max(len(message_ids), len(relevant_ids))),
+            len(message_ids), len(relevant_ids), len(parsed), len(grouped), duration_ms, min(4, max(len(message_ids), len(relevant_ids))),
         )
         # Replace stale, not-yet-imported detections with the latest scan so old prices don't pile up.
         db.query(ScanCandidate).filter(ScanCandidate.user_id == user.id, ScanCandidate.imported.is_(False)).delete(synchronize_session=False)
@@ -552,15 +592,22 @@ def scan_gmail(max_messages: int = Query(100, ge=1, le=200), user: User = Depend
             "notice": "Detection is evidence-based, not perfect. Review prices and dates before relying on them.",
             "scan_limit": limit,
             "scan_duration_ms": duration_ms,
-            "scan_workers": min(12, len(message_ids)),
-            "scan_note": "Recent billing/renewal messages are fetched in parallel; review all details before importing.",
+            "scan_workers": min(4, len(message_ids)),
+            "scan_note": "Recent billing/renewal messages are fetched with bounded concurrency and automatic retries; review all details before importing.",
         }
     except HTTPException:
         raise
     except HttpError as exc:
-        raise HTTPException(status_code=502, detail="Gmail returned an API error. Check consent, scopes and API enablement.") from exc
+        status_code, reason = _gmail_http_error_context(exc)
+        logging.getLogger("uvicorn.error").warning(
+            "Gmail API scan failed status=%s reason=%s", status_code or "unknown", reason
+        )
+        raise HTTPException(status_code=502, detail=_gmail_http_error_message(status_code, reason)) from exc
     except Exception as exc:
-        raise HTTPException(status_code=502, detail="Could not scan Gmail. Check the connection and try again.") from exc
+        logging.getLogger("uvicorn.error").error(
+            "Unexpected Gmail scan failure type=%s", type(exc).__name__
+        )
+        raise HTTPException(status_code=502, detail="Could not scan Gmail because of a temporary server error. Please retry; if it repeats, check server logs.") from exc
 
 
 @app.post("/api/gmail/import")
