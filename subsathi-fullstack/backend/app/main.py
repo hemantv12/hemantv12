@@ -20,7 +20,7 @@ from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import inspect, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -42,6 +42,20 @@ app.add_middleware(
 security = HTTPBearer(auto_error=False)
 Base.metadata.create_all(bind=engine)
 
+def ensure_oauth_state_pkce_column() -> None:
+    """Add the temporary PKCE verifier column to databases created by older releases."""
+    inspector = inspect(engine)
+    if not inspector.has_table("oauth_states"):
+        return
+    existing_columns = {column["name"] for column in inspector.get_columns("oauth_states")}
+    if "code_verifier" not in existing_columns:
+        # SQLite and PostgreSQL both support this additive nullable-column migration.
+        with engine.begin() as connection:
+            connection.execute(text("ALTER TABLE oauth_states ADD COLUMN code_verifier VARCHAR(128)"))
+
+
+ensure_oauth_state_pkce_column()
+
 
 class CandidateImportRequest(BaseModel):
     candidate_ids: list[int] = Field(min_length=1, max_length=100)
@@ -55,7 +69,12 @@ def now_utc() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
-def google_flow(state: str | None = None) -> Flow:
+def google_flow(
+    state: str | None = None,
+    *,
+    code_verifier: str | None = None,
+    autogenerate_code_verifier: bool = True,
+) -> Flow:
     if not settings.google_configured:
         raise HTTPException(status_code=503, detail="Google OAuth is not configured on this server yet.")
     client_config = {
@@ -67,7 +86,14 @@ def google_flow(state: str | None = None) -> Flow:
             "redirect_uris": [settings.google_redirect_uri],
         }
     }
-    return Flow.from_client_config(client_config, scopes=SCOPES, state=state, redirect_uri=settings.google_redirect_uri)
+    return Flow.from_client_config(
+        client_config,
+        scopes=SCOPES,
+        state=state,
+        redirect_uri=settings.google_redirect_uri,
+        code_verifier=code_verifier,
+        autogenerate_code_verifier=autogenerate_code_verifier,
+    )
 
 
 def candidate_public(candidate: ScanCandidate) -> dict[str, Any]:
@@ -165,7 +191,7 @@ def health() -> dict[str, Any]:
 
 @app.get("/api/auth/google/url")
 def google_authorization_url(redirect_target: str = Query("mobile", pattern="^mobile$"), db: Session = Depends(get_db)) -> dict[str, Any]:
-    flow = google_flow()
+    flow = google_flow(autogenerate_code_verifier=True)
     auth_url, state = flow.authorization_url(
         access_type="offline",
         include_granted_scopes="true",
@@ -173,7 +199,13 @@ def google_authorization_url(redirect_target: str = Query("mobile", pattern="^mo
     )
     now = now_utc()
     db.query(OAuthState).filter(OAuthState.expires_at < now).delete(synchronize_session=False)
-    db.add(OAuthState(state=state, redirect_target=redirect_target, created_at=now, expires_at=now + timedelta(minutes=10)))
+    db.add(OAuthState(
+        state=state,
+        redirect_target=redirect_target,
+        code_verifier=flow.code_verifier,
+        created_at=now,
+        expires_at=now + timedelta(minutes=10),
+    ))
     db.commit()
     return {"authorization_url": auth_url, "redirect_target": redirect_target, "expires_in_seconds": 600}
 
@@ -190,11 +222,16 @@ def google_callback(code: str | None = None, state: str | None = None, error: st
             db.delete(state_row)
             db.commit()
         return callback_deeplink(error="Authorization link expired. Please try again.")
+    code_verifier = state_row.code_verifier
     db.delete(state_row)
     db.commit()
+    if not code_verifier:
+        return callback_deeplink(error="This Google sign-in was started before the latest security fix. Please tap Connect Gmail and try again.")
     stage = "create_google_flow"
     try:
-        flow = google_flow(state=state)
+        # Reuse the exact PKCE verifier generated for the authorization URL.
+        # Generating a new verifier here makes Google's token exchange fail with invalid_grant.
+        flow = google_flow(state=state, code_verifier=code_verifier, autogenerate_code_verifier=False)
         stage = "exchange_authorization_code"
         flow.fetch_token(code=code)
         google_credentials = flow.credentials
@@ -255,7 +292,9 @@ def google_callback(code: str | None = None, state: str | None = None, error: st
         )
         # Never expose provider tokens or raw exception details on a public callback page/deep link.
         if stage == "exchange_authorization_code" and type(exc).__name__ == "InvalidClientError":
-            return callback_deeplink(error="Google rejected the OAuth client credentials. Update GOOGLE_CLIENT_SECRET in Render using a fresh secret from this exact Web OAuth client, then reconnect.")
+            return callback_deeplink(error="Google rejected the OAuth client credentials. Check the Client ID and secret for the same Web OAuth client in Render.")
+        if stage == "exchange_authorization_code" and oauth_error == "invalid_grant":
+            return callback_deeplink(error="Google rejected this one-time sign-in code. Please tap Connect Gmail and try again; do not open the callback URL directly.")
         return callback_deeplink(error="Could not complete Google authorization. Check server OAuth settings and try again.")
 
 
