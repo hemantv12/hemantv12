@@ -1,6 +1,6 @@
 {
   "name": "subsathi",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "private": true,
   "main": "node_modules/expo/AppEntry.js",
   "scripts": {
@@ -20,7 +20,9 @@
     "react-native-google-mobile-ads": "17.2.0",
     "react-native-safe-area-context": "~5.7.0",
     "@expo/vector-icons": "^15.1.1",
-    "expo-linear-gradient": "~57.0.2"
+    "expo-linear-gradient": "~57.0.2",
+    "expo-speech": "~57.0.3",
+    "expo-speech-recognition": "~57.1.1"
   },
   "devDependencies": {
     "@types/react": "~19.2.0",
