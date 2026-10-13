@@ -82,3 +82,27 @@ def test_google_oauth_start_persists_pkce_verifier_for_callback(monkeypatch):
         db.commit()
     finally:
         db.close()
+
+
+
+def test_google_identity_scope_aliases_normalize_without_relaxing_gmail_scope():
+    from app.main import normalize_scope_set, SCOPES
+
+    expected = {
+        "openid",
+        "https://www.googleapis.com/auth/userinfo.email",
+        "https://www.googleapis.com/auth/userinfo.profile",
+        "https://www.googleapis.com/auth/gmail.readonly",
+    }
+    assert normalize_scope_set(SCOPES) == expected
+    actual_google_response_scopes = [
+        "openid",
+        "email",
+        "profile",
+        "https://www.googleapis.com/auth/userinfo.email",
+        "https://www.googleapis.com/auth/userinfo.profile",
+        "https://www.googleapis.com/auth/gmail.readonly",
+    ]
+    normalized = normalize_scope_set(actual_google_response_scopes)
+    assert normalized == expected
+    assert "https://www.googleapis.com/auth/gmail.readonly" in normalized
