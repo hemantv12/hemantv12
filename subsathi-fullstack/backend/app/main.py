@@ -450,7 +450,7 @@ def scan_gmail(max_messages: int = Query(100, ge=1, le=200), user: User = Depend
         message_ids = [str(ref.get("id", "")) for ref in refs if ref.get("id")]
         if message_ids:
             with ThreadPoolExecutor(
-                max_workers=min(8, len(message_ids)),
+                max_workers=min(12, len(message_ids)),
                 initializer=_init_gmail_scan_worker,
                 initargs=(credentials,),
             ) as executor:
@@ -505,7 +505,7 @@ def scan_gmail(max_messages: int = Query(100, ge=1, le=200), user: User = Depend
             "notice": "Detection is evidence-based, not perfect. Review prices and dates before relying on them.",
             "scan_limit": limit,
             "scan_duration_ms": duration_ms,
-            "scan_workers": min(8, len(message_ids)),
+            "scan_workers": min(12, len(message_ids)),
             "scan_note": "Recent billing/renewal messages are fetched in parallel; review all details before importing.",
         }
     except HTTPException:
