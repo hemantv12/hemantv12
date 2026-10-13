@@ -517,8 +517,8 @@ function AppContent() {
     const timestamp = Date.now();
     setAssistantMessages((current) => [
       ...current,
-      { id: `user-${timestamp}`, role: 'user', text: question },
-      { id: `assistant-${timestamp + 1}`, role: 'assistant', text: answer },
+      { id: `user-${timestamp}`, role: 'user' as const, text: question },
+      { id: `assistant-${timestamp + 1}`, role: 'assistant' as const, text: answer },
     ].slice(-11));
     setAssistantQuery('');
     setVoiceError('');
