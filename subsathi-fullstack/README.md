@@ -1,5 +1,16 @@
 # SubSathi — Full-stack build (Android + Gmail discovery API)
 
+## Current deployment status — 13 October 2026
+
+- **Web workspace:** https://subsathi-web.onrender.com
+- **API health endpoint:** https://subsathi-api.onrender.com/health
+- **Android:** an installable debug/test APK has been built via GitHub Actions; it is not a signed Play Store release.
+- **Automated checks:** backend tests and frontend/manifest/service-worker syntax checks passed in GitHub Actions run 38356294917.
+- **Not public-production-ready yet:** Google OAuth credentials are not configured, the live API is still using SQLite, and the separately created free PostgreSQL instance is not yet bound to the API's `DATABASE_URL`. Do not store real users' account data until the database binding and Google OAuth review are complete.
+
+The current project code is in the public `hemantv12/hemantv12` repository on the `subsathi-launch` branch. Do not put real user data, .env files, OAuth secrets, database URLs, signing keys or customer records in this repository. Use a private repository for production if you want the implementation source kept private.
+
+
 SubSathi is an Android-first subscription organiser. This project contains a React Native + Expo Android frontend and a FastAPI backend for Google OAuth, Gmail receipt discovery, encrypted credential storage and candidate review/import.
 
 ## What is implemented
@@ -25,12 +36,12 @@ SubSathi is an Android-first subscription organiser. This project contains a Rea
 ## Important limitations before calling this production-ready
 
 - The Google Cloud OAuth client is **not provisioned by this project**. You must create it in your own Google Cloud project, enable Gmail API, set the exact authorised redirect URI, configure the consent screen and complete whatever verification/security assessment Google requires for the selected Gmail scope. A project with empty credentials cannot scan a real inbox.
-- The backend is deployable but **not yet deployed**. A public HTTPS backend URL and database must be created, environment secrets configured, and `/health` verified.
+- The API is deployed at `https://subsathi-api.onrender.com` and `/health` is its health check. The current live service still uses SQLite; that does not provide durable database storage on a free Render web service. The PostgreSQL database exists separately and must be linked to `DATABASE_URL` by syncing the root `render.yaml` Blueprint before real user accounts are accepted.
 - The native app reads `EXPO_PUBLIC_API_BASE_URL`; set it to your hosted API URL for an installed build. The default `http://10.0.2.2:8000` is for an Android Studio emulator only.
 - The mobile tracker stores imported subscriptions locally on the device. The backend stores encrypted Google credentials and scan candidates, but this current MVP does not yet synchronise the user's entire tracker across devices.
 - SMS, phone-number-only subscriptions, banks, cards and UPI AutoPay are not automatically accessible. These require separate supported user-provided imports or authorised provider/banking integrations; Gmail alone cannot discover them.
 - No universal third-party renew/cancel API exists. The app opens provider-owned management pages where known; it does not promise that every provider can be renewed or cancelled inside SubSathi.
-- This is source code, not an already-installed APK or a live public service. It needs configuration and real-device/browser testing before release.
+- The web workspace and API are live, and a debug Android APK exists. This does not mean a full production release is approved: real Gmail login is disabled until Google OAuth is configured and verified, PostgreSQL must be linked, legal/contact details must be finalised, and the Android build needs production signing plus real-device testing.
 
 ## 1. Run the backend locally
 
@@ -77,11 +88,11 @@ Scopes include `gmail.readonly`, which Google classifies as restricted. Apps req
 
 ## 3. Deploy backend to Render
 
-1. Put this folder in a private GitHub repository that you own.
-2. In Render, create a Blueprint from that repository. Use the root `render.yaml` Blueprint. It sets the Docker context to `backend` and points to `backend/Dockerfile`.
-3. Provision the PostgreSQL database and web service. The API may boot with Google OAuth disabled, but `TOKEN_ENCRYPTION_KEY` must be a valid Fernet key and `JWT_SECRET` must be secure.
-4. Verify `https://YOUR-API-DOMAIN/health` reports `status: ok`. It may report `google_oauth_configured: false` at this stage; that is intentional and means Gmail features remain disabled.
-5. Configure your own Google OAuth client and then add Google client ID/secret, exact HTTPS `GOOGLE_REDIRECT_URI`, and final `CORS_ORIGINS` in Render. Redeploy, then verify `/health` reports `google_oauth_configured: true`. A health check alone does not mean Gmail OAuth has been verified by Google.
+1. The connected launch branch is currently public. For a production product with private implementation code, move this project to a private repository you control before accepting customers.
+2. In Render, sync the **root** `render.yaml` Blueprint. It declares the existing `subsathi-api`, `subsathi-web` and `subsathi-db` resource names and links the API `DATABASE_URL` to the PostgreSQL connection string. A normal Git push does not itself sync a Render Blueprint; use the Blueprint dashboard and review the proposed changes before applying.
+3. Keep the database on a paid persistent plan for production. The current free PostgreSQL instance is only a temporary pilot and expires on 11 November 2026. Do not store real customer data on it unless it has been upgraded and backups are configured.
+4. Keep Google OAuth disabled until `TOKEN_ENCRYPTION_KEY` is a valid Fernet key and `JWT_SECRET` is unique and random. The current live API can boot while Google OAuth is not configured.
+5. After syncing the Blueprint, verify the API's `/health` endpoint and inspect its logs to confirm it is using the PostgreSQL URL without connection errors. Then configure your Google Cloud OAuth client, exact HTTPS `GOOGLE_REDIRECT_URI`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` and final `CORS_ORIGINS`. Verify `/health` reports `google_oauth_configured: true`; that flag is not evidence that Google has approved the app for public Gmail access.
 
 Never commit real `.env` files, Google client secrets, encryption keys or production database URLs.
 
