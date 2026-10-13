@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
+  Animated,
+  Easing,
   KeyboardAvoidingView,
   Linking,
   Modal,
@@ -21,6 +23,8 @@ import * as SecureStore from 'expo-secure-store';
 import * as WebBrowser from 'expo-web-browser';
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import mobileAds, { AdsConsent, BannerAd, BannerAdSize, TestIds } from 'react-native-google-mobile-ads';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -101,6 +105,18 @@ const CYCLES: Cycle[] = ['Weekly', 'Monthly', 'Quarterly', 'Yearly'];
 
 function categoryMeta(category: Category) {
   return CATEGORIES.find((item) => item.name === category) ?? CATEGORIES[CATEGORIES.length - 1];
+}
+function categoryIconName(category: Category): keyof typeof MaterialCommunityIcons.glyphMap {
+  switch (category) {
+    case 'Entertainment': return 'movie-open-outline';
+    case 'Software': return 'laptop';
+    case 'Storage': return 'cloud-outline';
+    case 'Music': return 'music-note-outline';
+    case 'Fitness': return 'dumbbell';
+    case 'Utilities': return 'wifi';
+    case 'Learning': return 'book-open-variant';
+    default: return 'repeat';
+  }
 }
 function localDateString(date: Date) {
   const y = date.getFullYear();
@@ -230,7 +246,7 @@ function SectionTitle({ title, action, onAction }: { title: string; action?: str
   return <View style={styles.sectionTitleRow}><Text style={styles.sectionTitle}>{title}</Text>{action && onAction ? <Pressable onPress={onAction}><Text style={styles.sectionAction}>{action}</Text></Pressable> : null}</View>;
 }
 function BrandMark({ size = 42 }: { size?: number }) {
-  return <View style={[styles.brandMark, { width: size, height: size, borderRadius: size * 0.32 }]}><Text style={{ fontSize: size * 0.45 }}>↻</Text></View>;
+  return <View style={[styles.brandMark, { width: size, height: size, borderRadius: size * 0.32 }]}><MaterialCommunityIcons name="autorenew" size={size * 0.57} color={C.white} /></View>;
 }
 
 function AppContent() {
@@ -258,7 +274,40 @@ function AppContent() {
   const [scanError, setScanError] = useState('');
   const [scanCandidates, setScanCandidates] = useState<GmailCandidate[]>([]);
   const [selectedCandidateIds, setSelectedCandidateIds] = useState<number[]>([]);
+  const [apiReachable, setApiReachable] = useState<boolean | null>(null);
+  const [googleOAuthConfigured, setGoogleOAuthConfigured] = useState<boolean | null>(null);
   const autoScanSessionRef = useRef<string | null>(null);
+  const screenProgress = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    let active = true;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 18000);
+    fetch(`${API_BASE_URL}/health`, { signal: controller.signal })
+      .then(async (response) => {
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error('SubSathi API health check failed.');
+        if (active) {
+          setApiReachable(true);
+          setGoogleOAuthConfigured(payload.google_oauth_configured === true);
+        }
+      })
+      .catch(() => {
+        if (active) { setApiReachable(false); setGoogleOAuthConfigured(null); }
+      })
+      .finally(() => clearTimeout(timeout));
+    return () => { active = false; clearTimeout(timeout); controller.abort(); };
+  }, []);
+
+  useEffect(() => {
+    screenProgress.setValue(0);
+    Animated.timing(screenProgress, {
+      toValue: 1,
+      duration: 230,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [tab, screenProgress]);
 
   const loadSubscriptions = useCallback(async () => {
     const db = dbRef.current;
@@ -416,6 +465,14 @@ function AppContent() {
     setScanError('');
     setScanLoading(true);
     try {
+      const healthResponse = await fetch(`${API_BASE_URL}/health`);
+      const healthPayload = await healthResponse.json().catch(() => ({}));
+      if (!healthResponse.ok) throw new Error('The SubSathi server is not healthy right now. Please retry in a moment.');
+      setApiReachable(true);
+      setGoogleOAuthConfigured(healthPayload.google_oauth_configured === true);
+      if (healthPayload.google_oauth_configured !== true) {
+        throw new Error('Gmail connection is blocked by server setup, not by your phone. The hosted API does not have Google OAuth credentials configured. In Google Cloud, enable Gmail API and create a Web OAuth client. In Render, add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET, then set GOOGLE_REDIRECT_URI to https://subsathi-api.onrender.com/api/auth/google/callback. Add your Google account as an OAuth test user while the consent screen is in testing, deploy the changes, and try again. Never put the client secret inside the APK or send it in chat.');
+      }
       const startResponse = await fetch(`${API_BASE_URL}/api/auth/google/url?redirect_target=mobile`);
       const startPayload = await startResponse.json().catch(() => ({}));
       if (!startResponse.ok || !startPayload.authorization_url) {
@@ -446,7 +503,10 @@ function AppContent() {
       Alert.alert('Gmail connected', `Automatic subscription discovery is starting for ${profile.gmail_email || profile.email || 'your Google account'}. Review detections in Email scan before importing any plans.`);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Could not connect Gmail. Check your internet connection and API settings.';
-      setScanError(message.includes('Network request failed') ? `Cannot reach SubSathi API at ${API_BASE_URL}. Deploy the backend or set EXPO_PUBLIC_API_BASE_URL to your server address.` : message);
+      const friendlyMessage = message.includes('Network request failed') || message.includes('Aborted')
+        ? `Could not reach the SubSathi server at ${API_BASE_URL}. The free server may be waking up; check your connection and retry.`
+        : message;
+      setScanError(friendlyMessage);
     } finally {
       setScanLoading(false);
     }
@@ -614,7 +674,7 @@ function AppContent() {
     const tone = days < 0 ? 'red' : days <= 7 ? 'orange' : 'grey';
     return (
       <Pressable key={item.id} onPress={() => openEdit(item)} style={({ pressed }) => [styles.subscriptionCard, compact && styles.compactCard, pressed && { opacity: 0.88 }]}>
-        <View style={[styles.serviceIcon, { backgroundColor: meta.tint }]}><Text style={styles.serviceEmoji}>{meta.emoji}</Text></View>
+        <View style={[styles.serviceIcon, { backgroundColor: meta.tint }]}><MaterialCommunityIcons name={categoryIconName(item.category)} size={23} color={C.ink} /></View>
         <View style={styles.subscriptionMain}>
           <Text style={styles.serviceName} numberOfLines={1}>{item.name}</Text>
           <Text style={styles.serviceSub}>{item.category} · {item.cycle}</Text>
@@ -635,8 +695,11 @@ function AppContent() {
         <View style={styles.brandLockup}><BrandMark size={43} /><View><Text style={styles.brandName}>SubSathi</Text><Text style={styles.brandTagline}>Your money, under control.</Text></View></View>
         <Pressable onPress={() => setTab('Settings')} style={styles.profileCircle}><Text style={styles.profileText}>H</Text></Pressable>
       </View>
-      <View style={styles.heroCard}>
-        <View style={styles.heroTop}><View><Text style={styles.heroEyebrow}>YOUR RECURRING SPEND</Text><Text style={styles.heroAmount}>{money(activeMonthly)}<Text style={styles.heroPer}> / mo</Text></Text></View><View style={styles.heroIconBubble}><Text style={{ fontSize: 25 }}>↻</Text></View></View>
+      <LinearGradient colors={['#0B2230', '#124F4A', '#16A879']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.heroCard}>
+        <View pointerEvents="none" style={styles.heroDecorLarge} />
+        <View pointerEvents="none" style={styles.heroDecorSmall} />
+        <View pointerEvents="none" style={styles.heroArtwork}><MaterialCommunityIcons name="wallet-membership" size={54} color="rgba(255,255,255,0.17)" /><Feather name="trending-up" size={19} color="rgba(255,255,255,0.62)" style={styles.heroArtworkTrend} /></View>
+        <View style={styles.heroTop}><View><Text style={styles.heroEyebrow}>YOUR RECURRING SPEND</Text><Text style={styles.heroAmount}>{money(activeMonthly)}<Text style={styles.heroPer}> / mo</Text></Text></View><View style={styles.heroIconBubble}><MaterialCommunityIcons name="chart-donut" size={26} color={C.white} /></View></View>
         <View style={styles.heroDivider} />
         <View style={styles.heroStatsRow}>
           <View><Text style={styles.heroStatLabel}>Yearly estimate</Text><Text style={styles.heroStatValue}>{money(activeAnnual)}</Text></View>
@@ -645,12 +708,22 @@ function AppContent() {
           <View style={styles.heroStatsSeparator} />
           <View><Text style={styles.heroStatLabel}>Due in 30 days</Text><Text style={styles.heroStatValue}>{nextThirtyDays.length}</Text></View>
         </View>
-      </View>
+      </LinearGradient>
+      <Pressable accessibilityRole="button" onPress={openScanner} style={({ pressed }) => [styles.gmailBannerPressable, pressed && { opacity: 0.9, transform: [{ scale: 0.99 }] }]}>
+        <LinearGradient colors={gmailEmail ? ['#E8F8F0', '#D8F3E8'] : googleOAuthConfigured === false ? ['#EAF2FF', '#DCE8FF'] : ['#E9F8F1', '#D9F2E7']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.gmailBanner}>
+          <View style={[styles.gmailBannerIcon, { backgroundColor: gmailEmail ? C.greenDark : C.navy }]}><Feather name={gmailEmail ? 'check-circle' : 'mail'} size={23} color={C.white} /></View>
+          <View style={styles.gmailBannerCopy}>
+            <Text style={styles.gmailBannerTitle}>{gmailEmail ? 'Gmail is connected' : googleOAuthConfigured === false ? 'Finish Gmail setup' : 'Find subscriptions automatically'}</Text>
+            <Text style={styles.gmailBannerBody}>{gmailEmail ? `Connected to ${gmailEmail}. Scan receipts to refresh detections.` : googleOAuthConfigured === false ? 'Google OAuth is not configured on the server yet. Tap to view the exact setup needed.' : apiReachable === false ? 'The server is not responding. Your on-device tracker still works.' : 'Connect securely with Google and review billing-email matches before importing.'}</Text>
+          </View>
+          <Feather name={gmailEmail ? 'check' : 'arrow-up-right'} size={21} color={C.greenDark} />
+        </LinearGradient>
+      </Pressable>
       <View style={styles.quickActionRow}>
-        <Pressable style={styles.quickAction} onPress={openNew}><View style={[styles.quickActionIcon, { backgroundColor: C.greenPale }]}><Text style={{ color: C.greenDark, fontSize: 22, fontWeight: '700' }}>＋</Text></View><Text style={styles.quickActionLabel}>Add plan</Text></Pressable>
-        <Pressable style={styles.quickAction} onPress={openScanner}><View style={[styles.quickActionIcon, { backgroundColor: C.bluePale }]}><Text style={{ fontSize: 21 }}>✉</Text></View><Text style={styles.quickActionLabel}>Email scan</Text></Pressable>
-        <Pressable style={styles.quickAction} onPress={() => setTab('Insights')}><View style={[styles.quickActionIcon, { backgroundColor: C.orangePale }]}><Text style={{ fontSize: 21 }}>↘</Text></View><Text style={styles.quickActionLabel}>Find savings</Text></Pressable>
-        <Pressable style={styles.quickAction} onPress={() => setTab('Subscriptions')}><View style={[styles.quickActionIcon, { backgroundColor: '#F1EAFE' }]}><Text style={{ fontSize: 21 }}>▦</Text></View><Text style={styles.quickActionLabel}>All plans</Text></Pressable>
+        <Pressable style={styles.quickAction} onPress={openNew}><View style={[styles.quickActionIcon, { backgroundColor: C.greenPale }]}><Feather name="plus" size={23} color={C.greenDark} /></View><Text style={styles.quickActionLabel}>Add plan</Text></Pressable>
+        <Pressable style={styles.quickAction} onPress={openScanner}><View style={[styles.quickActionIcon, { backgroundColor: C.bluePale }]}><Feather name="mail" size={21} color="#3568A8" /></View><Text style={styles.quickActionLabel}>Email scan</Text></Pressable>
+        <Pressable style={styles.quickAction} onPress={() => setTab('Insights')}><View style={[styles.quickActionIcon, { backgroundColor: C.orangePale }]}><Feather name="trending-up" size={21} color="#9C5E0C" /></View><Text style={styles.quickActionLabel}>Find savings</Text></Pressable>
+        <Pressable style={styles.quickAction} onPress={() => setTab('Subscriptions')}><View style={[styles.quickActionIcon, { backgroundColor: '#F1EAFE' }]}><Feather name="grid" size={21} color="#7651A6" /></View><Text style={styles.quickActionLabel}>All plans</Text></Pressable>
       </View>
       <View style={styles.sectionTitleRow}><Text style={styles.sectionTitle}>Coming up</Text><Pressable onPress={() => setTab('Subscriptions')}><Text style={styles.sectionAction}>View all</Text></Pressable></View>
       {upcoming.length ? <View style={styles.listCard}>{upcoming.slice(0, 4).map((item, index) => <View key={item.id}>{renderSubscriptionCard(item, true)}{index < Math.min(upcoming.length, 4) - 1 ? <View style={styles.innerDivider} /> : null}</View>)}</View> : <View style={styles.emptyCard}><View style={styles.emptyIcon}><Text style={{ fontSize: 26 }}>🗓️</Text></View><Text style={styles.emptyTitle}>No renewals coming up</Text><Text style={styles.emptyBody}>Add a subscription and SubSathi will help you keep an eye on its renewal date.</Text><PrimaryButton title="Add your first plan" onPress={openNew} /></View>}
@@ -676,7 +749,7 @@ function AppContent() {
       <View style={styles.pageHeader}><Text style={styles.pageEyebrow}>YOUR MONEY SNAPSHOT</Text><Text style={styles.pageTitle}>Insights</Text><Text style={styles.pageSub}>Know where your recurring money goes.</Text></View>
       <View style={styles.insightHero}><Text style={styles.insightHeroLabel}>ESTIMATED YEARLY COMMITMENT</Text><Text style={styles.insightHeroAmount}>{money(activeAnnual)}</Text><Text style={styles.insightHeroNote}>Based on the plans you have added. Actual charges may vary.</Text><View style={styles.insightMetricRow}><View style={styles.insightMetric}><Text style={styles.insightMetricLabel}>Monthly equivalent</Text><Text style={styles.insightMetricValue}>{money(activeMonthly)}</Text></View><View style={styles.insightMetric}><Text style={styles.insightMetricLabel}>Due this month</Text><Text style={styles.insightMetricValue}>{money(currentMonthDue)}</Text></View></View></View>
       <SectionTitle title="Spend by category" />
-      {categorySpend.length ? <View style={styles.panel}>{categorySpend.map((cat) => <View key={cat.name} style={styles.categorySpendRow}><View style={[styles.categorySpendIcon, { backgroundColor: cat.tint }]}><Text>{cat.emoji}</Text></View><View style={styles.categorySpendMain}><View style={styles.categorySpendNameRow}><Text style={styles.categorySpendName}>{cat.name}</Text><Text style={styles.categorySpendAmount}>{money(cat.amount)}<Text style={styles.categoryMonthly}> / mo</Text></Text></View><View style={styles.barTrack}><View style={[styles.barFill, { width: `${Math.max(4, (cat.amount / (categorySpend[0]?.amount || 1)) * 100)}%` }]} /></View></View></View>)}</View> : <View style={styles.emptyCard}><Text style={styles.emptyTitle}>Insights will appear here</Text><Text style={styles.emptyBody}>Add a few subscriptions to see your spending breakdown.</Text><PrimaryButton title="Add a plan" onPress={openNew} /></View>}
+      {categorySpend.length ? <View style={styles.panel}>{categorySpend.map((cat) => <View key={cat.name} style={styles.categorySpendRow}><View style={[styles.categorySpendIcon, { backgroundColor: cat.tint }]}><MaterialCommunityIcons name={categoryIconName(cat.name)} size={21} color={C.ink} /></View><View style={styles.categorySpendMain}><View style={styles.categorySpendNameRow}><Text style={styles.categorySpendName}>{cat.name}</Text><Text style={styles.categorySpendAmount}>{money(cat.amount)}<Text style={styles.categoryMonthly}> / mo</Text></Text></View><View style={styles.barTrack}><View style={[styles.barFill, { width: `${Math.max(4, (cat.amount / (categorySpend[0]?.amount || 1)) * 100)}%` }]} /></View></View></View>)}</View> : <View style={styles.emptyCard}><Text style={styles.emptyTitle}>Insights will appear here</Text><Text style={styles.emptyBody}>Add a few subscriptions to see your spending breakdown.</Text><PrimaryButton title="Add a plan" onPress={openNew} /></View>}
       <SectionTitle title="Things to review" />
       <View style={styles.panel}>
         {nextThirtyDays.length ? <View style={styles.reviewRow}><View style={[styles.reviewIcon, { backgroundColor: C.orangePale }]}><Text>⏰</Text></View><View style={styles.reviewCopy}><Text style={styles.reviewTitle}>{nextThirtyDays.length} upcoming renewal{nextThirtyDays.length === 1 ? '' : 's'}</Text><Text style={styles.reviewBody}>Review the plan and price before the charge date.</Text></View><Text style={styles.reviewArrow}>›</Text></View> : <View style={styles.reviewRow}><View style={[styles.reviewIcon, { backgroundColor: C.greenPale }]}><Text>✓</Text></View><View style={styles.reviewCopy}><Text style={styles.reviewTitle}>No renewals due in 30 days</Text><Text style={styles.reviewBody}>Add renewal dates to get a more useful view.</Text></View></View>}
@@ -690,7 +763,7 @@ function AppContent() {
   const renderSettings = () => (
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
       <View style={styles.pageHeader}><Text style={styles.pageEyebrow}>YOUR APP</Text><Text style={styles.pageTitle}>Settings</Text><Text style={styles.pageSub}>Privacy, alerts and connected services.</Text></View>
-      <View style={styles.profilePanel}><BrandMark size={52} /><View style={{ flex: 1 }}><Text style={styles.profilePanelTitle}>SubSathi</Text><Text style={styles.profilePanelSub}>MVP · Version 0.1.0</Text></View><Pill tone="green">On device</Pill></View>
+      <View style={styles.profilePanel}><BrandMark size={52} /><View style={{ flex: 1 }}><Text style={styles.profilePanelTitle}>SubSathi</Text><Text style={styles.profilePanelSub}>Local-first beta · Version 0.4.0</Text></View><Pill tone="green">On device</Pill></View>
       <View style={styles.panel}>
         <Text style={styles.settingsSectionLabel}>REMINDERS</Text>
         <View style={styles.settingRow}><View style={styles.settingIcon}><Text>🔔</Text></View><View style={styles.settingCopy}><Text style={styles.settingTitle}>Renewal notifications</Text><Text style={styles.settingBody}>Remind two days before, at 9:00 AM when permitted.</Text></View><Switch value={notificationsEnabled} onValueChange={(value) => { setNotificationsEnabled(value); const db = dbRef.current; if (db) void db.runAsync("INSERT INTO app_settings (key, value) VALUES ('notificationsEnabled', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", value ? 'true' : 'false'); void rescheduleRenewalReminders(subscriptions, value); }} trackColor={{ false: '#CBD5D4', true: '#A7E4CD' }} thumbColor={notificationsEnabled ? C.green : '#F6F7F7'} /></View>
@@ -717,9 +790,9 @@ function AppContent() {
   return (
     <SafeAreaView edges={['top']} style={styles.safeArea}>
       <StatusBar barStyle="dark-content" backgroundColor={C.cream} />
-      <View style={styles.appContent}>
+      <Animated.View style={[styles.appContent, { opacity: screenProgress, transform: [{ translateY: screenProgress.interpolate({ inputRange: [0, 1], outputRange: [9, 0] }) }] }]}>
         {tab === 'Home' ? renderHome() : tab === 'Subscriptions' ? renderSubscriptions() : tab === 'Insights' ? renderInsights() : renderSettings()}
-      </View>
+      </Animated.View>
       {adsReady && !adFailed ? <View style={styles.adContainer}>
         {isTestAds ? <Text style={styles.adTestLabel}>TEST AD · NOT PAID</Text> : null}
         <BannerAd
@@ -735,7 +808,7 @@ function AppContent() {
         />
       </View> : null}
       <View style={[styles.bottomNav, { height: 72 + insets.bottom, paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 8 : 0) }]}>
-        {([['Home', '⌂'], ['Subscriptions', '▤'], ['Insights', '◔'], ['Settings', '⚙']] as [Tab, string][]).map(([name, icon]) => <Pressable key={name} onPress={() => setTab(name)} style={styles.navItem}><View style={[styles.navIconWrap, tab === name && styles.navIconActive]}><Text style={[styles.navIcon, tab === name && styles.navIconSelected]}>{icon}</Text></View><Text style={[styles.navLabel, tab === name && styles.navLabelSelected]}>{name}</Text></Pressable>)}
+        {([['Home', 'home'], ['Subscriptions', 'layers'], ['Insights', 'pie-chart'], ['Settings', 'settings']] as [Tab, keyof typeof Feather.glyphMap][]).map(([name, icon]) => <Pressable key={name} accessibilityRole="button" accessibilityLabel={name} onPress={() => setTab(name)} style={styles.navItem}><View style={[styles.navIconWrap, tab === name && styles.navIconActive]}><Feather name={icon} size={20} style={[styles.navIcon, tab === name && styles.navIconSelected]} /></View><Text style={[styles.navLabel, tab === name && styles.navLabelSelected]}>{name}</Text></Pressable>)}
       </View>
       <SubscriptionEditor visible={editorOpen} initial={editing} onClose={() => { setEditorOpen(false); setEditing(null); }} onSave={saveSubscription} onDelete={editing ? () => deleteSubscription(editing) : undefined} />
       <Modal visible={scanInfoOpen} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setScanInfoOpen(false)}>
@@ -743,9 +816,13 @@ function AppContent() {
           <View style={styles.editorHeader}><Pressable onPress={() => setScanInfoOpen(false)} style={styles.editorClose}><Text style={styles.editorCloseText}>✕</Text></Pressable><View style={{ flex: 1 }}><Text style={styles.editorTitle}>Automatic discovery</Text><Text style={styles.editorSubtitle}>Find subscriptions from billing emails</Text></View><Pill tone={gmailEmail ? 'green' : 'orange'}>{gmailEmail ? 'Connected' : 'Not connected'}</Pill></View>
           <ScrollView contentContainerStyle={styles.editorScroll} keyboardShouldPersistTaps="handled">
             <View style={{ backgroundColor: C.white, borderColor: C.line, borderWidth: 1, borderRadius: 20, padding: 18, marginBottom: 16 }}>
-              <View style={[styles.infoModalIcon, { marginBottom: 12 }]}><Text style={{ fontSize: 27 }}>✉️</Text></View>
+              <LinearGradient colors={['#DFF6EB', '#E7F0FF']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.infoModalIcon, { marginBottom: 12 }]}><Feather name="mail" size={26} color={C.greenDark} /></LinearGradient>
               <Text style={styles.modalTitle}>{gmailEmail ? 'Gmail is connected' : 'Stop adding every plan manually'}</Text>
               <Text style={styles.modalIntro}>{gmailEmail ? `Connected account: ${gmailEmail}. Scan relevant billing emails, then review the detected subscriptions before importing them to this phone.` : 'Connect through Google’s official secure consent screen. SubSathi will search for billing receipts, renewal notices and recurring payment emails. It never asks for your Gmail password.'}</Text>
+              {googleOAuthConfigured === false ? <View style={styles.oauthSetupNotice}>
+                <View style={styles.oauthNoticeTitleRow}><Feather name="alert-circle" size={17} color="#9B5A08" /><Text style={styles.oauthSetupTitle}>Server setup required</Text></View>
+                <Text style={styles.oauthSetupBody}>Google sign-in cannot start until the app owner configures a Google Cloud Web OAuth client on the hosted server. Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in Render and set GOOGLE_REDIRECT_URI to https://subsathi-api.onrender.com/api/auth/google/callback. Enable Gmail API, add your account as an OAuth test user, save and redeploy. Never paste the client secret into the APK or chat.</Text>
+              </View> : apiReachable === false ? <View style={styles.oauthSetupNotice}><View style={styles.oauthNoticeTitleRow}><Feather name="wifi-off" size={17} color="#9B5A08" /><Text style={styles.oauthSetupTitle}>Server not reachable</Text></View><Text style={styles.oauthSetupBody}>SubSathi can still track plans offline. Check your internet connection and retry when the server is awake.</Text></View> : null}
               <View style={styles.infoChecklist}>
                 <Text style={styles.infoChecklistLine}>✓ Read billing-related emails only using Gmail search</Text>
                 <Text style={styles.infoChecklistLine}>✓ Detect supported services, amounts and cycle hints</Text>
@@ -825,7 +902,7 @@ function SubscriptionEditor({ visible, initial, onClose, onSave, onDelete }: {
         <View style={styles.editorHeader}><Pressable onPress={onClose} style={styles.editorClose}><Text style={styles.editorCloseText}>✕</Text></Pressable><View style={{ flex: 1 }}><Text style={styles.editorTitle}>{initial ? 'Edit subscription' : 'Add subscription'}</Text><Text style={styles.editorSubtitle}>Keep the details handy. You can change them anytime.</Text></View></View>
         <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={styles.editorScroll}>
           <Text style={styles.fieldLabel}>SERVICE NAME *</Text><TextInput value={name} onChangeText={setName} placeholder="e.g. Adobe Creative Cloud" placeholderTextColor="#97A5A8" style={styles.input} maxLength={70} autoCapitalize="words" />
-          <Text style={styles.fieldLabel}>CATEGORY</Text><View style={styles.categoryGrid}>{CATEGORIES.map((cat) => <Pressable key={cat.name} onPress={() => setCategory(cat.name)} style={[styles.categoryOption, category === cat.name && styles.categoryOptionActive]}><Text style={{ fontSize: 18 }}>{cat.emoji}</Text><Text style={[styles.categoryOptionText, category === cat.name && styles.categoryOptionTextActive]}>{cat.name}</Text></Pressable>)}</View>
+          <Text style={styles.fieldLabel}>CATEGORY</Text><View style={styles.categoryGrid}>{CATEGORIES.map((cat) => <Pressable key={cat.name} onPress={() => setCategory(cat.name)} style={[styles.categoryOption, category === cat.name && styles.categoryOptionActive]}><MaterialCommunityIcons name={categoryIconName(cat.name)} size={19} color={category === cat.name ? C.greenDark : C.muted} /><Text style={[styles.categoryOptionText, category === cat.name && styles.categoryOptionTextActive]}>{cat.name}</Text></Pressable>)}</View>
           <Text style={styles.fieldLabel}>PRICE (INR) *</Text><View style={styles.amountInputWrap}><Text style={styles.rupeeSign}>₹</Text><TextInput value={amount} onChangeText={setAmount} placeholder="0.00" placeholderTextColor="#97A5A8" style={styles.amountInput} keyboardType="decimal-pad" /></View>
           <Text style={styles.fieldLabel}>BILLING CYCLE</Text><View style={styles.cycleRow}>{CYCLES.map((item) => <Pressable key={item} onPress={() => setCycle(item)} style={[styles.cycleChip, item === cycle && styles.cycleChipActive]}><Text style={[styles.cycleChipText, item === cycle && styles.cycleChipTextActive]}>{item}</Text></Pressable>)}</View>
           <Text style={styles.fieldLabel}>NEXT RENEWAL DATE *</Text><TextInput value={nextRenewal} onChangeText={setNextRenewal} placeholder="YYYY-MM-DD" placeholderTextColor="#97A5A8" style={styles.input} autoCapitalize="none" maxLength={10} />
@@ -852,15 +929,16 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: C.cream }, appContent: { flex: 1, minHeight: 0 }, adContainer: { minHeight: 58, alignItems: 'center', justifyContent: 'center', backgroundColor: C.white, borderTopWidth: 1, borderTopColor: C.line, paddingTop: 2, paddingBottom: 2 }, adTestLabel: { color: '#829398', fontSize: 8, fontWeight: '800', letterSpacing: 1, marginBottom: 1 }, scrollContent: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 24 },
   loadingScreen: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: C.cream }, loadingTitle: { marginTop: 12, color: C.ink, fontSize: 24, fontWeight: '800' }, loadingSub: { marginTop: 10, fontSize: 13, color: C.muted },
   brandMark: { alignItems: 'center', justifyContent: 'center', backgroundColor: C.green, overflow: 'hidden' }, brandName: { fontSize: 20, color: C.ink, fontWeight: '800', letterSpacing: -0.6 }, brandTagline: { marginTop: 2, fontSize: 11, color: C.muted }, brandLockup: { flexDirection: 'row', alignItems: 'center', gap: 10 }, homeTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 19 }, profileCircle: { height: 40, width: 40, borderRadius: 20, backgroundColor: '#E1ECE8', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#D2E1DB' }, profileText: { color: C.greenDark, fontWeight: '800', fontSize: 16 },
-  heroCard: { borderRadius: 24, backgroundColor: C.navy, padding: 20, overflow: 'hidden' }, heroTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }, heroEyebrow: { fontSize: 10, letterSpacing: 1.2, color: '#B7CDD2', fontWeight: '700' }, heroAmount: { marginTop: 7, fontSize: 31, fontWeight: '800', color: C.white, letterSpacing: -1 }, heroPer: { fontSize: 13, fontWeight: '500', color: '#B7CDD2', letterSpacing: 0 }, heroIconBubble: { width: 52, height: 52, borderRadius: 17, backgroundColor: '#18434A', alignItems: 'center', justifyContent: 'center' }, heroDivider: { height: 1, backgroundColor: '#2C4650', marginVertical: 18 }, heroStatsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, heroStatLabel: { color: '#B7CDD2', fontSize: 10, marginBottom: 6 }, heroStatValue: { color: C.white, fontSize: 13, fontWeight: '700' }, heroStatsSeparator: { width: 1, height: 30, backgroundColor: '#2C4650', marginHorizontal: 3 },
-  quickActionRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 20, marginBottom: 24 }, quickAction: { alignItems: 'center', width: '24%' }, quickActionIcon: { height: 52, width: 52, borderRadius: 18, alignItems: 'center', justifyContent: 'center' }, quickActionLabel: { color: C.ink, fontSize: 11, fontWeight: '600', marginTop: 8 }, sectionTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, marginTop: 1 }, sectionTitle: { color: C.ink, fontSize: 17, fontWeight: '800', letterSpacing: -0.4 }, sectionAction: { color: C.greenDark, fontSize: 12, fontWeight: '700' },
+  heroCard: { borderRadius: 26, padding: 21, overflow: 'hidden', minHeight: 175 }, heroDecorLarge: { position: 'absolute', width: 205, height: 205, borderRadius: 103, right: -66, top: -60, backgroundColor: 'rgba(255,255,255,0.055)' }, heroDecorSmall: { position: 'absolute', width: 125, height: 125, borderRadius: 63, right: 44, bottom: -88, backgroundColor: 'rgba(255,255,255,0.07)' }, heroArtwork: { position: 'absolute', right: 60, top: 54, opacity: 1, transform: [{ rotate: '-12deg' }] }, heroArtworkTrend: { position: 'absolute', right: -5, top: -2 }, heroTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }, heroEyebrow: { fontSize: 10, letterSpacing: 1.2, color: '#B7CDD2', fontWeight: '700' }, heroAmount: { marginTop: 7, fontSize: 31, fontWeight: '800', color: C.white, letterSpacing: -1 }, heroPer: { fontSize: 13, fontWeight: '500', color: '#B7CDD2', letterSpacing: 0 }, heroIconBubble: { width: 52, height: 52, borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.14)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center' }, heroDivider: { height: 1, backgroundColor: '#2C4650', marginVertical: 18 }, heroStatsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, heroStatLabel: { color: '#B7CDD2', fontSize: 10, marginBottom: 6 }, heroStatValue: { color: C.white, fontSize: 13, fontWeight: '700' }, heroStatsSeparator: { width: 1, height: 30, backgroundColor: '#2C4650', marginHorizontal: 3 },
+  gmailBannerPressable: { marginTop: 13, marginBottom: 5, borderRadius: 20, overflow: 'hidden', shadowColor: '#0A5038', shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 2 }, gmailBanner: { flexDirection: 'row', alignItems: 'center', padding: 13, gap: 11, borderRadius: 20, minHeight: 86 }, gmailBannerIcon: { width: 44, height: 44, borderRadius: 15, alignItems: 'center', justifyContent: 'center' }, gmailBannerCopy: { flex: 1, minWidth: 0 }, gmailBannerTitle: { color: C.ink, fontSize: 12, fontWeight: '800', letterSpacing: -0.15 }, gmailBannerBody: { color: '#58716B', fontSize: 10, lineHeight: 15, marginTop: 5 },
+  quickActionRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 16, marginBottom: 24 }, quickAction: { alignItems: 'center', width: '24%' }, quickActionIcon: { height: 52, width: 52, borderRadius: 18, alignItems: 'center', justifyContent: 'center' }, quickActionLabel: { color: C.ink, fontSize: 11, fontWeight: '600', marginTop: 8 }, sectionTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, marginTop: 1 }, sectionTitle: { color: C.ink, fontSize: 17, fontWeight: '800', letterSpacing: -0.4 }, sectionAction: { color: C.greenDark, fontSize: 12, fontWeight: '700' },
   listCard: { backgroundColor: C.white, borderRadius: 18, borderWidth: 1, borderColor: C.line, paddingHorizontal: 14, paddingVertical: 4 }, subscriptionCard: { flexDirection: 'row', alignItems: 'center', paddingVertical: 13, gap: 11 }, compactCard: { paddingVertical: 11 }, serviceIcon: { width: 46, height: 46, borderRadius: 15, alignItems: 'center', justifyContent: 'center' }, serviceEmoji: { fontSize: 20 }, subscriptionMain: { flex: 1, minWidth: 0 }, serviceName: { color: C.ink, fontSize: 13, fontWeight: '800' }, serviceSub: { color: C.muted, fontSize: 10, marginTop: 4 }, duePillRow: { marginTop: 7 }, subscriptionRight: { alignItems: 'flex-end', minWidth: 75 }, serviceAmount: { color: C.ink, fontSize: 13, fontWeight: '800' }, manageMini: { paddingTop: 8, paddingBottom: 2 }, manageMiniText: { color: C.greenDark, fontSize: 10, fontWeight: '700' }, innerDivider: { height: 1, backgroundColor: '#EEF2F1', marginLeft: 0 }, listDivider: { height: 1, backgroundColor: C.line }, cardActionsRow: { flexDirection: 'row', alignItems: 'center', paddingBottom: 11, gap: 8 }, cardAction: { fontSize: 11, color: C.greenDark, fontWeight: '700' }, actionDot: { color: '#ADB9BA' },
   emptyCard: { paddingHorizontal: 24, paddingVertical: 28, borderRadius: 20, borderWidth: 1, borderColor: C.line, borderStyle: 'dashed', backgroundColor: C.white, alignItems: 'center' }, emptyIcon: { width: 56, height: 56, borderRadius: 20, backgroundColor: C.greenPale, alignItems: 'center', justifyContent: 'center', marginBottom: 12 }, emptyTitle: { textAlign: 'center', color: C.ink, fontSize: 16, fontWeight: '800' }, emptyBody: { textAlign: 'center', color: C.muted, fontSize: 12, lineHeight: 18, marginTop: 7, marginBottom: 17 }, primaryButton: { backgroundColor: C.green, borderRadius: 14, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 18, paddingVertical: 14, minHeight: 47 }, primaryButtonSmall: { minHeight: 38, paddingVertical: 9 }, primaryButtonText: { color: C.white, fontSize: 13, fontWeight: '800' }, ghostButton: { borderWidth: 1, borderColor: C.line, paddingHorizontal: 14, paddingVertical: 11, borderRadius: 12 }, ghostButtonText: { color: C.ink, fontSize: 12, fontWeight: '700' }, tipCard: { flexDirection: 'row', alignItems: 'flex-start', marginTop: 15, padding: 14, backgroundColor: '#EAF4F0', borderRadius: 16, gap: 10 }, tipIcon: { width: 36, height: 36, backgroundColor: C.white, borderRadius: 12, alignItems: 'center', justifyContent: 'center' }, tipCopy: { flex: 1 }, tipTitle: { color: C.ink, fontSize: 12, fontWeight: '800' }, tipBody: { marginTop: 5, color: '#56716C', fontSize: 11, lineHeight: 17 }, footerNote: { color: '#8B999C', fontSize: 10, lineHeight: 16, textAlign: 'center', marginTop: 16, marginHorizontal: 8 },
-  bottomNav: { height: 72, flexDirection: 'row', backgroundColor: C.white, borderTopWidth: 1, borderTopColor: C.line, paddingHorizontal: 8, justifyContent: 'space-around', alignItems: 'center' }, navItem: { alignItems: 'center', justifyContent: 'center', width: '25%', gap: 3 }, navIconWrap: { height: 30, minWidth: 48, borderRadius: 13, justifyContent: 'center', alignItems: 'center' }, navIconActive: { backgroundColor: C.greenPale }, navIcon: { color: '#829297', fontSize: 21, fontWeight: '600' }, navIconSelected: { color: C.greenDark }, navLabel: { color: '#89999D', fontSize: 9, fontWeight: '600' }, navLabelSelected: { color: C.greenDark, fontWeight: '800' },
+  bottomNav: { height: 72, flexDirection: 'row', backgroundColor: C.white, borderTopWidth: 1, borderTopColor: C.line, paddingHorizontal: 8, justifyContent: 'space-around', alignItems: 'center' }, navItem: { alignItems: 'center', justifyContent: 'center', width: '25%', gap: 3 }, navIconWrap: { height: 30, minWidth: 48, borderRadius: 13, justifyContent: 'center', alignItems: 'center' }, navIconActive: { backgroundColor: C.greenPale }, navIcon: { color: '#829297' }, navIconSelected: { color: C.greenDark }, navLabel: { color: '#89999D', fontSize: 9, fontWeight: '600' }, navLabelSelected: { color: C.greenDark, fontWeight: '800' },
   pageHeader: { marginTop: 9, marginBottom: 20 }, pageEyebrow: { color: C.greenDark, fontSize: 10, fontWeight: '800', letterSpacing: 1.4, marginBottom: 7 }, pageTitle: { color: C.ink, fontSize: 29, fontWeight: '800', letterSpacing: -1 }, pageSub: { color: C.muted, fontSize: 12, marginTop: 6, lineHeight: 18 }, searchBox: { height: 52, flexDirection: 'row', alignItems: 'center', backgroundColor: C.white, borderRadius: 15, borderWidth: 1, borderColor: C.line, paddingLeft: 13, paddingRight: 7, marginBottom: 13 }, searchIcon: { fontSize: 26, color: '#8B9A9E', marginRight: 9 }, searchInput: { flex: 1, fontSize: 13, color: C.ink, paddingVertical: 7 }, searchAdd: { width: 37, height: 37, borderRadius: 12, backgroundColor: C.green, alignItems: 'center', justifyContent: 'center' }, searchAddText: { color: C.white, fontSize: 24, fontWeight: '500', marginTop: -2 }, filterRow: { gap: 7, paddingBottom: 14 }, filterChip: { paddingHorizontal: 14, paddingVertical: 9, borderRadius: 20, backgroundColor: C.white, borderWidth: 1, borderColor: C.line }, filterChipActive: { backgroundColor: C.navy, borderColor: C.navy }, filterText: { fontSize: 11, color: C.muted, fontWeight: '700' }, filterTextActive: { color: C.white }, noteBanner: { marginTop: 14, padding: 13, backgroundColor: C.bluePale, borderRadius: 12, flexDirection: 'row', alignItems: 'flex-start', gap: 8 }, noteBannerIcon: { color: '#3865A8', fontWeight: '800' }, noteBannerText: { color: '#496B91', fontSize: 10, lineHeight: 16, flex: 1 },
   insightHero: { backgroundColor: C.navy, borderRadius: 22, padding: 20, marginBottom: 23 }, insightHeroLabel: { color: '#B7CDD2', fontSize: 10, fontWeight: '800', letterSpacing: 1 }, insightHeroAmount: { color: C.white, fontSize: 31, fontWeight: '800', marginTop: 7, letterSpacing: -1 }, insightHeroNote: { color: '#B7CDD2', fontSize: 10, marginTop: 6, lineHeight: 15 }, insightMetricRow: { flexDirection: 'row', gap: 12, borderTopColor: '#2C4650', borderTopWidth: 1, marginTop: 17, paddingTop: 15 }, insightMetric: { flex: 1 }, insightMetricLabel: { color: '#B7CDD2', fontSize: 10 }, insightMetricValue: { color: C.white, fontSize: 14, fontWeight: '800', marginTop: 5 }, panel: { backgroundColor: C.white, borderRadius: 18, borderWidth: 1, borderColor: C.line, paddingHorizontal: 15, paddingVertical: 7, marginBottom: 21 }, categorySpendRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, gap: 11 }, categorySpendIcon: { width: 38, height: 38, borderRadius: 13, alignItems: 'center', justifyContent: 'center' }, categorySpendMain: { flex: 1 }, categorySpendNameRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, categorySpendName: { color: C.ink, fontSize: 12, fontWeight: '700' }, categorySpendAmount: { color: C.ink, fontSize: 11, fontWeight: '800' }, categoryMonthly: { color: C.muted, fontWeight: '500', fontSize: 9 }, barTrack: { height: 5, backgroundColor: '#EEF2F1', borderRadius: 5, overflow: 'hidden', marginTop: 9 }, barFill: { height: 5, borderRadius: 5, backgroundColor: C.green }, reviewRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 13, gap: 10 }, reviewIcon: { height: 38, width: 38, borderRadius: 13, alignItems: 'center', justifyContent: 'center' }, reviewCopy: { flex: 1 }, reviewTitle: { color: C.ink, fontSize: 12, fontWeight: '800' }, reviewBody: { color: C.muted, fontSize: 10, lineHeight: 16, marginTop: 4 }, reviewArrow: { color: C.muted, fontSize: 24 },
   profilePanel: { flexDirection: 'row', alignItems: 'center', padding: 15, gap: 12, backgroundColor: C.white, borderRadius: 18, borderWidth: 1, borderColor: C.line, marginBottom: 16 }, profilePanelTitle: { color: C.ink, fontSize: 15, fontWeight: '800' }, profilePanelSub: { color: C.muted, fontSize: 11, marginTop: 4 }, settingsSectionLabel: { color: '#829398', fontSize: 9, fontWeight: '800', letterSpacing: 1.2, marginTop: 13, marginBottom: 5 }, settingRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 13, gap: 10 }, settingIcon: { width: 37, height: 37, borderRadius: 13, backgroundColor: '#EFF4F2', alignItems: 'center', justifyContent: 'center' }, settingCopy: { flex: 1 }, settingTitle: { color: C.ink, fontSize: 12, fontWeight: '800' }, settingBody: { color: C.muted, fontSize: 10, lineHeight: 15, marginTop: 4 }, settingArrow: { color: '#8DA0A4', fontSize: 23, paddingLeft: 4 }, settingsActionRow: { paddingVertical: 15, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, settingsAction: { color: C.ink, fontSize: 12, fontWeight: '700' },
-  modalBackdrop: { flex: 1, backgroundColor: 'rgba(9, 28, 36, 0.48)', justifyContent: 'center', alignItems: 'center', padding: 22 }, infoModal: { backgroundColor: C.white, borderRadius: 25, padding: 23, width: '100%', maxWidth: 430 }, infoModalIcon: { width: 58, height: 58, backgroundColor: C.bluePale, borderRadius: 19, justifyContent: 'center', alignItems: 'center', marginBottom: 15 }, modalTitle: { color: C.ink, fontSize: 21, fontWeight: '800', letterSpacing: -0.6 }, modalIntro: { color: C.muted, fontSize: 12, lineHeight: 19, marginTop: 10 }, infoChecklist: { gap: 11, backgroundColor: C.cream, borderRadius: 15, padding: 14, marginTop: 16, marginBottom: 18 }, infoChecklistLine: { color: C.ink, fontSize: 11, fontWeight: '600' },
+  modalBackdrop: { flex: 1, backgroundColor: 'rgba(9, 28, 36, 0.48)', justifyContent: 'center', alignItems: 'center', padding: 22 }, infoModal: { backgroundColor: C.white, borderRadius: 25, padding: 23, width: '100%', maxWidth: 430 }, infoModalIcon: { width: 58, height: 58, backgroundColor: C.bluePale, borderRadius: 19, justifyContent: 'center', alignItems: 'center', marginBottom: 15 }, modalTitle: { color: C.ink, fontSize: 21, fontWeight: '800', letterSpacing: -0.6 }, modalIntro: { color: C.muted, fontSize: 12, lineHeight: 19, marginTop: 10 }, infoChecklist: { gap: 11, backgroundColor: C.cream, borderRadius: 15, padding: 14, marginTop: 16, marginBottom: 18 }, infoChecklistLine: { color: C.ink, fontSize: 11, fontWeight: '600' }, oauthSetupNotice: { borderRadius: 15, backgroundColor: '#FFF6E7', borderWidth: 1, borderColor: '#F4D9A9', padding: 13, marginBottom: 13 }, oauthNoticeTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 7 }, oauthSetupTitle: { color: '#8B5108', fontSize: 12, fontWeight: '800' }, oauthSetupBody: { color: '#785B34', fontSize: 10, lineHeight: 16, marginTop: 7 },
   editorSafeArea: { flex: 1, backgroundColor: C.cream }, editorHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, paddingTop: 12, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: C.line, backgroundColor: C.white }, editorClose: { width: 38, height: 38, borderRadius: 13, backgroundColor: '#F0F4F3', alignItems: 'center', justifyContent: 'center' }, editorCloseText: { color: C.ink, fontSize: 17 }, editorTitle: { color: C.ink, fontSize: 18, fontWeight: '800' }, editorSubtitle: { color: C.muted, fontSize: 10, marginTop: 3 }, editorScroll: { padding: 20, paddingBottom: 35 }, fieldLabel: { color: '#62777D', fontWeight: '800', fontSize: 10, letterSpacing: 1, marginTop: 18, marginBottom: 9 }, input: { backgroundColor: C.white, borderWidth: 1, borderColor: C.line, borderRadius: 13, color: C.ink, fontSize: 13, minHeight: 49, paddingHorizontal: 14, paddingVertical: 12 }, categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }, categoryOption: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 10, borderRadius: 12, backgroundColor: C.white, borderWidth: 1, borderColor: C.line }, categoryOptionActive: { backgroundColor: C.greenPale, borderColor: C.green }, categoryOptionText: { color: C.muted, fontSize: 10, fontWeight: '700' }, categoryOptionTextActive: { color: C.greenDark }, amountInputWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.white, borderWidth: 1, borderColor: C.line, borderRadius: 13, paddingLeft: 15 }, rupeeSign: { color: C.ink, fontSize: 20, fontWeight: '700' }, amountInput: { flex: 1, minHeight: 49, paddingHorizontal: 10, color: C.ink, fontSize: 18, fontWeight: '700' }, cycleRow: { flexDirection: 'row', gap: 7 }, cycleChip: { flex: 1, alignItems: 'center', paddingVertical: 11, borderRadius: 12, borderWidth: 1, borderColor: C.line, backgroundColor: C.white }, cycleChipActive: { backgroundColor: C.navy, borderColor: C.navy }, cycleChipText: { color: C.muted, fontSize: 10, fontWeight: '700' }, cycleChipTextActive: { color: C.white }, fieldHint: { fontSize: 10, lineHeight: 15, color: C.muted, marginTop: 6 }, notesInput: { minHeight: 78, textAlignVertical: 'top' }, reminderRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginVertical: 20, borderRadius: 15, backgroundColor: C.white, borderWidth: 1, borderColor: C.line, padding: 14 }, deleteFromEditor: { alignItems: 'center', paddingVertical: 14 }, deleteFromEditorText: { color: C.red, fontSize: 12, fontWeight: '800' }, formPrivacyNote: { color: '#8B999C', fontSize: 10, lineHeight: 16, textAlign: 'center', marginTop: 14, marginBottom: 10 },
 });
 
