@@ -79,3 +79,19 @@ def test_accepts_explicit_subscription_receipt_even_if_cycle_is_missing():
     assert result["amount"] == 649
     assert result["cycle"] is None
     assert result["next_renewal"] is None
+
+
+
+def test_header_filter_keeps_transactional_and_relevant_provider_messages():
+    from app.scanner import should_fetch_full_message
+
+    assert should_fetch_full_message("Your Netflix subscription renewal receipt", "Netflix <billing@netflix.com>")
+    assert should_fetch_full_message("Payment confirmation", "receipts@unknown-example.com")
+    assert should_fetch_full_message("Your Spotify Premium plan", "no-reply@spotify.com")
+
+
+def test_header_filter_skips_unrelated_provider_newsletter():
+    from app.scanner import should_fetch_full_message
+
+    assert not should_fetch_full_message("Your weekend music picks", "news@spotify.com")
+    assert not should_fetch_full_message("October company news", "updates@example.com")
