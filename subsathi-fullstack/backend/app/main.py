@@ -4,6 +4,7 @@ import json
 import secrets
 import hashlib
 import logging
+import os
 from datetime import datetime, timedelta, timezone
 from typing import Any
 from urllib.parse import quote
@@ -31,6 +32,17 @@ from .scanner import extract_message_text, group_billing_evidence, parse_billing
 from .security import create_session_token, decrypt_secret, encrypt_secret, decode_session_token
 
 SCOPES = ["openid", "email", "profile", "https://www.googleapis.com/auth/gmail.readonly"]
+SCOPE_ALIASES = {
+    "email": "https://www.googleapis.com/auth/userinfo.email",
+    "profile": "https://www.googleapis.com/auth/userinfo.profile",
+}
+
+
+def normalize_scope_set(scopes: list[str] | tuple[str, ...] | None) -> set[str]:
+    """Normalize Google's documented shorthand identity-scope aliases."""
+    return {SCOPE_ALIASES.get(scope, scope) for scope in (scopes or [])}
+
+
 app = FastAPI(title="SubSathi API", version="1.0.0", description="Secure subscription discovery API. Gmail scans run only after explicit OAuth consent.")
 app.add_middleware(
     CORSMiddleware,
@@ -233,8 +245,31 @@ def google_callback(code: str | None = None, state: str | None = None, error: st
         # Generating a new verifier here makes Google's token exchange fail with invalid_grant.
         flow = google_flow(state=state, code_verifier=code_verifier, autogenerate_code_verifier=False)
         stage = "exchange_authorization_code"
+        # Google can report the requested "email"/"profile" aliases alongside their
+        # canonical userinfo.email/userinfo.profile URI names. oauthlib treats that
+        # harmless alias expansion as a Warning exception unless scope relaxation is
+        # enabled. We independently validate the exact normalized granted scope set
+        # immediately after token exchange below.
+        os.environ.setdefault("OAUTHLIB_RELAX_TOKEN_SCOPE", "1")
         flow.fetch_token(code=code)
         google_credentials = flow.credentials
+        stage = "validate_granted_scopes"
+        granted_scopes = normalize_scope_set(google_credentials.scopes)
+        required_scopes = normalize_scope_set(SCOPES)
+        if not required_scopes.issubset(granted_scopes):
+            missing_scopes = required_scopes - granted_scopes
+            logging.getLogger("uvicorn.error").error(
+                "Google OAuth did not grant required scope count=%s",
+                len(missing_scopes),
+            )
+            return callback_deeplink(error="Google did not grant all required permissions. Please reconnect and approve Gmail read access.")
+        unexpected_scopes = granted_scopes - required_scopes
+        if unexpected_scopes:
+            logging.getLogger("uvicorn.error").error(
+                "Google OAuth returned unexpected scope count=%s",
+                len(unexpected_scopes),
+            )
+            return callback_deeplink(error="Google returned permissions SubSathi did not request. Please contact support before connecting.")
         stage = "verify_google_identity_token"
         claims = id_token.verify_oauth2_token(google_credentials.id_token, GoogleRequest(), settings.google_client_id)
         if not claims.get("email_verified") or not claims.get("email") or not claims.get("sub"):
