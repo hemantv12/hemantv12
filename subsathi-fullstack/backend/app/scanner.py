@@ -183,7 +183,7 @@ def _domain_matches(domain: str, roots: tuple[str, ...]) -> bool:
 
 
 HEADER_TRANSACTION_CUES = re.compile(
-    r"\\b(receipt|invoice|payment|billing|renewal|renewed|subscription|membership|trial ends?|charge|charged)\\b",
+    r"\b(receipt|invoice|payment|billing|renewal|renewed|subscription|membership|trial ends?|charge|charged)\b",
     re.IGNORECASE,
 )
 
