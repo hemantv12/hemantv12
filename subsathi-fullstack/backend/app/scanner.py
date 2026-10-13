@@ -183,22 +183,29 @@ def _domain_matches(domain: str, roots: tuple[str, ...]) -> bool:
 
 
 HEADER_TRANSACTION_CUES = re.compile(
-    r"\b(receipt|invoice|payment|billing|renewal|renewed|subscription|membership|trial ends?|charge|charged)\b",
+    r"\b(receipt|invoice|payment|bill(?:ing)?|renewal|renewed|subscription|membership|"
+    r"trial ends?|charge|charged|auto[- ]?renew|recurring payment|billing cycle|purchase)\b",
+    re.IGNORECASE,
+)
+HEADER_PROVIDER_CONTEXT = re.compile(
+    r"\b(plan|premium|membership|subscription|billing|payment|renewal|renewed|receipt|"
+    r"invoice|order|charge|trial|account|purchase|auto[- ]?renew|recurring)\b",
     re.IGNORECASE,
 )
 
 
 def should_fetch_full_message(subject: str, sender: str) -> bool:
-    """Use cheap Gmail headers to avoid fetching full bodies of unrelated search hits."""
+    """Use cheap headers to avoid downloading full bodies of unrelated search hits."""
     decoded_subject = decode_header(subject or "")
     decoded_sender = decode_header(sender or "")
     if HEADER_TRANSACTION_CUES.search(decoded_subject):
         return True
     domain = parse_sender_domain(decoded_sender)
-    return any(
+    known_provider = any(
         _domain_matches(domain, roots)
         for roots in MERCHANT_SENDER_DOMAINS.values()
     )
+    return known_provider and bool(HEADER_PROVIDER_CONTEXT.search(decoded_subject))
 
 
 def parse_billing_message(*, message_id: str, subject: str, sender: str, date_header: str, body: str) -> dict[str, Any] | None:
