@@ -88,8 +88,16 @@ def ensure_oauth_state_pkce_column() -> None:
 ensure_oauth_state_pkce_column()
 
 
+class CandidateImportOverride(BaseModel):
+    candidate_id: int
+    amount: float | None = Field(default=None, gt=0, le=10_000_000)
+    cycle: str | None = Field(default=None, pattern=r"^(Weekly|Monthly|Quarterly|Yearly)$")
+    next_renewal: str | None = Field(default=None, pattern=r"^\\d{4}-\\d{2}-\\d{2}$")
+
+
 class CandidateImportRequest(BaseModel):
     candidate_ids: list[int] = Field(min_length=1, max_length=100)
+    overrides: list[CandidateImportOverride] = Field(default_factory=list, max_length=100)
 
 
 class OAuthExchangeRequest(BaseModel):
@@ -505,9 +513,29 @@ def import_candidates(payload: CandidateImportRequest, user: User = Depends(curr
     found_ids = {item.id for item in candidates}
     if found_ids != set(payload.candidate_ids):
         raise HTTPException(status_code=404, detail="One or more scan results were not found for your account. Scan again.")
+    overrides = {item.candidate_id: item for item in payload.overrides}
+    if set(overrides) - found_ids:
+        raise HTTPException(status_code=400, detail="Import details included an item that was not selected.")
+
+    # Apply explicit user-reviewed corrections before validating required fields.
+    for item in candidates:
+        override = overrides.get(item.id)
+        if override is None:
+            continue
+        if override.amount is not None:
+            item.amount = override.amount
+        if override.cycle is not None:
+            item.cycle = override.cycle
+        if override.next_renewal is not None:
+            item.next_renewal = override.next_renewal
+
     missing_prices = [item.service_name for item in candidates if item.amount is None or item.amount <= 0]
     if missing_prices:
-        raise HTTPException(status_code=422, detail="Add the price manually before importing: " + ", ".join(missing_prices))
+        raise HTTPException(status_code=422, detail="Enter a valid price for: " + ", ".join(missing_prices))
+    missing_cycles = [item.service_name for item in candidates if item.cycle not in {"Weekly", "Monthly", "Quarterly", "Yearly"}]
+    if missing_cycles:
+        raise HTTPException(status_code=422, detail="Choose the billing cycle for: " + ", ".join(missing_cycles))
+
     result = []
     for item in candidates:
         item.imported = True
@@ -517,11 +545,11 @@ def import_candidates(payload: CandidateImportRequest, user: User = Depends(curr
             "name": item.service_name,
             "category": item.category,
             "amount": item.amount,
-            "cycle": item.cycle if item.cycle in {"Weekly", "Monthly", "Quarterly", "Yearly"} else "Monthly",
+            "cycle": item.cycle,
             "nextRenewal": item.next_renewal or "",
             "manageUrl": _manage_url_for(item.service_name),
-            "notes": f"Detected from billing emails ({item.evidence_count} message(s)). Verify missing dates or cycle before relying on reminders.",
-            "needsReview": not bool(item.next_renewal) or item.cycle == "Unknown",
+            "notes": f"Detected from billing emails ({item.evidence_count} message(s)). Verify the renewal date if it wasn't found in the email.",
+            "needsReview": not bool(item.next_renewal),
             "source": "gmail",
         })
     db.commit()
