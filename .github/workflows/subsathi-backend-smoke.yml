@@ -1,0 +1,61 @@
+name: SubSathi live Gmail OAuth preflight
+
+on:
+  push:
+    branches:
+      - subsathi-launch
+    paths:
+      - '.github/workflows/subsathi-backend-smoke.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  gmail-oauth-preflight:
+    name: Verify live API and Google OAuth readiness
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Check live API health and OAuth configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          HEALTH="$(curl --fail --silent --show-error --max-time 25 https://subsathi-api.onrender.com/health)"
+          printf '%s' "$HEALTH" | python3 -c '
+          import json, sys
+          body = json.load(sys.stdin)
+          print("api_status=" + str(body.get("status")))
+          print("google_oauth_configured=" + str(body.get("google_oauth_configured")))
+          if body.get("status") != "ok":
+              raise SystemExit("API health check failed")
+          if body.get("google_oauth_configured") is not True:
+              raise SystemExit("Google OAuth Client ID/Secret/Redirect URI are not all configured in Render")
+          '
+      - name: Check Google authorization URL and Gmail read scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          HTTP_CODE="$(curl --silent --show-error --max-time 25 -o /tmp/subsathi-oauth.json -w '%{http_code}' 'https://subsathi-api.onrender.com/api/auth/google/url?redirect_target=mobile')"
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "OAuth authorization endpoint returned HTTP $HTTP_CODE"
+            python3 -c 'import json; p="/tmp/subsathi-oauth.json"; print(json.load(open(p)).get("detail", "No error detail returned"))' || true
+            exit 1
+          fi
+          python3 -c '
+          import json, sys
+          body = json.load(open("/tmp/subsathi-oauth.json"))
+          url = body.get("authorization_url") or body.get("auth_url") or body.get("url") or ""
+          # The endpoint currently returns authorization_url; do not print the URL.
+          if not url:
+              raise SystemExit("OAuth endpoint returned HTTP 200 but did not include a recognized authorization URL field")
+          from urllib.parse import urlparse, parse_qs
+          parsed = urlparse(url)
+          qs = parse_qs(parsed.query)
+          scopes = " ".join(qs.get("scope", []))
+          print("google_authorization_host=" + str(parsed.hostname))
+          print("gmail_readonly_scope_requested=" + str("https://www.googleapis.com/auth/gmail.readonly" in scopes))
+          if parsed.hostname != "accounts.google.com":
+              raise SystemExit("Authorization URL does not point to Google Accounts")
+          if "https://www.googleapis.com/auth/gmail.readonly" not in scopes:
+              raise SystemExit("gmail.readonly scope is missing")
+          '
