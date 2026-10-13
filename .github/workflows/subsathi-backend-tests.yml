@@ -1,0 +1,65 @@
+name: SubSathi quality checks
+
+on:
+  push:
+    branches:
+      - subsathi-launch
+    paths:
+      - 'frontend/**'
+      - 'subsathi-fullstack/backend/**'
+      - '.github/workflows/subsathi-backend-tests.yml'
+  pull_request:
+    paths:
+      - 'frontend/**'
+      - 'subsathi-fullstack/backend/**'
+      - '.github/workflows/subsathi-backend-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: subsathi-fullstack/backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: subsathi-fullstack/backend/requirements.txt
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -r requirements.txt
+      - name: Run backend tests
+        env:
+          PYTHONPATH: .
+        run: python -m pytest -q tests
+
+  frontend-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate PWA manifest
+        run: node -e "JSON.parse(require('fs').readFileSync('frontend/manifest.webmanifest', 'utf8')); console.log('Manifest JSON is valid')"
+      - name: Check service worker syntax
+        run: node --check frontend/sw.js
+      - name: Check inline application script syntax
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          html = Path('frontend/index.html').read_text(encoding='utf-8')
+          scripts = re.findall(r'<script>(.*?)</script>', html, re.S)
+          assert len(scripts) == 1, f'Expected one inline application script, found {len(scripts)}'
+          Path('/tmp/subsathi-app.js').write_text(scripts[0], encoding='utf-8')
+          required = ['function exportBackup()', 'function importBackup(file)', 'beforeinstallprompt']
+          assert all(item in html for item in required), 'A launch feature is missing'
+          print('Application script extracted; key feature checks passed')
+          PY
+          node --check /tmp/subsathi-app.js
