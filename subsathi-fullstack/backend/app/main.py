@@ -31,7 +31,7 @@ from sqlalchemy.orm import Session
 from .config import settings
 from .database import Base, SessionLocal, engine, get_db
 from .models import GoogleConnection, OAuthLoginTicket, OAuthState, ScanCandidate, User, utcnow
-from .scanner import extract_message_text, group_billing_evidence, parse_billing_message
+from .scanner import extract_message_text, group_billing_evidence, parse_billing_message, should_fetch_full_message
 from .security import create_session_token, decrypt_secret, encrypt_secret, decode_session_token
 
 SCOPES = ["openid", "email", "profile", "https://www.googleapis.com/auth/gmail.readonly"]
@@ -415,6 +415,21 @@ def _init_gmail_scan_worker(credentials: Credentials) -> None:
     _gmail_scan_worker.service = build("gmail", "v1", credentials=credentials, cache_discovery=False)
 
 
+def _fetch_gmail_message_metadata_for_scan(message_id: str) -> dict[str, Any] | None:
+    service = getattr(_gmail_scan_worker, "service", None)
+    if service is None:
+        raise RuntimeError("Gmail scan worker was not initialized.")
+    try:
+        return service.users().messages().get(
+            userId="me",
+            id=message_id,
+            format="metadata",
+            metadataHeaders=["Subject", "From", "Date"],
+        ).execute()
+    except HttpError:
+        return None
+
+
 def _fetch_gmail_message_for_scan(message_id: str) -> dict[str, Any] | None:
     service = getattr(_gmail_scan_worker, "service", None)
     if service is None:
@@ -445,8 +460,8 @@ def scan_gmail(max_messages: int = Query(100, ge=1, le=200), user: User = Depend
             if not page_token or not page.get("messages"):
                 break
 
-        # Fetch message details concurrently. The previous implementation made up
-        # to 150+ full-message Gmail API calls sequentially, causing long waits.
+        # First fetch only headers for search hits. Download full message bodies
+        # concurrently only for likely transaction emails or known provider senders.
         message_ids = [str(ref.get("id", "")) for ref in refs if ref.get("id")]
         if message_ids:
             with ThreadPoolExecutor(
@@ -454,19 +469,43 @@ def scan_gmail(max_messages: int = Query(100, ge=1, le=200), user: User = Depend
                 initializer=_init_gmail_scan_worker,
                 initargs=(credentials,),
             ) as executor:
-                messages = list(executor.map(_fetch_gmail_message_for_scan, message_ids))
+                metadata_messages = list(executor.map(_fetch_gmail_message_metadata_for_scan, message_ids))
         else:
-            messages = []
+            metadata_messages = []
 
-        parsed: list[dict[str, Any]] = []
-        for message_id, message in zip(message_ids, messages):
+        relevant_ids: list[str] = []
+        metadata_by_id: dict[str, dict[str, str]] = {}
+        for message_id, message in zip(message_ids, metadata_messages):
             if not message:
                 continue
             payload = message.get("payload") or {}
             headers = {str(item.get("name", "")).lower(): str(item.get("value", "")) for item in payload.get("headers") or []}
             subject = headers.get("subject", "")
             sender = headers.get("from", "")
-            date_header = headers.get("date", "")
+            if should_fetch_full_message(subject, sender):
+                relevant_ids.append(message_id)
+                metadata_by_id[message_id] = headers
+
+        if relevant_ids:
+            with ThreadPoolExecutor(
+                max_workers=min(12, len(relevant_ids)),
+                initializer=_init_gmail_scan_worker,
+                initargs=(credentials,),
+            ) as executor:
+                full_messages = list(executor.map(_fetch_gmail_message_for_scan, relevant_ids))
+        else:
+            full_messages = []
+
+        parsed: list[dict[str, Any]] = []
+        for message_id, message in zip(relevant_ids, full_messages):
+            if not message:
+                continue
+            payload = message.get("payload") or {}
+            headers = {str(item.get("name", "")).lower(): str(item.get("value", "")) for item in payload.get("headers") or []}
+            fallback_headers = metadata_by_id.get(message_id, {})
+            subject = headers.get("subject", fallback_headers.get("subject", ""))
+            sender = headers.get("from", fallback_headers.get("from", ""))
+            date_header = headers.get("date", fallback_headers.get("date", ""))
             body = _body_from_gmail_payload(payload)
             candidate = parse_billing_message(message_id=message_id, subject=subject, sender=sender, date_header=date_header, body=body)
             if candidate:
@@ -474,8 +513,8 @@ def scan_gmail(max_messages: int = Query(100, ge=1, le=200), user: User = Depend
         grouped = group_billing_evidence(parsed)
         duration_ms = round((perf_counter() - scan_started) * 1000)
         logging.getLogger("uvicorn.error").info(
-            "Gmail scan complete: messages=%s matched=%s candidates=%s duration_ms=%s workers=%s",
-            len(message_ids), len(parsed), len(grouped), duration_ms, min(8, len(message_ids)),
+            "Gmail scan complete: searched=%s full_fetched=%s matched=%s candidates=%s duration_ms=%s workers=%s",
+            len(message_ids), len(relevant_ids), len(parsed), len(grouped), duration_ms, min(12, max(len(message_ids), len(relevant_ids))),
         )
         # Replace stale, not-yet-imported detections with the latest scan so old prices don't pile up.
         db.query(ScanCandidate).filter(ScanCandidate.user_id == user.id, ScanCandidate.imported.is_(False)).delete(synchronize_session=False)
@@ -498,6 +537,7 @@ def scan_gmail(max_messages: int = Query(100, ge=1, le=200), user: User = Depend
         saved = db.scalars(select(ScanCandidate).where(ScanCandidate.user_id == user.id).order_by(ScanCandidate.imported.asc(), ScanCandidate.updated_at.desc())).all()
         return {
             "scanned_messages": len(message_ids),
+            "full_messages_fetched": len(relevant_ids),
             "matched_receipts": len(parsed),
             "candidate_count": len(grouped),
             "scanned_at": now_utc().isoformat() + "Z",
