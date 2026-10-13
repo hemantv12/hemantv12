@@ -1,0 +1,68 @@
+# SubSathi Render Blueprint.
+# Use the existing resources with these names when syncing this Blueprint.
+# Free Postgres is only for a short pilot; upgrade it before production use.
+services:
+  - type: web
+    name: subsathi-api
+    runtime: docker
+    repo: https://github.com/hemantv12/hemantv12
+    branch: subsathi-launch
+    dockerfilePath: ./subsathi-fullstack/backend/Dockerfile
+    dockerContext: ./subsathi-fullstack/backend
+    plan: free
+    region: singapore
+    healthCheckPath: /health
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: API_BASE_URL
+        value: https://subsathi-api.onrender.com
+      - key: DATABASE_URL
+        fromDatabase:
+          name: subsathi-db
+          property: connectionString
+      - key: GOOGLE_REDIRECT_URI
+        value: https://subsathi-api.onrender.com/api/auth/google/callback
+      - key: MOBILE_REDIRECT_URI
+        value: subsathi://auth
+      - key: CORS_ORIGINS
+        value: https://subsathi-web.onrender.com
+      - key: JWT_ISSUER
+        value: subsathi-api
+      - key: SESSION_DAYS
+        value: "14"
+      - key: SCAN_MAX_MESSAGES
+        value: "200"
+      - key: TOKEN_ENCRYPTION_KEY
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+
+  - type: static
+    name: subsathi-web
+    repo: https://github.com/hemantv12/hemantv12
+    branch: subsathi-launch
+    buildCommand: echo "SubSathi web assets ready"
+    staticPublishPath: ./frontend
+    autoDeployTrigger: checksPass
+    headers:
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: Content-Security-Policy
+        value: "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://subsathi-api.onrender.com; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
+
+databases:
+  - name: subsathi-db
+    databaseName: subsathi_db
+    user: subsathi_db_user
+    plan: free
+    region: singapore
