@@ -93,7 +93,7 @@ class CandidateImportOverride(BaseModel):
     candidate_id: int
     amount: float | None = Field(default=None, gt=0, le=10_000_000)
     cycle: str | None = Field(default=None, pattern=r"^(Weekly|Monthly|Quarterly|Yearly)$")
-    next_renewal: str | None = Field(default=None, pattern=r"^\\d{4}-\\d{2}-\\d{2}$")
+    next_renewal: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
 
 
 class CandidateImportRequest(BaseModel):
