@@ -897,8 +897,8 @@ def _batch_fetch_gmail_messages_for_scan(
 ) -> list[dict[str, Any] | None]:
     """Fetch Gmail messages in API batches to reduce latency on first-time scans.
 
-    Gmail supports up to 100 requests per batch. Message bodies are requested only
-    in the second pass for messages whose headers match billing-related criteria.
+    Gmail permits up to 100 requests per batch, but batches of 50 reduce rate-limit
+    risk. Message bodies are requested only in the second pass for relevant headers.
     """
     if not message_ids:
         return []
@@ -909,9 +909,9 @@ def _batch_fetch_gmail_messages_for_scan(
         # A single vanished message should not fail the entire mailbox scan.
         responses[str(request_id)] = response if exception is None and isinstance(response, dict) else None
 
-    for offset in range(0, len(message_ids), 100):
+    for offset in range(0, len(message_ids), 50):
         batch = service.new_batch_http_request(callback=callback)
-        for message_id in message_ids[offset : offset + 100]:
+        for message_id in message_ids[offset : offset + 50]:
             request_options: dict[str, Any] = {
                 "userId": "me",
                 "id": message_id,
