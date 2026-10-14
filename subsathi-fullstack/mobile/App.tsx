@@ -1040,8 +1040,7 @@ function AppContent() {
       const activateConnectedSession = async (enableAI?: boolean) => {
         try {
           if (enableAI !== undefined) {
-            const localDb = dbRef.current;
-            if (localDb) {
+            await withLocalDatabase(async (localDb) => {
               await localDb.runAsync(
                 "INSERT INTO app_settings (key, value) VALUES ('aiAssistedScan', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
                 enableAI ? 'true' : 'false',
@@ -1049,7 +1048,7 @@ function AppContent() {
               await localDb.runAsync(
                 "INSERT INTO app_settings (key, value) VALUES ('aiConsentResolved', 'true') ON CONFLICT(key) DO UPDATE SET value = excluded.value",
               );
-            }
+            });
             setAiAssistedScan(enableAI);
           }
           setApiSession(token);
@@ -1068,13 +1067,10 @@ function AppContent() {
         }
       };
 
-      const localDb = dbRef.current;
-      const savedConsent = localDb
-        ? await localDb.getFirstAsync<{ value: string }>("SELECT value FROM app_settings WHERE key = 'aiConsentResolved'")
-        : null;
-      const savedAiPreference = localDb
-        ? await localDb.getFirstAsync<{ value: string }>("SELECT value FROM app_settings WHERE key = 'aiAssistedScan'")
-        : null;
+      const { savedConsent, savedAiPreference } = await withLocalDatabase(async (localDb) => ({
+        savedConsent: await localDb.getFirstAsync<{ value: string }>("SELECT value FROM app_settings WHERE key = 'aiConsentResolved'"),
+        savedAiPreference: await localDb.getFirstAsync<{ value: string }>("SELECT value FROM app_settings WHERE key = 'aiAssistedScan'"),
+      }));
       if (healthPayload.ai_extraction_configured === true && !savedConsent && !savedAiPreference) {
         Alert.alert(
           'Improve subscription detection with AI?',
@@ -1574,8 +1570,7 @@ function AppContent() {
         throw new Error(payload.detail || 'Could not disconnect Gmail on the server.');
       }
       await SecureStore.deleteItemAsync(SESSION_KEY);
-      const localDb = dbRef.current;
-      if (localDb) await localDb.runAsync("INSERT INTO app_settings (key, value) VALUES ('aiAssistedScan', 'false') ON CONFLICT(key) DO UPDATE SET value = excluded.value");
+      await withLocalDatabase((localDb) => localDb.runAsync("INSERT INTO app_settings (key, value) VALUES ('aiAssistedScan', 'false') ON CONFLICT(key) DO UPDATE SET value = excluded.value").then(() => undefined));
       setApiSession(null); setGmailEmail(null); setGmailAccounts([]); setScanCandidates([]); setSelectedCandidateIds([]); setAiAssistedScan(false);
       toastLocal('All Gmail accounts disconnected. Locally imported plans remain on this device.');
     } catch (error) {
