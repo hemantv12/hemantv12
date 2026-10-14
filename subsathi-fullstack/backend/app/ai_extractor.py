@@ -18,14 +18,16 @@ from .scanner import (
 )
 
 OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses"
-MAX_AI_EMAILS_PER_MAILBOX = 75
+MAX_AI_EMAILS_PER_MAILBOX = 100
 AI_BATCH_SIZE = 25
-AI_MAX_WORKERS = 3
+AI_MAX_WORKERS = 4
 MAX_EMAIL_CHARS = 3500
 
 RECURRING_EVIDENCE = re.compile(
     r"\b(?:auto[- ]?renew\w*|recurr\w*|renew(?:al|s|ed|ing)?|"
     r"subscription period|charged again|billed (?:weekly|monthly|quarterly|annually|yearly)|"
+    r"next (?:billing|payment|charge|renewal|debit) date|next (?:billing|payment|charge|renewal)|"
+    r"will renew on|set to renew|auto[- ]?renew|billing every \d+|"
     r"every \d+ (?:days?|weeks?|months?|years?)|per (?:week|month|quarter|year|annum)|"
     r"weekly|monthly|quarterly|annually|yearly|per month|per year|will continue)\b",
     re.IGNORECASE,
@@ -165,9 +167,14 @@ def _extract_billing_evidence_batch(
         "service identities. For each field, return an exact short quote copied from the supplied "
         "email text. Use null when the field is absent. amount_evidence must include an explicit "
         "Indian rupee marker such as ₹, INR, Rs, or rupees; do not convert foreign currencies. "
-        "cycle_evidence must explicitly establish the recurring interval. renewal_evidence must "
-        "include the words that label an upcoming renewal, next bill/payment, expiry, or trial end "
-        "and its date. service_evidence must quote the actual provider or product name."
+        "cycle_evidence must explicitly establish the recurring interval. When multiple monetary "
+        "amounts appear, choose only the amount explicitly tied to the recurring plan or future "
+        "recurring charge, not tax, discounts, a one-time purchase, an old charge, or an account "
+        "balance; if ambiguous, use null. renewal_evidence must include wording that clearly labels "
+        "an upcoming renewal, next bill/payment/charge/debit, expiry, or trial end and its date; do "
+        "not use the email receipt date or a past charge date as the next renewal. Ordinal dates "
+        "such as '12th November' are valid quotes. service_evidence must quote the actual provider "
+        "or product name. If any field is ambiguous, use null rather than guessing."
     )
     request_body = {
         "model": model,
@@ -283,11 +290,12 @@ def extract_billing_evidence_with_ai(
     timeout_seconds: float = 12.0,
     max_emails: int = MAX_AI_EMAILS_PER_MAILBOX,
 ) -> list[dict[str, Any]]:
-    """Analyse up to 75 uncertain billing emails in parallel batches of 25.
+    """Analyse up to 100 uncertain or locally-detected billing emails in parallel batches of 25.
 
     The local scanner remains the first pass. Only emails that need AI assistance are
-    supplied here, and each field must still be backed by an exact quote from that
-    email. A failed batch does not discard valid results from the other batches.
+    supplied here, prioritising uncertain or incomplete candidates before already-complete
+    local matches. Each AI-filled field still requires an exact quote from that email.
+    A failed batch does not discard valid results from the other batches.
     """
     if not api_key.strip() or not emails or max_emails <= 0:
         return AIExtractionResults([])

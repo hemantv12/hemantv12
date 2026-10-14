@@ -371,6 +371,20 @@ def test_date_parser_handles_due_wording_without_guessing():
     assert parse_date("Next payment due on 2026-11-14") == "2026-11-14"
     assert parse_date("Your next payment is due soon") is None
 
+
+
+def test_parse_ordinal_renewal_dates():
+    assert parse_date("Your plan renews on November 12th, 2026") == "2026-11-12"
+    assert parse_date("Next payment date is 12th Nov 2026") == "2026-11-12"
+    assert parse_date("Subscription renews on 1st January 2027") == "2027-01-01"
+
+
+def test_parse_relative_renewal_dates_only_from_email_timestamp():
+    assert parse_date("Your plan renews tomorrow", reference_date=date(2026, 10, 12)) == "2026-10-13"
+    assert parse_date("Next billing date is in 2 weeks", reference_date=date(2026, 10, 12)) == "2026-10-26"
+    assert parse_date("The offer ends tomorrow") is None
+
+
 def test_date_parser_handles_upcoming_bill_and_scheduled_renewal_phrasing():
     assert parse_date("Upcoming renewal: 12 Nov 2026") == "2026-11-12"
     assert parse_date("Next bill is due on 15 Dec 2026") == "2026-12-15"

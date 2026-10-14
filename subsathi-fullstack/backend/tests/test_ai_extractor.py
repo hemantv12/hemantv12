@@ -111,11 +111,11 @@ def test_ai_keeps_verified_subscription_when_billing_fields_are_absent(monkeypat
     assert results[0]["next_renewal"] is None
     assert results[0]["confidence"] == 48
 
-def test_ai_extraction_batches_more_than_25_emails_and_caps_at_75(monkeypatch):
+def test_ai_extraction_batches_more_than_25_emails_and_caps_at_100(monkeypatch):
     from app.ai_extractor import AI_BATCH_SIZE, MAX_AI_EMAILS_PER_MAILBOX
 
     emails = []
-    for index in range(80):
+    for index in range(110):
         message_id = f"msg-{index}"
         emails.append({
             "message_id": message_id,
@@ -151,11 +151,11 @@ def test_ai_extraction_batches_more_than_25_emails_and_caps_at_75(monkeypatch):
     monkeypatch.setattr("app.ai_extractor.httpx.post", fake_post)
     results = extract_billing_evidence_with_ai(emails, api_key="test-key")
 
-    assert MAX_AI_EMAILS_PER_MAILBOX == 75
+    assert MAX_AI_EMAILS_PER_MAILBOX == 100
     assert AI_BATCH_SIZE == 25
-    assert sorted(calls) == [25, 25, 25]
-    assert len(results) == 75
-    assert len({result["message_id"] for result in results}) == 75
+    assert sorted(calls) == [25, 25, 25, 25]
+    assert len(results) == 100
+    assert len({result["message_id"] for result in results}) == 100
     assert all(result["amount"] == 119 for result in results)
     assert all(result["cycle"] == "Monthly" for result in results)
     assert results.failed_batches == 0

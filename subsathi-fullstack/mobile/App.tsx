@@ -782,7 +782,7 @@ function AppContent() {
   const openManage = async (item: Subscription, intent: 'manage' | 'cancel' = 'manage') => {
     const source = normalizeBillingSource(item.billingSource);
     const sourceUrl = BILLING_SOURCE_MANAGEMENT_URLS[source];
-    const directUrl = sourceUrl !== undefined ? sourceUrl : (item.manageUrl.trim() || knownManagementUrl(item.name, source));
+    const directUrl = (sourceUrl && sourceUrl.trim()) || item.manageUrl.trim() || knownManagementUrl(item.name, source);
     if (source === 'upi_autopay' || source === 'bank_mandate') {
       const isUpi = source === 'upi_autopay';
       Alert.alert(
@@ -890,7 +890,7 @@ function AppContent() {
           }
           setApiSession(token);
           if (enableAI === true) {
-            Alert.alert('AI-enhanced scan enabled', 'SubSathi will analyse up to 75 incomplete billing-email excerpts per inbox using OpenAI, in addition to its local checks. You can turn this off any time in Email scan settings.');
+            Alert.alert('AI-enhanced scan enabled', 'SubSathi will analyse up to 100 likely billing-email excerpts per inbox; uncertain detections are reviewed first using OpenAI, in addition to its local checks. You can turn this off any time in Email scan settings.');
           } else if (enableAI === false) {
             Alert.alert('Gmail connected', 'Automatic subscription discovery is starting using local detection. You can enable AI-assisted extraction later in Email scan settings.');
           } else {
@@ -1158,7 +1158,7 @@ function AppContent() {
         setSelectedCandidateIds([]);
         return;
       }
-      const overrides: { candidate_id: number; amount?: number; cycle?: Cycle; next_renewal?: string }[] = [];
+      const overrides: { candidate_id: number; amount?: number | null; cycle?: Cycle | 'Unknown'; next_renewal?: string }[] = [];
       for (const candidate of selectedCandidates) {
         const draft = candidateEdits[candidate.id] || {
           amountText: candidate.amount === null ? '' : String(candidate.amount),
@@ -1175,10 +1175,12 @@ function AppContent() {
           Alert.alert('Check the renewal date', `Enter ${candidate.name}'s date as YYYY-MM-DD, or leave it blank if the email did not contain a date.`);
           return;
         }
-        const override: { candidate_id: number; amount?: number; cycle?: Cycle; next_renewal?: string } = { candidate_id: candidate.id };
-        if ((candidate.amount === null || candidate.amount <= 0) && parsedAmount !== null) override.amount = parsedAmount;
-        if (candidate.cycle === 'Unknown' && draft.cycle !== 'Unknown') override.cycle = draft.cycle as Cycle;
-        if (!candidate.nextRenewal && draft.renewalText.trim()) override.next_renewal = draft.renewalText.trim();
+        const override: { candidate_id: number; amount?: number | null; cycle?: Cycle | 'Unknown'; next_renewal?: string } = { candidate_id: candidate.id };
+        if (hasPriceText && parsedAmount !== null && parsedAmount !== candidate.amount) override.amount = parsedAmount;
+        else if (!hasPriceText && candidate.amount !== null) override.amount = null;
+        if (draft.cycle !== candidate.cycle) override.cycle = draft.cycle;
+        const editedRenewal = draft.renewalText.trim();
+        if (editedRenewal !== (candidate.nextRenewal || '')) override.next_renewal = editedRenewal;
         if (Object.keys(override).length > 1) overrides.push(override);
       }
       const response = await fetch(`${API_BASE_URL}/api/gmail/import`, {
@@ -1611,7 +1613,7 @@ function AppContent() {
                   <View style={{ flex: 1 }}>
                     <Text style={styles.fieldLabel}>OPTIONAL AI-ASSISTED EXTRACTION</Text>
                     <Text style={styles.fieldHint}>{aiExtractionConfigured === true
-                      ? 'When enabled, AI reviews up to 75 incomplete or uncertain billing-email excerpts per inbox (3,500 body characters each), in parallel batches of 25. Enabling it runs a full rescan. Only these excerpts are sent to OpenAI; complete local matches are not sent. AI never invents prices or dates, and this preference is saved on this phone.'
+                      ? 'When enabled, AI reviews up to 100 billing-email excerpts per inbox (3,500 body characters each), prioritising uncertain or incomplete detections before checking complete local matches. Enabling it runs a full rescan. Selected excerpts are sent to OpenAI only with this setting enabled; verified evidence can correct parser results, but AI never invents prices or dates. This preference is saved on this phone.'
                       : aiExtractionConfigured === false
                         ? 'AI extraction is not configured on the server yet. Standard email detection remains available; the app will not send email text to an AI service.'
                         : 'Checking whether optional AI extraction is configured on the server…'}</Text>
@@ -1656,11 +1658,11 @@ function AppContent() {
                   ? []
                   : scanCandidates.filter((item) => !item.alreadyImported).map((item) => item.id))}
               />
-              <Text style={styles.fieldHint}>New detections are selected automatically. Import now and fill in missing details later—SubSathi never invents a price, cycle or renewal date.</Text>
+              <Text style={styles.fieldHint}>New detections are selected automatically. AI checks available billing evidence, and you can correct any price, cycle or renewal date before importing. Unconfirmed values stay blank.</Text>
               {scanCandidates.map((candidate) => {
                 const selected = selectedCandidateIds.includes(candidate.id);
                 const categoryMetaItem = categoryMeta(candidate.category);
-                const needsFieldReview = candidate.amount === null || candidate.cycle === 'Unknown' || !candidate.nextRenewal;
+                const canReviewDetails = !candidate.alreadyImported;
                 const draft = candidateEdits[candidate.id] || {
                   amountText: candidate.amount === null ? '' : String(candidate.amount),
                   cycle: candidate.cycle,
@@ -1691,39 +1693,33 @@ function AppContent() {
                       <Text style={[styles.serviceSub, { textAlign: 'right' }]}>{candidate.amount === null ? 'Price needed' : candidate.cycle === 'Unknown' ? 'Billing cycle needed' : `per ${candidate.cycle.toLowerCase()}`}</Text>
                     </View>
                   </Pressable>
-                  {!candidate.alreadyImported && needsFieldReview ? <Pressable onPress={() => setExpandedCandidateIds((current) => current.includes(candidate.id) ? current.filter((id) => id !== candidate.id) : [...current, candidate.id])} style={{ paddingHorizontal: 14, paddingVertical: 10, borderTopWidth: 1, borderTopColor: C.line }}><Text style={{ color: C.greenDark, fontSize: 11, fontWeight: '800' }}>{expandedCandidateIds.includes(candidate.id) ? 'Hide details' : 'Review missing details (optional)'}</Text></Pressable> : null}
-                  {expandedCandidateIds.includes(candidate.id) && !candidate.alreadyImported && needsFieldReview ? <View style={{ borderTopWidth: 1, borderTopColor: C.line, backgroundColor: '#F8FBF9', padding: 13 }}>
-                    {candidate.amount === null ? <>
-                      <Text style={styles.fieldLabel}>PRICE (INR, OPTIONAL)</Text>
-                      <Text style={styles.fieldHint}>Leave blank to import now and add the verified price later.</Text>
-                      <TextInput
-                        value={draft.amountText}
-                        onChangeText={(value) => setCandidateEdits((current) => ({ ...current, [candidate.id]: { ...draft, amountText: value } }))}
-                        placeholder="e.g. 199"
-                        placeholderTextColor="#97A5A8"
-                        style={styles.input}
-                        keyboardType="decimal-pad"
-                        accessibilityLabel={`Price for ${candidate.name}`}
-                      />
-                    </> : null}
-                    {candidate.cycle === 'Unknown' ? <>
-                      <Text style={[styles.fieldLabel, { marginTop: 12 }]}>BILLING CYCLE (OPTIONAL)</Text>
-                      <View style={styles.cycleRow}>{(['Unknown', ...CYCLES] as (Cycle | 'Unknown')[]).map((cycle) => <Pressable key={cycle} onPress={() => setCandidateEdits((current) => ({ ...current, [candidate.id]: { ...draft, cycle } }))} style={[styles.cycleChip, draft.cycle === cycle && styles.cycleChipActive]}><Text style={[styles.cycleChipText, draft.cycle === cycle && styles.cycleChipTextActive]}>{cycle === 'Unknown' ? 'Not confirmed' : cycle}</Text></Pressable>)}</View>
-                    </> : null}
-                    {!candidate.nextRenewal ? <>
-                      <Text style={[styles.fieldLabel, { marginTop: 12 }]}>RENEWAL DATE (OPTIONAL)</Text>
-                      <Text style={styles.fieldHint}>Enter only if you know the date; SubSathi will not guess it.</Text>
-                      <TextInput
-                        value={draft.renewalText}
-                        onChangeText={(value) => setCandidateEdits((current) => ({ ...current, [candidate.id]: { ...draft, renewalText: value } }))}
-                        placeholder="YYYY-MM-DD"
-                        placeholderTextColor="#97A5A8"
-                        style={styles.input}
-                        keyboardType="numbers-and-punctuation"
-                        accessibilityLabel={`Optional renewal date for ${candidate.name}`}
-                        maxLength={10}
-                      />
-                    </> : null}
+                  {canReviewDetails ? <Pressable onPress={() => setExpandedCandidateIds((current) => current.includes(candidate.id) ? current.filter((id) => id !== candidate.id) : [...current, candidate.id])} style={{ paddingHorizontal: 14, paddingVertical: 10, borderTopWidth: 1, borderTopColor: C.line }}><Text style={{ color: C.greenDark, fontSize: 11, fontWeight: '800' }}>{expandedCandidateIds.includes(candidate.id) ? 'Hide details' : 'Review / correct details'}</Text></Pressable> : null}
+                  {expandedCandidateIds.includes(candidate.id) && canReviewDetails ? <View style={{ borderTopWidth: 1, borderTopColor: C.line, backgroundColor: '#F8FBF9', padding: 13 }}>
+                    <Text style={styles.fieldLabel}>PRICE (INR)</Text>
+                    <Text style={styles.fieldHint}>Check this against the recurring plan charge. Clear it if the amount is not confirmed.</Text>
+                    <TextInput
+                      value={draft.amountText}
+                      onChangeText={(value) => setCandidateEdits((current) => ({ ...current, [candidate.id]: { ...draft, amountText: value } }))}
+                      placeholder="e.g. 199"
+                      placeholderTextColor="#97A5A8"
+                      style={styles.input}
+                      keyboardType="decimal-pad"
+                      accessibilityLabel={`Price for ${candidate.name}`}
+                    />
+                    <Text style={[styles.fieldLabel, { marginTop: 12 }]}>BILLING CYCLE</Text>
+                    <View style={styles.cycleRow}>{(['Unknown', ...CYCLES] as (Cycle | 'Unknown')[]).map((cycle) => <Pressable key={cycle} onPress={() => setCandidateEdits((current) => ({ ...current, [candidate.id]: { ...draft, cycle } }))} style={[styles.cycleChip, draft.cycle === cycle && styles.cycleChipActive]}><Text style={[styles.cycleChipText, draft.cycle === cycle && styles.cycleChipTextActive]}>{cycle === 'Unknown' ? 'Not confirmed' : cycle}</Text></Pressable>)}</View>
+                    <Text style={[styles.fieldLabel, { marginTop: 12 }]}>NEXT RENEWAL DATE</Text>
+                    <Text style={styles.fieldHint}>Confirm or correct the date as YYYY-MM-DD. Clear it if there is no verified date.</Text>
+                    <TextInput
+                      value={draft.renewalText}
+                      onChangeText={(value) => setCandidateEdits((current) => ({ ...current, [candidate.id]: { ...draft, renewalText: value } }))}
+                      placeholder="YYYY-MM-DD"
+                      placeholderTextColor="#97A5A8"
+                      style={styles.input}
+                      keyboardType="numbers-and-punctuation"
+                      accessibilityLabel={`Renewal date for ${candidate.name}`}
+                      maxLength={10}
+                    />
                   </View> : null}
                 </View>;
               })}

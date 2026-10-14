@@ -264,3 +264,24 @@ def test_gmail_import_preserves_detected_subscription_when_price_and_cycle_are_u
     assert imported["needsReview"] is True
     assert "Price not found" in imported["notes"]
     assert "Billing cycle not found" in imported["notes"]
+
+
+
+def test_gmail_import_request_allows_correcting_or_clearing_unverified_fields():
+    from app.main import CandidateImportRequest
+
+    payload = CandidateImportRequest(
+        candidate_ids=[11],
+        overrides=[{
+            "candidate_id": 11,
+            "amount": None,
+            "cycle": "Unknown",
+            "next_renewal": "",
+        }],
+    )
+    override = payload.overrides[0]
+    fields_set = getattr(override, "model_fields_set", getattr(override, "__fields_set__", set()))
+    assert "amount" in fields_set
+    assert override.amount is None
+    assert override.cycle == "Unknown"
+    assert override.next_renewal == ""
