@@ -150,10 +150,12 @@ def test_gmail_scan_queries_include_known_sender_and_longer_history():
     from app.main import gmail_scan_queries
 
     queries = gmail_scan_queries()
-    assert len(queries) >= 2
+    assert len(queries) >= 4
     assert any("newer_than:5y" in query for query in queries)
     assert any("from:netflix.com" in query for query in queries)
     assert any("from:swiggy.com" in query for query in queries)
+    assert any("free trial" in query for query in queries)
+    assert any("recurring charge" in query for query in queries)
 
 
 
