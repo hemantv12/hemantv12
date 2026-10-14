@@ -895,20 +895,20 @@ function AppContent() {
   const openEdit = (item: Subscription) => { setEditing(item); setEditorOpen(true); };
 
   const saveSubscription = async (input: SubscriptionInput) => {
-    const db = dbRef.current;
-    if (!db) throw new Error('Database is not ready.');
-    if (editing) {
-      await db.runAsync(
-        'UPDATE subscriptions SET name = ?, category = ?, amount = ?, cycle = ?, nextRenewal = ?, manageUrl = ?, billingSource = ?, notes = ?, reminderEnabled = ? WHERE id = ?',
-        input.name, input.category, input.amount, input.cycle, input.nextRenewal, input.manageUrl, input.billingSource, input.notes, input.reminderEnabled, editing.id,
-      );
-    } else {
-      await db.runAsync(
-        'INSERT INTO subscriptions (name, category, amount, cycle, nextRenewal, manageUrl, billingSource, notes, reminderEnabled, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        input.name, input.category, input.amount, input.cycle, input.nextRenewal, input.manageUrl, input.billingSource, input.notes, input.reminderEnabled, new Date().toISOString(),
-      );
-    }
-    const rows = await db.getAllAsync<Subscription>('SELECT * FROM subscriptions ORDER BY nextRenewal ASC, name COLLATE NOCASE ASC');
+    const rows = await withLocalDatabase(async (db) => {
+      if (editing) {
+        await db.runAsync(
+          'UPDATE subscriptions SET name = ?, category = ?, amount = ?, cycle = ?, nextRenewal = ?, manageUrl = ?, billingSource = ?, notes = ?, reminderEnabled = ? WHERE id = ?',
+          input.name, input.category, input.amount, input.cycle, input.nextRenewal, input.manageUrl, input.billingSource, input.notes, input.reminderEnabled, editing.id,
+        );
+      } else {
+        await db.runAsync(
+          'INSERT INTO subscriptions (name, category, amount, cycle, nextRenewal, manageUrl, billingSource, notes, reminderEnabled, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          input.name, input.category, input.amount, input.cycle, input.nextRenewal, input.manageUrl, input.billingSource, input.notes, input.reminderEnabled, new Date().toISOString(),
+        );
+      }
+      return db.getAllAsync<Subscription>('SELECT * FROM subscriptions ORDER BY nextRenewal ASC, name COLLATE NOCASE ASC');
+    });
     setSubscriptions(rows);
     await rescheduleRenewalReminders(rows, notificationsEnabled);
     setEditorOpen(false);
@@ -919,13 +919,18 @@ function AppContent() {
     Alert.alert('Delete subscription?', `Remove ${item.name} from SubSathi? This only deletes the tracker entry; it does not cancel your actual subscription.`, [
       { text: 'Keep it', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: async () => {
-        const db = dbRef.current;
-        if (!db) return;
-        await db.runAsync('DELETE FROM subscriptions WHERE id = ?', item.id);
-        const rows = await db.getAllAsync<Subscription>('SELECT * FROM subscriptions ORDER BY nextRenewal ASC, name COLLATE NOCASE ASC');
-        setSubscriptions(rows);
-        await rescheduleRenewalReminders(rows, notificationsEnabled);
-        if (editing?.id === item.id) { setEditing(null); setEditorOpen(false); }
+        try {
+          const rows = await withLocalDatabase(async (db) => {
+            await db.runAsync('DELETE FROM subscriptions WHERE id = ?', item.id);
+            return db.getAllAsync<Subscription>('SELECT * FROM subscriptions ORDER BY nextRenewal ASC, name COLLATE NOCASE ASC');
+          });
+          setSubscriptions(rows);
+          await rescheduleRenewalReminders(rows, notificationsEnabled);
+          if (editing?.id === item.id) { setEditing(null); setEditorOpen(false); }
+        } catch (error) {
+          console.warn('Could not delete local tracker entry', error);
+          Alert.alert('Could not delete entry', 'Your existing tracker entries have not been deliberately removed. Retry after restarting SubSathi.');
+        }
       } },
     ]);
   };
