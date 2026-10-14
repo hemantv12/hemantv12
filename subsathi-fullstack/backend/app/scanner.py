@@ -194,22 +194,22 @@ CURRENCY_AMOUNT = re.compile(
 )
 RECURRING_TERMS = re.compile(r"\b(subscription|subscribed|recurring|auto[- ]?renew|renew(?:al|s|ed)?|monthly|annually|annual|yearly|per month|per year|membership|billing cycle|free trial|trial ends|plan will continue)\b", re.IGNORECASE)
 CYCLE_PATTERNS = (
-    (re.compile(r"\b(weekly|every week|per week|billed weekly|each week)\b", re.I), "Weekly"),
-    (re.compile(r"\b(quarterly|every 3 months|per quarter|for 3 months|3-month|billed quarterly)\b", re.I), "Quarterly"),
-    (re.compile(r"\b(annual|annually|yearly|per year|every 12 months|12-month|billed annually|billed yearly|per annum|each year)\b", re.I), "Yearly"),
-    (re.compile(r"\b(monthly|every month|per month|each month|billed monthly|billed every 30 days|every 30 days|per 30 days|every 1 month)\b", re.I), "Monthly"),
+    (re.compile(r"\b(weekly|every week|per week|billed weekly|each week|every 7 days|per 7 days)\b", re.I), "Weekly"),
+    (re.compile(r"\b(quarterly|every 3 months|per quarter|for 3 months|3-month|billed quarterly|every 90 days|per 90 days)\b", re.I), "Quarterly"),
+    (re.compile(r"\b(annual|annually|yearly|per year|every 12 months|12-month|billed annually|billed yearly|per annum|each year|every 365 days|per 365 days)\b", re.I), "Yearly"),
+    (re.compile(r"\b(monthly|every month|per month|each month|billed monthly|billed every 30 days|every 30 days|per 30 days|every 1 month|each calendar month)\b", re.I), "Monthly"),
 )
-RENEWAL_DATE_CUE = r"(?:next\s+(?:renewal|billing|payment|charge|invoice)(?:\s+date)?|renewal\s+date|billing\s+date|payment\s+date|renews?(?:\s+on)?|renewal\s+on|will\s+be\s+charged\s+on|trial\s+ends?(?:\s+on)?|expires?(?:\s+on)?|next\s+charge\s+date)"
+RENEWAL_DATE_CUE = r"(?:next\s+(?:renewal|billing|payment|charge|invoice)(?:\s+date)?|renewal\s+date|billing\s+date|payment\s+date|renews?(?:\s+on)?|renewal\s+on|will\s+be\s+charged\s+on|will\s+be\s+billed\s+on|next\s+payment\s+due|next\s+billing\s+due|trial\s+ends?(?:\s+on)?|expires?(?:\s+on)?|next\s+charge\s+date)"
 RENEWAL_DATE_PATTERNS = (
-    re.compile(RENEWAL_DATE_CUE + r"\s*(?:is|on|:|-)?\s*(\d{4}-\d{2}-\d{2})", re.I),
-    re.compile(RENEWAL_DATE_CUE + r"\s*(?:is|on|:|-)?\s*([A-Za-z]{3,9}\.?\s+\d{1,2},?\s+\d{4})", re.I),
-    re.compile(RENEWAL_DATE_CUE + r"\s*(?:is|on|:|-)?\s*(\d{1,2}\s+[A-Za-z]{3,9}\.?\s+\d{4})", re.I),
+    re.compile(RENEWAL_DATE_CUE + r"\s*(?:is(?:\s+due)?|due(?:\s+on)?|on|:|-)?\s*(\d{4}-\d{2}-\d{2})", re.I),
+    re.compile(RENEWAL_DATE_CUE + r"\s*(?:is(?:\s+due)?|due(?:\s+on)?|on|:|-)?\s*([A-Za-z]{3,9}\.?\s+\d{1,2},?\s+\d{4})", re.I),
+    re.compile(RENEWAL_DATE_CUE + r"\s*(?:is(?:\s+due)?|due(?:\s+on)?|on|:|-)?\s*(\d{1,2}\s+[A-Za-z]{3,9}\.?\s+\d{4})", re.I),
     # Numeric dates are accepted only when the renewal/billing cue is explicit.
-    re.compile(RENEWAL_DATE_CUE + r"\s*(?:is|on|:|-)?\s*(\d{1,2}[/-]\d{1,2}[/-]\d{4})", re.I),
+    re.compile(RENEWAL_DATE_CUE + r"\s*(?:is(?:\s+due)?|due(?:\s+on)?|on|:|-)?\s*(\d{1,2}[/-]\d{1,2}[/-]\d{4})", re.I),
 )
 RENEWAL_DATE_NO_YEAR_PATTERNS = (
-    re.compile(RENEWAL_DATE_CUE + r"\s*(?:is|on|:|-)?\s*([A-Za-z]{3,9}\.?\s+\d{1,2})(?!\s*,?\s*\d{4})", re.I),
-    re.compile(RENEWAL_DATE_CUE + r"\s*(?:is|on|:|-)?\s*(\d{1,2}\s+[A-Za-z]{3,9}\.?)(?!\s+\d{4})", re.I),
+    re.compile(RENEWAL_DATE_CUE + r"\s*(?:is(?:\s+due)?|due(?:\s+on)?|on|:|-)?\s*([A-Za-z]{3,9}\.?\s+\d{1,2})(?!\s*,?\s*\d{4})", re.I),
+    re.compile(RENEWAL_DATE_CUE + r"\s*(?:is(?:\s+due)?|due(?:\s+on)?|on|:|-)?\s*(\d{1,2}\s+[A-Za-z]{3,9}\.?)(?!\s+\d{4})", re.I),
 )
 
 
