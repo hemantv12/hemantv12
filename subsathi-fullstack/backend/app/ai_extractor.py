@@ -21,16 +21,16 @@ MAX_AI_EMAILS_PER_MAILBOX = 25
 MAX_EMAIL_CHARS = 3500
 
 RECURRING_EVIDENCE = re.compile(
-    r"\\b(?:auto[- ]?renew\\w*|recurr\\w*|renew(?:al|s|ed|ing)?|"
+    r"\b(?:auto[- ]?renew\w*|recurr\w*|renew(?:al|s|ed|ing)?|"
     r"subscription period|charged again|billed (?:weekly|monthly|quarterly|annually|yearly)|"
-    r"every \\d+ (?:days?|weeks?|months?|years?)|per (?:week|month|quarter|year|annum)|"
-    r"weekly|monthly|quarterly|annually|yearly|per month|per year|will continue)\\b",
+    r"every \d+ (?:days?|weeks?|months?|years?)|per (?:week|month|quarter|year|annum)|"
+    r"weekly|monthly|quarterly|annually|yearly|per month|per year|will continue)\b",
     re.IGNORECASE,
 )
 
 
 def _normalise_quote(value: str) -> str:
-    return re.sub(r"\\s+", " ", (value or "")).strip().casefold()
+    return re.sub(r"\s+", " ", (value or "")).strip().casefold()
 
 
 def _normalise_name(value: str) -> str:
@@ -58,7 +58,7 @@ def _response_output_text(payload: dict[str, Any]) -> str:
                 text = content.get("text")
                 if isinstance(text, str):
                     parts.append(text)
-    return "\\n".join(parts)
+    return "\n".join(parts)
 
 
 def _email_reference_date(value: str) -> datetime | None:
@@ -108,7 +108,7 @@ def extract_billing_evidence_with_ai(
         sender = str(email.get("sender") or "")[:300]
         date_header = str(email.get("date_header") or "")[:120]
         body = str(email.get("body") or "")[:MAX_EMAIL_CHARS]
-        source = "\\n".join((subject, sender, body))
+        source = "\n".join((subject, sender, body))
         source_by_id[message_id] = source
         raw_by_id[message_id] = {
             "message_id": message_id,
