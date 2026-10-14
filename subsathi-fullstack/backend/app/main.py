@@ -1024,7 +1024,7 @@ def _gmail_http_error_message(status_code: int, reason: str) -> str:
     if status_code == 403 and ("accessnotconfigured" in normalized or "servicedisabled" in normalized):
         return "Gmail API is not enabled for the Google Cloud project used by this OAuth client. The app owner must enable Gmail API in that same project."
     if status_code == 403 and any(token in normalized for token in ("insufficientpermissions", "insufficientauthentication", "permission_denied", "forbidden")):
-        return "Google denied Gmail read access for this inbox. Tap Repair Gmail connection and approve Gmail read access again. If the same account still fails, the app owner must check Gmail API enablement and Google OAuth access."
+        return "Google denied Gmail read access for this inbox. Tap Repair Gmail connection and approve Gmail read access again. Your local subscription tracker stays on this phone. If the same account still fails, the app owner must check Gmail API enablement and Google OAuth access."
     if status_code in {403, 429} and any(token in normalized for token in ("ratelimit", "userratelimit", "quota", "resourceexhausted")):
         return "Google is rate-limiting Gmail scans. Wait about a minute and retry; SubSathi will keep your saved tracker entries."
     if status_code == 403:
