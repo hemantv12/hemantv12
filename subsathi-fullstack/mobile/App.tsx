@@ -525,7 +525,7 @@ function AppContent() {
         }
       })
       .catch(() => {
-        if (active) { setApiReachable(false); setGoogleOAuthConfigured(null); }
+        if (active) { setApiReachable(false); setGoogleOAuthConfigured(null); setAiExtractionConfigured(null); }
       })
       .finally(() => clearTimeout(timeout));
     return () => { active = false; clearTimeout(timeout); controller.abort(); };
@@ -786,6 +786,7 @@ function AppContent() {
       if (!healthResponse.ok) throw new Error('The SubSathi server is not healthy right now. Please retry in a moment.');
       setApiReachable(true);
       setGoogleOAuthConfigured(healthPayload.google_oauth_configured === true);
+      setAiExtractionConfigured(healthPayload.ai_extraction_configured === true);
       if (healthPayload.google_oauth_configured !== true) {
         throw new Error('Gmail connection is blocked by server setup, not by your phone. The hosted API does not have Google OAuth credentials configured. In Google Cloud, enable Gmail API and create a Web OAuth client. In Render, add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET, then set GOOGLE_REDIRECT_URI to https://subsathi-api.onrender.com/api/auth/google/callback. Add your Google account as an OAuth test user while the consent screen is in testing, deploy the changes, and try again. Never put the client secret inside the APK or send it in chat.');
       }
@@ -1145,7 +1146,7 @@ function AppContent() {
         throw new Error(payload.detail || 'Could not disconnect Gmail on the server.');
       }
       await SecureStore.deleteItemAsync(SESSION_KEY);
-      setApiSession(null); setGmailEmail(null); setGmailAccounts([]); setScanCandidates([]); setSelectedCandidateIds([]);
+      setApiSession(null); setGmailEmail(null); setGmailAccounts([]); setScanCandidates([]); setSelectedCandidateIds([]); setAiAssistedScan(false);
       toastLocal('All Gmail accounts disconnected. Locally imported plans remain on this device.');
     } catch (error) {
       setScanError(error instanceof Error ? error.message : 'Disconnect failed.');
