@@ -919,7 +919,7 @@ function AppContent() {
     setScanSummary(null);
     setScanLoading(true);
     try {
-      const scanQuery = '?max_messages=200' + (mode === 'full' ? '&force_full_scan=true' : '');
+      const scanQuery = '?max_messages=500' + (mode === 'full' ? '&force_full_scan=true' : '');
       const response = await fetch(API_BASE_URL + '/api/gmail/scan' + scanQuery, {
         method: 'POST',
         headers: { Authorization: `Bearer ${session}`, 'Content-Type': 'application/json' },

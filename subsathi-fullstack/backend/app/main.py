@@ -317,7 +317,7 @@ def _list_gmail_refs_for_query(credentials: Credentials, query: str, budget: int
         page = service.users().messages().list(
             userId="me",
             q=query,
-            maxResults=min(100, budget - len(refs)),
+            maxResults=min(500, budget - len(refs)),
             pageToken=page_token,
         ).execute(num_retries=2)
         refs.extend(page.get("messages") or [])
@@ -431,7 +431,7 @@ def _scan_single_gmail_mailbox(
 
     if scan_mode == "full":
         queries = gmail_scan_queries()
-        per_query_budget = min(100, max(40, (limit + max(1, len(queries)) - 1) // max(1, len(queries)) + 12))
+        per_query_budget = min(500, max(100, (limit + max(1, len(queries)) - 1) // max(1, len(queries)) + 20))
         if queries:
             with ThreadPoolExecutor(max_workers=min(3, len(queries))) as executor:
                 query_results = list(executor.map(
@@ -442,15 +442,11 @@ def _scan_single_gmail_mailbox(
         # Keep the history watermark captured before listing messages. Items arriving
         # during this deep scan will appear after this cursor and be fetched next time.
 
-    if message_ids:
-        with ThreadPoolExecutor(
-            max_workers=min(6, len(message_ids)),
-            initializer=_init_gmail_scan_worker,
-            initargs=(credentials,),
-        ) as executor:
-            metadata_messages = list(executor.map(_fetch_gmail_message_metadata_for_scan, message_ids))
-    else:
-        metadata_messages = []
+    # Batch requests avoid one HTTP round-trip per message while keeping the
+    # metadata-only first pass for privacy.
+    metadata_messages = _batch_fetch_gmail_messages_for_scan(
+        credentials, message_ids, message_format="metadata"
+    )
 
     relevant_ids: list[str] = []
     metadata_by_id: dict[str, dict[str, str]] = {}
@@ -463,15 +459,9 @@ def _scan_single_gmail_mailbox(
             relevant_ids.append(message_id)
             metadata_by_id[message_id] = headers
 
-    if relevant_ids:
-        with ThreadPoolExecutor(
-            max_workers=min(6, len(relevant_ids)),
-            initializer=_init_gmail_scan_worker,
-            initargs=(credentials,),
-        ) as executor:
-            full_messages = list(executor.map(_fetch_gmail_message_for_scan, relevant_ids))
-    else:
-        full_messages = []
+    full_messages = _batch_fetch_gmail_messages_for_scan(
+        credentials, relevant_ids, message_format="full"
+    )
 
     parsed: list[dict[str, Any]] = []
     for message_id, message in zip(relevant_ids, full_messages):
@@ -817,6 +807,43 @@ def _fetch_gmail_message_for_scan(message_id: str) -> dict[str, Any] | None:
             return None
         raise
 
+def _batch_fetch_gmail_messages_for_scan(
+    credentials: Credentials,
+    message_ids: list[str],
+    *,
+    message_format: str,
+) -> list[dict[str, Any] | None]:
+    """Fetch Gmail messages in API batches to reduce latency on first-time scans.
+
+    Gmail supports up to 100 requests per batch. Message bodies are requested only
+    in the second pass for messages whose headers match billing-related criteria.
+    """
+    if not message_ids:
+        return []
+    service = build("gmail", "v1", credentials=credentials, cache_discovery=False)
+    responses: dict[str, dict[str, Any] | None] = {}
+
+    def callback(request_id: str, response: Any, exception: Exception | None) -> None:
+        # A single vanished message should not fail the entire mailbox scan.
+        responses[str(request_id)] = response if exception is None and isinstance(response, dict) else None
+
+    for offset in range(0, len(message_ids), 100):
+        batch = service.new_batch_http_request(callback=callback)
+        for message_id in message_ids[offset : offset + 100]:
+            request_options: dict[str, Any] = {
+                "userId": "me",
+                "id": message_id,
+                "format": message_format,
+            }
+            if message_format == "metadata":
+                request_options["metadataHeaders"] = ["From", "Subject", "Date"]
+            batch.add(
+                service.users().messages().get(**request_options),
+                request_id=message_id,
+            )
+        batch.execute(num_retries=2)
+    return [responses.get(message_id) for message_id in message_ids]
+
 
 def _gmail_http_error_context(exc: HttpError) -> tuple[int, str]:
     """Return safe, bounded diagnostics without logging email data or credentials."""
@@ -855,7 +882,7 @@ def _gmail_http_error_message(status_code: int, reason: str) -> str:
 
 @app.post("/api/gmail/scan")
 def scan_gmail(
-    max_messages: int = Query(200, ge=1, le=200),
+    max_messages: int = Query(500, ge=1, le=500),
     force_full_scan: bool = Query(False),
     user: User = Depends(current_user),
     db: Session = Depends(get_db),
@@ -1024,7 +1051,7 @@ def scan_gmail(
         "notice": "SubSathi combines billing evidence from all linked Gmail inboxes. Repeat scans use Gmail history to process new email; missing prices or renewal dates remain unverified.",
         "scan_limit_per_account": limit,
         "scan_duration_ms": duration_ms,
-        "scan_workers": 6,
+        "scan_fetch_strategy": "gmail-api-batch",
         "scanned_accounts": successful_accounts,
         "account_errors": account_errors,
         "scan_mode": overall_mode,

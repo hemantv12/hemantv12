@@ -4,7 +4,7 @@ import base64
 import html
 import re
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from email.header import decode_header as _decode_header_parts, make_header
 from email.utils import parsedate_to_datetime
 from typing import Any
@@ -188,15 +188,22 @@ def extract_management_link(
 CURRENCY_AMOUNT = re.compile(r"(?:₹\s*|INR\s*|Rs\.?\s*)([\d,]+(?:\.\d{1,2})?)", re.IGNORECASE)
 RECURRING_TERMS = re.compile(r"\b(subscription|subscribed|recurring|auto[- ]?renew|renew(?:al|s|ed)?|monthly|annually|annual|yearly|per month|per year|membership|billing cycle|free trial|trial ends|plan will continue)\b", re.IGNORECASE)
 CYCLE_PATTERNS = (
-    (re.compile(r"\b(weekly|every week|per week)\b", re.I), "Weekly"),
-    (re.compile(r"\b(quarterly|every 3 months|per quarter|for 3 months|3-month)\b", re.I), "Quarterly"),
-    (re.compile(r"\b(annual|annually|yearly|per year|every 12 months|12-month)\b", re.I), "Yearly"),
-    (re.compile(r"\b(monthly|every month|per month|each month)\b", re.I), "Monthly"),
+    (re.compile(r"\b(weekly|every week|per week|billed weekly|each week)\b", re.I), "Weekly"),
+    (re.compile(r"\b(quarterly|every 3 months|per quarter|for 3 months|3-month|billed quarterly)\b", re.I), "Quarterly"),
+    (re.compile(r"\b(annual|annually|yearly|per year|every 12 months|12-month|billed annually|billed yearly|per annum|each year)\b", re.I), "Yearly"),
+    (re.compile(r"\b(monthly|every month|per month|each month|billed monthly)\b", re.I), "Monthly"),
 )
+RENEWAL_DATE_CUE = r"(?:next\s+(?:renewal|billing|payment|charge|invoice)(?:\s+date)?|renewal\s+date|billing\s+date|payment\s+date|renews?(?:\s+on)?|renewal\s+on|will\s+be\s+charged\s+on|trial\s+ends?(?:\s+on)?|expires?(?:\s+on)?|next\s+charge\s+date)"
 RENEWAL_DATE_PATTERNS = (
-    re.compile(r"(?:next\s+(?:renewal|billing|payment)(?:\s+date)?|renewal\s+date|renews?\s+on|renewal\s+on|will\s+be\s+charged\s+on|trial\s+ends?\s+on|expires?\s+on|next\s+charge\s+date)\s*(?:is|on|:|-)?\s*(\d{4}-\d{2}-\d{2})", re.I),
-    re.compile(r"(?:next\s+(?:renewal|billing|payment)|renewal\s+date|renews?\s+on|renewal\s+on|will\s+be\s+charged\s+on|trial\s+ends?\s+on|expires?\s+on)\s*(?:is|on|:|-)?\s*([A-Za-z]{3,9}\s+\d{1,2},?\s+\d{4})", re.I),
-    re.compile(r"(?:next\s+(?:renewal|billing|payment)|renewal\s+date|renews?\s+on|renewal\s+on|will\s+be\s+charged\s+on|trial\s+ends?\s+on|expires?\s+on)\s*(?:is|on|:|-)?\s*(\d{1,2}\s+[A-Za-z]{3,9}\s+\d{4})", re.I),
+    re.compile(RENEWAL_DATE_CUE + r"\s*(?:is|on|:|-)?\s*(\d{4}-\d{2}-\d{2})", re.I),
+    re.compile(RENEWAL_DATE_CUE + r"\s*(?:is|on|:|-)?\s*([A-Za-z]{3,9}\.?\s+\d{1,2},?\s+\d{4})", re.I),
+    re.compile(RENEWAL_DATE_CUE + r"\s*(?:is|on|:|-)?\s*(\d{1,2}\s+[A-Za-z]{3,9}\.?\s+\d{4})", re.I),
+    # Numeric dates are accepted only when the renewal/billing cue is explicit.
+    re.compile(RENEWAL_DATE_CUE + r"\s*(?:is|on|:|-)?\s*(\d{1,2}[/-]\d{1,2}[/-]\d{4})", re.I),
+)
+RENEWAL_DATE_NO_YEAR_PATTERNS = (
+    re.compile(RENEWAL_DATE_CUE + r"\s*(?:is|on|:|-)?\s*([A-Za-z]{3,9}\.?\s+\d{1,2})(?!\s*,?\s*\d{4})", re.I),
+    re.compile(RENEWAL_DATE_CUE + r"\s*(?:is|on|:|-)?\s*(\d{1,2}\s+[A-Za-z]{3,9}\.?)(?!\s+\d{4})", re.I),
 )
 
 
@@ -246,19 +253,48 @@ def extract_message_text(payload: dict[str, Any], max_chars: int = 45000) -> str
     return "\n".join(chunks)[:max_chars]
 
 
-def parse_date(value: str | None) -> str | None:
+def parse_date(value: str | None, reference_date: date | datetime | None = None) -> str | None:
+    """Extract an explicitly-labelled renewal date without inventing missing fields."""
     if not value:
         return None
     value = value.strip()
+    full_date_formats = (
+        "%Y-%m-%d", "%B %d, %Y", "%B %d %Y", "%b %d, %Y", "%b %d %Y",
+        "%d %B %Y", "%d %b %Y", "%d-%b-%Y", "%d-%B-%Y",
+        "%d/%m/%Y", "%d-%m-%Y", "%m/%d/%Y",
+    )
     for pattern in RENEWAL_DATE_PATTERNS:
         match = pattern.search(value)
-        if match:
-            raw = match.group(1).strip()
-            for fmt in ("%Y-%m-%d", "%B %d, %Y", "%B %d %Y", "%b %d, %Y", "%b %d %Y", "%d %B %Y", "%d %b %Y"):
+        if not match:
+            continue
+        raw = match.group(1).strip().replace(".", "")
+        for fmt in full_date_formats:
+            try:
+                return datetime.strptime(raw, fmt).date().isoformat()
+            except ValueError:
+                continue
+
+    # If the provider omits the year, only resolve it when the email timestamp is
+    # available; choose the next occurrence of that month/day rather than guessing.
+    if reference_date is None:
+        return None
+    reference = reference_date.date() if isinstance(reference_date, datetime) else reference_date
+    for pattern in RENEWAL_DATE_NO_YEAR_PATTERNS:
+        match = pattern.search(value)
+        if not match:
+            continue
+        raw = match.group(1).strip().replace(".", "")
+        for no_year_fmt in ("%B %d", "%b %d", "%d %B", "%d %b"):
+            try:
+                parsed = datetime.strptime(f"{raw} {reference.year}", f"{no_year_fmt} %Y").date()
+            except ValueError:
+                continue
+            if parsed < reference:
                 try:
-                    return datetime.strptime(raw, fmt).date().isoformat()
+                    parsed = parsed.replace(year=parsed.year + 1)
                 except ValueError:
-                    continue
+                    parsed = parsed.replace(year=parsed.year + 1, day=28)
+            return parsed.isoformat()
     return None
 
 
@@ -447,13 +483,16 @@ def parse_billing_message(*, message_id: str, subject: str, sender: str, date_he
 
     amount = parse_amount_near(combined, match_anchor)
     cycle = parse_cycle(combined)
-    next_renewal = parse_date(combined)
     evidence_date = ""
+    parsed_date = None
     try:
         parsed_date = parsedate_to_datetime(date_header)
         evidence_date = parsed_date.isoformat() if parsed_date else ""
     except (TypeError, ValueError, OverflowError):
         evidence_date = ""
+    # Some providers omit the year in the next-renewal line. Use the email's
+    # timestamp as context instead of resolving such dates against today's date.
+    next_renewal = parse_date(combined, reference_date=parsed_date.date() if parsed_date else None)
 
     merchant = match_info[0] if match_info else None
     billing_source = detect_billing_source(subject, sender, body)
