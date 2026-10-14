@@ -640,8 +640,25 @@ def parse_billing_message(*, message_id: str, subject: str, sender: str, date_he
             "",
             clean_subject,
         ).strip(" \t:-")
+        # A bank/payment-rail email sender is not the subscription vendor. If its
+        # subject is a generic mandate alert, look for an explicitly named plan in
+        # the body; never create a fake "HDFC Bank" or "UPI AutoPay" subscription.
+        body_service_match = re.search(
+            r"\b(?:subscription|membership|mandate|plan|service)\s+(?:for|to|of)\s+"
+            r"([A-Za-z][A-Za-z0-9&.+'-]*(?:\s+[A-Za-z0-9][A-Za-z0-9&.+'-]*){0,3}?)"
+            r"(?=\s+(?:enables?|allows?|authorizes?|is|was|will|with|and|every|each|per|"
+            r"starting|valid|that|which)\b|[.,;:]|$)",
+            body or "",
+            re.IGNORECASE,
+        )
+        body_service = body_service_match.group(1).strip() if body_service_match else ""
+        payment_rail_domain = _domain_matches(sender_domain, (
+            "hdfcbank.com", "icicibank.com", "sbi.co.in", "onlinesbi.sbi",
+            "axisbank.com", "kotak.com", "kotak Mahindra.com", "yesbank.in",
+            "npci.org.in", "paytm.com", "phonepe.com", "googlepay.com", "amazonpay.in",
+        ))
         sender_label = sender_domain.split(".")[0].replace("-", " ").title()
-        candidate_name = (clean_subject or sender_label).strip()
+        candidate_name = (clean_subject or body_service or ("" if payment_rail_domain else sender_label)).strip()
         if not candidate_name or len(candidate_name) > 100:
             return None
         # Reject generic subjects that do not identify a product/service.
