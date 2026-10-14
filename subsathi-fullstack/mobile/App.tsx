@@ -1081,7 +1081,7 @@ function AppContent() {
           const remoteCycle = CYCLES.includes(remote.cycle as Cycle) ? remote.cycle as Cycle : 'Unknown';
           const cycle = match.cycle === 'Unknown' && remoteCycle !== 'Unknown' ? remoteCycle : match.cycle;
           const remoteUrl = typeof remote.manageUrl === 'string' ? remote.manageUrl : '';
-          const manageUrl = !match.manageUrl && remoteUrl.startsWith('https://') && !/\\s/.test(remoteUrl)
+          const manageUrl = !match.manageUrl && remoteUrl.startsWith('https://') && !/\s/.test(remoteUrl)
             ? remoteUrl : match.manageUrl;
           const remoteCategory = CATEGORIES.some((entry) => entry.name === remote.category && entry.name !== 'Other')
             ? remote.category as Category : 'Other';
