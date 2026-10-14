@@ -110,3 +110,52 @@ def test_ai_keeps_verified_subscription_when_billing_fields_are_absent(monkeypat
     assert results[0]["cycle"] is None
     assert results[0]["next_renewal"] is None
     assert results[0]["confidence"] == 48
+
+def test_ai_extraction_batches_more_than_25_emails_and_caps_at_75(monkeypatch):
+    from app.ai_extractor import AI_BATCH_SIZE, MAX_AI_EMAILS_PER_MAILBOX
+
+    emails = []
+    for index in range(80):
+        message_id = f"msg-{index}"
+        emails.append({
+            "message_id": message_id,
+            "subject": "Your Spotify Premium subscription receipt",
+            "sender": "Spotify <no-reply@spotify.com>",
+            "date_header": "Mon, 12 Oct 2026 10:00:00 +0000",
+            "body": (
+                "Your Spotify Premium subscription renews on November 12, 2026. "
+                "You will be charged ₹119 per month."
+            ),
+        })
+
+    calls = []
+
+    def fake_post(url, **kwargs):
+        request_text = kwargs["json"]["input"][1]["content"][0]["text"]
+        selected = json.loads(request_text)["emails"]
+        calls.append(len(selected))
+        results = []
+        for email in selected:
+            quote = "Your Spotify Premium subscription renews on November 12, 2026."
+            results.append(_email_result(
+                email_id=email["email_id"],
+                service_name="Spotify Premium",
+                service_evidence="Spotify Premium",
+                recurrence_evidence=quote,
+                amount_evidence="₹119",
+                cycle_evidence="₹119 per month",
+                renewal_evidence=quote,
+            ))
+        return FakeResponse({"output_text": json.dumps({"results": results})})
+
+    monkeypatch.setattr("app.ai_extractor.httpx.post", fake_post)
+    results = extract_billing_evidence_with_ai(emails, api_key="test-key")
+
+    assert MAX_AI_EMAILS_PER_MAILBOX == 75
+    assert AI_BATCH_SIZE == 25
+    assert sorted(calls) == [25, 25, 25]
+    assert len(results) == 75
+    assert len({result["message_id"] for result in results}) == 75
+    assert all(result["amount"] == 119 for result in results)
+    assert all(result["cycle"] == "Monthly" for result in results)
+    assert results.failed_batches == 0
