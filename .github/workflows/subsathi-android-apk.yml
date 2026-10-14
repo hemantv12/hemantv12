@@ -1,0 +1,80 @@
+name: SubSathi Android test APK
+
+on:
+  pull_request:
+    branches:
+      - subsathi-launch
+    paths:
+      - "subsathi-fullstack/mobile/**"
+      - ".github/workflows/subsathi-android-apk.yml"
+  push:
+    branches:
+      - subsathi-launch
+    paths:
+      - "subsathi-fullstack/mobile/**"
+      - ".github/workflows/subsathi-android-apk.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: subsathi-android-apk-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-test-apk:
+    name: Build standalone Android test APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: subsathi-fullstack/mobile
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Configure Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Configure Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install Android SDK packages
+        shell: bash
+        run: |
+          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          SDKMANAGER="$(find "$SDK_ROOT/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          if [ -z "$SDKMANAGER" ]; then
+            echo "Could not locate sdkmanager under $SDK_ROOT"
+            exit 1
+          fi
+          "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0" "platform-tools"
+
+      - name: Install JavaScript dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Type-check mobile app
+        run: npm run typecheck
+
+      - name: Generate native Android project
+        run: npx expo prebuild --platform android --non-interactive --no-install
+
+      - name: Build standalone release APK
+        run: |
+          chmod +x android/gradlew
+          cd android
+          ./gradlew --no-daemon assembleRelease
+
+      - name: Upload standalone test APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: SubSathi-Standalone-Android-Test-APK
+          path: subsathi-fullstack/mobile/android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+          retention-days: 14
