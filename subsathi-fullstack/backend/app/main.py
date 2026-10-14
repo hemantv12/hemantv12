@@ -1189,7 +1189,7 @@ def import_candidates(payload: CandidateImportRequest, user: User = Depends(curr
     if set(overrides) - found_ids:
         raise HTTPException(status_code=400, detail="Import details included an item that was not selected.")
 
-    # Apply explicit user-reviewed corrections before validating required fields.
+    # Apply explicit user-reviewed corrections when they are supplied.
     for item in candidates:
         override = overrides.get(item.id)
         if override is None:
