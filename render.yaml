@@ -34,6 +34,10 @@ services:
         value: "14"
       - key: SCAN_MAX_MESSAGES
         value: "500"
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        value: gpt-5-mini
       - key: TOKEN_ENCRYPTION_KEY
         sync: false
       - key: JWT_SECRET
