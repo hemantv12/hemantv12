@@ -472,9 +472,14 @@ function AppContent() {
     accountsScanned: string[];
     accountErrors: { email: string; message: string }[];
     mode: 'full' | 'incremental';
+    aiAssisted: boolean;
+    aiAnalyzedMessages: number;
+    aiWarning: string;
   } | null>(null);
   const [apiReachable, setApiReachable] = useState<boolean | null>(null);
   const [googleOAuthConfigured, setGoogleOAuthConfigured] = useState<boolean | null>(null);
+  const [aiExtractionConfigured, setAiExtractionConfigured] = useState<boolean | null>(null);
+  const [aiAssistedScan, setAiAssistedScan] = useState(false);
   const autoScanSessionRef = useRef<string | null>(null);
   const scanInFlightRef = useRef(false);
   const screenProgress = useRef(new Animated.Value(1)).current;
@@ -516,6 +521,7 @@ function AppContent() {
         if (active) {
           setApiReachable(true);
           setGoogleOAuthConfigured(payload.google_oauth_configured === true);
+          setAiExtractionConfigured(payload.ai_extraction_configured === true);
         }
       })
       .catch(() => {
@@ -919,7 +925,7 @@ function AppContent() {
     setScanSummary(null);
     setScanLoading(true);
     try {
-      const scanQuery = '?max_messages=500' + (mode === 'full' ? '&force_full_scan=true' : '');
+      const scanQuery = '?max_messages=500' + (mode === 'full' ? '&force_full_scan=true' : '') + (aiAssistedScan ? '&ai_assisted=true' : '');
       const response = await fetch(API_BASE_URL + '/api/gmail/scan' + scanQuery, {
         method: 'POST',
         headers: { Authorization: `Bearer ${session}`, 'Content-Type': 'application/json' },
@@ -970,6 +976,9 @@ function AppContent() {
         accountsScanned: Array.isArray(payload.scanned_accounts) ? payload.scanned_accounts.map((email: unknown) => String(email)) : [],
         accountErrors: Array.isArray(payload.account_errors) ? payload.account_errors.map((item: any) => ({ email: String(item.email || ''), message: String(item.message || 'This inbox could not be scanned.') })) : [],
         mode: payload.scan_mode === 'full' ? 'full' : 'incremental',
+        aiAssisted: Boolean(payload.ai_assisted_scan),
+        aiAnalyzedMessages: Number(payload.ai_analyzed_messages || 0),
+        aiWarning: String(payload.ai_warning || ''),
       });
     } catch (error) {
       setScanError(error instanceof Error ? error.message : 'Could not scan Gmail. Please retry.');
@@ -1448,7 +1457,7 @@ function AppContent() {
               {!gmailEmail ? <PrimaryButton title={googleOAuthConfigured === false ? 'Check Gmail setup again' : 'Connect Gmail securely'} onPress={() => { void connectGmail(); }} /> : <View style={{ gap: 9 }}>
                 <PrimaryButton title={scanLoading ? 'Syncing new emails…' : 'Quick sync new billing emails'} onPress={() => { if (!scanLoading) void scanGmail(undefined, 'quick'); }} />
                 <GhostButton title={scanLoading ? 'Rescanning…' : 'Full rescan (find missed subscriptions)'} onPress={() => { if (!scanLoading) void scanGmail(undefined, 'full'); }} />
-                <Text style={styles.fieldHint}>Quick sync checks new email only. Full rescan searches up to 200 recent billing-related messages per inbox and preserves older detections outside this batch.</Text>
+                <Text style={styles.fieldHint}>Quick sync checks new email only. Full rescan searches up to 500 recent billing-related messages per inbox and preserves older detections outside this batch.</Text>
                 <GhostButton title="Connect another Gmail account" onPress={() => { if (!scanLoading) void connectAdditionalGmail(); }} />
                 <GhostButton title="Disconnect all Gmail accounts" onPress={() => { Alert.alert('Disconnect all Gmail accounts?', 'All linked Gmail credentials and cached detections will be removed from the server. Subscription entries already imported on this phone will remain.', [{ text: 'Keep connected', style: 'cancel' }, { text: 'Disconnect all', style: 'destructive', onPress: () => { void disconnectGmail(); } }]); }} />
                 {gmailAccounts.filter((account) => !account.primary).map((account) => <Pressable key={account.email} disabled={scanLoading} onPress={() => Alert.alert('Remove Gmail account?', 'Remove ' + account.email + ' from this SubSathi profile?', [{ text: 'Cancel', style: 'cancel' }, { text: 'Remove account', style: 'destructive', onPress: () => { void disconnectAdditionalGmail(account.email); } }])} style={{ paddingVertical: 7 }}><Text style={{ fontSize: 10, color: C.muted }}>Secondary inbox · {account.email} · tap to remove</Text></Pressable>)}
