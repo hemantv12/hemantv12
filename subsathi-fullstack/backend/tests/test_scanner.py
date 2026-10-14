@@ -1,6 +1,6 @@
 from datetime import date
 
-from app.scanner import group_billing_evidence, parse_billing_message, parse_date
+from app.scanner import group_billing_evidence, parse_amount_near, parse_billing_message, parse_cycle, parse_date
 
 
 def test_parse_known_recurring_service_and_amount():
@@ -19,6 +19,17 @@ def test_parse_known_recurring_service_and_amount():
     assert "message_id" in result
     assert "body" not in result
 
+
+
+def test_parse_amount_in_common_inr_formats_and_currency_after_amount():
+    assert parse_amount_near("Plan amount: ₹ 1,499.00", 0) == 1499
+    assert parse_amount_near("Plan amount: Rs. 799/-", 0) == 799
+    assert parse_amount_near("Plan amount: 1,299 INR", 0) == 1299
+    assert parse_amount_near("Plan amount: 599 rupees per month", 0) == 599
+
+
+def test_parse_monthly_cycle_wording_from_billing_notice():
+    assert parse_cycle("Your plan is billed every 30 days") == "Monthly"
 
 def test_ignores_non_recurring_one_off_receipt():
     result = parse_billing_message(
