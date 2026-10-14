@@ -49,6 +49,33 @@ MERCHANTS: tuple[Merchant, ...] = (
     Merchant("Crunchyroll Premium", "Entertainment", ("Crunchyroll Premium", "Crunchyroll"), "https://www.crunchyroll.com/account/membership"),
     Merchant("Xbox Game Pass", "Entertainment", ("Xbox Game Pass Ultimate", "Xbox Game Pass"), "https://account.microsoft.com/services"),
     Merchant("Coursera Plus", "Learning", ("Coursera Plus", "Coursera subscription"), "https://www.coursera.org/account/subscriptions"),
+    Merchant("YouTube Music", "Music", ("YouTube Music Premium", "YouTube Music"), "https://www.youtube.com/paid_memberships"),
+    Merchant("Apple TV+", "Entertainment", ("Apple TV+", "Apple TV Plus"), "https://account.apple.com/"),
+    Merchant("Amazon Kindle Unlimited", "Entertainment", ("Kindle Unlimited", "Amazon Kindle Unlimited"), "https://www.amazon.in/kindle-dbs/hz/subscribe/ku"),
+    Merchant("JioSaavn Pro", "Music", ("JioSaavn Pro", "JioSaavn Plus", "JioSaavn"), "https://www.jiosaavn.com/settings"),
+    Merchant("Gaana Plus", "Music", ("Gaana Plus", "Gaana Premium", "Gaana"), "https://gaana.com/"),
+    Merchant("Times Prime", "Other", ("Times Prime", "TimesPrime"), "https://www.timesprime.com/"),
+    Merchant("Airtel Xstream", "Entertainment", ("Airtel Xstream", "Xstream Premium"), "https://www.airtelxstream.in/"),
+    Merchant("Tata Play Binge", "Entertainment", ("Tata Play Binge", "Tata Play Binge+"), "https://www.tataplaybinge.com/"),
+    Merchant("Claude Pro", "Software", ("Claude Pro", "Claude Max", "Anthropic Claude"), "https://claude.ai/settings"),
+    Merchant("Perplexity Pro", "Software", ("Perplexity Pro", "Perplexity subscription"), "https://www.perplexity.ai/settings/subscription"),
+    Merchant("Midjourney", "Software", ("Midjourney Basic", "Midjourney Standard", "Midjourney Pro", "Midjourney"), "https://www.midjourney.com/account/"),
+    Merchant("Cursor Pro", "Software", ("Cursor Pro", "Cursor Business", "Cursor subscription"), "https://cursor.com/settings"),
+    Merchant("Replit Core", "Software", ("Replit Core", "Replit Pro", "Replit subscription"), "https://replit.com/account"),
+    Merchant("AWS", "Software", ("AWS subscription", "AWS Support plan", "Amazon Web Services"), "https://console.aws.amazon.com/billing/home"),
+    Merchant("Google Workspace", "Software", ("Google Workspace", "Workspace Business", "Google Workspace Business"), "https://admin.google.com/ac/billing/subscriptions"),
+    Merchant("Proton", "Software", ("Proton Unlimited", "Proton Mail Plus", "Proton VPN Plus", "Proton subscription"), "https://account.proton.me/u/0/mail/subscriptions"),
+    Merchant("NordVPN", "Software", ("NordVPN", "NordVPN Plus", "NordVPN Complete"), "https://my.nordaccount.com/dashboard/"),
+    Merchant("ExpressVPN", "Software", ("ExpressVPN", "Express VPN"), "https://www.expressvpn.com/sign-in"),
+    Merchant("Surfshark", "Software", ("Surfshark", "Surfshark One"), "https://my.surfshark.com/"),
+    Merchant("PlayStation Plus", "Entertainment", ("PlayStation Plus", "PS Plus", "PlayStation Plus Premium"), "https://www.playstation.com/acct/management/"),
+    Merchant("Nintendo Switch Online", "Entertainment", ("Nintendo Switch Online", "Nintendo Online"), "https://accounts.nintendo.com/"),
+    Merchant("X Premium", "Other", ("X Premium", "Twitter Blue"), "https://x.com/settings/premium"),
+    Merchant("Tinder", "Other", ("Tinder Gold", "Tinder Platinum", "Tinder Plus", "Tinder subscription"), "https://tinder.com/settings"),
+    Merchant("Bumble Premium", "Other", ("Bumble Premium", "Bumble Boost", "Bumble subscription"), "https://bumble.com/settings"),
+    Merchant("Headspace", "Other", ("Headspace Plus", "Headspace subscription", "Headspace"), "https://www.headspace.com/settings"),
+    Merchant("Calm", "Other", ("Calm Premium", "Calm subscription"), "https://www.calm.com/app/profile"),
+    Merchant("Strava", "Other", ("Strava subscription", "Strava Premium", "Strava"), "https://www.strava.com/settings/subscription"),
 )
 
 BILLING_SOURCE_MANAGEMENT_URLS: dict[str, str] = {
@@ -196,7 +223,8 @@ RECURRING_TERMS = re.compile(
     r"\b(subscription|subscribed|recurring|auto[- ]?renew|renew(?:al|s|ed)?|monthly|annually|annual|yearly|"
     r"per month|per year|membership|billing cycle|free trial|trial ends|plan will continue|"
     r"next (?:billing|payment|charge|renewal|debit)|debit date|will renew|will be renewed|"
-    r"billed every|charged every|automatic renewal|subscription fee)\b",
+    r"billed every|charged every|automatic renewal|subscription fee|auto[- ]?pay|autopay|"
+    r"mandate|e[- ]?nach|standing instruction|recurring debit|scheduled debit|auto[- ]?debit)\b",
     re.IGNORECASE,
 )
 CYCLE_PATTERNS = (
@@ -366,7 +394,11 @@ STRONG_RECURRING_EVIDENCE = re.compile(
     r"trial ends?(?: on)?|subscription (?:receipt|invoice|payment|renewal|renewed|was renewed|has been renewed|confirmed|activated)|"
     r"membership (?:renewal|renewed|extended)|you (?:have )?subscribed|"
     r"payment confirmation|payment successful|your plan renews|plan will continue|"
-    r"subscription period"
+    r"subscription period|"
+    r"auto[- ]?pay mandate|upi mandate|mandate (?:created|registered|activated|approved)|"
+    r"recurring debit|scheduled debit|will be debited|debited every|automatic debit|"
+    r"automatic payment|billing agreement|standing instruction|e[- ]?nach|nach mandate|"
+    r"subscription is active|subscription active|membership is active|trial period"
     r")\b",
     re.IGNORECASE,
 )
@@ -381,7 +413,11 @@ UNKNOWN_RECURRING_EVIDENCE = re.compile(
     r"will be charged (?:again|every|each|on)|charged again|billed every|charged every|"
     r"subscription (?:has been|was|will be) renewed|membership (?:has been|was|will be) renewed|"
     r"renewed(?:\s+\w+){0,4}\s+for\s+\d+\s+(?:days?|weeks?|months?|years?)|"
-    r"subscription period|billing every\s+\d+\s+(?:days?|weeks?|months?|years?)"
+    r"subscription period|billing every\s+\d+\s+(?:days?|weeks?|months?|years?)|"
+    r"auto[- ]?pay(?:\s+mandate)?|upi mandate|mandate (?:created|registered|activated|approved)|"
+    r"recurring debit|scheduled debit|will be debited(?:\s+(?:again|every|on))?|debited every|"
+    r"automatic debit|auto[- ]?debit|e[- ]?nach|nach mandate|standing instruction|"
+    r"recurring card mandate|billed monthly|charged monthly|monthly subscription|annual subscription"
     r")\b",
     re.IGNORECASE,
 )
@@ -416,6 +452,33 @@ MERCHANT_SENDER_DOMAINS: dict[str, tuple[str, ...]] = {
     "Crunchyroll Premium": ("crunchyroll.com",),
     "Xbox Game Pass": ("xbox.com", "microsoft.com"),
     "Coursera Plus": ("coursera.org",),
+    "YouTube Music": ("youtube.com", "google.com"),
+    "Apple TV+": ("apple.com",),
+    "Amazon Kindle Unlimited": ("amazon.com", "amazon.in"),
+    "JioSaavn Pro": ("jiosaavn.com",),
+    "Gaana Plus": ("gaana.com",),
+    "Times Prime": ("timesprime.com",),
+    "Airtel Xstream": ("airtel.in",),
+    "Tata Play Binge": ("tataplaybinge.com", "tataplay.com"),
+    "Claude Pro": ("anthropic.com",),
+    "Perplexity Pro": ("perplexity.ai",),
+    "Midjourney": ("midjourney.com",),
+    "Cursor Pro": ("cursor.com",),
+    "Replit Core": ("replit.com",),
+    "AWS": ("amazon.com", "amazonaws.com", "aws.amazon.com"),
+    "Google Workspace": ("google.com", "workspace.google.com"),
+    "Proton": ("proton.me", "protonmail.com"),
+    "NordVPN": ("nordvpn.com",),
+    "ExpressVPN": ("expressvpn.com",),
+    "Surfshark": ("surfshark.com",),
+    "PlayStation Plus": ("playstation.com",),
+    "Nintendo Switch Online": ("nintendo.com",),
+    "X Premium": ("x.com", "twitter.com"),
+    "Tinder": ("gotinder.com", "tinder.com"),
+    "Bumble Premium": ("bumble.com",),
+    "Headspace": ("headspace.com",),
+    "Calm": ("calm.com",),
+    "Strava": ("strava.com",),
 }
 
 
