@@ -135,6 +135,11 @@ function isRecoverableSQLiteHandleError(error: unknown): boolean {
   return /NativeDatabase\.prepareAsync|NativeDatabase\.(?:runAsync|getFirstAsync|getAllAsync)|NullPointerException|database.*closed|native database.*null/i.test(message);
 }
 
+function isNetworkConnectivityError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error ?? '');
+  return /network request failed|fetch failed|unknownhostexception|unable to resolve host|network error|aborted|timeout/i.test(message);
+}
+
 
 
 const C = {
@@ -990,16 +995,18 @@ function AppContent() {
     setScanError('');
     setScanLoading(true);
     try {
-      const healthResponse = await fetch(`${API_BASE_URL}/health`);
+      const healthResponse = await fetchWithNetworkRetry(`${API_BASE_URL}/health`, {}, 3, 12000);
       const healthPayload = await healthResponse.json().catch(() => ({}));
       if (!healthResponse.ok) throw new Error('The SubSathi server is not healthy right now. Please retry in a moment.');
       setApiReachable(true);
       setGoogleOAuthConfigured(healthPayload.google_oauth_configured === true);
       setAiExtractionConfigured(healthPayload.ai_extraction_configured === true);
+      setDurableDatabaseConfigured(healthPayload.durable_database_configured === true);
+      setServerScanLimit(Number(healthPayload.scan_max_messages_per_inbox || 500));
       if (healthPayload.google_oauth_configured !== true) {
         throw new Error('Gmail connection is blocked by server setup, not by your phone. The hosted API does not have Google OAuth credentials configured. In Google Cloud, enable Gmail API and create a Web OAuth client. In Render, add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET, then set GOOGLE_REDIRECT_URI to https://subsathi-api.onrender.com/api/auth/google/callback. Add your Google account as an OAuth test user while the consent screen is in testing, deploy the changes, and try again. Never put the client secret inside the APK or send it in chat.');
       }
-      const startResponse = await fetch(`${API_BASE_URL}/api/auth/google/url?redirect_target=mobile`);
+      const startResponse = await fetchWithNetworkRetry(`${API_BASE_URL}/api/auth/google/url?redirect_target=mobile`, {}, 2, 12000);
       const startPayload = await startResponse.json().catch(() => ({}));
       if (!startResponse.ok || !startPayload.authorization_url) {
         throw new Error(startPayload.detail || 'The SubSathi API could not start Google authorization. Check the server URL and OAuth configuration.');
@@ -1018,13 +1025,14 @@ function AppContent() {
       const exchangePayload = await exchangeResponse.json().catch(() => ({}));
       if (!exchangeResponse.ok || !exchangePayload.session) throw new Error(exchangePayload.detail || 'Could not exchange the one-time sign-in code. Please retry.');
       const token = String(exchangePayload.session);
-      const profileResponse = await fetch(`${API_BASE_URL}/api/me`, { headers: { Authorization: `Bearer ${token}` } });
+      const profileResponse = await fetchWithNetworkRetry(`${API_BASE_URL}/api/me`, { headers: { Authorization: `Bearer ${token}` } }, 2, 12000);
       const profile = await profileResponse.json().catch(() => ({}));
       if (!profileResponse.ok || !profile.gmail_connected) throw new Error(profile.detail || 'Gmail connection could not be verified by the SubSathi server.');
       await SecureStore.setItemAsync(SESSION_KEY, token);
       const connectedAccounts = profileGmailAccounts(profile);
       setGmailAccounts(connectedAccounts);
       setGmailEmail(profile.gmail_email || connectedAccounts[0]?.email || profile.email || callback.searchParams.get('email'));
+      setGmailNeedsRepair(false);
       setScanCandidates([]);
       setSelectedCandidateIds([]);
       setCandidateEdits({});
@@ -1087,9 +1095,10 @@ function AppContent() {
         setGoogleOAuthConfigured(false);
         setScanError('');
       } else {
-        const friendlyMessage = message.includes('Network request failed') || message.includes('Aborted')
-          ? `Could not reach the SubSathi server at ${API_BASE_URL}. The free server may be waking up; check your connection and retry.`
+        const friendlyMessage = isNetworkConnectivityError(error)
+          ? `SubSathi couldn't reach ${API_BASE_URL} after retrying. This is a network/DNS connection failure, not a Gmail detection failure. Your on-device tracker entries are safe; tap Retry server connection when ready.`
           : message;
+        if (isNetworkConnectivityError(error)) setApiReachable(false);
         setScanError(friendlyMessage);
       }
     } finally {
@@ -1098,9 +1107,9 @@ function AppContent() {
   };
 
   const refreshGmailProfile = async (session: string) => {
-    const response = await fetch(API_BASE_URL + '/api/me', {
+    const response = await fetchWithNetworkRetry(API_BASE_URL + '/api/me', {
       headers: { Authorization: 'Bearer ' + session },
-    });
+    }, 2, 12000);
     const profile = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(profile.detail || 'Could not refresh connected Gmail accounts.');
     const accounts = profileGmailAccounts(profile);
