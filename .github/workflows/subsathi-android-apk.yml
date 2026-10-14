@@ -38,8 +38,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-          cache-dependency-path: subsathi-fullstack/mobile/package.json
 
       - name: Configure Java
         uses: actions/setup-java@v4
@@ -48,7 +46,15 @@ jobs:
           java-version: "17"
 
       - name: Install Android SDK packages
-        uses: android-actions/setup-android@v3
+        shell: bash
+        run: |
+          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          SDKMANAGER="$(find "$SDK_ROOT/cmdline-tools" -type f -name sdkmanager | sort -V | tail -n 1)"
+          if [ -z "$SDKMANAGER" ]; then
+            echo "Could not locate sdkmanager under $SDK_ROOT"
+            exit 1
+          fi
+          "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0" "platform-tools"
 
       - name: Install JavaScript dependencies
         run: npm install --no-audit --no-fund
