@@ -2,13 +2,13 @@
   "expo": {
     "name": "SubSathi",
     "slug": "subsathi",
-    "version": "0.5.9",
+    "version": "0.5.10",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "scheme": "subsathi",
     "android": {
       "package": "in.subsathi.app",
-      "versionCode": 15,
+      "versionCode": 16,
       "adaptiveIcon": {
         "backgroundColor": "#0D2330",
         "foregroundImage": "./assets/adaptive-icon.png"
