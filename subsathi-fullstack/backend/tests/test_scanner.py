@@ -133,6 +133,8 @@ def test_header_filter_keeps_transactional_and_relevant_provider_messages():
     assert should_fetch_full_message("Payment confirmation", "receipts@unknown-example.com")
     assert should_fetch_full_message("Your Spotify Premium plan", "no-reply@spotify.com")
     assert should_fetch_full_message("Netflix renews tomorrow", "billing@netflix.com")
+    assert should_fetch_full_message("Welcome to Netflix", "Netflix <hello@netflix.com>")
+    assert should_fetch_full_message("Your plan is ready", "Google <noreply@google.com>")
     assert should_fetch_full_message("Auto-renewal notice", "billing@unknown-example.com")
 
 
