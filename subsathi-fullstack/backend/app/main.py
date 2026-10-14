@@ -1201,12 +1201,10 @@ def import_candidates(payload: CandidateImportRequest, user: User = Depends(curr
         if override.next_renewal is not None:
             item.next_renewal = override.next_renewal
 
-    missing_prices = [item.service_name for item in candidates if item.amount is None or item.amount <= 0]
-    if missing_prices:
-        raise HTTPException(status_code=422, detail="Enter a valid price for: " + ", ".join(missing_prices))
-    missing_cycles = [item.service_name for item in candidates if item.cycle not in {"Weekly", "Monthly", "Quarterly", "Yearly"}]
-    if missing_cycles:
-        raise HTTPException(status_code=422, detail="Choose the billing cycle for: " + ", ".join(missing_cycles))
+    # A real subscription may be detected even when its receipt omits price/cycle.
+    # Preserve it with Unknown/None and let the user fill the details later; never
+    # manufacture a price or silently assume Monthly. Overrides, when present, were
+    # validated by Pydantic and are applied above.
 
     result = []
     for item in candidates:
@@ -1217,13 +1215,19 @@ def import_candidates(payload: CandidateImportRequest, user: User = Depends(curr
             "name": item.service_name,
             "category": item.category,
             "amount": item.amount,
-            "cycle": item.cycle,
+            "cycle": item.cycle if item.cycle in {"Weekly", "Monthly", "Quarterly", "Yearly"} else "Unknown",
             "nextRenewal": item.next_renewal or "",
             "manageUrl": item.manage_url or _manage_url_for(item.service_name, item.billing_source),
             "billingSource": item.billing_source or "provider",
             "billingSourceLabel": _billing_source_label(item.billing_source),
-            "notes": f"Detected from billing emails ({item.evidence_count} message(s)). Verify the renewal date if it wasn't found in the email.",
-            "needsReview": not bool(item.next_renewal),
+            "notes": f"Detected from billing emails ({item.evidence_count} message(s))." + (
+                " Price not found in email; add it when confirmed." if item.amount is None else ""
+            ) + (
+                " Billing cycle not found in email; add it when confirmed." if item.cycle not in {"Weekly", "Monthly", "Quarterly", "Yearly"} else ""
+            ) + (
+                " Renewal date not found in email; verify it with the provider." if not item.next_renewal else ""
+            ),
+            "needsReview": item.amount is None or item.cycle not in {"Weekly", "Monthly", "Quarterly", "Yearly"} or not bool(item.next_renewal),
             "source": "gmail",
             "sourceAccounts": json.loads(item.source_accounts or "[]"),
         })
