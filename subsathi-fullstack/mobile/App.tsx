@@ -1224,10 +1224,13 @@ function AppContent() {
     try {
       const useAi = (aiOverride ?? aiAssistedScan) && aiExtractionConfigured === true;
       const scanQuery = '?max_messages=1500' + (mode === 'full' ? '&force_full_scan=true' : '') + (useAi ? '&ai_assisted=true' : '');
+      // A scan is a costly, stateful POST. Do not automatically replay it after a
+      // network timeout: the server may still be scanning the inbox and a duplicate
+      // request can trigger Gmail's per-user rate limits.
       const response = await fetchWithNetworkRetry(API_BASE_URL + '/api/gmail/scan' + scanQuery, {
         method: 'POST',
         headers: { Authorization: `Bearer ${session}`, 'Content-Type': 'application/json' },
-      }, 2, 45000);
+      }, 1, 120000);
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
         if (response.status === 401) {
