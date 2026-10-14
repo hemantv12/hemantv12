@@ -699,31 +699,30 @@ function AppContent() {
   }, [tab, screenProgress]);
 
   const loadSubscriptions = useCallback(async () => {
-    const db = dbRef.current;
-    if (!db) return;
-    const rows = await db.getAllAsync<Subscription>('SELECT * FROM subscriptions ORDER BY nextRenewal ASC, name COLLATE NOCASE ASC');
+    const rows = await withLocalDatabase((db) =>
+      db.getAllAsync<Subscription>('SELECT * FROM subscriptions ORDER BY nextRenewal ASC, name COLLATE NOCASE ASC'),
+    );
     setSubscriptions(rows);
-  }, []);
+  }, [withLocalDatabase]);
 
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
-        const db = await initializeDatabase();
-        if (!mounted) { await db.closeAsync(); return; }
-        dbRef.current = db;
-        const rows = await db.getAllAsync<Subscription>('SELECT * FROM subscriptions ORDER BY nextRenewal ASC, name COLLATE NOCASE ASC');
-        const preference = await db.getFirstAsync<{ value: string }>("SELECT value FROM app_settings WHERE key = 'notificationsEnabled'");
-        const aiPreference = await db.getFirstAsync<{ value: string }>("SELECT value FROM app_settings WHERE key = 'aiAssistedScan'");
+        const initial = await withLocalDatabase(async (db) => ({
+          rows: await db.getAllAsync<Subscription>('SELECT * FROM subscriptions ORDER BY nextRenewal ASC, name COLLATE NOCASE ASC'),
+          preference: await db.getFirstAsync<{ value: string }>("SELECT value FROM app_settings WHERE key = 'notificationsEnabled'"),
+          aiPreference: await db.getFirstAsync<{ value: string }>("SELECT value FROM app_settings WHERE key = 'aiAssistedScan'"),
+        }));
         if (mounted) {
-          setSubscriptions(rows);
-          if (preference) setNotificationsEnabled(preference.value === 'true');
-          if (aiPreference) setAiAssistedScan(aiPreference.value === 'true');
+          setSubscriptions(initial.rows);
+          if (initial.preference) setNotificationsEnabled(initial.preference.value === 'true');
+          if (initial.aiPreference) setAiAssistedScan(initial.aiPreference.value === 'true');
           setAiPreferenceLoaded(true);
         }
       } catch (error) {
-        Alert.alert('Could not open local database', 'Please restart the app. Your subscriptions have not been uploaded anywhere.');
-        console.warn(error);
+        Alert.alert('Local tracker needs repair', 'SubSathi could not open its on-device database. Your saved subscription file was not deliberately deleted. Restart the app and try again; if this persists, contact support before reinstalling.');
+        console.warn('Local database initialization failed', error);
       } finally {
         if (mounted) {
           setReady(true);
@@ -732,7 +731,7 @@ function AppContent() {
       }
     })();
     return () => { mounted = false; };
-  }, []);
+  }, [withLocalDatabase]);
 
   useEffect(() => {
     let mounted = true;
