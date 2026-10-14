@@ -433,10 +433,16 @@ HEADER_PROVIDER_CONTEXT = re.compile(
     r"invoice|order|charge|trial|account|purchase|auto[- ]?renew|recurring)\b",
     re.IGNORECASE,
 )
+HEADER_MARKETING_SUBJECT = re.compile(
+    r"\b(newsletter|weekly picks|week in review|product update|what'?s new|new features?|"
+    r"special offers?|promo(?:tion)?s?|discounts?|deals?|webinar|event invitation|"
+    r"recommended for you|trending now|top picks)\b",
+    re.IGNORECASE,
+)
 
 
 def should_fetch_full_message(subject: str, sender: str) -> bool:
-    """Use cheap headers to avoid downloading full bodies of unrelated search hits."""
+    """Fetch plausible billing mail, including provider messages with generic welcome subjects."""
     decoded_subject = decode_header(subject or "")
     decoded_sender = decode_header(sender or "")
     if HEADER_TRANSACTION_CUES.search(decoded_subject):
@@ -446,10 +452,12 @@ def should_fetch_full_message(subject: str, sender: str) -> bool:
         _domain_matches(domain, roots)
         for roots in MERCHANT_SENDER_DOMAINS.values()
     )
-    # Do not download provider newsletters just because they come from a known sender.
-    # Generic transaction subjects (e.g. "Thanks for your purchase") are already
-    # covered by HEADER_TRANSACTION_CUES above; known providers also need billing context.
-    return known_provider and bool(HEADER_PROVIDER_CONTEXT.search(decoded_subject))
+    if not known_provider:
+        return False
+    # Provider onboarding/confirmation mail can say only "Welcome" in the subject,
+    # with the actual plan, trial or recurring terms in the body. Search queries already
+    # constrain these messages to billing-related terms; avoid obvious marketing blasts.
+    return not bool(HEADER_MARKETING_SUBJECT.search(decoded_subject))
 
 
 def parse_billing_message(*, message_id: str, subject: str, sender: str, date_header: str, body: str) -> dict[str, Any] | None:
