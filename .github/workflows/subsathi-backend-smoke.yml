@@ -27,6 +27,10 @@ jobs:
           body = json.load(sys.stdin)
           print("api_status=" + str(body.get("status")))
           print("google_oauth_configured=" + str(body.get("google_oauth_configured")))
+          print("database_backend=" + str(body.get("database_backend")))
+          print("durable_database_configured=" + str(body.get("durable_database_configured")))
+          if body.get("durable_database_configured") is not True:
+              print("WARNING: live API is not using PostgreSQL; do not accept real customer data yet")
           if body.get("status") != "ok":
               raise SystemExit("API health check failed")
           if body.get("google_oauth_configured") is not True:

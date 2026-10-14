@@ -19,6 +19,8 @@ def test_health_endpoint_is_public_and_reports_oauth_state():
     assert payload['status'] == 'ok'
     assert payload['service'] == 'subsathi-api'
     assert 'google_oauth_configured' in payload
+    assert payload['database_backend'] in ('sqlite', 'postgresql')
+    assert payload['durable_database_configured'] is (payload['database_backend'] == 'postgresql')
 
 
 def test_public_policy_pages_are_available():

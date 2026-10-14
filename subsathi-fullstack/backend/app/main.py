@@ -226,7 +226,17 @@ def callback_deeplink(*, code: str | None = None, email: str | None = None, erro
 
 @app.get("/health")
 def health() -> dict[str, Any]:
-    return {"status": "ok", "service": "subsathi-api", "environment": settings.app_env, "google_oauth_configured": settings.google_configured}
+    # Expose only the database engine type (never its connection string) so the
+    # deployment preflight can distinguish durable PostgreSQL from ephemeral SQLite.
+    database_backend = engine.dialect.name
+    return {
+        "status": "ok",
+        "service": "subsathi-api",
+        "environment": settings.app_env,
+        "google_oauth_configured": settings.google_configured,
+        "database_backend": database_backend,
+        "durable_database_configured": database_backend == "postgresql",
+    }
 
 
 @app.get("/api/auth/google/url")
