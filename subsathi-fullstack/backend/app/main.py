@@ -402,12 +402,14 @@ def _scan_single_gmail_mailbox(
     limit: int,
     last_history_id: str | None = None,
     last_deep_scan_at: datetime | None = None,
+    force_full_scan: bool = False,
 ) -> dict[str, Any]:
     service = build("gmail", "v1", credentials=credentials, cache_discovery=False)
     profile = service.users().getProfile(userId="me").execute(num_retries=2)
     profile_history_id = str(profile.get("historyId") or last_history_id or "")
     deep_scan_due = (
-        not last_history_id
+        force_full_scan
+        or not last_history_id
         or not last_deep_scan_at
         or now_utc() - last_deep_scan_at >= timedelta(days=7)
     )
@@ -852,7 +854,12 @@ def _gmail_http_error_message(status_code: int, reason: str) -> str:
 
 
 @app.post("/api/gmail/scan")
-def scan_gmail(max_messages: int = Query(100, ge=1, le=200), user: User = Depends(current_user), db: Session = Depends(get_db)) -> dict[str, Any]:
+def scan_gmail(
+    max_messages: int = Query(200, ge=1, le=200),
+    force_full_scan: bool = Query(False),
+    user: User = Depends(current_user),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
     scan_started = perf_counter()
     mailboxes, account_errors = credentials_for_all_mailboxes(db, user)
     limit = min(max_messages, settings.scan_max_messages)
@@ -874,6 +881,7 @@ def scan_gmail(max_messages: int = Query(100, ge=1, le=200), user: User = Depend
                 limit,
                 last_history_id=connection_row.last_history_id,
                 last_deep_scan_at=connection_row.last_deep_scan_at,
+                force_full_scan=force_full_scan,
             )
             return mailbox_email, connection_row, result, None
         except HttpError as exc:
@@ -1007,6 +1015,7 @@ def scan_gmail(max_messages: int = Query(100, ge=1, le=200), user: User = Depend
         "account_errors": account_errors,
         "scan_mode": overall_mode,
         "scan_modes": account_scan_modes,
+        "full_scan_requested": force_full_scan,
         "scan_note": "Initial and weekly reconciliation scans use billing/provider queries. Between those scans, SubSathi processes newly added messages using per-inbox Gmail history cursors.",
     }
 
