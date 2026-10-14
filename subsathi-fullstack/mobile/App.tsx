@@ -516,6 +516,7 @@ function AppContent() {
     fullMessagesFetched: number;
     matchedReceipts: number;
     searchResultHits: number;
+    queriesUsed: number;
     scanLimitPerAccount: number;
     scanLimitReached: boolean;
     candidateCount: number;
@@ -729,6 +730,7 @@ function AppContent() {
         name: items[0].name,
         count: items.length,
         category: items[0].category,
+        source: normalizeBillingSource(items[0].billingSource),
         monthlySpend: items.reduce((sum, item) => sum + monthlyEquivalent(item), 0),
       }));
     const missingDetails = subscriptions.filter((item) => !hasKnownPrice(item) || !item.nextRenewal).length;
@@ -1166,6 +1168,7 @@ function AppContent() {
         fullMessagesFetched: Number(payload.full_messages_fetched || 0),
         matchedReceipts: Number(payload.matched_receipts || 0),
         searchResultHits: Number(payload.search_result_hits || 0),
+        queriesUsed: Number(payload.queries_used || 0),
         scanLimitPerAccount: Number(payload.scan_limit_per_account || 500),
         scanLimitReached: Boolean(payload.scan_limit_reached),
         candidateCount: Number(payload.candidate_count ?? adjusted.length),
@@ -1492,11 +1495,11 @@ function AppContent() {
           </View>
         )) : <Text style={styles.reviewBody}>No multi-plan overlap found in entertainment, music, software or storage yet. Add or import plans and this review updates automatically.</Text>}
         {savingsRadar.repeatedEntries.map((item) => (
-          <View key={item.name + item.category + item.count} style={{ borderTopWidth: 1, borderTopColor: '#EEF2F1', paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <View key={item.name + item.category + item.source + item.count} style={{ borderTopWidth: 1, borderTopColor: '#EEF2F1', paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
             <View style={[styles.reviewIcon, { backgroundColor: C.orangePale }]}><Text>↻</Text></View>
             <View style={{ flex: 1 }}>
               <Text style={styles.reviewTitle}>Repeated tracker entry · {item.name}</Text>
-              <Text style={styles.reviewBody}>{item.count} entries · {money(item.monthlySpend)}/mo equivalent in the tracker. This does not prove the provider charged you twice.</Text>
+              <Text style={styles.reviewBody}>{item.count} entries · {BILLING_SOURCE_LABELS[item.source]} · {money(item.monthlySpend)}/mo equivalent in the tracker. This does not prove the provider charged you twice.</Text>
             </View>
             <Pressable accessibilityRole="button" onPress={() => { setSearch(item.name); setFilter('All'); setTab('Subscriptions'); }} style={{ borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, backgroundColor: C.greenPale }}><Text style={{ color: C.greenDark, fontSize: 10, fontWeight: '800' }}>Check</Text></Pressable>
           </View>
@@ -1744,7 +1747,8 @@ function AppContent() {
             </View>
             {gmailEmail && scanSummary ? <View style={{ backgroundColor: C.greenPale, borderRadius: 13, padding: 12, marginBottom: 14 }}>
               <Text style={{ color: C.greenDark, fontSize: 11, fontWeight: '800' }}>{scanSummary.mode === 'full' ? 'Deep rescan' : 'Quick sync'} · Searched {scanSummary.scannedMessages} messages across {scanSummary.accountsScanned.length} Gmail account(s){scanSummary.durationMs > 0 ? ` in ${(scanSummary.durationMs / 1000).toFixed(1)}s` : ''}</Text>
-              <Text style={{ color: '#42695E', fontSize: 10, lineHeight: 15, marginTop: 4 }}>Opened {scanSummary.fullMessagesFetched} likely billing email(s); detected {scanSummary.matchedReceipts} matching message(s) and found {scanSummary.candidateCount} subscription candidate(s) waiting for review.</Text>
+              <Text style={{ color: '#42695E', fontSize: 10, lineHeight: 15, marginTop: 4 }}>Ran {scanSummary.queriesUsed} search paths across the inbox(es); opened {scanSummary.fullMessagesFetched} likely billing email(s), detected {scanSummary.matchedReceipts} matching message(s), and found {scanSummary.candidateCount} subscription candidate(s).</Text>
+              <Text style={{ color: '#42695E', fontSize: 10, lineHeight: 15, marginTop: 4 }}>Server cap: up to {scanSummary.scanLimitPerAccount.toLocaleString()} selected messages per inbox per scan. Combined search hits can include the same email more than once.</Text>
               {scanSummary.scanLimitReached ? <Text style={{ color: '#8B5108', fontSize: 10, lineHeight: 15, marginTop: 7, fontWeight: '700' }}>Coverage note: this server allowed up to {scanSummary.scanLimitPerAccount.toLocaleString()} messages per inbox for this pass and the search hit its cap. These results are not proof that your inbox contains only this many subscriptions; older or unusually worded billing emails may still be missed.</Text> : null}
               {scanSummary.aiAssisted ? <Text style={{ color: '#42695E', fontSize: 10, lineHeight: 15, marginTop: 5 }}>{scanSummary.aiWarning || (scanSummary.aiAnalyzedMessages > 0 ? `AI-assisted extraction reviewed ${scanSummary.aiAnalyzedMessages} incomplete/uncertain email(s) and only added fields supported by quoted email evidence.` : 'AI-assisted mode was enabled, but no incomplete or uncertain emails needed extra analysis in this scan.')}</Text> : null}
               {scanSummary.accountErrors.map((item) => <Text key={item.email} style={{ color: C.red, fontSize: 10, lineHeight: 15, marginTop: 5 }}>{item.email}: {item.message}</Text>)}
