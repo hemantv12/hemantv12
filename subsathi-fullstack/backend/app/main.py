@@ -960,35 +960,49 @@ def scan_gmail(
             db.add(existing)
         existing.service_name = candidate["service_name"]
         existing.category = candidate["category"]
-        if full_reconciliation or is_new:
+
+        candidate_evidence_date = str(candidate.get("evidence_date") or "")
+        stored_evidence_date = str(existing.evidence_date or "")
+        candidate_is_newer = is_new or (
+            bool(candidate_evidence_date)
+            and (not stored_evidence_date or candidate_evidence_date >= stored_evidence_date)
+        )
+        if is_new:
             existing.amount = candidate.get("amount")
             existing.cycle = candidate.get("cycle") or "Unknown"
             existing.next_renewal = candidate.get("next_renewal") or ""
             existing.evidence_count = int(candidate.get("evidence_count", 1))
-            existing.evidence_date = str(candidate.get("evidence_date") or "")
+            existing.evidence_date = candidate_evidence_date
             existing.source_accounts = json.dumps(candidate.get("source_accounts") or [])
             existing.billing_source = str(candidate.get("billing_source") or "provider")
             existing.manage_url = str(candidate.get("manage_url") or _manage_url_for(candidate["service_name"], candidate.get("billing_source")))[:2000]
             existing.confidence = int(candidate.get("confidence", 50))
         else:
-            if candidate.get("amount") is not None:
-                existing.amount = candidate["amount"]
-            if candidate.get("cycle") in {"Weekly", "Monthly", "Quarterly", "Yearly"}:
-                existing.cycle = candidate["cycle"]
-            if candidate.get("next_renewal"):
-                existing.next_renewal = candidate["next_renewal"]
-            if candidate.get("evidence_date") and str(candidate["evidence_date"]) > (existing.evidence_date or ""):
-                existing.evidence_date = str(candidate["evidence_date"])
+            # A full scan only examines a bounded recent-message slice. Never erase an
+            # already-known price/date when the latest sample omits a field or contains
+            # older evidence than the values that were previously confirmed.
+            if candidate_is_newer:
+                if candidate.get("amount") is not None:
+                    existing.amount = candidate["amount"]
+                if candidate.get("cycle") in {"Weekly", "Monthly", "Quarterly", "Yearly"}:
+                    existing.cycle = candidate["cycle"]
+                if candidate.get("next_renewal"):
+                    existing.next_renewal = candidate["next_renewal"]
+                if candidate_evidence_date:
+                    existing.evidence_date = candidate_evidence_date
+                new_url = str(candidate.get("manage_url") or _manage_url_for(candidate["service_name"], candidate.get("billing_source")))
+                if new_url:
+                    existing.manage_url = new_url[:2000]
             try:
                 old_accounts = json.loads(existing.source_accounts or "[]")
             except (ValueError, TypeError):
                 old_accounts = []
             existing.source_accounts = json.dumps(sorted(set(old_accounts) | set(candidate.get("source_accounts") or [])))
-            existing.evidence_count = min(10000, int(existing.evidence_count or 0) + int(candidate.get("evidence_count", 1)))
+            if full_reconciliation:
+                existing.evidence_count = max(int(existing.evidence_count or 0), int(candidate.get("evidence_count", 1)))
+            else:
+                existing.evidence_count = min(10000, int(existing.evidence_count or 0) + int(candidate.get("evidence_count", 1)))
             existing.billing_source = str(candidate.get("billing_source") or existing.billing_source or "provider")
-            new_url = str(candidate.get("manage_url") or _manage_url_for(candidate["service_name"], candidate.get("billing_source")))
-            if new_url:
-                existing.manage_url = new_url[:2000]
             existing.confidence = max(int(existing.confidence or 0), int(candidate.get("confidence", 50)))
         existing.updated_at = utcnow()
 
