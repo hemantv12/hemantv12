@@ -154,3 +154,11 @@ def test_gmail_scan_queries_include_known_sender_and_longer_history():
     assert any("newer_than:5y" in query for query in queries)
     assert any("from:netflix.com" in query for query in queries)
     assert any("from:swiggy.com" in query for query in queries)
+
+
+def test_manage_url_is_specific_to_billing_platform():
+    from app.main import _manage_url_for, _billing_source_label
+
+    assert _manage_url_for("Netflix", "google_play") == "https://play.google.com/store/account/subscriptions"
+    assert _manage_url_for("Netflix", "provider") == "https://www.netflix.com/YourAccount"
+    assert _billing_source_label("apple_app_store") == "Apple App Store"

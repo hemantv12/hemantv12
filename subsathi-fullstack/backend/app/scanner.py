@@ -50,6 +50,74 @@ MERCHANTS: tuple[Merchant, ...] = (
     Merchant("Coursera Plus", "Learning", ("Coursera Plus", "Coursera subscription"), "https://www.coursera.org/account/subscriptions"),
 )
 
+BILLING_SOURCE_MANAGEMENT_URLS: dict[str, str] = {
+    "google_play": "https://play.google.com/store/account/subscriptions",
+    "apple_app_store": "https://apps.apple.com/account/subscriptions",
+    "paypal": "https://www.paypal.com/myaccount/autopay/",
+    # UPI and bank mandates do not have one safe, universal cancellation URL.
+    "upi_autopay": "",
+    "bank_mandate": "",
+    "provider": "",
+}
+
+
+def detect_billing_source(subject: str, sender: str, body: str) -> str:
+    """Identify the billing platform only when transaction context supports it."""
+    sender_l = decode_header(sender or "").lower()
+    subject_l = decode_header(subject or "").lower()
+    body_l = (body or "")[:18000].lower()
+    combined = f"{subject_l}\n{sender_l}\n{body_l}"
+    transaction_context = re.search(
+        r"\b(receipt|invoice|order|purchase|subscription|renewal|renewed|charged|payment|billing agreement|automatic payment)\b",
+        combined,
+        re.I,
+    )
+    if not transaction_context:
+        return "provider"
+
+    sender_domain = parse_sender_domain(sender_l)
+    sender_local = sender_l.split("@", 1)[0]
+    play_context = re.search(
+        r"(?:google\s+play|play\s+store).{0,65}(?:receipt|order|subscription|renewal|payment|purchase|charged)|"
+        r"(?:receipt|order|subscription|renewal|payment|purchase|charged).{0,65}(?:google\s+play|play\s+store)|"
+        r"billed\s+through\s+google\s+play|managed\s+by\s+google\s+play",
+        combined,
+        re.I | re.S,
+    )
+    if play_context or ("googleplay" in sender_local and sender_domain in {"google.com", "googlemail.com"}):
+        return "google_play"
+
+    apple_context = re.search(
+        r"(?:apple\.com/bill|app\s+store|itunes(?:\s+store)?\s+receipt|billed\s+by\s+apple|"
+        r"receipt\s+from\s+apple|manage\s+in\s+apple)",
+        combined,
+        re.I,
+    )
+    if apple_context and (sender_domain == "apple.com" or "apple.com" in combined or "itunes" in combined):
+        return "apple_app_store"
+
+    if _domain_matches(sender_domain, ("paypal.com",)) and re.search(
+        r"\b(automatic payment|billing agreement|preapproved payment|subscription payment|manage automatic payments)\b",
+        combined,
+        re.I,
+    ):
+        return "paypal"
+
+    if re.search(r"\b(upi\s*autopay|upi\s+mandate|e-mandate|autopay mandate|recurring upi)\b", combined, re.I):
+        return "upi_autopay"
+    if re.search(r"\b(e-nach|nach mandate|standing instruction|recurring card mandate|card e-mandate)\b", combined, re.I):
+        return "bank_mandate"
+    return "provider"
+
+
+def management_url_for_source(provider_url: str, billing_source: str | None) -> str:
+    source = (billing_source or "provider").strip().lower()
+    platform_url = BILLING_SOURCE_MANAGEMENT_URLS.get(source)
+    if platform_url is not None:
+        return platform_url or (provider_url if source == "provider" else "")
+    return provider_url
+
+
 CURRENCY_AMOUNT = re.compile(r"(?:₹\s*|INR\s*|Rs\.?\s*)([\d,]+(?:\.\d{1,2})?)", re.IGNORECASE)
 RECURRING_TERMS = re.compile(r"\b(subscription|subscribed|recurring|auto[- ]?renew|renew(?:al|s|ed)?|monthly|annually|annual|yearly|per month|per year|membership|billing cycle|free trial|trial ends|plan will continue)\b", re.IGNORECASE)
 CYCLE_PATTERNS = (
@@ -321,6 +389,7 @@ def parse_billing_message(*, message_id: str, subject: str, sender: str, date_he
         evidence_date = ""
 
     merchant = match_info[0] if match_info else None
+    billing_source = detect_billing_source(subject, sender, body)
     if merchant is not None:
         # A service name buried in an unrelated email is not enough. When the
         # subject/sender doesn't identify the provider, require amount plus
@@ -382,7 +451,8 @@ def parse_billing_message(*, message_id: str, subject: str, sender: str, date_he
         "next_renewal": next_renewal,
         "evidence_date": evidence_date,
         "category": category,
-        "manage_url": manage_url,
+        "manage_url": management_url_for_source(manage_url, billing_source),
+        "billing_source": billing_source,
         "service_name": merchant_name,
         "sender_domain": sender_domain,
         "confidence": min(98, confidence),
@@ -394,8 +464,12 @@ def group_billing_evidence(messages: list[dict[str, Any]]) -> list[dict[str, Any
     """Combine evidence by service; prefer explicit amount/date/cycle, never invent dates."""
     grouped: dict[str, list[dict[str, Any]]] = {}
     for message in messages:
-        key = re.sub(r"[^a-z0-9]", "", str(message.get("service_name", "")).lower())
-        if key:
+        service_key = re.sub(r"[^a-z0-9]", "", str(message.get("service_name", "")).lower())
+        source_key = str(message.get("billing_source") or "provider").strip().lower()
+        # One service can be billed directly, through Google Play, Apple, or PayPal.
+        # Those are separate actionable subscriptions and must not be merged together.
+        key = service_key + "|" + source_key
+        if service_key:
             grouped.setdefault(key, []).append(message)
     results: list[dict[str, Any]] = []
     for items in grouped.values():
@@ -406,13 +480,18 @@ def group_billing_evidence(messages: list[dict[str, Any]]) -> list[dict[str, Any
             if not top.get(field):
                 top[field] = next((item.get(field) for item in items if item.get(field)), None)
         top["evidence_count"] = len(items)
+        top["billing_source"] = str(top.get("billing_source") or "provider")
+        top["manage_url"] = management_url_for_source(str(top.get("manage_url") or ""), top["billing_source"])
         top["source_accounts"] = sorted({
             str(item.get("source_mailbox", "")).lower()
             for item in items if item.get("source_mailbox")
         })
         top["confidence"] = max(int(item.get("confidence", 35)) for item in items)
         top["needs_review"] = not bool(top.get("amount")) or not bool(top.get("next_renewal")) or not bool(top.get("cycle"))
-        top["fingerprint"] = "|".join((re.sub(r"[^a-z0-9]", "", top["service_name"].lower()), str(top.get("amount") or "unknown"), str(top.get("cycle") or "unknown")))
+        top["fingerprint"] = "|".join((
+            re.sub(r"[^a-z0-9]", "", top["service_name"].lower()),
+            str(top.get("billing_source") or "provider"),
+        ))
         # Keep just one evidence date and count; never persist full email subjects or bodies.
         top.pop("message_id", None)
         top.pop("sender_domain", None)

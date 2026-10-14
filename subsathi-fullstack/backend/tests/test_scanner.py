@@ -197,3 +197,43 @@ def test_grouped_evidence_records_multiple_source_mailboxes():
     assert len(grouped) == 1
     assert grouped[0]["evidence_count"] == 2
     assert grouped[0]["source_accounts"] == ["one@gmail.com", "two@gmail.com"]
+
+
+def test_detects_google_play_billing_source_and_management_url():
+    from app.scanner import parse_billing_message
+
+    result = parse_billing_message(
+        message_id="play-1",
+        subject="Google Play receipt: your Netflix subscription renewed",
+        sender="Google Play <googleplay-noreply@google.com>",
+        date_header="Mon, 12 Oct 2026 10:00:00 +0000",
+        body="Netflix subscription renewed. Google Play charged ₹199 per month. Next payment date: 2026-11-12.",
+    )
+    assert result is not None
+    assert result["service_name"] == "Netflix"
+    assert result["billing_source"] == "google_play"
+    assert result["manage_url"] == "https://play.google.com/store/account/subscriptions"
+
+
+def test_same_service_billed_by_play_store_and_direct_are_separate():
+    from app.scanner import group_billing_evidence
+
+    grouped = group_billing_evidence([
+        {"service_name": "Netflix", "billing_source": "google_play", "amount": 199, "cycle": "Monthly", "next_renewal": "2026-11-12", "confidence": 90, "source_mailbox": "a@gmail.com"},
+        {"service_name": "Netflix", "billing_source": "provider", "amount": 199, "cycle": "Monthly", "next_renewal": "2026-11-12", "confidence": 90, "source_mailbox": "b@gmail.com"},
+    ])
+    assert len(grouped) == 2
+    assert {item["billing_source"] for item in grouped} == {"google_play", "provider"}
+    assert any(item["manage_url"] == "https://play.google.com/store/account/subscriptions" for item in grouped)
+
+
+def test_upi_autopay_does_not_invent_a_universal_cancellation_link():
+    from app.scanner import detect_billing_source, management_url_for_source
+
+    source = detect_billing_source(
+        "UPI AutoPay mandate renewed",
+        "alerts@bank.example",
+        "Your UPI AutoPay subscription payment was successful.",
+    )
+    assert source == "upi_autopay"
+    assert management_url_for_source("https://merchant.example/account", source) == ""
