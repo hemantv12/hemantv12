@@ -70,10 +70,22 @@ type GmailCandidate = {
   nextRenewal: string | null;
   confidence: number;
   evidenceCount: number;
+  sourceAccounts: string[];
   needsReview: boolean;
   manageUrl: string;
   alreadyImported: boolean;
 };
+type GmailAccountSummary = { email: string; primary: boolean };
+
+function profileGmailAccounts(profile: any): GmailAccountSummary[] {
+  if (Array.isArray(profile?.gmail_accounts)) {
+    return profile.gmail_accounts
+      .filter((item: any) => item && typeof item.email === 'string' && item.email.includes('@'))
+      .map((item: any) => ({ email: String(item.email), primary: Boolean(item.primary) }));
+  }
+  const email = String(profile?.gmail_email || profile?.email || '');
+  return email.includes('@') ? [{ email, primary: true }] : [];
+}
 type GmailCandidateDraft = {
   amountText: string;
   cycle: Cycle | 'Unknown';
@@ -113,6 +125,62 @@ const CATEGORIES: { name: Category; emoji: string; tint: string }[] = [
   { name: 'Other', emoji: '🔁', tint: '#EDF1F1' },
 ];
 const CYCLES: Cycle[] = ['Weekly', 'Monthly', 'Quarterly', 'Yearly'];
+
+const SERVICE_MANAGEMENT_URLS: Record<string, string> = {
+  adobecreativecloud: 'https://account.adobe.com/plans',
+  netflix: 'https://www.netflix.com/YourAccount',
+  spotifypremium: 'https://www.spotify.com/account/overview/',
+  spotify: 'https://www.spotify.com/account/overview/',
+  canvapro: 'https://www.canva.com/settings/billing-and-teams/',
+  canva: 'https://www.canva.com/settings/billing-and-teams/',
+  youtubepremium: 'https://www.youtube.com/paid_memberships',
+  appleicloud: 'https://account.apple.com/',
+  applemusic: 'https://account.apple.com/',
+  amazonprime: 'https://www.amazon.in/gp/primecentral',
+  amazonmusic: 'https://www.amazon.in/music/settings',
+  googleone: 'https://one.google.com/settings',
+  microsoft365: 'https://account.microsoft.com/services',
+  xboxgamepass: 'https://account.microsoft.com/services',
+  jiohotstar: 'https://www.jiohotstar.com/',
+  chatgptplus: 'https://chatgpt.com/#settings/Subscription',
+  chatgpt: 'https://chatgpt.com/#settings/Subscription',
+  dropboxplus: 'https://www.dropbox.com/account/plan',
+  notion: 'https://www.notion.so/settings/plans',
+  linkedinpremium: 'https://www.linkedin.com/mypreferences/d/manage-subscription',
+  zoompro: 'https://zoom.us/billing',
+  duolingosuper: 'https://www.duolingo.com/settings/super',
+  sonyliv: 'https://www.sonyliv.com/',
+  zee5: 'https://www.zee5.com/',
+  figma: 'https://www.figma.com/settings',
+  zomatogold: 'https://www.zomato.com/',
+  swiggyone: 'https://www.swiggy.com/',
+  audible: 'https://www.audible.in/account/overview',
+  grammarlypremium: 'https://account.grammarly.com/',
+  githubcopilot: 'https://github.com/settings/copilot',
+  crunchyrollpremium: 'https://www.crunchyroll.com/account/membership',
+  courseraplus: 'https://www.coursera.org/account/subscriptions',
+};
+
+function normalizedServiceName(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+function knownManagementUrl(serviceName: string): string {
+  const key = normalizedServiceName(serviceName);
+  if (SERVICE_MANAGEMENT_URLS[key]) return SERVICE_MANAGEMENT_URLS[key];
+  const aliases: Array<[string, string]> = [
+    ['spotify', 'spotify'], ['netflix', 'netflix'], ['adobe', 'adobecreativecloud'],
+    ['youtube', 'youtubepremium'], ['icloud', 'appleicloud'], ['apple', 'appleicloud'],
+    ['amazonprime', 'amazonprime'], ['googleone', 'googleone'], ['microsoft', 'microsoft365'],
+    ['hotstar', 'jiohotstar'], ['chatgpt', 'chatgptplus'], ['dropbox', 'dropboxplus'],
+    ['linkedin', 'linkedinpremium'], ['duolingo', 'duolingosuper'], ['zomato', 'zomatogold'],
+    ['swiggy', 'swiggyone'], ['audible', 'audible'], ['grammarly', 'grammarlypremium'],
+    ['githubcopilot', 'githubcopilot'], ['crunchyroll', 'crunchyrollpremium'], ['coursera', 'courseraplus'],
+  ];
+  for (const [needle, target] of aliases) {
+    if (key.includes(needle) && SERVICE_MANAGEMENT_URLS[target]) return SERVICE_MANAGEMENT_URLS[target];
+  }
+  return '';
+}
 
 function categoryMeta(category: Category) {
   return CATEGORIES.find((item) => item.name === category) ?? CATEGORIES[CATEGORIES.length - 1];
@@ -354,12 +422,19 @@ function AppContent() {
   const [privacyOptionsRequired, setPrivacyOptionsRequired] = useState(false);
   const [apiSession, setApiSession] = useState<string | null>(null);
   const [gmailEmail, setGmailEmail] = useState<string | null>(null);
+  const [gmailAccounts, setGmailAccounts] = useState<GmailAccountSummary[]>([]);
   const [scanLoading, setScanLoading] = useState(false);
   const [scanError, setScanError] = useState('');
   const [scanCandidates, setScanCandidates] = useState<GmailCandidate[]>([]);
   const [selectedCandidateIds, setSelectedCandidateIds] = useState<number[]>([]);
   const [candidateEdits, setCandidateEdits] = useState<Record<number, GmailCandidateDraft>>({});
-  const [scanSummary, setScanSummary] = useState<{ scannedMessages: number; candidateCount: number; durationMs: number } | null>(null);
+  const [scanSummary, setScanSummary] = useState<{
+    scannedMessages: number;
+    candidateCount: number;
+    durationMs: number;
+    accountsScanned: string[];
+    accountErrors: { email: string; message: string }[];
+  } | null>(null);
   const [apiReachable, setApiReachable] = useState<boolean | null>(null);
   const [googleOAuthConfigured, setGoogleOAuthConfigured] = useState<boolean | null>(null);
   const autoScanSessionRef = useRef<string | null>(null);
@@ -465,8 +540,10 @@ function AppContent() {
         }
         const profile = await response.json();
         if (mounted && profile.gmail_connected) {
+          const accounts = profileGmailAccounts(profile);
           setApiSession(token);
-          setGmailEmail(profile.gmail_email || profile.email || null);
+          setGmailAccounts(accounts);
+          setGmailEmail(profile.gmail_email || accounts[0]?.email || profile.email || null);
         } else if (mounted) {
           await SecureStore.deleteItemAsync(SESSION_KEY);
         }
@@ -606,18 +683,27 @@ function AppContent() {
   };
 
   const openManage = async (item: Subscription) => {
-    const url = item.manageUrl.trim();
-    if (!url) {
-      Alert.alert('Management link not added', `Add the official ${item.name} billing or subscription-management URL by editing this entry.`);
+    const directUrl = item.manageUrl.trim() || knownManagementUrl(item.name);
+    if (!directUrl) {
+      Alert.alert(
+        'Find the official management page',
+        'SubSathi does not yet have a confirmed direct billing link for ' + item.name + '. Search for the provider\'s official subscription page instead?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Search official page', onPress: () => {
+            const query = encodeURIComponent(item.name + ' official subscription manage billing');
+            void Linking.openURL('https://www.google.com/search?q=' + query)
+              .catch(() => Alert.alert('Could not open search', 'Please check your internet connection and try again.'));
+          } },
+        ],
+      );
       return;
     }
-    const safeUrl = /^https:\/\//i.test(url) ? url : /^http:\/\//i.test(url) ? `https://${url.slice(7)}` : `https://${url}`;
+    const safeUrl = /^https:\/\//i.test(directUrl) ? directUrl : /^http:\/\//i.test(directUrl) ? 'https://' + directUrl.replace(/^http:\/\//i, '') : 'https://' + directUrl;
     try {
-      const supported = await Linking.canOpenURL(safeUrl);
-      if (supported) await Linking.openURL(safeUrl);
-      else Alert.alert('Link unavailable', 'This management link could not be opened on this device.');
+      await Linking.openURL(safeUrl);
     } catch {
-      Alert.alert('Could not open link', 'Please check the saved URL. Only use the official provider website.');
+      Alert.alert('Could not open link', 'Please check your internet connection and try again.');
     }
   };
 
@@ -657,7 +743,9 @@ function AppContent() {
       if (!profileResponse.ok || !profile.gmail_connected) throw new Error(profile.detail || 'Gmail connection could not be verified by the SubSathi server.');
       await SecureStore.setItemAsync(SESSION_KEY, token);
       setApiSession(token);
-      setGmailEmail(profile.gmail_email || profile.email || callback.searchParams.get('email'));
+      const connectedAccounts = profileGmailAccounts(profile);
+      setGmailAccounts(connectedAccounts);
+      setGmailEmail(profile.gmail_email || connectedAccounts[0]?.email || profile.email || callback.searchParams.get('email'));
       setScanCandidates([]);
       setSelectedCandidateIds([]);
       setCandidateEdits({});
@@ -680,6 +768,82 @@ function AppContent() {
     }
   };
 
+  const refreshGmailProfile = async (session: string) => {
+    const response = await fetch(API_BASE_URL + '/api/me', {
+      headers: { Authorization: 'Bearer ' + session },
+    });
+    const profile = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(profile.detail || 'Could not refresh connected Gmail accounts.');
+    const accounts = profileGmailAccounts(profile);
+    setGmailAccounts(accounts);
+    setGmailEmail(profile.gmail_email || accounts[0]?.email || profile.email || null);
+    return accounts;
+  };
+
+  const connectAdditionalGmail = async () => {
+    if (!apiSession) {
+      Alert.alert('Connect SubSathi first', 'Connect your first Gmail account before linking another inbox.');
+      return;
+    }
+    setScanError('');
+    setScanLoading(true);
+    try {
+      const startResponse = await fetch(API_BASE_URL + '/api/auth/google/link-url', {
+        headers: { Authorization: 'Bearer ' + apiSession },
+      });
+      const startPayload = await startResponse.json().catch(() => ({}));
+      if (!startResponse.ok || !startPayload.authorization_url) {
+        throw new Error(startPayload.detail || 'Could not start Google consent for the additional inbox.');
+      }
+      const result = await WebBrowser.openAuthSessionAsync(String(startPayload.authorization_url), GOOGLE_AUTH_RETURN_URL);
+      if (result.type !== 'success' || !('url' in result) || !result.url) {
+        setScanError('Additional Gmail linking was cancelled. Existing connections are unchanged.');
+        return;
+      }
+      const callback = new URL(result.url);
+      const callbackError = callback.searchParams.get('error');
+      if (callbackError) throw new Error(callbackError);
+      if (callback.searchParams.get('linked') !== '1') {
+        throw new Error('Google did not confirm that the extra Gmail account was linked. Please retry.');
+      }
+      const email = callback.searchParams.get('email') || 'the new inbox';
+      await refreshGmailProfile(apiSession);
+      setScanCandidates([]);
+      setSelectedCandidateIds([]);
+      setCandidateEdits({});
+      setScanSummary(null);
+      Alert.alert('Gmail account added', email + ' is linked. The next scan will search connected inboxes together.');
+    } catch (error) {
+      setScanError(error instanceof Error ? error.message : 'Could not link the additional Gmail account.');
+    } finally {
+      setScanLoading(false);
+    }
+  };
+
+  const disconnectAdditionalGmail = async (email: string) => {
+    if (!apiSession) return;
+    setScanLoading(true);
+    setScanError('');
+    try {
+      const response = await fetch(API_BASE_URL + '/api/auth/gmail/accounts/' + encodeURIComponent(email), {
+        method: 'DELETE',
+        headers: { Authorization: 'Bearer ' + apiSession },
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.detail || 'Could not disconnect this Gmail inbox.');
+      const accounts = await refreshGmailProfile(apiSession);
+      setScanCandidates([]);
+      setSelectedCandidateIds([]);
+      setCandidateEdits({});
+      setScanSummary(null);
+      Alert.alert('Gmail account disconnected', email + ' removed. ' + accounts.length + ' Gmail account(s) remain connected.');
+    } catch (error) {
+      setScanError(error instanceof Error ? error.message : 'Could not disconnect this Gmail account.');
+    } finally {
+      setScanLoading(false);
+    }
+  };
+
   const scanGmail = async (sessionOverride?: string) => {
     const session = sessionOverride || apiSession;
     if (!session) { setScanError('Connect Gmail first.'); return; }
@@ -691,7 +855,7 @@ function AppContent() {
     setScanSummary(null);
     setScanLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/gmail/scan`, {
+      const response = await fetch(API_BASE_URL + '/api/gmail/scan?max_messages=100', {
         method: 'POST',
         headers: { Authorization: `Bearer ${session}`, 'Content-Type': 'application/json' },
       });
@@ -711,7 +875,9 @@ function AppContent() {
           id: Number(item.id), name: String(item.name || 'Unknown service'), category,
           amount: item.amount === null || item.amount === undefined ? null : Number(item.amount),
           cycle, nextRenewal: item.nextRenewal || null, confidence: Number(item.confidence || 0),
-          evidenceCount: Number(item.evidenceCount || 1), needsReview: Boolean(item.needsReview),
+          evidenceCount: Number(item.evidenceCount || 1),
+          sourceAccounts: Array.isArray(item.sourceAccounts) ? item.sourceAccounts.map((email: unknown) => String(email)) : [],
+          needsReview: Boolean(item.needsReview),
           manageUrl: String(item.manageUrl || ''), alreadyImported: Boolean(item.alreadyImported),
         };
       });
@@ -728,6 +894,8 @@ function AppContent() {
         scannedMessages: Number(payload.scanned_messages || 0),
         candidateCount: Number(payload.candidate_count ?? adjusted.length),
         durationMs: Number(payload.scan_duration_ms || 0),
+        accountsScanned: Array.isArray(payload.scanned_accounts) ? payload.scanned_accounts.map((email: unknown) => String(email)) : [],
+        accountErrors: Array.isArray(payload.account_errors) ? payload.account_errors.map((item: any) => ({ email: String(item.email || ''), message: String(item.message || 'This inbox could not be scanned.') })) : [],
       });
     } catch (error) {
       setScanError(error instanceof Error ? error.message : 'Could not scan Gmail. Please retry.');
@@ -874,7 +1042,7 @@ function AppContent() {
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.detail || 'Could not delete the server account.');
       await SecureStore.deleteItemAsync(SESSION_KEY);
-      setApiSession(null); setGmailEmail(null); setScanCandidates([]); setSelectedCandidateIds([]);
+      setApiSession(null); setGmailEmail(null); setGmailAccounts([]); setScanCandidates([]); setSelectedCandidateIds([]);
       Alert.alert('Server account deleted', 'The Gmail connection and server-side scan data have been deleted. Your locally saved subscription entries remain on this phone; clear them separately in Settings if you want.');
     } catch (error) {
       setScanError(error instanceof Error ? error.message : 'Account deletion failed.');
@@ -892,8 +1060,8 @@ function AppContent() {
         throw new Error(payload.detail || 'Could not disconnect Gmail on the server.');
       }
       await SecureStore.deleteItemAsync(SESSION_KEY);
-      setApiSession(null); setGmailEmail(null); setScanCandidates([]); setSelectedCandidateIds([]);
-      toastLocal('Gmail disconnected. Locally imported plans remain on this device.');
+      setApiSession(null); setGmailEmail(null); setGmailAccounts([]); setScanCandidates([]); setSelectedCandidateIds([]);
+      toastLocal('All Gmail accounts disconnected. Locally imported plans remain on this device.');
     } catch (error) {
       setScanError(error instanceof Error ? error.message : 'Disconnect failed.');
     } finally { setScanLoading(false); }
@@ -924,7 +1092,7 @@ function AppContent() {
   const openScanner = () => {
     setScanError('');
     setScanInfoOpen(true);
-    if (apiSession) setTimeout(() => { void scanGmail(); }, 250);
+    if (apiSession && gmailEmail) setTimeout(() => { void scanGmail(); }, 250);
   };
 
   const renderSubscriptionCard = (item: Subscription, compact = false) => {
@@ -1132,16 +1300,16 @@ function AppContent() {
   const renderSettings = () => (
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
       <View style={styles.pageHeader}><Text style={styles.pageEyebrow}>YOUR APP</Text><Text style={styles.pageTitle}>Settings</Text><Text style={styles.pageSub}>Privacy, alerts and connected services.</Text></View>
-      <View style={styles.profilePanel}><BrandMark size={52} /><View style={{ flex: 1 }}><Text style={styles.profilePanelTitle}>SubSathi</Text><Text style={styles.profilePanelSub}>Local-first · Version 0.5.3 · SmartSathi AI</Text></View><Pill tone="green">On device</Pill></View>
+      <View style={styles.profilePanel}><BrandMark size={52} /><View style={{ flex: 1 }}><Text style={styles.profilePanelTitle}>SubSathi</Text><Text style={styles.profilePanelSub}>Local-first · Version 0.5.4 · SmartSathi AI</Text></View><Pill tone="green">On device</Pill></View>
       <View style={styles.panel}>
         <Text style={styles.settingsSectionLabel}>REMINDERS</Text>
         <View style={styles.settingRow}><View style={styles.settingIcon}><Text>🔔</Text></View><View style={styles.settingCopy}><Text style={styles.settingTitle}>Renewal notifications</Text><Text style={styles.settingBody}>Remind two days before, at 9:00 AM when permitted.</Text></View><Switch value={notificationsEnabled} onValueChange={(value) => { setNotificationsEnabled(value); const db = dbRef.current; if (db) void db.runAsync("INSERT INTO app_settings (key, value) VALUES ('notificationsEnabled', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", value ? 'true' : 'false'); void rescheduleRenewalReminders(subscriptions, value); }} trackColor={{ false: '#CBD5D4', true: '#A7E4CD' }} thumbColor={notificationsEnabled ? C.green : '#F6F7F7'} /></View>
         <View style={styles.innerDivider} />
         <Text style={styles.settingsSectionLabel}>CONNECTED SERVICES</Text>
-        <Pressable onPress={openScanner} style={styles.settingRow}><View style={[styles.settingIcon, { backgroundColor: C.bluePale }]}><Text>✉</Text></View><View style={styles.settingCopy}><Text style={styles.settingTitle}>Gmail auto-detection</Text><Text style={styles.settingBody}>{gmailEmail ? `Connected to ${gmailEmail} · scan receipts on demand.` : 'Not connected · secure Google OAuth setup required.'}</Text></View><Text style={styles.settingArrow}>›</Text></Pressable>
+        <Pressable onPress={openScanner} style={styles.settingRow}><View style={[styles.settingIcon, { backgroundColor: C.bluePale }]}><Text>✉</Text></View><View style={styles.settingCopy}><Text style={styles.settingTitle}>Gmail auto-detection</Text><Text style={styles.settingBody}>{gmailEmail ? (gmailAccounts.length || 1) + ' Gmail account(s) connected · scan inboxes together.' : 'Not connected · secure Google OAuth setup required.'}</Text></View><Text style={styles.settingArrow}>›</Text></Pressable>
         <View style={styles.innerDivider} />
          {privacyOptionsRequired ? <><View style={styles.innerDivider} /><Pressable onPress={() => { void openAdPrivacyOptions(); }} style={styles.settingRow}><View style={[styles.settingIcon, { backgroundColor: C.greenPale }]}><Text>◈</Text></View><View style={styles.settingCopy}><Text style={styles.settingTitle}>Advertising privacy choices</Text><Text style={styles.settingBody}>Review or change the choices shown by Google's consent form.</Text></View><Text style={styles.settingArrow}>›</Text></Pressable></> : null}
-        <View style={styles.settingRow}><View style={styles.settingIcon}><Text>🔐</Text></View><View style={styles.settingCopy}><Text style={styles.settingTitle}>Local-first data</Text><Text style={styles.settingBody}>{gmailEmail ? 'Tracker entries remain on this device. Gmail credentials are encrypted on the SubSathi server; receipt contents are parsed for subscription evidence and not saved as full messages.' : 'This MVP stores your tracker entries in local SQLite. No bank, SMS or payment account is connected.'}</Text></View></View>
+        <View style={styles.settingRow}><View style={styles.settingIcon}><Text>🔐</Text></View><View style={styles.settingCopy}><Text style={styles.settingTitle}>Local-first data</Text><Text style={styles.settingBody}>{gmailEmail ? 'Tracker entries remain on this device. Each linked Gmail inbox is scanned only after its owner grants Google consent; full receipt bodies are processed but not saved.' : 'This MVP stores tracker entries in local SQLite. Gmail, SMS, bank and UPI access are separate sources and are not silently accessible.'}</Text></View></View>
       </View>
       <View style={styles.panel}>
         <Text style={styles.settingsSectionLabel}>DATA MANAGEMENT</Text>
@@ -1150,7 +1318,7 @@ function AppContent() {
         <Pressable style={styles.settingsActionRow} onPress={() => Alert.alert('Clear all tracker data?', 'This permanently removes all subscriptions stored in this app. It will not cancel any real subscription.', [{ text: 'Keep data', style: 'cancel' }, { text: 'Clear all', style: 'destructive', onPress: async () => { const db = dbRef.current; if (!db) return; await db.runAsync('DELETE FROM subscriptions'); await Notifications.cancelAllScheduledNotificationsAsync(); await loadSubscriptions(); setTab('Home'); } }])}><Text style={[styles.settingsAction, { color: C.red }]}>Clear all tracker data</Text><Text style={styles.settingArrow}>›</Text></Pressable>
         {apiSession ? <><View style={styles.innerDivider} /><Pressable style={styles.settingsActionRow} onPress={() => Alert.alert('Delete server account?', 'This removes the SubSathi server account, encrypted Gmail credentials and cached scan candidates. Tracker entries saved locally on this phone will remain.', [{ text: 'Keep account', style: 'cancel' }, { text: 'Delete account', style: 'destructive', onPress: () => { void deleteServerAccount(); } }])}><Text style={[styles.settingsAction, { color: C.red }]}>Delete SubSathi server account</Text><Text style={styles.settingArrow}>›</Text></Pressable></> : null}
       </View>
-      <Text style={styles.footerNote}>Before a public launch, add a privacy policy, account/data deletion flow, production error handling and required Google OAuth verification.</Text>
+      <Text style={styles.footerNote}>Gmail only finds subscriptions evidenced in connected inboxes. Phone-number-only sign-ups, SMS and UPI/card mandates need separate, explicit integrations.</Text>
     </ScrollView>
   );
 
@@ -1200,11 +1368,17 @@ function AppContent() {
               </View>
               {scanError && googleOAuthConfigured !== false ? <View style={{ borderRadius: 12, backgroundColor: C.redPale, padding: 12, marginBottom: 12 }}><Text style={{ color: C.red, fontSize: 11, lineHeight: 16 }}>{scanError}</Text></View> : null}
               {scanLoading ? <View style={{ paddingVertical: 18, alignItems: 'center' }}><ActivityIndicator color={C.green} size="large" /><Text style={styles.settingBody}>{gmailEmail ? 'Checking recent receipts and renewals in parallel…' : 'Opening Google authorization…'}</Text><Text style={[styles.fieldHint, { textAlign: 'center', marginTop: 5 }]}>Only likely billing emails are analysed. This should be much quicker than checking every message one by one.</Text></View> : null}
-              {!gmailEmail ? <PrimaryButton title={googleOAuthConfigured === false ? 'Check Gmail setup again' : 'Connect Gmail securely'} onPress={() => { void connectGmail(); }} /> : <View style={{ gap: 9 }}><PrimaryButton title={scanLoading ? 'Scanning…' : 'Scan my billing emails'} onPress={() => { if (!scanLoading) void scanGmail(); }} /><GhostButton title="Disconnect Gmail" onPress={() => { Alert.alert('Disconnect Gmail?', 'SubSathi will delete the server-stored Gmail credential and cached scan results. Plans already imported to this phone will remain.', [{ text: 'Keep connected', style: 'cancel' }, { text: 'Disconnect', style: 'destructive', onPress: () => { void disconnectGmail(); } }]); }} /></View>}
+              {!gmailEmail ? <PrimaryButton title={googleOAuthConfigured === false ? 'Check Gmail setup again' : 'Connect Gmail securely'} onPress={() => { void connectGmail(); }} /> : <View style={{ gap: 9 }}>
+                <PrimaryButton title={scanLoading ? 'Scanning all inboxes…' : 'Scan ' + (gmailAccounts.length || 1) + ' Gmail account(s)'} onPress={() => { if (!scanLoading) void scanGmail(); }} />
+                <GhostButton title="Connect another Gmail account" onPress={() => { if (!scanLoading) void connectAdditionalGmail(); }} />
+                <GhostButton title="Disconnect all Gmail accounts" onPress={() => { Alert.alert('Disconnect all Gmail accounts?', 'All linked Gmail credentials and cached detections will be removed from the server. Subscription entries already imported on this phone will remain.', [{ text: 'Keep connected', style: 'cancel' }, { text: 'Disconnect all', style: 'destructive', onPress: () => { void disconnectGmail(); } }]); }} />
+                {gmailAccounts.filter((account) => !account.primary).map((account) => <Pressable key={account.email} disabled={scanLoading} onPress={() => Alert.alert('Remove Gmail account?', 'Remove ' + account.email + ' from this SubSathi profile?', [{ text: 'Cancel', style: 'cancel' }, { text: 'Remove account', style: 'destructive', onPress: () => { void disconnectAdditionalGmail(account.email); } }])} style={{ paddingVertical: 7 }}><Text style={{ fontSize: 10, color: C.muted }}>Secondary inbox · {account.email} · tap to remove</Text></Pressable>)}
+              </View>}
             </View>
             {gmailEmail && scanSummary ? <View style={{ backgroundColor: C.greenPale, borderRadius: 13, padding: 12, marginBottom: 14 }}>
-              <Text style={{ color: C.greenDark, fontSize: 11, fontWeight: '800' }}>Checked {scanSummary.scannedMessages} recent billing-related emails{scanSummary.durationMs > 0 ? ` in ${(scanSummary.durationMs / 1000).toFixed(1)}s` : ''}</Text>
-              <Text style={{ color: '#42695E', fontSize: 10, lineHeight: 15, marginTop: 4 }}>{scanSummary.candidateCount > 0 ? `Found ${scanSummary.candidateCount} likely subscription(s). Review each result before importing.` : 'No strong subscription matches found in this batch. Try again later after a renewal or receipt email arrives.'}</Text>
+              <Text style={{ color: C.greenDark, fontSize: 11, fontWeight: '800' }}>Checked {scanSummary.scannedMessages} billing-related emails across {scanSummary.accountsScanned.length} Gmail account(s){scanSummary.durationMs > 0 ? ` in ${(scanSummary.durationMs / 1000).toFixed(1)}s` : ''}</Text>
+              <Text style={{ color: '#42695E', fontSize: 10, lineHeight: 15, marginTop: 4 }}>{scanSummary.candidateCount > 0 ? `Found ${scanSummary.candidateCount} likely subscription(s). Review each result before importing.` : 'No strong matches found. Missing prices and dates are not invented.'}</Text>
+              {scanSummary.accountErrors.map((item) => <Text key={item.email} style={{ color: C.red, fontSize: 10, lineHeight: 15, marginTop: 5 }}>{item.email}: {item.message}</Text>)}
             </View> : null}
             {gmailEmail && scanCandidates.length > 0 ? <View style={{ marginBottom: 18 }}>
               <SectionTitle
@@ -1218,7 +1392,7 @@ function AppContent() {
               {scanCandidates.map((candidate) => {
                 const selected = selectedCandidateIds.includes(candidate.id);
                 const categoryMetaItem = categoryMeta(candidate.category);
-                const needsFieldReview = candidate.amount === null || candidate.cycle === 'Unknown' || !candidate.nextRenewal;
+                const needsFieldReview = candidate.amount === null || candidate.cycle === 'Unknown';
                 const draft = candidateEdits[candidate.id] || {
                   amountText: candidate.amount === null ? '' : String(candidate.amount),
                   cycle: candidate.cycle,
@@ -1239,7 +1413,8 @@ function AppContent() {
                     <View style={{ flex: 1, minWidth: 0 }}>
                       <Text style={styles.serviceName}>{candidate.name}</Text>
                       <Text style={styles.serviceSub}>{candidate.evidenceCount} billing email(s) · Confidence {candidate.confidence}%</Text>
-                      <Text style={styles.serviceSub}>{candidate.nextRenewal ? `Renewal: ${formatDate(candidate.nextRenewal)}` : 'Renewal date not found — no date will be guessed'}{candidate.cycle === 'Unknown' ? ' · Cycle needs review' : ` · ${candidate.cycle}`}</Text>
+                      {candidate.sourceAccounts.length ? <Text style={styles.serviceSub}>Inbox: {candidate.sourceAccounts.join(', ')}</Text> : null}
+                      <Text style={styles.serviceSub}>{candidate.nextRenewal ? `Renewal: ${formatDate(candidate.nextRenewal)}` : 'Renewal date not in email — optional'}{candidate.cycle === 'Unknown' ? ' · Cycle needs review' : ` · ${candidate.cycle}`}</Text>
                       {candidate.alreadyImported ? <Pill tone="grey">Already tracked</Pill> : candidate.needsReview ? <Pill tone="orange">Review details</Pill> : <Pill tone="green">Detected</Pill>}
                     </View>
                     <View style={{ alignItems: 'flex-end', maxWidth: 100 }}>
@@ -1263,20 +1438,6 @@ function AppContent() {
                     {candidate.cycle === 'Unknown' ? <>
                       <Text style={[styles.fieldLabel, { marginTop: 12 }]}>BILLING CYCLE *</Text>
                       <View style={styles.cycleRow}>{CYCLES.map((cycle) => <Pressable key={cycle} onPress={() => setCandidateEdits((current) => ({ ...current, [candidate.id]: { ...draft, cycle } }))} style={[styles.cycleChip, draft.cycle === cycle && styles.cycleChipActive]}><Text style={[styles.cycleChipText, draft.cycle === cycle && styles.cycleChipTextActive]}>{cycle}</Text></Pressable>)}</View>
-                    </> : null}
-                    {!candidate.nextRenewal ? <>
-                      <Text style={[styles.fieldLabel, { marginTop: 12 }]}>RENEWAL DATE (OPTIONAL)</Text>
-                      <TextInput
-                        value={draft.renewalText}
-                        onChangeText={(value) => setCandidateEdits((current) => ({ ...current, [candidate.id]: { ...draft, renewalText: value } }))}
-                        placeholder="YYYY-MM-DD — leave blank if unknown"
-                        placeholderTextColor="#97A5A8"
-                        style={styles.input}
-                        autoCapitalize="none"
-                        maxLength={10}
-                        accessibilityLabel={`Renewal date for ${candidate.name}`}
-                      />
-                      <Text style={styles.fieldHint}>Only enter a date confirmed by the provider. The app will not guess one.</Text>
                     </> : null}
                   </View> : null}
                 </View>;

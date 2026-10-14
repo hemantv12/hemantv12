@@ -1,6 +1,6 @@
 # SubSathi Android frontend
 
-Current build: **0.5.3 (versionCode 9)** — internal installable test APK, not a Play Store-signed release. The app includes Android/iOS safe-area handling and a consent-aware AdMob banner slot. The checked-in AdMob App ID is Google’s official test App ID; the default banner unit is a test ad and does not earn money.
+Current build: **0.5.4 (versionCode 10)** — internal installable test APK, not a Play Store-signed release. The app includes Android/iOS safe-area handling and a consent-aware AdMob banner slot. The checked-in AdMob App ID is Google’s official test App ID; the default banner unit is a test ad and does not earn money.
 
 React Native + Expo Android application for subscription tracking, renewal reminders, spending insights and optional Gmail-driven discovery.
 
@@ -11,7 +11,10 @@ React Native + Expo Android application for subscription tracking, renewal remin
 - Connect Gmail using the backend's Google OAuth flow (never asks for a Gmail password).
 - OAuth returns a one-time code to `subsathi://auth`; the app exchanges it with the API for a session and stores the session using Expo SecureStore.
 - After connecting Gmail, the app triggers a scan. Opening the Email scan screen while connected triggers another scan.
-- Review detections and import selected candidates into the local tracker.
+- Link multiple Gmail accounts using separate Google consent and combine detections in one review list.
+- Export the local subscription list as a CSV file through the Android share sheet.
+- Missing renewal dates remain optional; they are never guessed or required for import.
+- Known services open a management page; unknown services offer a search fallback for their official page.
 - Export the local subscription list as a CSV file through the Android share sheet.
 - Unknown renewal dates remain blank for both Gmail imports and manual entries; reminders are scheduled only for entries with a valid date.
 - Missing price or billing-cycle metadata cannot be silently imported as verified; missing renewal dates are left empty for review.

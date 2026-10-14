@@ -4,8 +4,8 @@
 
 - **Web workspace:** https://subsathi-web.onrender.com
 - **API health endpoint:** https://subsathi-api.onrender.com/health
-- **Android:** version 0.5.3 (versionCode 9) is an installable internal test APK built by GitHub Actions; it is not a Play Store-signed release.
-- **Automated checks:** latest backend regression tests passed (23 tests); Android type-check and APK packaging are verified by the linked GitHub Actions build.
+- **Android:** version 0.5.4 (versionCode 10) is an installable internal test APK after CI completes; it is not a Play Store-signed release.
+- **Automated checks:** latest backend regression tests include receipt-price, provider-filter and multi-inbox checks; CI must pass before installing this release.
 - **Gmail:** hosted API health and Google OAuth-start preflight passed. A real account's end-to-end Gmail scan/import still needs physical-device acceptance testing.
 - **Production gate:** verify the running API uses durable PostgreSQL, upgrade the temporary free database before expiry, and complete Google restricted-scope verification/security requirements before accepting real customer data.
 
