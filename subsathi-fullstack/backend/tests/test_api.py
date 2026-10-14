@@ -209,8 +209,9 @@ def test_gmail_batch_fetch_uses_supported_execute_signature_and_preserves_order(
         message_format="metadata",
     )
 
-    assert len(batches) == 3
-    assert [len(batch.requests) for batch in batches] == [50, 50, 1]
+    assert len(batches) == 7
+    assert [len(batch.requests) for batch in batches] == [15, 15, 15, 15, 15, 15, 11]
+    assert all(len(batch.requests) <= main.GMAIL_SCAN_BATCH_SIZE for batch in batches)
     assert [item["id"] for item in result] == ids
     assert all(item["format"] == "metadata" for item in result)
     assert all(item["metadataHeaders"] == ["From", "Subject", "Date"] for item in result)
@@ -461,3 +462,69 @@ def test_gmail_batch_fetch_ignores_only_messages_that_disappeared(monkeypatch):
     assert main._batch_fetch_gmail_messages_for_scan(
         object(), ["deleted-message"], message_format="full"
     ) == [None]
+
+
+
+def test_gmail_batch_fetch_retries_only_rate_limited_messages(monkeypatch):
+    import json
+
+    from googleapiclient.errors import HttpError
+    from httplib2 import Response
+
+    import app.main as main
+
+    state = {"executions": 0, "batches": []}
+
+    class FakeBatch:
+        def __init__(self, callback):
+            self.callback = callback
+            self.request_ids = []
+
+        def add(self, request, request_id):
+            self.request_ids.append(request_id)
+
+        def execute(self):
+            state["executions"] += 1
+            state["batches"].append(list(self.request_ids))
+            for request_id in self.request_ids:
+                if request_id == "message-1" and state["executions"] == 1:
+                    payload = {
+                        "error": {
+                            "code": 403,
+                            "status": "PERMISSION_DENIED",
+                            "errors": [{"reason": "rateLimitExceeded"}],
+                        }
+                    }
+                    error = HttpError(
+                        Response({"status": "403", "reason": "Forbidden"}),
+                        json.dumps(payload).encode("utf-8"),
+                    )
+                    self.callback(request_id, None, error)
+                else:
+                    self.callback(request_id, {"id": request_id}, None)
+
+    class FakeMessages:
+        def get(self, **kwargs):
+            return kwargs
+
+    class FakeUsers:
+        def messages(self):
+            return FakeMessages()
+
+    class FakeService:
+        def new_batch_http_request(self, callback):
+            return FakeBatch(callback)
+
+        def users(self):
+            return FakeUsers()
+
+    monkeypatch.setattr(main, "build", lambda *args, **kwargs: FakeService())
+    monkeypatch.setattr(main, "sleep", lambda seconds: None)
+
+    result = main._batch_fetch_gmail_messages_for_scan(
+        object(), ["message-1", "message-2"], message_format="metadata"
+    )
+
+    assert result == [{"id": "message-1"}, {"id": "message-2"}]
+    assert state["executions"] == 2
+    assert state["batches"] == [["message-1", "message-2"], ["message-1"]]
