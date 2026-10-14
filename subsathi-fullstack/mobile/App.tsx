@@ -1458,6 +1458,24 @@ function AppContent() {
                 <PrimaryButton title={scanLoading ? 'Syncing new emails…' : 'Quick sync new billing emails'} onPress={() => { if (!scanLoading) void scanGmail(undefined, 'quick'); }} />
                 <GhostButton title={scanLoading ? 'Rescanning…' : 'Full rescan (find missed subscriptions)'} onPress={() => { if (!scanLoading) void scanGmail(undefined, 'full'); }} />
                 <Text style={styles.fieldHint}>Quick sync checks new email only. Full rescan searches up to 500 recent billing-related messages per inbox and preserves older detections outside this batch.</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10, backgroundColor: '#F7FAF8', borderColor: C.line, borderWidth: 1, borderRadius: 13, padding: 12, marginTop: 10, marginBottom: 12 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.fieldLabel}>OPTIONAL AI-ASSISTED EXTRACTION</Text>
+                    <Text style={styles.fieldHint}>{aiExtractionConfigured === true
+                      ? 'When enabled, up to 25 incomplete or uncertain billing-email excerpts per linked inbox (max 3,500 body characters each) are sent to OpenAI using the owner-configured API key. Fully detected emails are not sent. AI never invents missing prices or dates. Enable only if you consent; toggle applies to the next scan.'
+                      : aiExtractionConfigured === false
+                        ? 'AI extraction is not configured on the server yet. Standard email detection remains available; the app will not send email text to an AI service.'
+                        : 'Checking whether optional AI extraction is configured on the server…'}</Text>
+                  </View>
+                  <Switch
+                    value={aiAssistedScan}
+                    disabled={aiExtractionConfigured !== true}
+                    onValueChange={setAiAssistedScan}
+                    trackColor={{ false: '#CBD5D4', true: '#A7E4CD' }}
+                    thumbColor={aiAssistedScan ? C.green : '#F6F7F7'}
+                    accessibilityLabel="Allow AI-assisted billing email extraction"
+                  />
+                </View>
                 <GhostButton title="Connect another Gmail account" onPress={() => { if (!scanLoading) void connectAdditionalGmail(); }} />
                 <GhostButton title="Disconnect all Gmail accounts" onPress={() => { Alert.alert('Disconnect all Gmail accounts?', 'All linked Gmail credentials and cached detections will be removed from the server. Subscription entries already imported on this phone will remain.', [{ text: 'Keep connected', style: 'cancel' }, { text: 'Disconnect all', style: 'destructive', onPress: () => { void disconnectGmail(); } }]); }} />
                 {gmailAccounts.filter((account) => !account.primary).map((account) => <Pressable key={account.email} disabled={scanLoading} onPress={() => Alert.alert('Remove Gmail account?', 'Remove ' + account.email + ' from this SubSathi profile?', [{ text: 'Cancel', style: 'cancel' }, { text: 'Remove account', style: 'destructive', onPress: () => { void disconnectAdditionalGmail(account.email); } }])} style={{ paddingVertical: 7 }}><Text style={{ fontSize: 10, color: C.muted }}>Secondary inbox · {account.email} · tap to remove</Text></Pressable>)}
@@ -1466,6 +1484,7 @@ function AppContent() {
             {gmailEmail && scanSummary ? <View style={{ backgroundColor: C.greenPale, borderRadius: 13, padding: 12, marginBottom: 14 }}>
               <Text style={{ color: C.greenDark, fontSize: 11, fontWeight: '800' }}>{scanSummary.mode === 'full' ? 'Full rescan' : 'Quick sync'} · Checked {scanSummary.scannedMessages} billing-related emails across {scanSummary.accountsScanned.length} Gmail account(s){scanSummary.durationMs > 0 ? ` in ${(scanSummary.durationMs / 1000).toFixed(1)}s` : ''}</Text>
               <Text style={{ color: '#42695E', fontSize: 10, lineHeight: 15, marginTop: 4 }}>{scanSummary.candidateCount > 0 ? `Found ${scanSummary.candidateCount} likely subscription(s). Review each result before importing.` : 'No strong matches found. Missing prices and dates are not invented.'}</Text>
+              {scanSummary.aiAssisted ? <Text style={{ color: '#42695E', fontSize: 10, lineHeight: 15, marginTop: 5 }}>{scanSummary.aiWarning || (scanSummary.aiAnalyzedMessages > 0 ? `AI-assisted extraction reviewed ${scanSummary.aiAnalyzedMessages} incomplete/uncertain email(s) and only added fields supported by quoted email evidence.` : 'AI-assisted mode was enabled, but no incomplete or uncertain emails needed extra analysis in this scan.')}</Text> : null}
               {scanSummary.accountErrors.map((item) => <Text key={item.email} style={{ color: C.red, fontSize: 10, lineHeight: 15, marginTop: 5 }}>{item.email}: {item.message}</Text>)}
             </View> : null}
             {gmailEmail && scanCandidates.length > 0 ? <View style={{ marginBottom: 18 }}>
