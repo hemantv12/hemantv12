@@ -52,8 +52,8 @@ type Subscription = {
   id: number;
   name: string;
   category: Category;
-  amount: number;
-  cycle: Cycle;
+  amount: number | null;
+  cycle: Cycle | 'Unknown';
   nextRenewal: string;
   manageUrl: string;
   billingSource: BillingSource;
@@ -249,20 +249,27 @@ function money(value: number) {
     style: 'currency', currency: 'INR', maximumFractionDigits: value % 1 === 0 ? 0 : 2,
   }).format(value);
 }
-function monthlyEquivalent(item: Pick<Subscription, 'amount' | 'cycle'>) {
+function hasKnownPrice(item: Pick<Subscription, 'amount' | 'cycle'>): boolean {
+  return item.amount !== null && Number.isFinite(item.amount) && item.amount > 0 && item.cycle !== 'Unknown';
+}
+function monthlyEquivalent(item: Pick<Subscription, 'amount' | 'cycle'>): number {
+  if (!hasKnownPrice(item)) return 0;
   switch (item.cycle) {
-    case 'Weekly': return item.amount * 52 / 12;
-    case 'Monthly': return item.amount;
-    case 'Quarterly': return item.amount / 3;
-    case 'Yearly': return item.amount / 12;
+    case 'Weekly': return item.amount! * 52 / 12;
+    case 'Monthly': return item.amount!;
+    case 'Quarterly': return item.amount! / 3;
+    case 'Yearly': return item.amount! / 12;
+    default: return 0;
   }
 }
-function annualEquivalent(item: Pick<Subscription, 'amount' | 'cycle'>) {
+function annualEquivalent(item: Pick<Subscription, 'amount' | 'cycle'>): number {
+  if (!hasKnownPrice(item)) return 0;
   switch (item.cycle) {
-    case 'Weekly': return item.amount * 52;
-    case 'Monthly': return item.amount * 12;
-    case 'Quarterly': return item.amount * 4;
-    case 'Yearly': return item.amount;
+    case 'Weekly': return item.amount! * 52;
+    case 'Monthly': return item.amount! * 12;
+    case 'Quarterly': return item.amount! * 4;
+    case 'Yearly': return item.amount!;
+    default: return 0;
   }
 }
 function daysUntil(value: string) {
@@ -275,11 +282,13 @@ function daysUntil(value: string) {
 function buildAssistantReply(question: string, items: Subscription[], language: AssistantLanguage): string {
   const q = question.toLowerCase().trim();
   const hindi = language === 'hi-IN';
-  const monthly = items.reduce((sum, item) => sum + monthlyEquivalent(item), 0);
-  const yearly = items.reduce((sum, item) => sum + annualEquivalent(item), 0);
+  const pricedItems = items.filter(hasKnownPrice);
+  const unconfirmedCount = items.length - pricedItems.length;
+  const monthly = pricedItems.reduce((sum, item) => sum + monthlyEquivalent(item), 0);
+  const yearly = pricedItems.reduce((sum, item) => sum + annualEquivalent(item), 0);
   const upcoming = [...items].filter((item) => daysUntil(item.nextRenewal) >= -7 && daysUntil(item.nextRenewal) <= 45)
     .sort((a, b) => daysUntil(a.nextRenewal) - daysUntil(b.nextRenewal));
-  const ranked = [...items].sort((a, b) => monthlyEquivalent(b) - monthlyEquivalent(a));
+  const ranked = [...pricedItems].sort((a, b) => monthlyEquivalent(b) - monthlyEquivalent(a));
   const nameCounts = new Map<string, { name: string; count: number; monthly: number }>();
   items.forEach((item) => {
     const key = item.name.trim().toLowerCase();
@@ -309,7 +318,7 @@ function buildAssistantReply(question: string, items: Subscription[], language: 
         : 'I do not see a renewal within the next 45 days or the recent overdue window. Add verified renewal dates to make reminders more useful.';
     }
     return (hindi ? 'Tumhare tracker ke hisaab se closest renewals: ' : 'Your closest tracked renewals are: ') +
-      upcoming.slice(0, 3).map((item) => `${item.name}: ${money(item.amount)} per ${item.cycle.toLowerCase()}, ${dueLabel(item.nextRenewal)}`).join('; ') +
+      upcoming.slice(0, 3).map((item) => `${item.name}: ${item.amount === null ? 'price unconfirmed' : money(item.amount)}${item.cycle === 'Unknown' ? '' : ` per ${item.cycle.toLowerCase()}`}, ${dueLabel(item.nextRenewal)}`).join('; ') +
       (hindi ? '. Dates saved tracker se aati hain—provider par verify kar lena.' : '. These dates come from your saved tracker; verify them with each provider.');
   }
   if (/(year|annual|annually|yearly|saal|salana)/.test(q)) {
@@ -369,8 +378,8 @@ async function initializeDatabase() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
       category TEXT NOT NULL,
-      amount REAL NOT NULL,
-      cycle TEXT NOT NULL,
+      amount REAL,
+      cycle TEXT NOT NULL DEFAULT 'Unknown',
       nextRenewal TEXT NOT NULL,
       manageUrl TEXT NOT NULL DEFAULT '',
       billingSource TEXT NOT NULL DEFAULT 'provider',
@@ -383,6 +392,34 @@ async function initializeDatabase() {
   const existingColumns = await db.getAllAsync<{ name: string }>('PRAGMA table_info(subscriptions)');
   if (!existingColumns.some((column) => column.name === 'billingSource')) {
     await db.execAsync("ALTER TABLE subscriptions ADD COLUMN billingSource TEXT NOT NULL DEFAULT 'provider'");
+  }
+  // Older installs declared amount NOT NULL. Rebuild transactionally so scanned
+  // subscriptions can be saved with unknown prices instead of fake zero amounts.
+  const columnsAfterAdditions = await db.getAllAsync<{ name: string; notnull: number }>('PRAGMA table_info(subscriptions)');
+  if (columnsAfterAdditions.some((column) => column.name === 'amount' && column.notnull === 1)) {
+    await db.withTransactionAsync(async () => {
+      await db.execAsync(`
+        CREATE TABLE subscriptions_new (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          category TEXT NOT NULL,
+          amount REAL,
+          cycle TEXT NOT NULL DEFAULT 'Unknown',
+          nextRenewal TEXT NOT NULL DEFAULT '',
+          manageUrl TEXT NOT NULL DEFAULT '',
+          billingSource TEXT NOT NULL DEFAULT 'provider',
+          notes TEXT NOT NULL DEFAULT '',
+          reminderEnabled INTEGER NOT NULL DEFAULT 1,
+          createdAt TEXT NOT NULL
+        );
+      `);
+      await db.execAsync(`
+        INSERT INTO subscriptions_new (id, name, category, amount, cycle, nextRenewal, manageUrl, billingSource, notes, reminderEnabled, createdAt)
+        SELECT id, name, category, amount, cycle, nextRenewal, manageUrl, billingSource, notes, reminderEnabled, createdAt FROM subscriptions;
+      `);
+      await db.execAsync('DROP TABLE subscriptions;');
+      await db.execAsync('ALTER TABLE subscriptions_new RENAME TO subscriptions;');
+    });
   }
   return db;
 }
@@ -464,6 +501,7 @@ function AppContent() {
   const [scanError, setScanError] = useState('');
   const [scanCandidates, setScanCandidates] = useState<GmailCandidate[]>([]);
   const [selectedCandidateIds, setSelectedCandidateIds] = useState<number[]>([]);
+  const [expandedCandidateIds, setExpandedCandidateIds] = useState<number[]>([]);
   const [candidateEdits, setCandidateEdits] = useState<Record<number, GmailCandidateDraft>>({});
   const [scanSummary, setScanSummary] = useState<{
     scannedMessages: number;
@@ -637,7 +675,7 @@ function AppContent() {
     const date = parseLocalDate(item.nextRenewal);
     const now = new Date();
     return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth() && daysUntil(item.nextRenewal) >= 0;
-  }).reduce((sum, item) => sum + item.amount, 0), [subscriptions]);
+  }).reduce((sum, item) => sum + (item.amount ?? 0), 0), [subscriptions]);
   const filtered = useMemo(() => subscriptions.filter((item) => {
     const text = `${item.name} ${item.category}`.toLowerCase();
     return text.includes(search.trim().toLowerCase()) && (filter === 'All' || item.category === filter);
@@ -1060,7 +1098,8 @@ function AppContent() {
         cycle: item.cycle,
         renewalText: item.nextRenewal || '',
       }])));
-      setSelectedCandidateIds(adjusted.filter((item) => !item.alreadyImported && item.amount !== null && item.cycle !== 'Unknown').map((item) => item.id));
+      setSelectedCandidateIds(adjusted.filter((item) => !item.alreadyImported).map((item) => item.id));
+      setExpandedCandidateIds([]);
       setScanSummary({
         scannedMessages: Number(payload.scanned_messages || 0),
         candidateCount: Number(payload.candidate_count ?? adjusted.length),
@@ -1147,8 +1186,9 @@ function AppContent() {
         if (existing) continue;
         await db.runAsync(
           'INSERT INTO subscriptions (name, category, amount, cycle, nextRenewal, manageUrl, billingSource, notes, reminderEnabled, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-          String(item.name), CATEGORIES.some((entry) => entry.name === item.category) ? item.category : 'Other', Number(item.amount),
-          CYCLES.includes(item.cycle as Cycle) ? item.cycle : 'Monthly', String(item.nextRenewal || ''), String(item.manageUrl || ''), billingSource,
+          String(item.name), CATEGORIES.some((entry) => entry.name === item.category) ? item.category : 'Other',
+          item.amount === null || item.amount === undefined ? null : Number(item.amount),
+          CYCLES.includes(item.cycle as Cycle) ? item.cycle : 'Unknown', String(item.nextRenewal || ''), String(item.manageUrl || ''), billingSource,
           String(item.notes || 'Imported from billing email; verify the details.'), 1, new Date().toISOString(),
         );
         imported += 1;
