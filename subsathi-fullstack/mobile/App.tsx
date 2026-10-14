@@ -1237,10 +1237,11 @@ function AppContent() {
       // AI/full scans can discover a renewal date or official management page after
       // a plan was imported. Refresh only safe, missing/stale fields in the local
       // tracker; never replace a user-entered price or billing cycle silently.
-      const localDb = dbRef.current;
-      if (localDb && Array.isArray(payload.enriched_imported)) {
-        const localRows = await localDb.getAllAsync<Subscription>('SELECT * FROM subscriptions');
-        let localEnriched = false;
+      if (Array.isArray(payload.enriched_imported)) {
+        const localRows = await withLocalDatabase((db) => db.getAllAsync<Subscription>('SELECT * FROM subscriptions'));
+        const updates: {
+          id: number; amount: number | null; cycle: Cycle | 'Unknown'; nextRenewal: string; manageUrl: string; category: Category;
+        }[] = [];
         for (const remote of payload.enriched_imported) {
           const match = localRows.find((row) => localKey(row.name, row.billingSource) === localKey(String(remote.name || ''), remote.billingSource));
           if (!match) continue;
@@ -1259,19 +1260,25 @@ function AppContent() {
             ? remote.category as Category : 'Other';
           const category = match.category === 'Other' && remoteCategory !== 'Other' ? remoteCategory : match.category;
           if (amount !== match.amount || cycle !== match.cycle || nextRenewal !== match.nextRenewal || manageUrl !== match.manageUrl || category !== match.category) {
-            await localDb.runAsync(
-              'UPDATE subscriptions SET amount = ?, cycle = ?, nextRenewal = ?, manageUrl = ?, category = ? WHERE id = ?',
-              amount, cycle, nextRenewal, manageUrl, category, match.id,
-            );
+            updates.push({ id: match.id, amount, cycle, nextRenewal, manageUrl, category });
             match.amount = amount;
             match.cycle = cycle;
             match.nextRenewal = nextRenewal;
             match.manageUrl = manageUrl;
             match.category = category;
-            localEnriched = true;
           }
         }
-        if (localEnriched) await loadSubscriptions();
+        if (updates.length) {
+          await withLocalDatabase(async (db) => {
+            for (const update of updates) {
+              await db.runAsync(
+                'UPDATE subscriptions SET amount = ?, cycle = ?, nextRenewal = ?, manageUrl = ?, category = ? WHERE id = ?',
+                update.amount, update.cycle, update.nextRenewal, update.manageUrl, update.category, update.id,
+              );
+            }
+          });
+          await loadSubscriptions();
+        }
       }
 
       const locallyTrackedNames = new Set(subscriptions.map((item) => localKey(item.name, item.billingSource)));
@@ -1287,6 +1294,10 @@ function AppContent() {
       }])));
       setSelectedCandidateIds(adjusted.filter((item) => !item.alreadyImported).map((item) => item.id));
       setExpandedCandidateIds([]);
+      const accountErrors = Array.isArray(payload.account_errors)
+        ? payload.account_errors.map((item: any) => ({ email: String(item.email || ''), message: String(item.message || 'This inbox could not be scanned.') }))
+        : [];
+      setGmailNeedsRepair(accountErrors.some((item) => /permission|refresh token|reconnect this gmail|authorization expired/i.test(item.message)));
       setScanSummary({
         scannedMessages: Number(payload.scanned_messages || 0),
         fullMessagesFetched: Number(payload.full_messages_fetched || 0),
@@ -1298,7 +1309,7 @@ function AppContent() {
         candidateCount: Number(payload.candidate_count ?? adjusted.length),
         durationMs: Number(payload.scan_duration_ms || 0),
         accountsScanned: Array.isArray(payload.scanned_accounts) ? payload.scanned_accounts.map((email: unknown) => String(email)) : [],
-        accountErrors: Array.isArray(payload.account_errors) ? payload.account_errors.map((item: any) => ({ email: String(item.email || ''), message: String(item.message || 'This inbox could not be scanned.') })) : [],
+        accountErrors,
         mode: payload.scan_mode === 'full' ? 'full' : 'incremental',
         aiAssisted: Boolean(payload.ai_assisted_scan),
         aiAnalyzedMessages: Number(payload.ai_analyzed_messages || 0),
