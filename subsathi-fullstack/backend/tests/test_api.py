@@ -338,3 +338,124 @@ def test_expired_google_refresh_token_does_not_invalidate_subsathi_session(monke
     assert caught.value.status_code == 409
     assert "Repair Gmail connection" in caught.value.detail
     assert "local subscription tracker is untouched" in caught.value.detail
+
+
+def test_gmail_error_context_prefers_actionable_google_reason():
+    import json
+
+    from googleapiclient.errors import HttpError
+    from httplib2 import Response
+
+    import app.main as main
+
+    response = Response({"status": "403", "reason": "Forbidden"})
+    payload = {
+        "error": {
+            "code": 403,
+            "status": "PERMISSION_DENIED",
+            "message": "Request is not permitted",
+            "errors": [{"domain": "usageLimits", "reason": "userRateLimitExceeded"}],
+        }
+    }
+    error = HttpError(response, json.dumps(payload).encode("utf-8"))
+    assert main._gmail_http_error_context(error) == (403, "userRateLimitExceeded")
+
+
+@pytest.mark.parametrize("status_code", [403, 429])
+def test_gmail_batch_fetch_does_not_silently_drop_access_errors(monkeypatch, status_code):
+    import json
+
+    from googleapiclient.errors import HttpError
+    from httplib2 import Response
+
+    import app.main as main
+
+    class FakeBatch:
+        def __init__(self, callback):
+            self.callback = callback
+            self.request_ids = []
+
+        def add(self, request, request_id):
+            self.request_ids.append(request_id)
+
+        def execute(self):
+            payload = {
+                "error": {
+                    "code": status_code,
+                    "status": "PERMISSION_DENIED" if status_code == 403 else "RESOURCE_EXHAUSTED",
+                    "message": "Gmail body access failed",
+                    "errors": [{"reason": "insufficientPermissions" if status_code == 403 else "userRateLimitExceeded"}],
+                }
+            }
+            exception = HttpError(
+                Response({"status": str(status_code), "reason": "Forbidden"}),
+                json.dumps(payload).encode("utf-8"),
+            )
+            for request_id in self.request_ids:
+                self.callback(request_id, None, exception)
+
+    class FakeMessages:
+        def get(self, **kwargs):
+            return kwargs
+
+    class FakeUsers:
+        def messages(self):
+            return FakeMessages()
+
+    class FakeService:
+        def new_batch_http_request(self, callback):
+            return FakeBatch(callback)
+
+        def users(self):
+            return FakeUsers()
+
+    monkeypatch.setattr(main, "build", lambda *args, **kwargs: FakeService())
+    with pytest.raises(HttpError):
+        main._batch_fetch_gmail_messages_for_scan(
+            object(), ["message-1"], message_format="full"
+        )
+
+
+def test_gmail_batch_fetch_ignores_only_messages_that_disappeared(monkeypatch):
+    import json
+
+    from googleapiclient.errors import HttpError
+    from httplib2 import Response
+
+    import app.main as main
+
+    class FakeBatch:
+        def __init__(self, callback):
+            self.callback = callback
+            self.request_ids = []
+
+        def add(self, request, request_id):
+            self.request_ids.append(request_id)
+
+        def execute(self):
+            exception = HttpError(
+                Response({"status": "404", "reason": "Not Found"}),
+                json.dumps({"error": {"code": 404, "status": "NOT_FOUND"}}).encode("utf-8"),
+            )
+            for request_id in self.request_ids:
+                self.callback(request_id, None, exception)
+
+    class FakeMessages:
+        def get(self, **kwargs):
+            return kwargs
+
+    class FakeUsers:
+        def messages(self):
+            return FakeMessages()
+
+    class FakeService:
+        def new_batch_http_request(self, callback):
+            return FakeBatch(callback)
+
+        def users(self):
+            return FakeUsers()
+
+    monkeypatch.setattr(main, "build", lambda *args, **kwargs: FakeService())
+    assert main._batch_fetch_gmail_messages_for_scan(
+        object(), ["deleted-message"], message_format="full"
+    ) == [None]
