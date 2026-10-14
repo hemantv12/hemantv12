@@ -1917,7 +1917,7 @@ function AppContent() {
       <SubscriptionEditor visible={editorOpen} initial={editing} onClose={() => { setEditorOpen(false); setEditing(null); }} onSave={saveSubscription} onDelete={editing ? () => deleteSubscription(editing) : undefined} />
       <Modal visible={scanInfoOpen} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setScanInfoOpen(false)}>
         <SafeAreaView style={styles.editorSafeArea}>
-          <View style={styles.editorHeader}><Pressable onPress={() => setScanInfoOpen(false)} style={styles.editorClose}><Text style={styles.editorCloseText}>✕</Text></Pressable><View style={{ flex: 1 }}><Text style={styles.editorTitle}>Automatic discovery</Text><Text style={styles.editorSubtitle}>Find subscriptions from billing emails</Text></View><Pill tone={gmailEmail ? 'green' : 'orange'}>{gmailEmail ? 'Connected' : 'Not connected'}</Pill></View>
+          <View style={styles.editorHeader}><Pressable onPress={() => setScanInfoOpen(false)} style={styles.editorClose}><Text style={styles.editorCloseText}>✕</Text></Pressable><View style={{ flex: 1 }}><Text style={styles.editorTitle}>Automatic discovery</Text><Text style={styles.editorSubtitle}>Find subscriptions from billing emails</Text></View><Pill tone={gmailEmail && apiReachable === true && !gmailNeedsRepair ? 'green' : 'orange'}>{!gmailEmail ? 'Not connected' : apiReachable === false ? 'Offline' : gmailNeedsRepair ? 'Repair access' : apiReachable === null ? 'Checking' : 'Connected'}</Pill></View>
           <ScrollView contentContainerStyle={styles.editorScroll} keyboardShouldPersistTaps="handled">
             <View style={{ backgroundColor: C.white, borderColor: C.line, borderWidth: 1, borderRadius: 20, padding: 18, marginBottom: 16 }}>
               <LinearGradient colors={['#DFF6EB', '#E7F0FF']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.infoModalIcon, { marginBottom: 12 }]}><Feather name="mail" size={26} color={C.greenDark} /></LinearGradient>
@@ -1925,8 +1925,25 @@ function AppContent() {
               <Text style={styles.modalIntro}>{gmailEmail ? `Connected account: ${gmailEmail}. Scan relevant billing emails, then review the detected subscriptions before importing them to this phone.` : 'Connect through Google’s official secure consent screen. SubSathi will search for billing receipts, renewal notices and recurring payment emails. It never asks for your Gmail password.'}</Text>
               {googleOAuthConfigured === false ? <View style={styles.oauthSetupNotice}>
                 <View style={styles.oauthNoticeTitleRow}><Feather name="alert-circle" size={17} color="#9B5A08" /><Text style={styles.oauthSetupTitle}>Server setup required</Text></View>
-                <Text style={styles.oauthSetupBody}>Google sign-in cannot start until the app owner configures a Google Cloud Web OAuth client on the hosted server. Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in Render and set GOOGLE_REDIRECT_URI to https://subsathi-api.onrender.com/api/auth/google/callback. Enable Gmail API, add your account as an OAuth test user, save and redeploy. Never paste the client secret into the APK or chat.</Text>
-              </View> : apiReachable === false ? <View style={styles.oauthSetupNotice}><View style={styles.oauthNoticeTitleRow}><Feather name="wifi-off" size={17} color="#9B5A08" /><Text style={styles.oauthSetupTitle}>Server not reachable</Text></View><Text style={styles.oauthSetupBody}>SubSathi can still track plans offline. Check your internet connection and retry when the server is awake.</Text></View> : null}
+                <Text style={styles.oauthSetupBody}>Google sign-in cannot start until the app owner configures Google OAuth on the hosted server. Enable Gmail API in that same project. Never paste a client secret into the APK or chat.</Text>
+              </View> : apiReachable === false ? <View style={styles.oauthSetupNotice}><View style={styles.oauthNoticeTitleRow}><Feather name="wifi-off" size={17} color="#9B5A08" /><Text style={styles.oauthSetupTitle}>Server temporarily unreachable</Text></View><Text style={styles.oauthSetupBody}>Gmail was linked previously, but SubSathi could not reach its server after retrying. This is a network/DNS or server-connectivity problem—not evidence that your subscriptions disappeared. Your phone's saved tracker remains available offline.</Text></View> : null}
+              {apiReachable === false ? <GhostButton title={scanLoading ? 'Retrying server…' : 'Retry server connection'} onPress={() => {
+                if (scanLoading) return;
+                void (async () => {
+                  setScanError('');
+                  const reachable = await refreshApiHealth();
+                  if (reachable && apiSession && gmailEmail) await scanGmail(undefined, 'quick');
+                  else if (!reachable) setScanError('SubSathi server is still unreachable after three checks. Your local tracker remains safe; retry once the network/server is available.');
+                })();
+              }} /> : null}
+              {durableDatabaseConfigured === false ? <View style={[styles.oauthSetupNotice, { marginTop: 10 }]}>
+                <View style={styles.oauthNoticeTitleRow}><Feather name="database" size={17} color="#9B5A08" /><Text style={styles.oauthSetupTitle}>Cloud storage needs a permanent database</Text></View>
+                <Text style={styles.oauthSetupBody}>The live API is reporting temporary storage. Gmail login details may need repair after a server restart, though your on-device subscription tracker is separate. The app owner must connect the managed PostgreSQL database before relying on persistent cloud connections.</Text>
+              </View> : null}
+              {gmailNeedsRepair && gmailEmail ? <View style={[styles.oauthSetupNotice, { marginTop: 10 }]}>
+                <View style={styles.oauthNoticeTitleRow}><Feather name="shield-alert" size={17} color="#9B5A08" /><Text style={styles.oauthSetupTitle}>Gmail permission needs repair</Text></View>
+                <Text style={styles.oauthSetupBody}>Google rejected the saved Gmail access token. Use the repair button below to approve the permission again. Do not disconnect the whole SubSathi account, and do not uninstall the app.</Text>
+              </View> : null}
               <View style={styles.infoChecklist}>
                 <Text style={styles.infoChecklistLine}>✓ Read billing-related emails only using Gmail search</Text>
                 <Text style={styles.infoChecklistLine}>✓ Detect supported services, amounts and cycle hints</Text>
@@ -1937,8 +1954,8 @@ function AppContent() {
               {scanLoading ? <View style={{ paddingVertical: 18, alignItems: 'center' }}><ActivityIndicator color={C.green} size="large" /><Text style={styles.settingBody}>{gmailEmail ? 'Checking recent receipts and renewals in parallel…' : 'Opening Google authorization…'}</Text><Text style={[styles.fieldHint, { textAlign: 'center', marginTop: 5 }]}>Only likely billing emails are analysed. This should be much quicker than checking every message one by one.</Text></View> : null}
               {!gmailEmail ? <PrimaryButton title={googleOAuthConfigured === false ? 'Check Gmail setup again' : 'Connect Gmail securely'} onPress={() => { void connectGmail(); }} /> : <View style={{ gap: 9 }}>
                 <PrimaryButton title={scanLoading ? 'Syncing new emails…' : 'Quick sync new billing emails'} onPress={() => { if (!scanLoading) void scanGmail(undefined, 'quick'); }} />
-                <GhostButton title={scanLoading ? 'Rescanning…' : 'Deep rescan · up to 1,500 emails'} onPress={() => { if (!scanLoading) void scanGmail(undefined, 'full'); }} />
-                <Text style={styles.fieldHint}>Quick sync checks new email only. Deep rescan searches across provider, billing, trial and renewal wording (up to 1,500 messages per inbox). Gmail search is still bounded, so this is not a guarantee that every historic email was covered.</Text>
+                <GhostButton title={scanLoading ? 'Rescanning…' : 'Deep rescan' + (serverScanLimit ? ' · up to ' + serverScanLimit.toLocaleString() + ' emails' : '')} onPress={() => { if (!scanLoading) void scanGmail(undefined, 'full'); }} />
+                <Text style={styles.fieldHint}>Quick sync checks new email only. Deep rescan searches provider, billing, trial and renewal wording. {serverScanLimit ? 'The server limit is ' + serverScanLimit.toLocaleString() + ' selected messages per inbox.' : 'The server scan limit is being checked.'} Gmail search remains bounded, so no scan can promise every historic message was covered.</Text>
                 <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10, backgroundColor: '#F7FAF8', borderColor: C.line, borderWidth: 1, borderRadius: 13, padding: 12, marginTop: 10, marginBottom: 12 }}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.fieldLabel}>OPTIONAL AI-ASSISTED EXTRACTION</Text>
@@ -1969,6 +1986,7 @@ function AppContent() {
                     accessibilityLabel="Allow AI-assisted billing email extraction"
                   />
                 </View>
+                <GhostButton title={scanLoading ? 'Checking access…' : gmailNeedsRepair ? 'Repair Gmail connection' : 'Refresh / repair Gmail access'} onPress={() => { if (!scanLoading) void connectGmail(); }} />
                 <GhostButton title="Connect another Gmail account" onPress={() => { if (!scanLoading) void connectAdditionalGmail(); }} />
                 <GhostButton title="Disconnect all Gmail accounts" onPress={() => { Alert.alert('Disconnect all Gmail accounts?', 'All linked Gmail credentials and cached detections will be removed from the server. Subscription entries already imported on this phone will remain.', [{ text: 'Keep connected', style: 'cancel' }, { text: 'Disconnect all', style: 'destructive', onPress: () => { void disconnectGmail(); } }]); }} />
                 {gmailAccounts.filter((account) => !account.primary).map((account) => <Pressable key={account.email} disabled={scanLoading} onPress={() => Alert.alert('Remove Gmail account?', 'Remove ' + account.email + ' from this SubSathi profile?', [{ text: 'Cancel', style: 'cancel' }, { text: 'Remove account', style: 'destructive', onPress: () => { void disconnectAdditionalGmail(account.email); } }])} style={{ paddingVertical: 7 }}><Text style={{ fontSize: 10, color: C.muted }}>Secondary inbox · {account.email} · tap to remove</Text></Pressable>)}
