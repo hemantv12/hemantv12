@@ -540,12 +540,18 @@ def group_billing_evidence(messages: list[dict[str, Any]]) -> list[dict[str, Any
             grouped.setdefault(key, []).append(message)
     results: list[dict[str, Any]] = []
     for items in grouped.values():
-        # Newest useful metadata first; no full messages are retained.
-        items.sort(key=lambda item: (bool(item.get("amount")), bool(item.get("next_renewal")), bool(item.get("cycle")), item.get("evidence_date") or ""), reverse=True)
+        # Use the newest receipt as the primary record. Merge each missing field
+        # from the newest message that explicitly contains it, rather than letting
+        # an older receipt with all fields override a newer price or renewal date.
+        items.sort(key=lambda item: (
+            str(item.get("evidence_date") or ""),
+            bool(item.get("amount")),
+            bool(item.get("next_renewal")),
+            bool(item.get("cycle")),
+        ), reverse=True)
         top = dict(items[0])
         for field in ("amount", "cycle", "next_renewal"):
-            if not top.get(field):
-                top[field] = next((item.get(field) for item in items if item.get(field)), None)
+            top[field] = next((item.get(field) for item in items if item.get(field) not in (None, "")), None)
         top["evidence_count"] = len(items)
         top["billing_source"] = str(top.get("billing_source") or "provider")
         top["manage_url"] = management_url_for_source(str(top.get("manage_url") or ""), top["billing_source"])

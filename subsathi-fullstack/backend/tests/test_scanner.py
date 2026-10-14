@@ -276,3 +276,31 @@ def test_management_link_extraction_rejects_tokenized_one_time_urls():
         billing_source="provider",
     )
     assert result == "https://www.netflix.com/YourAccount"
+
+
+def test_latest_receipt_wins_when_price_or_renewal_changes():
+    from app.scanner import group_billing_evidence
+
+    grouped = group_billing_evidence([
+        {
+            "service_name": "Spotify Premium",
+            "billing_source": "provider",
+            "amount": 119,
+            "cycle": "Monthly",
+            "next_renewal": "2026-10-12",
+            "evidence_date": "2026-09-12T10:00:00+00:00",
+            "confidence": 95,
+        },
+        {
+            "service_name": "Spotify Premium",
+            "billing_source": "provider",
+            "amount": 149,
+            "cycle": "Monthly",
+            "next_renewal": "2026-11-12",
+            "evidence_date": "2026-10-12T10:00:00+00:00",
+            "confidence": 85,
+        },
+    ])
+    assert len(grouped) == 1
+    assert grouped[0]["amount"] == 149
+    assert grouped[0]["next_renewal"] == "2026-11-12"
