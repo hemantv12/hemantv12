@@ -289,7 +289,27 @@ def credentials_for_all_mailboxes(
         except Exception:
             errors.append({"email": row.email, "message": "Could not load this Gmail connection. Reconnect the account and retry."})
     if not credentials_by_email:
-        raise HTTPException(status_code=401, detail="None of the connected Gmail accounts could be accessed. Reconnect at least one account and try again.")
+        first_error = errors[0]["message"] if errors else "Google did not provide a usable Gmail token."
+        reauthorization_needed = any(
+            any(token in item["message"].lower() for token in (
+                "authorization expired",
+                "could not refresh this gmail authorization",
+                "refresh token",
+            ))
+            for item in errors
+        )
+        if reauthorization_needed:
+            # A Google refresh-token error is not a SubSathi login-token error.
+            # Use 409 so mobile clients keep the valid SubSathi session and offer
+            # an in-place Gmail repair flow rather than clearing local account state.
+            raise HTTPException(
+                status_code=409,
+                detail="Google needs to renew Gmail access. Tap Repair Gmail connection and approve the permissions again; your local subscription tracker is untouched. " + first_error,
+            )
+        raise HTTPException(
+            status_code=502,
+            detail="None of the connected Gmail accounts could be accessed. " + first_error,
+        )
     return credentials_by_email, errors
 
 
