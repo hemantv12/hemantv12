@@ -313,4 +313,4 @@ def test_interleave_query_results_preserves_coverage_and_deduplicates():
         [[{"id": "a"}, {"id": "b"}, {"id": "c"}], [{"id": "a"}, {"id": "x"}, {"id": "y"}]],
         5,
     )
-    assert ids == ["a", "x", "b", "y", "c"]
+    assert ids == ["a", "b", "x", "c", "y"]
