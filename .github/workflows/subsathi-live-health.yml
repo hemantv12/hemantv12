@@ -1,0 +1,51 @@
+name: SubSathi live production health
+
+on:
+  push:
+    branches:
+      - subsathi-launch
+    paths:
+      - ".github/workflows/subsathi-live-health.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect-live-health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Wait for the public API after deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 18); do
+            if curl --connect-timeout 10 --max-time 15 -fsS https://subsathi-api.onrender.com/health -o /tmp/subsathi-health.json; then
+              break
+            fi
+            if [ "$attempt" -eq 18 ]; then
+              echo "API health endpoint did not return HTTP 200 after 18 attempts."
+              exit 1
+            fi
+            sleep 10
+          done
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          data = json.loads(Path("/tmp/subsathi-health.json").read_text())
+          keys = (
+              "status",
+              "database_backend",
+              "durable_database_configured",
+              "google_oauth_configured",
+              "ai_extraction_configured",
+              "scan_max_messages_per_inbox",
+          )
+          print("SubSathi live health (secrets excluded):")
+          for key in keys:
+              print(f"{key}={data.get(key)!r}")
+          if data.get("status") != "ok":
+              raise SystemExit("Health endpoint returned a non-ok status.")
+          PY
