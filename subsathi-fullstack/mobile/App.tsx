@@ -516,6 +516,7 @@ function AppContent() {
     fullMessagesFetched: number;
     matchedReceipts: number;
     searchResultHits: number;
+    scanLimitPerAccount: number;
     scanLimitReached: boolean;
     candidateCount: number;
     durationMs: number;
@@ -1165,6 +1166,7 @@ function AppContent() {
         fullMessagesFetched: Number(payload.full_messages_fetched || 0),
         matchedReceipts: Number(payload.matched_receipts || 0),
         searchResultHits: Number(payload.search_result_hits || 0),
+        scanLimitPerAccount: Number(payload.scan_limit_per_account || 500),
         scanLimitReached: Boolean(payload.scan_limit_reached),
         candidateCount: Number(payload.candidate_count ?? adjusted.length),
         durationMs: Number(payload.scan_duration_ms || 0),
@@ -1743,7 +1745,7 @@ function AppContent() {
             {gmailEmail && scanSummary ? <View style={{ backgroundColor: C.greenPale, borderRadius: 13, padding: 12, marginBottom: 14 }}>
               <Text style={{ color: C.greenDark, fontSize: 11, fontWeight: '800' }}>{scanSummary.mode === 'full' ? 'Deep rescan' : 'Quick sync'} · Searched {scanSummary.scannedMessages} messages across {scanSummary.accountsScanned.length} Gmail account(s){scanSummary.durationMs > 0 ? ` in ${(scanSummary.durationMs / 1000).toFixed(1)}s` : ''}</Text>
               <Text style={{ color: '#42695E', fontSize: 10, lineHeight: 15, marginTop: 4 }}>Opened {scanSummary.fullMessagesFetched} likely billing email(s); detected {scanSummary.matchedReceipts} matching message(s) and found {scanSummary.candidateCount} subscription candidate(s) waiting for review.</Text>
-              {scanSummary.scanLimitReached ? <Text style={{ color: '#8B5108', fontSize: 10, lineHeight: 15, marginTop: 7, fontWeight: '700' }}>Coverage note: Gmail search reached this pass's message/query cap. These results are not proof that your inbox contains only this many subscriptions; older or unusually worded billing emails may still be missed.</Text> : null}
+              {scanSummary.scanLimitReached ? <Text style={{ color: '#8B5108', fontSize: 10, lineHeight: 15, marginTop: 7, fontWeight: '700' }}>Coverage note: this server allowed up to {scanSummary.scanLimitPerAccount.toLocaleString()} messages per inbox for this pass and the search hit its cap. These results are not proof that your inbox contains only this many subscriptions; older or unusually worded billing emails may still be missed.</Text> : null}
               {scanSummary.aiAssisted ? <Text style={{ color: '#42695E', fontSize: 10, lineHeight: 15, marginTop: 5 }}>{scanSummary.aiWarning || (scanSummary.aiAnalyzedMessages > 0 ? `AI-assisted extraction reviewed ${scanSummary.aiAnalyzedMessages} incomplete/uncertain email(s) and only added fields supported by quoted email evidence.` : 'AI-assisted mode was enabled, but no incomplete or uncertain emails needed extra analysis in this scan.')}</Text> : null}
               {scanSummary.accountErrors.map((item) => <Text key={item.email} style={{ color: C.red, fontSize: 10, lineHeight: 15, marginTop: 5 }}>{item.email}: {item.message}</Text>)}
             </View> : null}
