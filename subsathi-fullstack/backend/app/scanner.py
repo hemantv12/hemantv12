@@ -59,7 +59,7 @@ CYCLE_PATTERNS = (
     (re.compile(r"\b(monthly|every month|per month|each month)\b", re.I), "Monthly"),
 )
 RENEWAL_DATE_PATTERNS = (
-    re.compile(r"(?:next\s+(?:renewal|billing|payment)|renewal\s+date|renews?\s+on|renewal\s+on|will\s+be\s+charged\s+on|trial\s+ends?\s+on|expires?\s+on|next\s+charge\s+date)\s*(?:is|on|:|-)?\s*(\d{4}-\d{2}-\d{2})", re.I),
+    re.compile(r"(?:next\s+(?:renewal|billing|payment)(?:\s+date)?|renewal\s+date|renews?\s+on|renewal\s+on|will\s+be\s+charged\s+on|trial\s+ends?\s+on|expires?\s+on|next\s+charge\s+date)\s*(?:is|on|:|-)?\s*(\d{4}-\d{2}-\d{2})", re.I),
     re.compile(r"(?:next\s+(?:renewal|billing|payment)|renewal\s+date|renews?\s+on|renewal\s+on|will\s+be\s+charged\s+on|trial\s+ends?\s+on|expires?\s+on)\s*(?:is|on|:|-)?\s*([A-Za-z]{3,9}\s+\d{1,2},?\s+\d{4})", re.I),
     re.compile(r"(?:next\s+(?:renewal|billing|payment)|renewal\s+date|renews?\s+on|renewal\s+on|will\s+be\s+charged\s+on|trial\s+ends?\s+on|expires?\s+on)\s*(?:is|on|:|-)?\s*(\d{1,2}\s+[A-Za-z]{3,9}\s+\d{4})", re.I),
 )
