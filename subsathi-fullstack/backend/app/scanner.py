@@ -131,7 +131,11 @@ def parse_amount_near(text: str, anchor: int) -> float | None:
     matches = list(CURRENCY_AMOUNT.finditer(text))
     if not matches:
         return None
-    match = min(matches, key=lambda item: abs(item.start() - anchor))
+    # A price shortly after the plan-name anchor is usually the subscription price.
+    # Prefer it over an earlier unrelated cart/order total; use nearest-distance only
+    # when no currency amount follows the matched service name.
+    following = [item for item in matches if item.start() >= anchor and item.start() - anchor <= 220]
+    match = min(following, key=lambda item: item.start() - anchor) if following else min(matches, key=lambda item: abs(item.start() - anchor))
     try:
         amount = float(match.group(1).replace(",", ""))
     except ValueError:
@@ -237,11 +241,10 @@ def should_fetch_full_message(subject: str, sender: str) -> bool:
         _domain_matches(domain, roots)
         for roots in MERCHANT_SENDER_DOMAINS.values()
     )
-    # Provider billing emails often have generic subjects ("Thanks for your purchase")
-    # while the plan name and price only appear in the message body. Search results are
-    # already restricted to billing/provider queries, and the parser applies the strict
-    # recurring-evidence gate before saving any candidate.
-    return known_provider
+    # Do not download provider newsletters just because they come from a known sender.
+    # Generic transaction subjects (e.g. "Thanks for your purchase") are already
+    # covered by HEADER_TRANSACTION_CUES above; known providers also need billing context.
+    return known_provider and bool(HEADER_PROVIDER_CONTEXT.search(decoded_subject))
 
 
 def parse_billing_message(*, message_id: str, subject: str, sender: str, date_header: str, body: str) -> dict[str, Any] | None:
