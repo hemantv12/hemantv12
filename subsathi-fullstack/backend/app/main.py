@@ -31,7 +31,7 @@ from sqlalchemy.orm import Session
 from .config import settings
 from .database import Base, SessionLocal, engine, get_db
 from .models import GoogleConnection, LinkedGmailAccount, OAuthLoginTicket, OAuthState, ScanCandidate, User, utcnow
-from .scanner import MERCHANTS, MERCHANT_SENDER_DOMAINS, extract_message_text, group_billing_evidence, parse_billing_message, should_fetch_full_message
+from .scanner import MERCHANTS, MERCHANT_SENDER_DOMAINS, extract_management_link, extract_message_text, group_billing_evidence, parse_billing_message, should_fetch_full_message
 from .security import create_session_token, decrypt_secret, encrypt_secret, decode_session_token
 
 SCOPES = ["openid", "email", "profile", "https://www.googleapis.com/auth/gmail.readonly"]
@@ -104,6 +104,8 @@ def ensure_linked_gmail_columns() -> None:
                 connection.execute(text("ALTER TABLE scan_candidates ADD COLUMN source_accounts TEXT NOT NULL DEFAULT '[]'"))
             if "billing_source" not in columns:
                 connection.execute(text("ALTER TABLE scan_candidates ADD COLUMN billing_source VARCHAR(40) NOT NULL DEFAULT 'provider'"))
+            if "manage_url" not in columns:
+                connection.execute(text("ALTER TABLE scan_candidates ADD COLUMN manage_url TEXT NOT NULL DEFAULT ''"))
 
 
 ensure_linked_gmail_columns()
@@ -177,7 +179,7 @@ def candidate_public(candidate: ScanCandidate) -> dict[str, Any]:
         "billingSource": candidate.billing_source or "provider",
         "billingSourceLabel": _billing_source_label(candidate.billing_source),
         "needsReview": candidate.amount is None or not candidate.next_renewal or candidate.cycle in {"", "Unknown"},
-        "manageUrl": _manage_url_for(candidate.service_name, candidate.billing_source),
+        "manageUrl": candidate.manage_url or _manage_url_for(candidate.service_name, candidate.billing_source),
         "alreadyImported": candidate.imported,
     }
 
@@ -398,6 +400,14 @@ def _scan_single_gmail_mailbox(credentials: Credentials, mailbox_email: str, lim
             body=body,
         )
         if candidate:
+            extracted_url = extract_management_link(
+                payload,
+                service_name=str(candidate.get("service_name") or ""),
+                sender=sender,
+                billing_source=str(candidate.get("billing_source") or "provider"),
+            )
+            if extracted_url:
+                candidate["manage_url"] = extracted_url
             candidate["source_mailbox"] = mailbox_email
             parsed.append(candidate)
     return {"searched": len(message_ids), "full_fetched": len(relevant_ids), "parsed": parsed}
@@ -828,6 +838,7 @@ def scan_gmail(max_messages: int = Query(100, ge=1, le=200), user: User = Depend
         existing.evidence_date = str(candidate.get("evidence_date") or "")
         existing.source_accounts = json.dumps(candidate.get("source_accounts") or [])
         existing.billing_source = str(candidate.get("billing_source") or "provider")
+        existing.manage_url = str(candidate.get("manage_url") or _manage_url_for(candidate["service_name"], candidate.get("billing_source")))[:2000]
         existing.updated_at = utcnow()
     db.commit()
 
@@ -893,7 +904,7 @@ def import_candidates(payload: CandidateImportRequest, user: User = Depends(curr
             "amount": item.amount,
             "cycle": item.cycle,
             "nextRenewal": item.next_renewal or "",
-            "manageUrl": _manage_url_for(item.service_name, item.billing_source),
+            "manageUrl": item.manage_url or _manage_url_for(item.service_name, item.billing_source),
             "billingSource": item.billing_source or "provider",
             "billingSourceLabel": _billing_source_label(item.billing_source),
             "notes": f"Detected from billing emails ({item.evidence_count} message(s)). Verify the renewal date if it wasn't found in the email.",

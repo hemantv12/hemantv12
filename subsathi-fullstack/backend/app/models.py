@@ -80,6 +80,7 @@ class ScanCandidate(Base):
     evidence_date: Mapped[str] = mapped_column(String(40), default="")
     source_accounts: Mapped[str] = mapped_column(Text, default="[]")
     billing_source: Mapped[str] = mapped_column(String(40), default="provider")
+    manage_url: Mapped[str] = mapped_column(Text, default="")
     imported: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)

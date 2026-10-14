@@ -237,3 +237,42 @@ def test_upi_autopay_does_not_invent_a_universal_cancellation_link():
     )
     assert source == "upi_autopay"
     assert management_url_for_source("https://merchant.example/account", source) == ""
+
+
+def test_management_link_extraction_accepts_stable_provider_billing_url_only():
+    import base64
+    from app.scanner import extract_management_link
+
+    def part(html_body: str) -> dict:
+        return {"mimeType": "text/html", "body": {"data": base64.urlsafe_b64encode(html_body.encode()).decode().rstrip("=")}}
+
+    safe = extract_management_link(
+        {"mimeType": "text/html", "parts": [part('<a href="https://www.netflix.com/YourAccount?utm_source=receipt">Manage subscription</a>')]},
+        service_name="Netflix",
+        sender="billing@netflix.com",
+        billing_source="provider",
+    )
+    assert safe == "https://www.netflix.com/YourAccount"
+
+    unsafe = extract_management_link(
+        {"mimeType": "text/html", "parts": [part('<a href="https://attacker.example/login">Manage subscription</a>')]},
+        service_name="Netflix",
+        sender="billing@netflix.com",
+        billing_source="provider",
+    )
+    assert unsafe == "https://www.netflix.com/YourAccount" or unsafe == ""
+
+
+def test_management_link_extraction_rejects_tokenized_one_time_urls():
+    import base64
+    from app.scanner import extract_management_link
+
+    html_body = '<a href="https://www.netflix.com/YourAccount?token=one-time-secret">Manage subscription</a>'
+    encoded = base64.urlsafe_b64encode(html_body.encode()).decode().rstrip("=")
+    result = extract_management_link(
+        {"mimeType": "text/html", "parts": [{"mimeType": "text/html", "body": {"data": encoded}}]},
+        service_name="Netflix",
+        sender="billing@netflix.com",
+        billing_source="provider",
+    )
+    assert result == "https://www.netflix.com/YourAccount"

@@ -8,6 +8,7 @@ from datetime import datetime
 from email.header import decode_header as _decode_header_parts, make_header
 from email.utils import parsedate_to_datetime
 from typing import Any
+from urllib.parse import urlparse, urlunparse
 
 
 @dataclass(frozen=True)
@@ -116,6 +117,71 @@ def management_url_for_source(provider_url: str, billing_source: str | None) -> 
     if platform_url is not None:
         return platform_url or (provider_url if source == "provider" else "")
     return provider_url
+
+
+_MANAGE_LINK_TEXT = re.compile(r"\b(manage|subscription settings|billing settings|manage plan|cancel plan|cancel subscription|renew subscription|renew plan|account billing|my subscription)\b", re.I)
+_IGNORED_LINK_TEXT = re.compile(r"\b(unsubscribe|email preferences|newsletter|privacy policy|terms of service|help center|contact support)\b", re.I)
+_SENSITIVE_LINK_QUERY = re.compile(r"(?:token|session|auth|nonce|signature|password|reset|code)=", re.I)
+
+
+def extract_management_link(
+    payload: dict[str, Any],
+    *,
+    service_name: str,
+    sender: str,
+    billing_source: str | None = "provider",
+) -> str:
+    """Extract a stable provider account URL from receipt HTML without retaining one-time tokens."""
+    platform_url = management_url_for_source("", billing_source)
+    if platform_url:
+        return platform_url
+    if (billing_source or "provider") in {"upi_autopay", "bank_mandate"}:
+        return ""
+
+    sender_domain = parse_sender_domain(sender)
+    normalized_name = re.sub(r"[^a-z0-9]", "", service_name.lower())
+    merchant = next((item for item in MERCHANTS if re.sub(r"[^a-z0-9]", "", item.name.lower()) == normalized_name), None)
+    roots = MERCHANT_SENDER_DOMAINS.get(merchant.name, ()) if merchant else ()
+    allowed_domains = roots or ((sender_domain,) if sender_domain else ())
+    if not allowed_domains:
+        return ""
+
+    html_parts: list[str] = []
+    def walk(part: dict[str, Any]) -> None:
+        mime = str(part.get("mimeType") or "").lower()
+        if mime == "text/html":
+            text_value = _decode_body_part(part)
+            # _decode_body_part strips tags, so decode the raw HTML for anchor inspection too.
+            raw_data = (part.get("body") or {}).get("data")
+            if raw_data:
+                try:
+                    decoded = base64.urlsafe_b64decode(raw_data + "=" * (-len(raw_data) % 4)).decode("utf-8", errors="replace")
+                    html_parts.append(decoded[:120000])
+                except (ValueError, TypeError):
+                    if text_value:
+                        html_parts.append(text_value)
+        for child in part.get("parts") or []:
+            walk(child)
+    walk(payload)
+    ranked: list[tuple[int, str]] = []
+    for chunk in html_parts:
+        for match in re.finditer(r"<a\b([^>]*?)href\s*=\s*(['\"])(.*?)\2([^>]*)>(.*?)</a\s*>", chunk, re.I | re.S):
+            attrs = match.group(1) + " " + match.group(4)
+            href = html.unescape(match.group(3)).strip()
+            label = strip_html(match.group(5))
+            if not label or _IGNORED_LINK_TEXT.search(label) or not _MANAGE_LINK_TEXT.search(label):
+                continue
+            parsed = urlparse(href)
+            if parsed.scheme.lower() != "https" or not parsed.hostname or _SENSITIVE_LINK_QUERY.search(parsed.query):
+                continue
+            host = parsed.hostname.lower()
+            if not any(host == root or host.endswith("." + root) for root in allowed_domains):
+                continue
+            # Strip tracking queries and fragments; never persist login tokens or one-time actions.
+            stable_url = urlunparse((parsed.scheme, parsed.netloc, parsed.path or "/", "", "", ""))
+            priority = 3 if re.search(r"cancel subscription|cancel plan", label, re.I) else 2 if re.search(r"manage|billing|subscription settings", label, re.I) else 1
+            ranked.append((priority, stable_url))
+    return sorted(ranked, key=lambda item: item[0], reverse=True)[0][1] if ranked else ""
 
 
 CURRENCY_AMOUNT = re.compile(r"(?:₹\s*|INR\s*|Rs\.?\s*)([\d,]+(?:\.\d{1,2})?)", re.IGNORECASE)
