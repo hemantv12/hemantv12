@@ -286,6 +286,9 @@ function buildAssistantReply(question: string, items: Subscription[], language: 
   const unconfirmedCount = items.length - pricedItems.length;
   const monthly = pricedItems.reduce((sum, item) => sum + monthlyEquivalent(item), 0);
   const yearly = pricedItems.reduce((sum, item) => sum + annualEquivalent(item), 0);
+  const reviewNote = unconfirmedCount
+    ? (hindi ? ` ${unconfirmedCount} aur plan(s) ka price/cycle confirm nahi hai, isliye totals mein include nahi.` : ` ${unconfirmedCount} other plan(s) have an unconfirmed price/cycle and are excluded from totals.`)
+    : '';
   const upcoming = [...items].filter((item) => daysUntil(item.nextRenewal) >= -7 && daysUntil(item.nextRenewal) <= 45)
     .sort((a, b) => daysUntil(a.nextRenewal) - daysUntil(b.nextRenewal));
   const ranked = [...pricedItems].sort((a, b) => monthlyEquivalent(b) - monthlyEquivalent(a));
@@ -300,6 +303,11 @@ function buildAssistantReply(question: string, items: Subscription[], language: 
     return hindi
       ? 'Pehle ek ya do subscriptions add karo. Phir main monthly kharcha, next renewals aur possible savings tumhare actual tracker se bata sakta hoon.'
       : 'Add a subscription or two first. Then I can explain your monthly spend, upcoming renewals and possible savings using your tracker.';
+  }
+  if (!pricedItems.length && /(year|annual|annually|yearly|saal|salana|save|saving|reduce|lower|cut|cheap|unused|bacha|bachat|kam karo|kam kar|sasta|waste|spend|expense|monthly|month|kharch|cost|budget|kitna|how much|total)/.test(q)) {
+    return hindi
+      ? `Abhi kisi plan ka price aur billing cycle dono confirm nahi hain, isliye spend calculate nahi kar sakta. ${unconfirmedCount} tracked plan(s) hain; email ya provider se details milne par total update hoga.`
+      : `I cannot calculate recurring spend yet because no tracked plan has both a confirmed price and billing cycle. ${unconfirmedCount} plan(s) are tracked; totals will update as details are confirmed.`;
   }
   if (/(duplicate|same plan|repeat|double charge|do baar|ek hi|same service)/.test(q)) {
     if (duplicates.length) {
@@ -323,8 +331,8 @@ function buildAssistantReply(question: string, items: Subscription[], language: 
   }
   if (/(year|annual|annually|yearly|saal|salana)/.test(q)) {
     return hindi
-      ? `Tumhara estimated yearly commitment ${money(yearly)} hai, jo ${items.length} tracked plans se calculate hua hai. Monthly equivalent ${money(monthly)} hai. Ye estimate hai, final bank statement nahi.`
-      : `Your estimated yearly commitment is ${money(yearly)} across ${items.length} tracked plans, or about ${money(monthly)} per month. This is an estimate based on saved entries, not a bank statement.`;
+      ? `Tumhara estimated yearly commitment ${money(yearly)} hai, ${pricedItems.length} price/cycle-confirmed plans se. Monthly equivalent ${money(monthly)} hai. Ye estimate hai, final bank statement nahi.${reviewNote}`
+      : `Your estimated yearly commitment is ${money(yearly)} across ${pricedItems.length} price/cycle-confirmed plans, or about ${money(monthly)} per month. This is an estimate based on saved entries, not a bank statement.${reviewNote}`;
   }
   if (/(save|saving|reduce|lower|cut|cheap|cancel|unused|bacha|bachat|kam karo|kam kar|sasta|waste)/.test(q)) {
     const top = ranked.slice(0, 3);
@@ -334,8 +342,8 @@ function buildAssistantReply(question: string, items: Subscription[], language: 
   }
   if (/(how many|number of|count|kitne plan|kitni subscription|total plan|total subscriptions)/.test(q)) {
     return hindi
-      ? `Tumne ${items.length} subscription track ki hain. Total estimated monthly equivalent ${money(monthly)} aur yearly commitment ${money(yearly)} hai.`
-      : `You are tracking ${items.length} subscriptions. Their estimated monthly equivalent is ${money(monthly)}, with a yearly commitment of ${money(yearly)}.`;
+      ? `Tumne ${items.length} subscription track ki hain. Confirmed price/cycle wale plans ka estimated monthly equivalent ${money(monthly)} aur yearly commitment ${money(yearly)} hai.${reviewNote}`
+      : `You are tracking ${items.length} subscriptions. Price/cycle-confirmed plans have an estimated monthly equivalent of ${money(monthly)} and yearly commitment of ${money(yearly)}.${reviewNote}`;
   }
   if (/(category|stream|music|software|storage|entertainment|kis par|kahan|where|spend|expense|monthly|month|kharch|cost|budget|kitna|how much|total)/.test(q)) {
     const categories = new Map<string, number>();
@@ -343,8 +351,8 @@ function buildAssistantReply(question: string, items: Subscription[], language: 
     const biggestCategory = [...categories.entries()].sort((a, b) => b[1] - a[1])[0];
     const highest = ranked[0];
     return hindi
-      ? `Abhi ${items.length} plans ka monthly equivalent ${money(monthly)} hai (yearly estimate ${money(yearly)}). Sabse bada category spend ${biggestCategory[0]} par ${money(biggestCategory[1])}/mo hai. Highest monthly-equivalent plan ${highest.name} hai (${money(monthlyEquivalent(highest))}/mo). Pehle is plan ko review karna useful rahega.`
-      : `Your ${items.length} tracked plans cost about ${money(monthly)} per month equivalent (${money(yearly)} yearly estimate). Your highest-spend category is ${biggestCategory[0]} at ${money(biggestCategory[1])}/mo. Your highest monthly-equivalent plan is ${highest.name} at ${money(monthlyEquivalent(highest))}/mo, so it is a useful first review.`;
+      ? `Abhi ${pricedItems.length} price/cycle-confirmed plans ka monthly equivalent ${money(monthly)} hai (yearly estimate ${money(yearly)}). Sabse bada category spend ${biggestCategory[0]} par ${money(biggestCategory[1])}/mo hai. Highest monthly-equivalent plan ${highest.name} hai (${money(monthlyEquivalent(highest))}/mo). Pehle is plan ko review karna useful rahega.${reviewNote}`
+      : `Your ${pricedItems.length} price/cycle-confirmed plans cost about ${money(monthly)} per month equivalent (${money(yearly)} yearly estimate). Your highest-spend category is ${biggestCategory[0]} at ${money(biggestCategory[1])}/mo. Your highest monthly-equivalent plan is ${highest.name} at ${money(monthlyEquivalent(highest))}/mo, so it is a useful first review.${reviewNote}`;
   }
   const top = ranked[0];
   const next = upcoming[0];
