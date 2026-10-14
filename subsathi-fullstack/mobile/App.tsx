@@ -1733,7 +1733,7 @@ function SubscriptionEditor({ visible, initial, onClose, onSave, onDelete }: {
   const [name, setName] = useState('');
   const [category, setCategory] = useState<Category>('Entertainment');
   const [amount, setAmount] = useState('');
-  const [cycle, setCycle] = useState<Cycle>('Monthly');
+  const [cycle, setCycle] = useState<Cycle | 'Unknown'>('Monthly');
   const [nextRenewal, setNextRenewal] = useState('');
   const [manageUrl, setManageUrl] = useState('');
   const [billingSource, setBillingSource] = useState<BillingSource>('provider');
@@ -1745,7 +1745,7 @@ function SubscriptionEditor({ visible, initial, onClose, onSave, onDelete }: {
     if (!visible) return;
     setName(initial?.name ?? '');
     setCategory(initial?.category ?? 'Entertainment');
-    setAmount(initial ? String(initial.amount) : '');
+    setAmount(initial?.amount == null ? '' : String(initial.amount));
     setCycle(initial?.cycle ?? 'Monthly');
     setNextRenewal(initial?.nextRenewal ?? '');
     setManageUrl(initial?.manageUrl ?? '');
@@ -1756,9 +1756,10 @@ function SubscriptionEditor({ visible, initial, onClose, onSave, onDelete }: {
   }, [visible, initial]);
 
   const submit = async () => {
-    const numericAmount = Number(amount.replace(/,/g, '').trim());
+    const hasAmount = amount.trim().length > 0;
+    const numericAmount = hasAmount ? Number(amount.replace(/,/g, '').trim()) : null;
     if (!name.trim()) { Alert.alert('Add a service name', 'For example, Adobe, Netflix, Hotstar or Gym.'); return; }
-    if (!Number.isFinite(numericAmount) || numericAmount <= 0 || numericAmount > 10000000) { Alert.alert('Check the amount', 'Enter a valid amount greater than ₹0.'); return; }
+    if (hasAmount && (!Number.isFinite(numericAmount) || (numericAmount ?? 0) <= 0 || (numericAmount ?? 0) > 10000000)) { Alert.alert('Check the amount', 'Enter a valid amount greater than ₹0, or leave it blank until confirmed.'); return; }
     if (nextRenewal.trim() && !validDate(nextRenewal.trim())) { Alert.alert('Check the renewal date', 'Use YYYY-MM-DD, or leave the field blank until you confirm the date with the provider.'); return; }
     if (manageUrl.trim() && !/^(https?:\/\/)?[a-z0-9.-]+\.[a-z]{2,}([/:?#].*)?$/i.test(manageUrl.trim())) { Alert.alert('Check the management link', 'Enter a website address such as https://example.com/account.'); return; }
     setSaving(true);
@@ -1780,8 +1781,8 @@ function SubscriptionEditor({ visible, initial, onClose, onSave, onDelete }: {
         <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={styles.editorScroll}>
           <Text style={styles.fieldLabel}>SERVICE NAME *</Text><TextInput value={name} onChangeText={setName} placeholder="e.g. Adobe Creative Cloud" placeholderTextColor="#97A5A8" style={styles.input} maxLength={70} autoCapitalize="words" />
           <Text style={styles.fieldLabel}>CATEGORY</Text><View style={styles.categoryGrid}>{CATEGORIES.map((cat) => <Pressable key={cat.name} onPress={() => setCategory(cat.name)} style={[styles.categoryOption, category === cat.name && styles.categoryOptionActive]}><MaterialCommunityIcons name={categoryIconName(cat.name)} size={19} color={category === cat.name ? C.greenDark : C.muted} /><Text style={[styles.categoryOptionText, category === cat.name && styles.categoryOptionTextActive]}>{cat.name}</Text></Pressable>)}</View>
-          <Text style={styles.fieldLabel}>PRICE (INR) *</Text><View style={styles.amountInputWrap}><Text style={styles.rupeeSign}>₹</Text><TextInput value={amount} onChangeText={setAmount} placeholder="0.00" placeholderTextColor="#97A5A8" style={styles.amountInput} keyboardType="decimal-pad" /></View>
-          <Text style={styles.fieldLabel}>BILLING CYCLE</Text><View style={styles.cycleRow}>{CYCLES.map((item) => <Pressable key={item} onPress={() => setCycle(item)} style={[styles.cycleChip, item === cycle && styles.cycleChipActive]}><Text style={[styles.cycleChipText, item === cycle && styles.cycleChipTextActive]}>{item}</Text></Pressable>)}</View>
+          <Text style={styles.fieldLabel}>PRICE (INR, OPTIONAL UNTIL CONFIRMED)</Text><View style={styles.amountInputWrap}><Text style={styles.rupeeSign}>₹</Text><TextInput value={amount} onChangeText={setAmount} placeholder="Leave blank if unknown" placeholderTextColor="#97A5A8" style={styles.amountInput} keyboardType="decimal-pad" /></View>
+          <Text style={styles.fieldLabel}>BILLING CYCLE</Text><View style={styles.cycleRow}>{(['Unknown', ...CYCLES] as (Cycle | 'Unknown')[]).map((item) => <Pressable key={item} onPress={() => setCycle(item)} style={[styles.cycleChip, item === cycle && styles.cycleChipActive]}><Text style={[styles.cycleChipText, item === cycle && styles.cycleChipTextActive]}>{item === 'Unknown' ? 'Not confirmed' : item}</Text></Pressable>)}</View>
           <Text style={styles.fieldLabel}>NEXT RENEWAL DATE (OPTIONAL)</Text><TextInput value={nextRenewal} onChangeText={setNextRenewal} placeholder="Leave blank if not confirmed" placeholderTextColor="#97A5A8" style={styles.input} autoCapitalize="none" maxLength={10} />
           <Text style={styles.fieldHint}>Only enter a date confirmed by the provider. Format: YYYY-MM-DD. Leave blank if unknown; reminders need a verified date.</Text>
           <Text style={styles.fieldLabel}>BILLED THROUGH</Text>
@@ -1793,7 +1794,7 @@ function SubscriptionEditor({ visible, initial, onClose, onSave, onDelete }: {
           <View style={styles.reminderRow}><View style={{ flex: 1 }}><Text style={styles.settingTitle}>Renewal reminder</Text><Text style={styles.settingBody}>Notify me two days before, if permissions allow.</Text></View><Switch value={reminderEnabled} onValueChange={setReminderEnabled} trackColor={{ false: '#CBD5D4', true: '#A7E4CD' }} thumbColor={reminderEnabled ? C.green : '#F6F7F7'} /></View>
           <PrimaryButton title={saving ? 'Saving...' : initial ? 'Save changes' : 'Save subscription'} onPress={() => { if (!saving) void submit(); }} />
           {initial && onDelete ? <Pressable onPress={onDelete} style={styles.deleteFromEditor}><Text style={styles.deleteFromEditorText}>Remove from tracker</Text></Pressable> : null}
-          <Text style={styles.formPrivacyNote}>Details stay in local app storage in this MVP. This does not cancel, renew or change your real provider plan.</Text>
+          <Text style={styles.formPrivacyNote}>Details stay in local app storage in this MVP. Unknown prices are excluded from spend estimates. This does not cancel, renew or change your real provider plan.</Text>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
