@@ -918,7 +918,7 @@ def scan_gmail(max_messages: int = Query(100, ge=1, le=200), user: User = Depend
     if not successful_accounts and account_errors:
         raise HTTPException(status_code=502, detail="All connected Gmail accounts failed to scan. " + account_errors[0]["message"])
 
-    reset_pending_candidates = (
+    full_reconciliation = (
         bool(successful_rows)
         and not account_errors
         and all(bool(result.get("full_scan")) for _, result in successful_rows)
@@ -930,13 +930,9 @@ def scan_gmail(max_messages: int = Query(100, ge=1, le=200), user: User = Depend
         len(successful_accounts), account_scan_modes, scanned_messages, full_fetched, len(parsed), len(grouped), duration_ms,
     )
 
-    # Incremental scans should never erase old detections simply because those email
-    # messages were not part of today's history delta.
-    if reset_pending_candidates:
-        db.query(ScanCandidate).filter(
-            ScanCandidate.user_id == user.id,
-            ScanCandidate.imported.is_(False),
-        ).delete(synchronize_session=False)
+    # A deep scan is still capped to a slice of recent billing messages. Never delete
+    # older detections solely because they were not in that batch; merge current evidence
+    # while preserving entries outside the current scan window.
 
     for candidate in grouped:
         fingerprint = candidate["fingerprint"][:300]
@@ -956,7 +952,7 @@ def scan_gmail(max_messages: int = Query(100, ge=1, le=200), user: User = Depend
             db.add(existing)
         existing.service_name = candidate["service_name"]
         existing.category = candidate["category"]
-        if reset_pending_candidates or is_new:
+        if full_reconciliation or is_new:
             existing.amount = candidate.get("amount")
             existing.cycle = candidate.get("cycle") or "Unknown"
             existing.next_renewal = candidate.get("next_renewal") or ""
@@ -994,7 +990,7 @@ def scan_gmail(max_messages: int = Query(100, ge=1, le=200), user: User = Depend
         .where(ScanCandidate.user_id == user.id, ScanCandidate.imported.is_(False))
         .order_by(ScanCandidate.updated_at.desc())
     ).all()
-    overall_mode = "full" if reset_pending_candidates else "incremental"
+    overall_mode = "full" if full_reconciliation else "incremental"
     return {
         "scanned_messages": scanned_messages,
         "full_messages_fetched": full_fetched,
