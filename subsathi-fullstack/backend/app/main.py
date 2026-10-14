@@ -352,12 +352,12 @@ def _list_gmail_refs_for_query(credentials: Credentials, query: str, budget: int
     refs: list[dict[str, str]] = []
     page_token = None
     while len(refs) < budget:
-        page = service.users().messages().list(
+        page = _execute_gmail_request_with_backoff(service.users().messages().list(
             userId="me",
             q=query,
             maxResults=min(500, budget - len(refs)),
             pageToken=page_token,
-        ).execute(num_retries=2)
+        ))
         refs.extend(page.get("messages") or [])
         page_token = page.get("nextPageToken")
         if not page_token or not page.get("messages"):
@@ -396,13 +396,13 @@ def _list_gmail_history_message_ids(
     resume_history_id = start_history_id
     try:
         while True:
-            page = service.users().history().list(
+            page = _execute_gmail_request_with_backoff(service.users().history().list(
                 userId="me",
                 startHistoryId=start_history_id,
                 historyTypes=["messageAdded"],
                 maxResults=500,
                 pageToken=page_token,
-            ).execute(num_retries=2)
+            ))
             rows = page.get("history") or []
             for history_row in rows:
                 row_ids = []
@@ -444,7 +444,7 @@ def _scan_single_gmail_mailbox(
     ai_assisted: bool = False,
 ) -> dict[str, Any]:
     service = build("gmail", "v1", credentials=credentials, cache_discovery=False)
-    profile = service.users().getProfile(userId="me").execute(num_retries=2)
+    profile = _execute_gmail_request_with_backoff(service.users().getProfile(userId="me"))
     profile_history_id = str(profile.get("historyId") or last_history_id or "")
     deep_scan_due = (
         force_full_scan
@@ -962,7 +962,9 @@ def _fetch_gmail_message_for_scan(message_id: str) -> dict[str, Any] | None:
     if service is None:
         raise RuntimeError("Gmail scan worker was not initialized.")
     try:
-        return service.users().messages().get(userId="me", id=message_id, format="full").execute(num_retries=2)
+        return _execute_gmail_request_with_backoff(
+            service.users().messages().get(userId="me", id=message_id, format="full")
+        )
     except HttpError as exc:
         if int(getattr(getattr(exc, "resp", None), "status", 0) or 0) == 404:
             return None
@@ -985,6 +987,18 @@ def _is_gmail_rate_limit_error(exc: Exception) -> bool:
         "user_rate_limit_exceeded",
         "resourceexhausted",
     }
+
+
+def _execute_gmail_request_with_backoff(request: Any, *, max_retries: int = GMAIL_RATE_LIMIT_RETRIES) -> Any:
+    """Retry an individual Gmail API request when Google reports a quota throttle."""
+    for attempt in range(max_retries + 1):
+        try:
+            return request.execute(num_retries=2)
+        except HttpError as exc:
+            if not _is_gmail_rate_limit_error(exc) or attempt >= max_retries:
+                raise
+            sleep(min(0.75 * (2 ** attempt), 6.0))
+    raise RuntimeError("Gmail request retries ended unexpectedly.")
 
 
 def _batch_fetch_gmail_messages_for_scan(
@@ -1173,7 +1187,7 @@ def scan_gmail(
 
     # Linked inboxes scan concurrently. First/weekly runs perform deeper searches;
     # the normal refresh only reads new messages after the last Gmail history cursor.
-    with ThreadPoolExecutor(max_workers=min(3, len(mailboxes))) as executor:
+    with ThreadPoolExecutor(max_workers=min(2, len(mailboxes))) as executor:
         mailbox_results = list(executor.map(scan_one_mailbox, mailboxes))
     for mailbox_email, connection_row, result, error in mailbox_results:
         if error:
