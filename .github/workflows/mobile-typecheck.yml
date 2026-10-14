@@ -1,0 +1,31 @@
+name: SubSathi mobile typecheck
+
+on:
+  pull_request:
+    paths:
+      - "subsathi-fullstack/mobile/**"
+      - ".github/workflows/mobile-typecheck.yml"
+  push:
+    branches:
+      - subsathi-launch
+    paths:
+      - "subsathi-fullstack/mobile/**"
+      - ".github/workflows/mobile-typecheck.yml"
+
+jobs:
+  mobile-typecheck:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: subsathi-fullstack/mobile
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install mobile dependencies
+        run: npm install --no-audit --no-fund
+      - name: Type-check Android app
+        run: npm run typecheck
