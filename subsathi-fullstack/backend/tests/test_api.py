@@ -205,8 +205,8 @@ def test_gmail_batch_fetch_uses_supported_execute_signature_and_preserves_order(
         message_format="metadata",
     )
 
-    assert len(batches) == 2
-    assert [len(batch.requests) for batch in batches] == [100, 1]
+    assert len(batches) == 3
+    assert [len(batch.requests) for batch in batches] == [50, 50, 1]
     assert [item["id"] for item in result] == ids
     assert all(item["format"] == "metadata" for item in result)
     assert all(item["metadataHeaders"] == ["From", "Subject", "Date"] for item in result)
