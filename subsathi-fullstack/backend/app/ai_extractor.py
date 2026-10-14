@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from email.utils import parsedate_to_datetime
 from typing import Any
@@ -17,7 +18,9 @@ from .scanner import (
 )
 
 OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses"
-MAX_AI_EMAILS_PER_MAILBOX = 25
+MAX_AI_EMAILS_PER_MAILBOX = 75
+AI_BATCH_SIZE = 25
+AI_MAX_WORKERS = 3
 MAX_EMAIL_CHARS = 3500
 
 RECURRING_EVIDENCE = re.compile(
@@ -81,13 +84,13 @@ def _known_merchant(service_name: str, source: str) -> tuple[str, str, str]:
     return service_name.strip()[:100], "Other", ""
 
 
-def extract_billing_evidence_with_ai(
+def _extract_billing_evidence_batch(
     emails: list[dict[str, Any]],
     *,
     api_key: str,
     model: str = "gpt-5-mini",
     timeout_seconds: float = 12.0,
-    max_emails: int = MAX_AI_EMAILS_PER_MAILBOX,
+    max_emails: int = AI_BATCH_SIZE,
 ) -> list[dict[str, Any]]:
     """Extract only evidence-backed subscription fields from opted-in billing emails.
 
@@ -262,3 +265,73 @@ def extract_billing_evidence_with_ai(
             "ai_evidence_used": True,
         })
     return results
+
+
+class AIExtractionResults(list[dict[str, Any]]):
+    """List-compatible results with a safe count of failed request batches."""
+
+    def __init__(self, values: list[dict[str, Any]], *, failed_batches: int = 0) -> None:
+        super().__init__(values)
+        self.failed_batches = failed_batches
+
+
+def extract_billing_evidence_with_ai(
+    emails: list[dict[str, Any]],
+    *,
+    api_key: str,
+    model: str = "gpt-5-mini",
+    timeout_seconds: float = 12.0,
+    max_emails: int = MAX_AI_EMAILS_PER_MAILBOX,
+) -> list[dict[str, Any]]:
+    """Analyse up to 75 uncertain billing emails in parallel batches of 25.
+
+    The local scanner remains the first pass. Only emails that need AI assistance are
+    supplied here, and each field must still be backed by an exact quote from that
+    email. A failed batch does not discard valid results from the other batches.
+    """
+    if not api_key.strip() or not emails or max_emails <= 0:
+        return AIExtractionResults([])
+
+    selected: list[dict[str, Any]] = []
+    seen_ids: set[str] = set()
+    for email in emails:
+        message_id = str(email.get("message_id") or "")
+        if not message_id or message_id in seen_ids:
+            continue
+        seen_ids.add(message_id)
+        selected.append(email)
+        if len(selected) >= max_emails:
+            break
+
+    chunks = [selected[i:i + AI_BATCH_SIZE] for i in range(0, len(selected), AI_BATCH_SIZE)]
+    if not chunks:
+        return AIExtractionResults([])
+
+    results: list[dict[str, Any]] = []
+    failed_batches = 0
+    with ThreadPoolExecutor(max_workers=min(AI_MAX_WORKERS, len(chunks))) as executor:
+        futures = [
+            executor.submit(
+                _extract_billing_evidence_batch,
+                chunk,
+                api_key=api_key,
+                model=model,
+                timeout_seconds=timeout_seconds,
+                max_emails=AI_BATCH_SIZE,
+            )
+            for chunk in chunks
+        ]
+        for future in as_completed(futures):
+            try:
+                results.extend(future.result())
+            except Exception:
+                # Keep successful batches usable; never log or surface provider payloads.
+                failed_batches += 1
+
+    if failed_batches and not results:
+        raise RuntimeError("All AI extraction batches failed.")
+
+    # Stable input order makes result handling and debugging reproducible.
+    order = {str(item.get("message_id") or ""): index for index, item in enumerate(selected)}
+    results.sort(key=lambda item: order.get(str(item.get("message_id") or ""), len(order)))
+    return AIExtractionResults(results, failed_batches=failed_batches)
