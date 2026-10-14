@@ -841,7 +841,7 @@ def _batch_fetch_gmail_messages_for_scan(
                 service.users().messages().get(**request_options),
                 request_id=message_id,
             )
-        batch.execute(num_retries=2)
+        batch.execute()
     return [responses.get(message_id) for message_id in message_ids]
 
 
