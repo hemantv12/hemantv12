@@ -370,3 +370,10 @@ def test_date_parser_handles_due_wording_without_guessing():
     assert parse_date("Your next payment is due November 12, 2026") == "2026-11-12"
     assert parse_date("Next payment due on 2026-11-14") == "2026-11-14"
     assert parse_date("Your next payment is due soon") is None
+
+def test_date_parser_handles_upcoming_bill_and_scheduled_renewal_phrasing():
+    assert parse_date("Upcoming renewal: 12 Nov 2026") == "2026-11-12"
+    assert parse_date("Next bill is due on 15 Dec 2026") == "2026-12-15"
+    assert parse_date("Next renewal scheduled for November 20, 2026") == "2026-11-20"
+    assert parse_date("Upcoming payment expected on 2026-12-01") == "2026-12-01"
+    assert parse_date("Upcoming payment will happen soon") is None
