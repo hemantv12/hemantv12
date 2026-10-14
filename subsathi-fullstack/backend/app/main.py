@@ -535,14 +535,16 @@ def _scan_single_gmail_mailbox(
                     existing = candidate_by_message.get(message_id)
                     if existing is not None:
                         # Deterministic evidence always wins; AI only fills missing fields.
+                        ai_filled = False
                         for field in ("amount", "cycle", "next_renewal"):
                             if existing.get(field) in (None, "") and ai_candidate.get(field) not in (None, ""):
                                 existing[field] = ai_candidate[field]
-                        existing["confidence"] = max(
-                            int(existing.get("confidence") or 0),
-                            int(ai_candidate.get("confidence") or 0),
-                        )
-                        if any(existing.get(field) not in (None, "") for field in ("amount", "cycle", "next_renewal")):
+                                ai_filled = True
+                        if ai_filled:
+                            existing["confidence"] = max(
+                                int(existing.get("confidence") or 0),
+                                int(ai_candidate.get("confidence") or 0),
+                            )
                             existing["ai_evidence_used"] = True
                         continue
 
