@@ -134,3 +134,66 @@ def test_extracts_product_name_and_cycle_from_explicit_three_month_renewal():
     assert result["service_name"] == "Zomato Gold"
     assert result["cycle"] == "Quarterly"
     assert result["next_renewal"] is None
+
+
+
+def test_price_is_selected_near_plan_name_not_first_unrelated_amount():
+    result = parse_billing_message(
+        message_id="anchor-1",
+        subject="Your Spotify Premium subscription has renewed",
+        sender="Spotify <billing@spotify.com>",
+        date_header="Mon, 12 Oct 2026 10:00:00 +0000",
+        body="Previous unrelated purchase total was ₹1,000. Spotify Premium subscription is ₹119 per month. Next payment date: 2026-11-12.",
+    )
+    assert result is not None
+    assert result["service_name"] == "Spotify Premium"
+    assert result["amount"] == 119.0
+    assert result["cycle"] == "Monthly"
+    assert result["next_renewal"] == "2026-11-12"
+
+
+def test_known_provider_with_generic_subject_still_gets_body_reviewed():
+    from app.scanner import should_fetch_full_message
+
+    assert should_fetch_full_message("Thanks for your purchase", "Billing <billing@netflix.com>") is True
+
+
+def test_zomato_gold_renewal_gets_real_management_url():
+    result = parse_billing_message(
+        message_id="zomato-1",
+        subject="Zomato Gold has been renewed successfully for 3 months!",
+        sender="Zomato <no-reply@zomato.com>",
+        date_header="Mon, 12 Oct 2026 10:00:00 +0000",
+        body="Zomato Gold has been renewed successfully for 3 months!",
+    )
+    assert result is not None
+    assert result["service_name"] == "Zomato Gold"
+    assert result["cycle"] == "Quarterly"
+    assert result["manage_url"] == "https://www.zomato.com/"
+
+
+def test_grouped_evidence_records_multiple_source_mailboxes():
+    messages = [
+        {
+            "service_name": "Netflix",
+            "amount": 199.0,
+            "cycle": "Monthly",
+            "next_renewal": "2026-11-12",
+            "evidence_date": "2026-10-12T10:00:00+00:00",
+            "source_mailbox": "one@gmail.com",
+            "confidence": 90,
+        },
+        {
+            "service_name": "Netflix",
+            "amount": 199.0,
+            "cycle": "Monthly",
+            "next_renewal": None,
+            "evidence_date": "2026-09-12T10:00:00+00:00",
+            "source_mailbox": "two@gmail.com",
+            "confidence": 75,
+        },
+    ]
+    grouped = group_billing_evidence(messages)
+    assert len(grouped) == 1
+    assert grouped[0]["evidence_count"] == 2
+    assert grouped[0]["source_accounts"] == ["one@gmail.com", "two@gmail.com"]

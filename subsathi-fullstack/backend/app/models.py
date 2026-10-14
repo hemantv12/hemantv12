@@ -42,11 +42,25 @@ class OAuthState(Base):
 
     state: Mapped[str] = mapped_column(String(128), primary_key=True)
     redirect_target: Mapped[str] = mapped_column(String(20), default="mobile")
-    # PKCE verifier generated for this authorization attempt. Short-lived and deleted
-    # with the state record after callback validation.
     code_verifier: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    # A secure OAuth state can link a secondary Gmail account to an authenticated user.
+    link_user_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     expires_at: Mapped[datetime] = mapped_column(DateTime, index=True)
+
+
+class LinkedGmailAccount(Base):
+    __tablename__ = "linked_gmail_accounts"
+    __table_args__ = (UniqueConstraint("user_id", "email", name="uq_linked_gmail_user_email"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    email: Mapped[str] = mapped_column(String(320))
+    google_sub: Mapped[str] = mapped_column(String(255), default="")
+    encrypted_credentials: Mapped[str] = mapped_column(Text)
+    granted_scopes: Mapped[str] = mapped_column(Text, default="")
+    connected_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
 
 
 class ScanCandidate(Base):
@@ -64,6 +78,7 @@ class ScanCandidate(Base):
     confidence: Mapped[int] = mapped_column(Integer, default=50)
     evidence_count: Mapped[int] = mapped_column(Integer, default=1)
     evidence_date: Mapped[str] = mapped_column(String(40), default="")
+    source_accounts: Mapped[str] = mapped_column(Text, default="[]")
     imported: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)

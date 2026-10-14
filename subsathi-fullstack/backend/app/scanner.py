@@ -39,6 +39,15 @@ MERCHANTS: tuple[Merchant, ...] = (
     Merchant("ZEE5", "Entertainment", ("ZEE5",), "https://www.zee5.com/"),
     Merchant("Figma", "Software", ("Figma Professional", "Figma"), "https://www.figma.com/settings"),
     Merchant("Amazon Music", "Music", ("Amazon Music Unlimited", "Amazon Music"), "https://www.amazon.in/music/settings"),
+    Merchant("Zomato Gold", "Other", ("Zomato Gold", "Zomato Gold membership"), "https://www.zomato.com/"),
+    Merchant("Swiggy One", "Other", ("Swiggy One", "Swiggy One membership"), "https://www.swiggy.com/"),
+    Merchant("Apple Music", "Music", ("Apple Music",), "https://account.apple.com/"),
+    Merchant("Audible", "Entertainment", ("Audible Premium Plus", "Audible Plus", "Audible"), "https://www.audible.in/account/overview"),
+    Merchant("Grammarly Premium", "Software", ("Grammarly Premium", "Grammarly"), "https://account.grammarly.com/"),
+    Merchant("GitHub Copilot", "Software", ("GitHub Copilot", "Copilot Individual"), "https://github.com/settings/copilot"),
+    Merchant("Crunchyroll Premium", "Entertainment", ("Crunchyroll Premium", "Crunchyroll"), "https://www.crunchyroll.com/account/membership"),
+    Merchant("Xbox Game Pass", "Entertainment", ("Xbox Game Pass Ultimate", "Xbox Game Pass"), "https://account.microsoft.com/services"),
+    Merchant("Coursera Plus", "Learning", ("Coursera Plus", "Coursera subscription"), "https://www.coursera.org/account/subscriptions"),
 )
 
 CURRENCY_AMOUNT = re.compile(r"(?:₹\s*|INR\s*|Rs\.?\s*)([\d,]+(?:\.\d{1,2})?)", re.IGNORECASE)
@@ -189,6 +198,15 @@ MERCHANT_SENDER_DOMAINS: dict[str, tuple[str, ...]] = {
     "ZEE5": ("zee5.com",),
     "Figma": ("figma.com",),
     "Amazon Music": ("amazon.com", "amazon.in"),
+    "Zomato Gold": ("zomato.com",),
+    "Swiggy One": ("swiggy.com",),
+    "Apple Music": ("apple.com",),
+    "Audible": ("audible.com", "audible.in"),
+    "Grammarly Premium": ("grammarly.com",),
+    "GitHub Copilot": ("github.com",),
+    "Crunchyroll Premium": ("crunchyroll.com",),
+    "Xbox Game Pass": ("xbox.com", "microsoft.com"),
+    "Coursera Plus": ("coursera.org",),
 }
 
 
@@ -219,7 +237,11 @@ def should_fetch_full_message(subject: str, sender: str) -> bool:
         _domain_matches(domain, roots)
         for roots in MERCHANT_SENDER_DOMAINS.values()
     )
-    return known_provider and bool(HEADER_PROVIDER_CONTEXT.search(decoded_subject))
+    # Provider billing emails often have generic subjects ("Thanks for your purchase")
+    # while the plan name and price only appear in the message body. Search results are
+    # already restricted to billing/provider queries, and the parser applies the strict
+    # recurring-evidence gate before saving any candidate.
+    return known_provider
 
 
 def parse_billing_message(*, message_id: str, subject: str, sender: str, date_header: str, body: str) -> dict[str, Any] | None:
@@ -240,6 +262,7 @@ def parse_billing_message(*, message_id: str, subject: str, sender: str, date_he
     subject_lower = subject.lower()
     match_info: tuple[Merchant, int] | None = None
     match_identity_confident = False
+    match_anchor = len(subject) + 1
 
     # Prefer a service named in the subject, then a trusted provider sender,
     # then a body mention. This avoids picking a brand from a footer/advert.
@@ -255,6 +278,15 @@ def parse_billing_message(*, message_id: str, subject: str, sender: str, date_he
             match.start() for alias in merchant.aliases
             if (match := re.search(re.escape(alias), combined, re.IGNORECASE))
         ]
+        if not all_positions and sender_trusted:
+            # Infer sender identity only when the sender domain maps to one service;
+            # don't guess between Amazon or Google subscriptions.
+            same_domain_services = [
+                item for item in MERCHANTS
+                if _domain_matches(sender_domain, MERCHANT_SENDER_DOMAINS.get(item.name, ()))
+            ]
+            if len(same_domain_services) == 1:
+                all_positions = [len(subject) + 1]
         if not all_positions:
             continue
         subject_match = bool(subject_positions)
@@ -267,8 +299,15 @@ def parse_billing_message(*, message_id: str, subject: str, sender: str, date_he
         if match_info is None or score < match_info[1]:
             match_info = (merchant, score)
             match_identity_confident = identity_confident
+            body_positions = [
+                match.start() for alias in merchant.aliases
+                if (match := re.search(re.escape(alias), body or "", re.IGNORECASE))
+            ]
+            # Prior code used a negative ranking score as the amount's text position,
+            # which clamped every search to zero and often selected an unrelated price.
+            match_anchor = len(subject) + 1 + min(body_positions) if body_positions else len(subject) + 1
 
-    amount = parse_amount_near(combined, max(0, match_info[1] if match_info else 0))
+    amount = parse_amount_near(combined, match_anchor)
     cycle = parse_cycle(combined)
     next_renewal = parse_date(combined)
     evidence_date = ""
@@ -364,11 +403,16 @@ def group_billing_evidence(messages: list[dict[str, Any]]) -> list[dict[str, Any
             if not top.get(field):
                 top[field] = next((item.get(field) for item in items if item.get(field)), None)
         top["evidence_count"] = len(items)
+        top["source_accounts"] = sorted({
+            str(item.get("source_mailbox", "")).lower()
+            for item in items if item.get("source_mailbox")
+        })
         top["confidence"] = max(int(item.get("confidence", 35)) for item in items)
         top["needs_review"] = not bool(top.get("amount")) or not bool(top.get("next_renewal")) or not bool(top.get("cycle"))
         top["fingerprint"] = "|".join((re.sub(r"[^a-z0-9]", "", top["service_name"].lower()), str(top.get("amount") or "unknown"), str(top.get("cycle") or "unknown")))
         # Keep just one evidence date and count; never persist full email subjects or bodies.
         top.pop("message_id", None)
         top.pop("sender_domain", None)
+        top.pop("source_mailbox", None)
         results.append(top)
     return sorted(results, key=lambda item: (item.get("amount") is None, item["service_name"].lower()))

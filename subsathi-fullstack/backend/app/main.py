@@ -30,8 +30,8 @@ from sqlalchemy.orm import Session
 
 from .config import settings
 from .database import Base, SessionLocal, engine, get_db
-from .models import GoogleConnection, OAuthLoginTicket, OAuthState, ScanCandidate, User, utcnow
-from .scanner import extract_message_text, group_billing_evidence, parse_billing_message, should_fetch_full_message
+from .models import GoogleConnection, LinkedGmailAccount, OAuthLoginTicket, OAuthState, ScanCandidate, User, utcnow
+from .scanner import MERCHANTS, MERCHANT_SENDER_DOMAINS, extract_message_text, group_billing_evidence, parse_billing_message, should_fetch_full_message
 from .security import create_session_token, decrypt_secret, encrypt_secret, decode_session_token
 
 SCOPES = ["openid", "email", "profile", "https://www.googleapis.com/auth/gmail.readonly"]
@@ -89,6 +89,24 @@ def ensure_oauth_state_pkce_column() -> None:
 ensure_oauth_state_pkce_column()
 
 
+def ensure_linked_gmail_columns() -> None:
+    """Add nullable account-link state and source metadata to existing pilot databases."""
+    inspector = inspect(engine)
+    if inspector.has_table("oauth_states"):
+        columns = {column["name"] for column in inspector.get_columns("oauth_states")}
+        if "link_user_id" not in columns:
+            with engine.begin() as connection:
+                connection.execute(text("ALTER TABLE oauth_states ADD COLUMN link_user_id INTEGER"))
+    if inspector.has_table("scan_candidates"):
+        columns = {column["name"] for column in inspector.get_columns("scan_candidates")}
+        if "source_accounts" not in columns:
+            with engine.begin() as connection:
+                connection.execute(text("ALTER TABLE scan_candidates ADD COLUMN source_accounts TEXT NOT NULL DEFAULT '[]'"))
+
+
+ensure_linked_gmail_columns()
+
+
 class CandidateImportOverride(BaseModel):
     candidate_id: int
     amount: float | None = Field(default=None, gt=0, le=10_000_000)
@@ -137,6 +155,12 @@ def google_flow(
 
 
 def candidate_public(candidate: ScanCandidate) -> dict[str, Any]:
+    try:
+        source_accounts = json.loads(candidate.source_accounts or "[]")
+        if not isinstance(source_accounts, list):
+            source_accounts = []
+    except (ValueError, TypeError):
+        source_accounts = []
     return {
         "id": candidate.id,
         "name": candidate.service_name,
@@ -147,6 +171,7 @@ def candidate_public(candidate: ScanCandidate) -> dict[str, Any]:
         "confidence": candidate.confidence,
         "evidenceCount": candidate.evidence_count,
         "evidenceDate": candidate.evidence_date or None,
+        "sourceAccounts": [str(email) for email in source_accounts if isinstance(email, str)],
         "needsReview": candidate.amount is None or not candidate.next_renewal or candidate.cycle in {"", "Unknown"},
         "manageUrl": _manage_url_for(candidate.service_name),
         "alreadyImported": candidate.imported,
@@ -190,10 +215,7 @@ def revoke_google_connection(connection: GoogleConnection | None) -> None:
         pass
 
 
-def credentials_for_user(db: Session, user: User) -> Credentials:
-    connection = db.scalar(select(GoogleConnection).where(GoogleConnection.user_id == user.id))
-    if connection is None:
-        raise HTTPException(status_code=409, detail="Gmail is not connected to this account.")
+def _credentials_for_mailbox(db: Session, connection: GoogleConnection | LinkedGmailAccount) -> Credentials:
     try:
         data = json.loads(decrypt_secret(connection.encrypted_credentials))
     except (ValueError, TypeError, json.JSONDecodeError) as exc:
@@ -201,24 +223,151 @@ def credentials_for_user(db: Session, user: User) -> Credentials:
     credentials = Credentials.from_authorized_user_info(data, scopes=SCOPES)
     if credentials.expired or not credentials.token:
         if not credentials.refresh_token:
-            raise HTTPException(status_code=401, detail="Gmail authorization expired. Please connect Gmail again.")
+            raise HTTPException(status_code=401, detail="Gmail authorization expired. Reconnect this Gmail account.")
         try:
             credentials.refresh(GoogleRequest())
             connection.encrypted_credentials = encrypt_secret(credentials.to_json())
             connection.updated_at = utcnow()
             db.commit()
-        except Exception as exc:  # Google can return several credential exceptions.
+        except Exception as exc:
             db.rollback()
-            raise HTTPException(status_code=401, detail="Could not refresh Gmail authorization. Please connect Gmail again.") from exc
+            raise HTTPException(status_code=401, detail="Could not refresh this Gmail authorization. Reconnect this Gmail account.") from exc
     return credentials
 
 
-def callback_deeplink(*, code: str | None = None, email: str | None = None, error: str | None = None) -> RedirectResponse:
+def credentials_for_all_mailboxes(
+    db: Session, user: User
+) -> tuple[list[tuple[str, Credentials]], list[dict[str, str]]]:
+    """Load each explicitly linked mailbox; one broken secondary inbox won't block others."""
+    rows: list[GoogleConnection | LinkedGmailAccount] = []
+    primary = db.scalar(select(GoogleConnection).where(GoogleConnection.user_id == user.id))
+    if primary is not None:
+        rows.append(primary)
+    linked = db.scalars(
+        select(LinkedGmailAccount)
+        .where(LinkedGmailAccount.user_id == user.id)
+        .order_by(LinkedGmailAccount.email.asc())
+    ).all()
+    known = {row.email.lower() for row in rows}
+    rows.extend(row for row in linked if row.email.lower() not in known)
+    if not rows:
+        raise HTTPException(status_code=409, detail="Connect at least one Gmail account before scanning.")
+
+    credentials_by_email: list[tuple[str, Credentials]] = []
+    errors: list[dict[str, str]] = []
+    for row in rows:
+        try:
+            credentials_by_email.append((row.email, _credentials_for_mailbox(db, row)))
+        except HTTPException as exc:
+            errors.append({"email": row.email, "message": str(exc.detail)})
+        except Exception:
+            errors.append({"email": row.email, "message": "Could not load this Gmail connection. Reconnect the account and retry."})
+    if not credentials_by_email:
+        raise HTTPException(status_code=401, detail="None of the connected Gmail accounts could be accessed. Reconnect at least one account and try again.")
+    return credentials_by_email, errors
+
+
+def gmail_scan_queries() -> list[str]:
+    """Use configured billing terms, known provider senders and a broad five-year query."""
+    configured = (settings.gmail_query or "").strip()
+    domains = sorted({domain for values in MERCHANT_SENDER_DOMAINS.values() for domain in values})
+    sender_query = "newer_than:5y {" + " ".join(f"from:{domain}" for domain in domains) + "}"
+    broad_query = (
+        'newer_than:5y {subject:receipt subject:invoice subject:renewal subject:renewed '
+        'subject:subscription subject:membership subject:purchase "auto-renew" '
+        '"recurring payment" "next payment" "your plan renews" "payment successful"}'
+    )
+    queries: list[str] = []
+    for query in (configured, sender_query, broad_query):
+        if query and query not in queries:
+            queries.append(query)
+    return queries
+
+
+def _scan_single_gmail_mailbox(credentials: Credentials, mailbox_email: str, limit: int) -> dict[str, Any]:
+    service = build("gmail", "v1", credentials=credentials, cache_discovery=False)
+    refs_by_id: dict[str, dict[str, str]] = {}
+    queries = gmail_scan_queries()
+    per_query_budget = min(100, max(1, (limit + len(queries) - 1) // len(queries) + 10))
+    for query in queries:
+        query_ids: dict[str, dict[str, str]] = {}
+        page_token = None
+        while len(query_ids) < per_query_budget:
+            page = service.users().messages().list(
+                userId="me", q=query,
+                maxResults=min(100, per_query_budget - len(query_ids)),
+                pageToken=page_token,
+            ).execute(num_retries=2)
+            for ref in page.get("messages") or []:
+                message_id = str(ref.get("id", ""))
+                if message_id:
+                    query_ids.setdefault(message_id, ref)
+            page_token = page.get("nextPageToken")
+            if not page_token or not page.get("messages"):
+                break
+        for message_id, ref in query_ids.items():
+            refs_by_id.setdefault(message_id, ref)
+    message_ids = list(refs_by_id)[:limit]
+
+    if message_ids:
+        with ThreadPoolExecutor(
+            max_workers=min(4, len(message_ids)),
+            initializer=_init_gmail_scan_worker,
+            initargs=(credentials,),
+        ) as executor:
+            metadata_messages = list(executor.map(_fetch_gmail_message_metadata_for_scan, message_ids))
+    else:
+        metadata_messages = []
+
+    relevant_ids: list[str] = []
+    metadata_by_id: dict[str, dict[str, str]] = {}
+    for message_id, message in zip(message_ids, metadata_messages):
+        if not message:
+            continue
+        payload = message.get("payload") or {}
+        headers = {str(item.get("name", "")).lower(): str(item.get("value", "")) for item in payload.get("headers") or []}
+        if should_fetch_full_message(headers.get("subject", ""), headers.get("from", "")):
+            relevant_ids.append(message_id)
+            metadata_by_id[message_id] = headers
+
+    if relevant_ids:
+        with ThreadPoolExecutor(
+            max_workers=min(4, len(relevant_ids)),
+            initializer=_init_gmail_scan_worker,
+            initargs=(credentials,),
+        ) as executor:
+            full_messages = list(executor.map(_fetch_gmail_message_for_scan, relevant_ids))
+    else:
+        full_messages = []
+
+    parsed: list[dict[str, Any]] = []
+    for message_id, message in zip(relevant_ids, full_messages):
+        if not message:
+            continue
+        payload = message.get("payload") or {}
+        headers = {str(item.get("name", "")).lower(): str(item.get("value", "")) for item in payload.get("headers") or []}
+        fallback = metadata_by_id.get(message_id, {})
+        candidate = parse_billing_message(
+            message_id=message_id,
+            subject=headers.get("subject", fallback.get("subject", "")),
+            sender=headers.get("from", fallback.get("from", "")),
+            date_header=headers.get("date", fallback.get("date", "")),
+            body=_body_from_gmail_payload(payload),
+        )
+        if candidate:
+            candidate["source_mailbox"] = mailbox_email
+            parsed.append(candidate)
+    return {"searched": len(message_ids), "full_fetched": len(relevant_ids), "parsed": parsed}
+
+
+def callback_deeplink(*, code: str | None = None, email: str | None = None, error: str | None = None, linked: bool = False) -> RedirectResponse:
     values = []
     if code:
         values.append("code=" + quote(code, safe=""))
     if email:
         values.append("email=" + quote(email, safe=""))
+    if linked:
+        values.append("linked=1")
     if error:
         values.append("error=" + quote(error[:180], safe=""))
     return RedirectResponse(settings.mobile_redirect_uri + ("?" + "&".join(values) if values else ""), status_code=302)
@@ -239,8 +388,7 @@ def health() -> dict[str, Any]:
     }
 
 
-@app.get("/api/auth/google/url")
-def google_authorization_url(redirect_target: str = Query("mobile", pattern="^mobile$"), db: Session = Depends(get_db)) -> dict[str, Any]:
+def _new_google_authorization(db: Session, *, redirect_target: str, link_user_id: int | None = None) -> dict[str, Any]:
     flow = google_flow(autogenerate_code_verifier=True)
     auth_url, state = flow.authorization_url(
         access_type="offline",
@@ -253,11 +401,23 @@ def google_authorization_url(redirect_target: str = Query("mobile", pattern="^mo
         state=state,
         redirect_target=redirect_target,
         code_verifier=flow.code_verifier,
+        link_user_id=link_user_id,
         created_at=now,
         expires_at=now + timedelta(minutes=10),
     ))
     db.commit()
     return {"authorization_url": auth_url, "redirect_target": redirect_target, "expires_in_seconds": 600}
+
+
+@app.get("/api/auth/google/url")
+def google_authorization_url(redirect_target: str = Query("mobile", pattern="^mobile$"), db: Session = Depends(get_db)) -> dict[str, Any]:
+    return _new_google_authorization(db, redirect_target=redirect_target)
+
+
+@app.get("/api/auth/google/link-url")
+def link_gmail_authorization_url(user: User = Depends(current_user), db: Session = Depends(get_db)) -> dict[str, Any]:
+    """Link a secondary Gmail account to the current SubSathi profile with separate consent."""
+    return _new_google_authorization(db, redirect_target="mobile", link_user_id=user.id)
 
 
 @app.get("/api/auth/google/callback", response_class=HTMLResponse)
@@ -273,6 +433,7 @@ def google_callback(code: str | None = None, state: str | None = None, error: st
             db.commit()
         return callback_deeplink(error="Authorization link expired. Please try again.")
     code_verifier = state_row.code_verifier
+    link_user_id = state_row.link_user_id
     db.delete(state_row)
     db.commit()
     if not code_verifier:
@@ -325,6 +486,42 @@ def google_callback(code: str | None = None, state: str | None = None, error: st
             return callback_deeplink(error="Google did not return a verified account email.")
         email = str(claims["email"]).lower().strip()
         google_sub = str(claims["sub"])
+        if link_user_id is not None:
+            # Attach this mailbox to the authenticated SubSathi profile that created
+            # the OAuth state; do not create a second SubSathi user or switch sessions.
+            link_user = db.get(User, link_user_id)
+            if link_user is None:
+                return callback_deeplink(error="The SubSathi account for this linking request no longer exists. Please sign in again.")
+            primary = db.scalar(select(GoogleConnection).where(GoogleConnection.user_id == link_user.id))
+            linked = db.scalar(select(LinkedGmailAccount).where(
+                LinkedGmailAccount.user_id == link_user.id,
+                LinkedGmailAccount.email == email,
+            ))
+            if primary and primary.email.lower() == email:
+                return callback_deeplink(email=email, linked=True)
+            if not google_credentials.refresh_token and linked:
+                previous = Credentials.from_authorized_user_info(
+                    json.loads(decrypt_secret(linked.encrypted_credentials)), scopes=SCOPES
+                )
+                google_credentials.refresh_token = previous.refresh_token
+            encrypted = encrypt_secret(google_credentials.to_json())
+            scope_text = " ".join(google_credentials.scopes or SCOPES)
+            if linked is None:
+                db.add(LinkedGmailAccount(
+                    user_id=link_user.id,
+                    email=email,
+                    google_sub=google_sub,
+                    encrypted_credentials=encrypted,
+                    granted_scopes=scope_text,
+                ))
+            else:
+                linked.google_sub = google_sub
+                linked.encrypted_credentials = encrypted
+                linked.granted_scopes = scope_text
+                linked.updated_at = utcnow()
+            db.commit()
+            return callback_deeplink(email=email, linked=True)
+
         user = db.scalar(select(User).where(User.google_sub == google_sub))
         if user is None:
             user = User(google_sub=google_sub, email=email, display_name=str(claims.get("name") or ""))
@@ -403,13 +600,27 @@ def exchange_oauth_code(payload: OAuthExchangeRequest, db: Session = Depends(get
 @app.get("/api/me")
 def me(user: User = Depends(current_user), db: Session = Depends(get_db)) -> dict[str, Any]:
     connection = db.scalar(select(GoogleConnection).where(GoogleConnection.user_id == user.id))
+    linked_accounts = db.scalars(
+        select(LinkedGmailAccount)
+        .where(LinkedGmailAccount.user_id == user.id)
+        .order_by(LinkedGmailAccount.email.asc())
+    ).all()
+    accounts: list[dict[str, Any]] = []
+    if connection is not None:
+        accounts.append({"email": connection.email, "primary": True, "connected_at": connection.connected_at.isoformat()})
+    accounts.extend({
+        "email": row.email,
+        "primary": False,
+        "connected_at": row.connected_at.isoformat(),
+    } for row in linked_accounts if not connection or row.email.lower() != connection.email.lower())
     return {
         "id": user.id,
         "email": user.email,
         "display_name": user.display_name,
-        "gmail_connected": connection is not None,
-        "gmail_email": connection.email if connection else None,
+        "gmail_connected": bool(accounts),
+        "gmail_email": connection.email if connection else (accounts[0]["email"] if accounts else None),
         "connected_at": connection.connected_at.isoformat() if connection else None,
+        "gmail_accounts": accounts,
     }
 
 
@@ -492,132 +703,99 @@ def _gmail_http_error_message(status_code: int, reason: str) -> str:
 
 
 @app.post("/api/gmail/scan")
-def scan_gmail(max_messages: int = Query(50, ge=1, le=100), user: User = Depends(current_user), db: Session = Depends(get_db)) -> dict[str, Any]:
+def scan_gmail(max_messages: int = Query(100, ge=1, le=200), user: User = Depends(current_user), db: Session = Depends(get_db)) -> dict[str, Any]:
     scan_started = perf_counter()
-    credentials = credentials_for_user(db, user)
-    try:
-        service = build("gmail", "v1", credentials=credentials, cache_discovery=False)
-        query = settings.gmail_query
-        refs: list[dict[str, str]] = []
-        page_token = None
-        limit = min(max_messages, settings.scan_max_messages)
-        while len(refs) < limit:
-            page = service.users().messages().list(
-                userId="me", q=query, maxResults=min(100, limit - len(refs)), pageToken=page_token,
-            ).execute(num_retries=2)
-            refs.extend(page.get("messages") or [])
-            page_token = page.get("nextPageToken")
-            if not page_token or not page.get("messages"):
-                break
+    mailboxes, account_errors = credentials_for_all_mailboxes(db, user)
+    limit = min(max_messages, settings.scan_max_messages)
+    parsed: list[dict[str, Any]] = []
+    scanned_messages = 0
+    full_fetched = 0
+    successful_accounts: list[str] = []
 
-        # First fetch only headers for search hits. Download full message bodies
-        # concurrently only for likely transaction emails or known provider senders.
-        message_ids = [str(ref.get("id", "")) for ref in refs if ref.get("id")]
-        if message_ids:
-            with ThreadPoolExecutor(
-                max_workers=min(4, len(message_ids)),
-                initializer=_init_gmail_scan_worker,
-                initargs=(credentials,),
-            ) as executor:
-                metadata_messages = list(executor.map(_fetch_gmail_message_metadata_for_scan, message_ids))
-        else:
-            metadata_messages = []
+    for mailbox_email, credentials in mailboxes:
+        try:
+            result = _scan_single_gmail_mailbox(credentials, mailbox_email, limit)
+            scanned_messages += int(result["searched"])
+            full_fetched += int(result["full_fetched"])
+            parsed.extend(result["parsed"])
+            successful_accounts.append(mailbox_email)
+        except HttpError as exc:
+            status_code, reason = _gmail_http_error_context(exc)
+            logging.getLogger("uvicorn.error").warning(
+                "Gmail mailbox scan failed status=%s reason=%s", status_code or "unknown", reason
+            )
+            account_errors.append({"email": mailbox_email, "message": _gmail_http_error_message(status_code, reason)})
+        except HTTPException as exc:
+            account_errors.append({"email": mailbox_email, "message": str(exc.detail)})
+        except Exception as exc:
+            logging.getLogger("uvicorn.error").error(
+                "Unexpected Gmail mailbox scan failure type=%s", type(exc).__name__
+            )
+            account_errors.append({
+                "email": mailbox_email,
+                "message": "This Gmail account could not be scanned due to a temporary server error.",
+            })
 
-        relevant_ids: list[str] = []
-        metadata_by_id: dict[str, dict[str, str]] = {}
-        for message_id, message in zip(message_ids, metadata_messages):
-            if not message:
-                continue
-            payload = message.get("payload") or {}
-            headers = {str(item.get("name", "")).lower(): str(item.get("value", "")) for item in payload.get("headers") or []}
-            subject = headers.get("subject", "")
-            sender = headers.get("from", "")
-            if should_fetch_full_message(subject, sender):
-                relevant_ids.append(message_id)
-                metadata_by_id[message_id] = headers
+    if not successful_accounts and account_errors:
+        raise HTTPException(status_code=502, detail="All connected Gmail accounts failed to scan. " + account_errors[0]["message"])
 
-        if relevant_ids:
-            with ThreadPoolExecutor(
-                max_workers=min(4, len(relevant_ids)),
-                initializer=_init_gmail_scan_worker,
-                initargs=(credentials,),
-            ) as executor:
-                full_messages = list(executor.map(_fetch_gmail_message_for_scan, relevant_ids))
-        else:
-            full_messages = []
+    grouped = group_billing_evidence(parsed)
+    duration_ms = round((perf_counter() - scan_started) * 1000)
+    logging.getLogger("uvicorn.error").info(
+        "Gmail scan complete: accounts=%s searched=%s full_fetched=%s matched=%s candidates=%s duration_ms=%s",
+        len(successful_accounts), scanned_messages, full_fetched, len(parsed), len(grouped), duration_ms, 4,
+    )
 
-        parsed: list[dict[str, Any]] = []
-        for message_id, message in zip(relevant_ids, full_messages):
-            if not message:
-                continue
-            payload = message.get("payload") or {}
-            headers = {str(item.get("name", "")).lower(): str(item.get("value", "")) for item in payload.get("headers") or []}
-            fallback_headers = metadata_by_id.get(message_id, {})
-            subject = headers.get("subject", fallback_headers.get("subject", ""))
-            sender = headers.get("from", fallback_headers.get("from", ""))
-            date_header = headers.get("date", fallback_headers.get("date", ""))
-            body = _body_from_gmail_payload(payload)
-            candidate = parse_billing_message(message_id=message_id, subject=subject, sender=sender, date_header=date_header, body=body)
-            if candidate:
-                parsed.append(candidate)
-        grouped = group_billing_evidence(parsed)
-        duration_ms = round((perf_counter() - scan_started) * 1000)
-        logging.getLogger("uvicorn.error").info(
-            "Gmail scan complete: searched=%s full_fetched=%s matched=%s candidates=%s duration_ms=%s workers=%s",
-            len(message_ids), len(relevant_ids), len(parsed), len(grouped), duration_ms, min(4, max(len(message_ids), len(relevant_ids))),
-        )
-        # Replace stale, not-yet-imported detections with the latest scan so old prices don't pile up.
-        db.query(ScanCandidate).filter(ScanCandidate.user_id == user.id, ScanCandidate.imported.is_(False)).delete(synchronize_session=False)
-        for candidate in grouped:
-            fingerprint = candidate["fingerprint"][:300]
-            existing = db.scalar(select(ScanCandidate).where(ScanCandidate.user_id == user.id, ScanCandidate.fingerprint == fingerprint))
-            if existing is None:
-                existing = ScanCandidate(user_id=user.id, fingerprint=fingerprint, service_name=candidate["service_name"], category=candidate["category"])
-                db.add(existing)
-            existing.service_name = candidate["service_name"]
-            existing.category = candidate["category"]
-            existing.amount = candidate.get("amount")
-            existing.cycle = candidate.get("cycle") or "Unknown"
-            existing.next_renewal = candidate.get("next_renewal") or ""
-            existing.confidence = int(candidate.get("confidence", 50))
-            existing.evidence_count = int(candidate.get("evidence_count", 1))
-            existing.evidence_date = str(candidate.get("evidence_date") or "")
-            existing.updated_at = utcnow()
-        db.commit()
-        # Return only suggestions that have not already been imported. Imported plans
-        # live in the user's local tracker; repeating them here clutters discovery and
-        # makes a noisy prior scan look like a fresh set of detections.
-        saved = db.scalars(
-            select(ScanCandidate)
-            .where(ScanCandidate.user_id == user.id, ScanCandidate.imported.is_(False))
-            .order_by(ScanCandidate.updated_at.desc())
-        ).all()
-        return {
-            "scanned_messages": len(message_ids),
-            "full_messages_fetched": len(relevant_ids),
-            "matched_receipts": len(parsed),
-            "candidate_count": len(grouped),
-            "scanned_at": now_utc().isoformat() + "Z",
-            "candidates": [candidate_public(item) for item in saved[:100]],
-            "notice": "Detection is evidence-based, not perfect. Review prices and dates before relying on them.",
-            "scan_limit": limit,
-            "scan_duration_ms": duration_ms,
-            "scan_workers": min(4, len(message_ids)),
-            "scan_note": "Recent billing/renewal messages are fetched with bounded concurrency and automatic retries; review all details before importing.",
-        }
-    except HTTPException:
-        raise
-    except HttpError as exc:
-        status_code, reason = _gmail_http_error_context(exc)
-        logging.getLogger("uvicorn.error").warning(
-            "Gmail API scan failed status=%s reason=%s", status_code or "unknown", reason
-        )
-        raise HTTPException(status_code=502, detail=_gmail_http_error_message(status_code, reason)) from exc
-    except Exception as exc:
-        logging.getLogger("uvicorn.error").error(
-            "Unexpected Gmail scan failure type=%s", type(exc).__name__
-        )
-        raise HTTPException(status_code=502, detail="Could not scan Gmail because of a temporary server error. Please retry; if it repeats, check server logs.") from exc
+    db.query(ScanCandidate).filter(
+        ScanCandidate.user_id == user.id,
+        ScanCandidate.imported.is_(False),
+    ).delete(synchronize_session=False)
+    for candidate in grouped:
+        fingerprint = candidate["fingerprint"][:300]
+        existing = db.scalar(select(ScanCandidate).where(
+            ScanCandidate.user_id == user.id,
+            ScanCandidate.fingerprint == fingerprint,
+        ))
+        if existing is None:
+            existing = ScanCandidate(
+                user_id=user.id,
+                fingerprint=fingerprint,
+                service_name=candidate["service_name"],
+                category=candidate["category"],
+            )
+            db.add(existing)
+        existing.service_name = candidate["service_name"]
+        existing.category = candidate["category"]
+        existing.amount = candidate.get("amount")
+        existing.cycle = candidate.get("cycle") or "Unknown"
+        existing.next_renewal = candidate.get("next_renewal") or ""
+        existing.confidence = int(candidate.get("confidence", 50))
+        existing.evidence_count = int(candidate.get("evidence_count", 1))
+        existing.evidence_date = str(candidate.get("evidence_date") or "")
+        existing.source_accounts = json.dumps(candidate.get("source_accounts") or [])
+        existing.updated_at = utcnow()
+    db.commit()
+
+    saved = db.scalars(
+        select(ScanCandidate)
+        .where(ScanCandidate.user_id == user.id, ScanCandidate.imported.is_(False))
+        .order_by(ScanCandidate.updated_at.desc())
+    ).all()
+    return {
+        "scanned_messages": scanned_messages,
+        "full_messages_fetched": full_fetched,
+        "matched_receipts": len(parsed),
+        "candidate_count": len(grouped),
+        "scanned_at": now_utc().isoformat() + "Z",
+        "candidates": [candidate_public(item) for item in saved[:100]],
+        "notice": "SubSathi combines billing evidence from all linked Gmail inboxes. Missing prices or renewal dates remain unverified; review results before importing.",
+        "scan_limit_per_account": limit,
+        "scan_duration_ms": duration_ms,
+        "scan_workers": 4,
+        "scanned_accounts": successful_accounts,
+        "account_errors": account_errors,
+        "scan_note": "Each linked inbox is searched with multiple billing/provider query strategies, then duplicate evidence is grouped for review.",
+    }
 
 
 @app.post("/api/gmail/import")
@@ -664,9 +842,40 @@ def import_candidates(payload: CandidateImportRequest, user: User = Depends(curr
             "notes": f"Detected from billing emails ({item.evidence_count} message(s)). Verify the renewal date if it wasn't found in the email.",
             "needsReview": not bool(item.next_renewal),
             "source": "gmail",
+            "sourceAccounts": json.loads(item.source_accounts or "[]"),
         })
     db.commit()
     return {"imported": result, "count": len(result), "notice": "Imported records are saved by the app on this device. Verify any fields marked for review."}
+
+
+@app.delete("/api/auth/gmail/accounts/{email}")
+def disconnect_gmail_account(email: str, user: User = Depends(current_user), db: Session = Depends(get_db)) -> dict[str, Any]:
+    normalized_email = email.strip().lower()
+    primary = db.scalar(select(GoogleConnection).where(
+        GoogleConnection.user_id == user.id,
+        GoogleConnection.email == normalized_email,
+    ))
+    linked = db.scalar(select(LinkedGmailAccount).where(
+        LinkedGmailAccount.user_id == user.id,
+        LinkedGmailAccount.email == normalized_email,
+    ))
+    if primary is None and linked is None:
+        raise HTTPException(status_code=404, detail="That Gmail account is not connected to this SubSathi account.")
+    if primary is not None:
+        revoke_google_connection(primary)
+        db.delete(primary)
+    if linked is not None:
+        revoke_google_connection(linked)
+        db.delete(linked)
+    db.query(ScanCandidate).filter(
+        ScanCandidate.user_id == user.id,
+        ScanCandidate.imported.is_(False),
+    ).delete(synchronize_session=False)
+    db.commit()
+    remaining_primary = db.scalar(select(GoogleConnection).where(GoogleConnection.user_id == user.id))
+    remaining_linked = db.scalars(select(LinkedGmailAccount).where(LinkedGmailAccount.user_id == user.id)).all()
+    remaining = ([remaining_primary.email] if remaining_primary else []) + [row.email for row in remaining_linked]
+    return {"status": "disconnected", "email": normalized_email, "remaining_accounts": remaining}
 
 
 @app.delete("/api/auth/gmail/connection")
@@ -675,15 +884,23 @@ def disconnect_gmail(user: User = Depends(current_user), db: Session = Depends(g
     if connection:
         revoke_google_connection(connection)
         db.delete(connection)
+    linked = db.scalars(select(LinkedGmailAccount).where(LinkedGmailAccount.user_id == user.id)).all()
+    for mailbox in linked:
+        revoke_google_connection(mailbox)
+        db.delete(mailbox)
     db.query(ScanCandidate).filter(ScanCandidate.user_id == user.id).delete(synchronize_session=False)
     db.commit()
-    return {"status": "disconnected", "message": "Stored Gmail credentials and cached scan candidates were deleted. Locally imported tracker entries were not touched."}
+    return {"status": "disconnected", "message": "All connected Gmail credentials and cached scan candidates were deleted. Locally imported tracker entries were not touched."}
 
 
 @app.delete("/api/me")
 def delete_account(user: User = Depends(current_user), db: Session = Depends(get_db)) -> dict[str, str]:
     connection = db.scalar(select(GoogleConnection).where(GoogleConnection.user_id == user.id))
     revoke_google_connection(connection)
+    linked = db.scalars(select(LinkedGmailAccount).where(LinkedGmailAccount.user_id == user.id)).all()
+    for mailbox in linked:
+        revoke_google_connection(mailbox)
+        db.delete(mailbox)
     db.query(ScanCandidate).filter(ScanCandidate.user_id == user.id).delete(synchronize_session=False)
     db.query(OAuthLoginTicket).filter(OAuthLoginTicket.user_id == user.id).delete(synchronize_session=False)
     if connection is not None:

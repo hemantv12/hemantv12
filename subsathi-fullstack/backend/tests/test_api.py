@@ -138,3 +138,19 @@ def test_gmail_import_request_rejects_invalid_reviewed_cycle():
             candidate_ids=[11],
             overrides=[{"candidate_id": 11, "cycle": "Every 2 weeks"}],
         )
+
+
+
+def test_link_gmail_endpoint_requires_an_existing_subsathi_session():
+    response = client.get("/api/auth/google/link-url")
+    assert response.status_code == 401
+
+
+def test_gmail_scan_queries_include_known_sender_and_longer_history():
+    from app.main import gmail_scan_queries
+
+    queries = gmail_scan_queries()
+    assert len(queries) >= 2
+    assert any("newer_than:5y" in query for query in queries)
+    assert any("from:netflix.com" in query for query in queries)
+    assert any("from:swiggy.com" in query for query in queries)
