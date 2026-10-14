@@ -1195,19 +1195,26 @@ function AppContent() {
     try {
       const useAi = (aiOverride ?? aiAssistedScan) && aiExtractionConfigured === true;
       const scanQuery = '?max_messages=1500' + (mode === 'full' ? '&force_full_scan=true' : '') + (useAi ? '&ai_assisted=true' : '');
-      const response = await fetch(API_BASE_URL + '/api/gmail/scan' + scanQuery, {
+      const response = await fetchWithNetworkRetry(API_BASE_URL + '/api/gmail/scan' + scanQuery, {
         method: 'POST',
         headers: { Authorization: `Bearer ${session}`, 'Content-Type': 'application/json' },
-      });
+      }, 2, 45000);
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        if (response.status === 401 || response.status === 409) {
+        if (response.status === 401) {
           await SecureStore.deleteItemAsync(SESSION_KEY);
           setApiSession(null);
           setGmailEmail(null);
+          setGmailNeedsRepair(true);
+        } else if (response.status === 409) {
+          // Keep the current phone session and local tracker; this status is also used
+          // for Gmail re-consent, and should never force a destructive disconnect flow.
+          setGmailNeedsRepair(true);
         }
+        if ([502, 503, 504].includes(response.status)) setApiReachable(false);
         throw new Error(payload.detail || 'Gmail scan failed. Please retry.');
       }
+      setApiReachable(true);
       const mapped: GmailCandidate[] = (payload.candidates || []).map((item: any) => {
         const category = CATEGORIES.some((entry) => entry.name === item.category) ? item.category as Category : 'Other';
         const cycle = CYCLES.includes(item.cycle as Cycle) ? item.cycle as Cycle : 'Unknown';
@@ -1298,7 +1305,16 @@ function AppContent() {
         aiWarning: String(payload.ai_warning || ''),
       });
     } catch (error) {
-      setScanError(error instanceof Error ? error.message : 'Could not scan Gmail. Please retry.');
+      const message = error instanceof Error ? error.message : 'Could not scan Gmail. Please retry.';
+      if (isNetworkConnectivityError(error)) {
+        setApiReachable(false);
+        setScanError(`SubSathi couldn't resolve or reach its server after retrying. Your tracker entries on this phone are safe. Check your connection and tap Retry server connection; no new scan result was confirmed.`);
+      } else {
+        if (/permission|refresh token|gmail authorization|reconnect this gmail|re-authori[sz]/i.test(message)) {
+          setGmailNeedsRepair(true);
+        }
+        setScanError(message);
+      }
     } finally {
       scanInFlightRef.current = false;
       setScanLoading(false);
