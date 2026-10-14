@@ -1964,17 +1964,13 @@ function AppContent() {
                     value={aiAssistedScan}
                     disabled={aiExtractionConfigured !== true || scanLoading}
                     onValueChange={(value) => {
-                      const db = dbRef.current;
-                      const savePreference = db
-                        ? Promise.all([
-                            db.runAsync("INSERT INTO app_settings (key, value) VALUES ('aiAssistedScan', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", value ? 'true' : 'false'),
-                            db.runAsync("INSERT INTO app_settings (key, value) VALUES ('aiConsentResolved', 'true') ON CONFLICT(key) DO UPDATE SET value = excluded.value"),
-                          ])
-                        : Promise.resolve();
-                      void savePreference.then(() => {
+                      void withLocalDatabase(async (db) => {
+                        await db.runAsync("INSERT INTO app_settings (key, value) VALUES ('aiAssistedScan', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", value ? 'true' : 'false');
+                        await db.runAsync("INSERT INTO app_settings (key, value) VALUES ('aiConsentResolved', 'true') ON CONFLICT(key) DO UPDATE SET value = excluded.value");
+                      }).then(() => {
                         setAiAssistedScan(value);
                         if (value && apiSession && gmailEmail && !scanLoading) void scanGmail(undefined, 'full', true);
-                      }).catch(() => Alert.alert('Could not save AI preference', 'Please retry. SubSathi has not changed the AI setting.'));
+                      }).catch(() => Alert.alert('Could not save AI preference', 'SubSathi has not changed the AI setting. Restart the app and retry.'));
                     }}
                     trackColor={{ false: '#CBD5D4', true: '#A7E4CD' }}
                     thumbColor={aiAssistedScan ? C.green : '#F6F7F7'}
