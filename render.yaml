@@ -33,7 +33,7 @@ services:
       - key: SESSION_DAYS
         value: "14"
       - key: SCAN_MAX_MESSAGES
-        value: "200"
+        value: "500"
       - key: TOKEN_ENCRYPTION_KEY
         sync: false
       - key: JWT_SECRET
