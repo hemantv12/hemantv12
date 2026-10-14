@@ -7,7 +7,7 @@ import logging
 import os
 from concurrent.futures import ThreadPoolExecutor
 from threading import local
-from time import perf_counter
+from time import perf_counter, sleep
 from datetime import datetime, timedelta, timezone
 from typing import Any
 from urllib.parse import quote
@@ -479,7 +479,7 @@ def _scan_single_gmail_mailbox(
         # selected-message limit remains explicit and is surfaced to the mobile client.
         per_query_budget = min(500, max(250, limit))
         if queries:
-            with ThreadPoolExecutor(max_workers=min(4, len(queries))) as executor:
+            with ThreadPoolExecutor(max_workers=min(2, len(queries))) as executor:
                 query_results = list(executor.map(
                     lambda query: _list_gmail_refs_for_query(credentials, query, per_query_budget),
                     queries,
@@ -968,58 +968,99 @@ def _fetch_gmail_message_for_scan(message_id: str) -> dict[str, Any] | None:
             return None
         raise
 
+GMAIL_SCAN_BATCH_SIZE = 15
+GMAIL_SCAN_BATCH_PAUSE_SECONDS = 0.30
+GMAIL_RATE_LIMIT_RETRIES = 4
+
+
+def _is_gmail_rate_limit_error(exc: Exception) -> bool:
+    if not isinstance(exc, HttpError):
+        return False
+    status_code, reason = _gmail_http_error_context(exc)
+    normalized = reason.lower()
+    return status_code == 429 or normalized in {
+        "ratelimitexceeded",
+        "userratelimitexceeded",
+        "rate_limit_exceeded",
+        "user_rate_limit_exceeded",
+        "resourceexhausted",
+    }
+
+
 def _batch_fetch_gmail_messages_for_scan(
     credentials: Credentials,
     message_ids: list[str],
     *,
     message_format: str,
 ) -> list[dict[str, Any] | None]:
-    """Fetch Gmail messages in API batches to reduce latency on first-time scans.
+    """Read mail in small, paced batches and retry only rate-limited messages.
 
-    Gmail permits up to 100 requests per batch, but batches of 50 reduce rate-limit
-    risk. Message bodies are requested only in the second pass for relevant headers.
+    Google counts each subrequest in a batch against Gmail quota. Large batches made
+    first scans trigger 403 rateLimitExceeded. Batches of 15 plus a short pause reduce
+    bursts; an isolated quota error retries only the affected message IDs with backoff.
     """
     if not message_ids:
         return []
     service = build("gmail", "v1", credentials=credentials, cache_discovery=False)
     responses: dict[str, dict[str, Any] | None] = {}
-    errors: dict[str, Exception] = {}
 
-    def callback(request_id: str, response: Any, exception: Exception | None) -> None:
-        # A single vanished message is harmless. Any other request failure must be
-        # surfaced; silently mapping 403/401 body-fetch failures to None made the app
-        # report "0 subscriptions found" when Gmail had actually denied body access.
-        key = str(request_id)
-        if exception is not None:
-            errors[key] = exception
-            responses[key] = None
-        else:
-            responses[key] = response if isinstance(response, dict) else None
+    for offset in range(0, len(message_ids), GMAIL_SCAN_BATCH_SIZE):
+        pending_ids = message_ids[offset : offset + GMAIL_SCAN_BATCH_SIZE]
+        retries = 0
+        while pending_ids:
+            batch_responses: dict[str, dict[str, Any] | None] = {}
+            batch_errors: dict[str, Exception] = {}
 
-    for offset in range(0, len(message_ids), 50):
-        batch = service.new_batch_http_request(callback=callback)
-        for message_id in message_ids[offset : offset + 50]:
-            request_options: dict[str, Any] = {
-                "userId": "me",
-                "id": message_id,
-                "format": message_format,
-            }
-            if message_format == "metadata":
-                request_options["metadataHeaders"] = ["From", "Subject", "Date"]
-            batch.add(
-                service.users().messages().get(**request_options),
-                request_id=message_id,
-            )
-        batch.execute()
-        for message_id in message_ids[offset : offset + 50]:
-            exception = errors.get(message_id)
-            if exception is None:
-                continue
-            if isinstance(exception, HttpError):
-                status_code = int(getattr(getattr(exception, "resp", None), "status", 0) or 0)
-                if status_code == 404:
+            def callback(request_id: str, response: Any, exception: Exception | None) -> None:
+                key = str(request_id)
+                if exception is not None:
+                    batch_errors[key] = exception
+                    batch_responses[key] = None
+                else:
+                    batch_responses[key] = response if isinstance(response, dict) else None
+
+            batch = service.new_batch_http_request(callback=callback)
+            for message_id in pending_ids:
+                request_options: dict[str, Any] = {
+                    "userId": "me",
+                    "id": message_id,
+                    "format": message_format,
+                }
+                if message_format == "metadata":
+                    request_options["metadataHeaders"] = ["From", "Subject", "Date"]
+                batch.add(
+                    service.users().messages().get(**request_options),
+                    request_id=message_id,
+                )
+            batch.execute()
+
+            retry_ids: list[str] = []
+            for message_id in pending_ids:
+                exception = batch_errors.get(message_id)
+                if exception is None:
+                    responses[message_id] = batch_responses.get(message_id)
                     continue
-            raise exception
+                if isinstance(exception, HttpError):
+                    status_code = int(getattr(getattr(exception, "resp", None), "status", 0) or 0)
+                    if status_code == 404:
+                        # A message deleted between search and read is harmless.
+                        responses[message_id] = None
+                        continue
+                if _is_gmail_rate_limit_error(exception) and retries < GMAIL_RATE_LIMIT_RETRIES:
+                    retry_ids.append(message_id)
+                    continue
+                raise exception
+
+            if not retry_ids:
+                break
+            sleep(min(0.75 * (2 ** retries), 6.0))
+            retries += 1
+            pending_ids = retry_ids
+
+        # Limit quota bursts across successive batches. A short delay is preferable
+        # to causing the whole 1,500-email scan to fail and making the user retry.
+        sleep(GMAIL_SCAN_BATCH_PAUSE_SECONDS)
+
     return [responses.get(message_id) for message_id in message_ids]
 
 
@@ -1160,6 +1201,7 @@ def scan_gmail(
 
     if not successful_accounts and account_errors:
         first_message = str(account_errors[0].get("message") or "")
+        error_messages = " ".join(str(item.get("message") or "") for item in account_errors).lower()
         needs_reauthorization = any(
             any(token in str(item.get("message") or "").lower() for token in (
                 "refresh token", "refresh this gmail authorization", "google denied gmail", "g mail read access", "reconnect this gmail",
@@ -1170,6 +1212,11 @@ def scan_gmail(
             raise HTTPException(
                 status_code=409,
                 detail="Google needs renewed permission for this Gmail inbox. Tap Repair Gmail connection below; there is no need to disconnect SubSathi or delete your tracker. " + first_message,
+            )
+        if any(token in error_messages for token in ("rate-limiting", "rateLimitExceeded".lower(), "userRateLimitExceeded".lower(), "user rate limit", "quota")):
+            raise HTTPException(
+                status_code=429,
+                detail="Google is temporarily rate-limiting Gmail reads. SubSathi has already used smaller batches and automatic backoff. Your tracker is unchanged; wait about one minute before retrying the scan.",
             )
         raise HTTPException(status_code=502, detail="All connected Gmail accounts failed to scan. " + first_message)
 
