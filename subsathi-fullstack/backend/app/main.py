@@ -971,7 +971,7 @@ def _fetch_gmail_message_for_scan(message_id: str) -> dict[str, Any] | None:
         raise
 
 GMAIL_SCAN_BATCH_SIZE = 15
-GMAIL_SCAN_BATCH_PAUSE_SECONDS = 0.30
+GMAIL_SCAN_BATCH_PAUSE_SECONDS = 0.40
 GMAIL_RATE_LIMIT_RETRIES = 4
 
 
@@ -1046,7 +1046,17 @@ def _batch_fetch_gmail_messages_for_scan(
                     service.users().messages().get(**request_options),
                     request_id=message_id,
                 )
-            batch.execute()
+            try:
+                batch.execute()
+            except HttpError as exc:
+                # A project/user throttle can reject the entire HTTP batch before
+                # individual callbacks run. Replay only this read-only batch after
+                # backoff, never the entire scan HTTP request.
+                if _is_gmail_rate_limit_error(exc) and retries < GMAIL_RATE_LIMIT_RETRIES:
+                    sleep(min(0.75 * (2 ** retries), 6.0))
+                    retries += 1
+                    continue
+                raise
 
             retry_ids: list[str] = []
             for message_id in pending_ids:
