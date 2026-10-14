@@ -358,3 +358,15 @@ def test_interleave_query_results_preserves_coverage_and_deduplicates():
         5,
     )
     assert ids == ["a", "b", "x", "c", "y"]
+
+def test_cycle_parser_handles_common_day_interval_wording():
+    assert parse_cycle("Your plan renews every 7 days") == "Weekly"
+    assert parse_cycle("Billed every 30 days") == "Monthly"
+    assert parse_cycle("Your plan renews every 90 days") == "Quarterly"
+    assert parse_cycle("Billed every 365 days") == "Yearly"
+
+
+def test_date_parser_handles_due_wording_without_guessing():
+    assert parse_date("Your next payment is due November 12, 2026") == "2026-11-12"
+    assert parse_date("Next payment due on 2026-11-14") == "2026-11-14"
+    assert parse_date("Your next payment is due soon") is None
