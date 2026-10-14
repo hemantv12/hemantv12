@@ -1,6 +1,6 @@
 # SubSathi Android frontend
 
-Current build: **0.5.4 (versionCode 10)** — internal installable test APK, not a Play Store-signed release. The app includes Android/iOS safe-area handling and a consent-aware AdMob banner slot. The checked-in AdMob App ID is Google’s official test App ID; the default banner unit is a test ad and does not earn money.
+Current build: **0.5.5 (versionCode 11)** — internal installable test APK, not a Play Store-signed release. The app includes Android/iOS safe-area handling and a consent-aware AdMob banner slot. The checked-in AdMob App ID is Google’s official test App ID; the default banner unit is a test ad and does not earn money.
 
 React Native + Expo Android application for subscription tracking, renewal reminders, spending insights and optional Gmail-driven discovery.
 
@@ -14,7 +14,9 @@ React Native + Expo Android application for subscription tracking, renewal remin
 - Link multiple Gmail accounts using separate Google consent and combine detections in one review list.
 - Export the local subscription list as a CSV file through the Android share sheet.
 - Missing renewal dates remain optional; they are never guessed or required for import.
-- Known services open a management page; unknown services offer a search fallback for their official page.
+- Scans search billing query groups and linked inboxes in parallel and deduplicate by service plus billing source.
+- Imported subscriptions preserve the billing source (service website, Google Play, Apple App Store, PayPal or mandate) and open the matching official management page when available.
+- The subscription list offers a separate Cancel renewal action that opens the official provider page for the final confirmation; it does not silently change the subscription.
 - Export the local subscription list as a CSV file through the Android share sheet.
 - Unknown renewal dates remain blank for both Gmail imports and manual entries; reminders are scheduled only for entries with a valid date.
 - Missing price or billing-cycle metadata cannot be silently imported as verified; missing renewal dates are left empty for review.

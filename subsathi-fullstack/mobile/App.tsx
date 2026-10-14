@@ -721,7 +721,8 @@ function AppContent() {
 
   const openManage = async (item: Subscription, intent: 'manage' | 'cancel' = 'manage') => {
     const source = normalizeBillingSource(item.billingSource);
-    const directUrl = item.manageUrl.trim() || knownManagementUrl(item.name, source);
+    const sourceUrl = BILLING_SOURCE_MANAGEMENT_URLS[source];
+    const directUrl = sourceUrl !== undefined ? sourceUrl : (item.manageUrl.trim() || knownManagementUrl(item.name, source));
     if (source === 'upi_autopay' || source === 'bank_mandate') {
       const isUpi = source === 'upi_autopay';
       Alert.alert(
@@ -1241,7 +1242,7 @@ function AppContent() {
         {(['All', ...CATEGORIES.map((category) => category.name)] as ('All' | Category)[]).map((name) => <Pressable key={name} onPress={() => setFilter(name)} style={[styles.filterChip, filter === name && styles.filterChipActive]}><Text style={[styles.filterText, filter === name && styles.filterTextActive]}>{name}</Text></Pressable>)}
       </ScrollView>
       {filtered.length ? <View style={styles.listCard}>{filtered.map((item, index) => <View key={item.id}>{renderSubscriptionCard(item)}<View style={styles.cardActionsRow}><Pressable onPress={() => openEdit(item)}><Text style={styles.cardAction}>Edit details</Text></Pressable><Text style={styles.actionDot}>·</Text><Pressable onPress={() => { void openManage(item, 'cancel'); }}><Text style={[styles.cardAction, { color: C.red }]}>Cancel renewal</Text></Pressable><Text style={styles.actionDot}>·</Text><Pressable onPress={() => deleteSubscription(item)}><Text style={[styles.cardAction, { color: C.muted }]}>Remove tracker</Text></Pressable></View>{index < filtered.length - 1 ? <View style={styles.listDivider} /> : null}</View>)}</View> : <View style={styles.emptyCard}><View style={styles.emptyIcon}><Text style={{ fontSize: 26 }}>🔎</Text></View><Text style={styles.emptyTitle}>{subscriptions.length ? 'No matches found' : 'Your list starts here'}</Text><Text style={styles.emptyBody}>{subscriptions.length ? 'Try another search or category.' : 'Add recurring plans like OTT, software, storage, gym, broadband and memberships.'}</Text>{!subscriptions.length ? <PrimaryButton title="Add subscription" onPress={openNew} /> : <GhostButton title="Clear filters" onPress={() => { setSearch(''); setFilter('All'); }} />}</View>}
-      <View style={styles.noteBanner}><Text style={styles.noteBannerIcon}>ⓘ</Text><Text style={styles.noteBannerText}>Removing a plan here only removes it from your tracker. It does not cancel the provider's subscription.</Text></View>
+      <View style={styles.noteBanner}><Text style={styles.noteBannerIcon}>ⓘ</Text><Text style={styles.noteBannerText}>Manage / renew opens the official billing page. Cancel renewal takes you to the service or payment platform to confirm cancellation; removing a tracker entry never cancels a real subscription.</Text></View>
     </ScrollView>
   );
 

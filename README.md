@@ -13,7 +13,7 @@ SubSathi helps people organise recurring subscriptions, review renewal dates, an
 
 The web app supports local subscription tracking, renewal views, receipt-file import, CSV export, JSON backup/restore, and PWA installation. Its subscription list is stored in the current browser; it is not yet synced to a signed-in web account.
 
-The Android app includes multiple linked Gmail inboxes with separate consent, broader receipt scanning, candidate review/import, CSV export and official-page management fallbacks. Durable PostgreSQL and real-account acceptance testing remain required before a public production launch.
+The Android app includes multiple linked Gmail inboxes with separate consent, parallel billing-email scanning, candidate review/import, CSV export and billing-source-aware management/cancellation routes. Durable PostgreSQL and real-account acceptance testing remain required before a public production launch.
 
 ## Repository layout
 
