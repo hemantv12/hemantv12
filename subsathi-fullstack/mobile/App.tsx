@@ -304,7 +304,7 @@ function buildAssistantReply(question: string, items: Subscription[], language: 
       ? 'Pehle ek ya do subscriptions add karo. Phir main monthly kharcha, next renewals aur possible savings tumhare actual tracker se bata sakta hoon.'
       : 'Add a subscription or two first. Then I can explain your monthly spend, upcoming renewals and possible savings using your tracker.';
   }
-  if (!pricedItems.length && /(year|annual|annually|yearly|saal|salana|save|saving|reduce|lower|cut|cheap|unused|bacha|bachat|kam karo|kam kar|sasta|waste|spend|expense|monthly|month|kharch|cost|budget|kitna|how much|total)/.test(q)) {
+  if (!pricedItems.length && /(year|annual|annually|yearly|saal|salana|save|saving|reduce|lower|cut|cheap|unused|bacha|bachat|kam karo|kam kar|sasta|waste|spend|expense|monthly|month|kharch|cost|budget|kitna|how much|total|category|stream|music|software|storage|entertainment|where|kahan|highest)/.test(q)) {
     return hindi
       ? `Abhi kisi plan ka price aur billing cycle dono confirm nahi hain, isliye spend calculate nahi kar sakta. ${unconfirmedCount} tracked plan(s) hain; email ya provider se details milne par total update hoga.`
       : `I cannot calculate recurring spend yet because no tracked plan has both a confirmed price and billing cycle. ${unconfirmedCount} plan(s) are tracked; totals will update as details are confirmed.`;
@@ -1075,17 +1075,24 @@ function AppContent() {
           const remoteDate = typeof remote.nextRenewal === 'string' ? remote.nextRenewal : '';
           const nextRenewal = remoteDate && (!match.nextRenewal || remoteDate > match.nextRenewal)
             ? remoteDate : match.nextRenewal;
+          const remoteAmount = typeof remote.amount === 'number' && Number.isFinite(remote.amount) && remote.amount > 0
+            ? remote.amount : null;
+          const amount = match.amount == null && remoteAmount !== null ? remoteAmount : match.amount;
+          const remoteCycle = CYCLES.includes(remote.cycle as Cycle) ? remote.cycle as Cycle : 'Unknown';
+          const cycle = match.cycle === 'Unknown' && remoteCycle !== 'Unknown' ? remoteCycle : match.cycle;
           const remoteUrl = typeof remote.manageUrl === 'string' ? remote.manageUrl : '';
           const manageUrl = !match.manageUrl && remoteUrl.startsWith('https://') && !/\\s/.test(remoteUrl)
             ? remoteUrl : match.manageUrl;
           const remoteCategory = CATEGORIES.some((entry) => entry.name === remote.category && entry.name !== 'Other')
             ? remote.category as Category : 'Other';
           const category = match.category === 'Other' && remoteCategory !== 'Other' ? remoteCategory : match.category;
-          if (nextRenewal !== match.nextRenewal || manageUrl !== match.manageUrl || category !== match.category) {
+          if (amount !== match.amount || cycle !== match.cycle || nextRenewal !== match.nextRenewal || manageUrl !== match.manageUrl || category !== match.category) {
             await localDb.runAsync(
-              'UPDATE subscriptions SET nextRenewal = ?, manageUrl = ?, category = ? WHERE id = ?',
-              nextRenewal, manageUrl, category, match.id,
+              'UPDATE subscriptions SET amount = ?, cycle = ?, nextRenewal = ?, manageUrl = ?, category = ? WHERE id = ?',
+              amount, cycle, nextRenewal, manageUrl, category, match.id,
             );
+            match.amount = amount;
+            match.cycle = cycle;
             match.nextRenewal = nextRenewal;
             match.manageUrl = manageUrl;
             match.category = category;
@@ -1417,7 +1424,7 @@ function AppContent() {
 
   const renderAI = () => {
     const mostExpensive = [...subscriptions].filter(hasKnownPrice).sort((a, b) => monthlyEquivalent(b) - monthlyEquivalent(a))[0];
-    const nextTracked = [...subscriptions].filter((item) => daysUntil(item.nextRenewal) >= -7)
+    const nextTracked = [...subscriptions].filter((item) => Boolean(item.nextRenewal) && daysUntil(item.nextRenewal) >= -7)
       .sort((a, b) => daysUntil(a.nextRenewal) - daysUntil(b.nextRenewal))[0];
     const duplicateNameCount = new Set(subscriptions.filter((item, index, all) =>
       all.findIndex((other) => other.name.trim().toLowerCase() === item.name.trim().toLowerCase()) !== index
@@ -1439,6 +1446,7 @@ function AppContent() {
             </View>
             <Pill tone={voiceListening ? 'orange' : 'green'}>{voiceListening ? 'Listening' : 'Ready'}</Pill>
           </View>
+          {subscriptions.some((item) => !hasKnownPrice(item)) ? <Text style={[styles.aiHeroSub, { marginTop: 8 }]}>{subscriptions.filter((item) => !hasKnownPrice(item)).length} plan(s) with unconfirmed price/cycle are excluded from spend totals.</Text> : null}
           <View style={styles.aiHeroStatsRow}>
             <View style={styles.aiHeroStat}><Text style={styles.aiHeroStatLabel}>Monthly equivalent</Text><Text style={styles.aiHeroStatValue}>{money(activeMonthly)}</Text></View>
             <View style={styles.aiHeroStat}><Text style={styles.aiHeroStatLabel}>Tracked plans</Text><Text style={styles.aiHeroStatValue}>{subscriptions.length}</Text></View>
@@ -1457,7 +1465,7 @@ function AppContent() {
             <>
               <View style={styles.aiHighlightRow}>
                 <View style={styles.aiHighlightIcon}><Feather name="trending-up" size={20} color={C.greenDark} /></View>
-                <View style={styles.aiHighlightCopy}><Text style={styles.aiHighlightTitle}>Highest monthly-equivalent cost</Text><Text style={styles.aiHighlightBody}>{mostExpensive?.name}: {money(mostExpensive ? monthlyEquivalent(mostExpensive) : 0)} per month equivalent. Review whether the plan still fits your needs.</Text></View>
+                <View style={styles.aiHighlightCopy}><Text style={styles.aiHighlightTitle}>Highest monthly-equivalent cost</Text><Text style={styles.aiHighlightBody}>{mostExpensive ? `${mostExpensive.name}: ${money(monthlyEquivalent(mostExpensive))} per month equivalent. Review whether the plan still fits your needs.` : 'No confirmed price and billing cycle yet. Review a detected plan to add details when you have them.'}</Text></View>
               </View>
               <View style={styles.innerDivider} />
               <View style={styles.aiHighlightRow}>
