@@ -820,14 +820,63 @@ function AppContent() {
       const profile = await profileResponse.json().catch(() => ({}));
       if (!profileResponse.ok || !profile.gmail_connected) throw new Error(profile.detail || 'Gmail connection could not be verified by the SubSathi server.');
       await SecureStore.setItemAsync(SESSION_KEY, token);
-      setApiSession(token);
       const connectedAccounts = profileGmailAccounts(profile);
       setGmailAccounts(connectedAccounts);
       setGmailEmail(profile.gmail_email || connectedAccounts[0]?.email || profile.email || callback.searchParams.get('email'));
       setScanCandidates([]);
       setSelectedCandidateIds([]);
       setCandidateEdits({});
-      Alert.alert('Gmail connected', `Automatic subscription discovery is starting for ${profile.gmail_email || profile.email || 'your Google account'}. Review detections in Email scan before importing any plans.`);
+
+      const activateConnectedSession = async (enableAI?: boolean) => {
+        try {
+          if (enableAI !== undefined) {
+            const localDb = dbRef.current;
+            if (localDb) {
+              await localDb.runAsync(
+                "INSERT INTO app_settings (key, value) VALUES ('aiAssistedScan', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                enableAI ? 'true' : 'false',
+              );
+              await localDb.runAsync(
+                "INSERT INTO app_settings (key, value) VALUES ('aiConsentResolved', 'true') ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+              );
+            }
+            setAiAssistedScan(enableAI);
+          }
+          setApiSession(token);
+          if (enableAI === true) {
+            Alert.alert('AI-enhanced scan enabled', 'SubSathi will analyse up to 75 incomplete billing-email excerpts per inbox using OpenAI, in addition to its local checks. You can turn this off any time in Email scan settings.');
+          } else if (enableAI === false) {
+            Alert.alert('Gmail connected', 'Automatic subscription discovery is starting using local detection. You can enable AI-assisted extraction later in Email scan settings.');
+          } else {
+            Alert.alert('Gmail connected', `Automatic subscription discovery is starting for ${profile.gmail_email || profile.email || 'your Google account'}. Review detections in Email scan before importing any plans.`);
+          }
+        } catch {
+          // Never enable external AI processing if the user's preference could not be saved.
+          setAiAssistedScan(false);
+          setApiSession(token);
+          Alert.alert('Gmail connected', 'Standard subscription detection is starting. The AI preference could not be saved, so no email excerpts will be sent to an AI service.');
+        }
+      };
+
+      const localDb = dbRef.current;
+      const savedConsent = localDb
+        ? await localDb.getFirstAsync<{ value: string }>("SELECT value FROM app_settings WHERE key = 'aiConsentResolved'")
+        : null;
+      const savedAiPreference = localDb
+        ? await localDb.getFirstAsync<{ value: string }>("SELECT value FROM app_settings WHERE key = 'aiAssistedScan'")
+        : null;
+      if (healthPayload.ai_extraction_configured === true && !savedConsent && !savedAiPreference) {
+        Alert.alert(
+          'Improve subscription detection with AI?',
+          'With your permission, SubSathi sends short excerpts from likely billing emails to OpenAI so it can identify missing service names, prices, billing cycles and explicitly stated renewal dates. SubSathi does not store full email bodies. AI will never invent a price or date, and you can keep standard local detection instead.',
+          [
+            { text: 'Keep AI off', style: 'cancel', onPress: () => { void activateConnectedSession(false); } },
+            { text: 'Enable AI scan', onPress: () => { void activateConnectedSession(true); } },
+          ],
+        );
+        return;
+      }
+      await activateConnectedSession();
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Could not connect Gmail. Check your internet connection and API settings.';
       const oauthSetupIsMissing = message.includes('does not have Google OAuth credentials configured');
@@ -1507,7 +1556,7 @@ function AppContent() {
                   <View style={{ flex: 1 }}>
                     <Text style={styles.fieldLabel}>OPTIONAL AI-ASSISTED EXTRACTION</Text>
                     <Text style={styles.fieldHint}>{aiExtractionConfigured === true
-                      ? 'When enabled, future syncs use AI on up to 25 incomplete or uncertain billing-email excerpts per inbox (max 3,500 body characters each). On first enable, SubSathi runs a full rescan. Only excerpt text is sent to OpenAI; fully detected emails are not sent, and AI never invents prices or dates. This preference is saved on this phone.'
+                      ? 'When enabled, AI reviews up to 75 incomplete or uncertain billing-email excerpts per inbox (3,500 body characters each), in parallel batches of 25. Enabling it runs a full rescan. Only these excerpts are sent to OpenAI; complete local matches are not sent. AI never invents prices or dates, and this preference is saved on this phone.'
                       : aiExtractionConfigured === false
                         ? 'AI extraction is not configured on the server yet. Standard email detection remains available; the app will not send email text to an AI service.'
                         : 'Checking whether optional AI extraction is configured on the server…'}</Text>
@@ -1518,7 +1567,10 @@ function AppContent() {
                     onValueChange={(value) => {
                       const db = dbRef.current;
                       const savePreference = db
-                        ? db.runAsync("INSERT INTO app_settings (key, value) VALUES ('aiAssistedScan', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", value ? 'true' : 'false')
+                        ? Promise.all([
+                            db.runAsync("INSERT INTO app_settings (key, value) VALUES ('aiAssistedScan', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", value ? 'true' : 'false'),
+                            db.runAsync("INSERT INTO app_settings (key, value) VALUES ('aiConsentResolved', 'true') ON CONFLICT(key) DO UPDATE SET value = excluded.value"),
+                          ])
                         : Promise.resolve();
                       void savePreference.then(() => {
                         setAiAssistedScan(value);
