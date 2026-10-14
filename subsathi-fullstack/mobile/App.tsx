@@ -100,6 +100,47 @@ const API_BASE_URL = (process.env.EXPO_PUBLIC_API_BASE_URL || 'https://subsathi-
 const SESSION_KEY = 'subsathi_api_session_v1';
 const GOOGLE_AUTH_RETURN_URL = 'subsathi://auth';
 
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+async function fetchWithNetworkRetry(
+  url: string,
+  init: RequestInit = {},
+  attempts = 3,
+  timeoutMs = 15000,
+): Promise<Response> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetch(url, { ...init, signal: controller.signal });
+      if ([502, 503, 504].includes(response.status) && attempt + 1 < attempts) {
+        await sleep(600 * (attempt + 1));
+        continue;
+      }
+      return response;
+    } catch (error) {
+      lastError = error;
+      if (attempt + 1 >= attempts) throw error;
+      await sleep(700 * (attempt + 1));
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error('Network request failed. Please retry.');
+}
+
+function isRecoverableSQLiteHandleError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error ?? '');
+  return /NativeDatabase\.prepareAsync|NativeDatabase\.(?:runAsync|getFirstAsync|getAllAsync)|NullPointerException|database.*closed|native database.*null/i.test(message);
+}
+
+function isNetworkConnectivityError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error ?? '');
+  return /network request failed|fetch failed|unknownhostexception|unable to resolve host|network error|aborted|timeout/i.test(message);
+}
+
+
 
 const C = {
   ink: '#102A35',
@@ -490,6 +531,8 @@ function AppContent() {
   const isTestAds = !adUnitFromEnv;
   const adsInitializedRef = useRef(false);
   const dbRef = useRef<SQLite.SQLiteDatabase | null>(null);
+  const dbRecoveryRef = useRef<Promise<SQLite.SQLiteDatabase> | null>(null);
+  const dbOperationQueueRef = useRef<Promise<void>>(Promise.resolve());
   const [ready, setReady] = useState(false);
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [tab, setTab] = useState<Tab>('Home');
@@ -531,6 +574,9 @@ function AppContent() {
   const [apiReachable, setApiReachable] = useState<boolean | null>(null);
   const [googleOAuthConfigured, setGoogleOAuthConfigured] = useState<boolean | null>(null);
   const [aiExtractionConfigured, setAiExtractionConfigured] = useState<boolean | null>(null);
+  const [durableDatabaseConfigured, setDurableDatabaseConfigured] = useState<boolean | null>(null);
+  const [serverScanLimit, setServerScanLimit] = useState<number | null>(null);
+  const [gmailNeedsRepair, setGmailNeedsRepair] = useState(false);
   const [aiAssistedScan, setAiAssistedScan] = useState(false);
   const [aiPreferenceLoaded, setAiPreferenceLoaded] = useState(false);
   const autoScanSessionRef = useRef<string | null>(null);
@@ -545,6 +591,87 @@ function AppContent() {
   const [assistantMessages, setAssistantMessages] = useState<AssistantMessage[]>([
     { id: 'welcome', role: 'assistant', text: 'Namaste! Main SmartSathi hoon. Main tumhare saved plans se monthly kharcha, upcoming renewals aur possible savings samjha sakta hoon. Type karo ya mic dabao.' },
   ]);
+
+  const ensureLocalDatabase = useCallback(async (forceReopen = false): Promise<SQLite.SQLiteDatabase> => {
+    if (dbRecoveryRef.current) return dbRecoveryRef.current;
+    const opening = (async () => {
+      let database = dbRef.current;
+      if (database && !forceReopen) {
+        try {
+          await database.getFirstAsync<{ ok: number }>('SELECT 1 AS ok');
+          return database;
+        } catch (error) {
+          console.warn('Local SQLite handle needs recovery', error);
+          forceReopen = true;
+        }
+      }
+      dbRef.current = null;
+      if (database) {
+        try { await database.closeAsync(); } catch { /* A native stale handle may already be closed. */ }
+      }
+      database = await initializeDatabase();
+      dbRef.current = database;
+      await database.getFirstAsync<{ ok: number }>('SELECT 1 AS ok');
+      return database;
+    })();
+    dbRecoveryRef.current = opening;
+    try {
+      return await opening;
+    } finally {
+      if (dbRecoveryRef.current === opening) dbRecoveryRef.current = null;
+    }
+  }, []);
+
+  const withLocalDatabase = useCallback(async <T,>(
+    operation: (database: SQLite.SQLiteDatabase) => Promise<T>,
+  ): Promise<T> => {
+    const previous = dbOperationQueueRef.current;
+    let release!: () => void;
+    dbOperationQueueRef.current = new Promise<void>((resolve) => { release = resolve; });
+    await previous.catch(() => undefined);
+    try {
+      let database: SQLite.SQLiteDatabase;
+      try {
+        database = await ensureLocalDatabase();
+      } catch (error) {
+        if (!isRecoverableSQLiteHandleError(error)) throw error;
+        console.warn('Recovering SQLite initialization after native database failure');
+        await sleep(250);
+        database = await ensureLocalDatabase(true);
+      }
+      try {
+        return await operation(database);
+      } catch (error) {
+        if (!isRecoverableSQLiteHandleError(error)) throw error;
+        console.warn('Recovering native SQLite handle and retrying one database operation');
+        const recovered = await ensureLocalDatabase(true);
+        return await operation(recovered);
+      }
+    } finally {
+      release();
+    }
+  }, [ensureLocalDatabase]);
+
+  const refreshApiHealth = useCallback(async (): Promise<boolean> => {
+    try {
+      const response = await fetchWithNetworkRetry(`${API_BASE_URL}/health`, {}, 3, 12000);
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error('SubSathi API health check failed.');
+      setApiReachable(true);
+      setGoogleOAuthConfigured(payload.google_oauth_configured === true);
+      setAiExtractionConfigured(payload.ai_extraction_configured === true);
+      setDurableDatabaseConfigured(payload.durable_database_configured === true);
+      setServerScanLimit(Number(payload.scan_max_messages_per_inbox || 500));
+      return true;
+    } catch {
+      setApiReachable(false);
+      setGoogleOAuthConfigured(null);
+      setAiExtractionConfigured(null);
+      setDurableDatabaseConfigured(null);
+      setServerScanLimit(null);
+      return false;
+    }
+  }, []);
 
   useSpeechRecognitionEvent('start', () => { setVoiceListening(true); setVoiceError(''); });
   useSpeechRecognitionEvent('end', () => setVoiceListening(false));
@@ -565,24 +692,14 @@ function AppContent() {
 
   useEffect(() => {
     let active = true;
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 18000);
-    fetch(`${API_BASE_URL}/health`, { signal: controller.signal })
-      .then(async (response) => {
-        const payload = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error('SubSathi API health check failed.');
-        if (active) {
-          setApiReachable(true);
-          setGoogleOAuthConfigured(payload.google_oauth_configured === true);
-          setAiExtractionConfigured(payload.ai_extraction_configured === true);
-        }
-      })
-      .catch(() => {
-        if (active) { setApiReachable(false); setGoogleOAuthConfigured(null); setAiExtractionConfigured(null); }
-      })
-      .finally(() => clearTimeout(timeout));
-    return () => { active = false; clearTimeout(timeout); controller.abort(); };
-  }, []);
+    void refreshApiHealth().then(() => {
+      // A single temporary mobile-DNS failure should not permanently mark the API offline.
+      // refreshApiHealth itself makes three bounded attempts before reporting failure.
+    }).finally(() => {
+      if (!active) return;
+    });
+    return () => { active = false; };
+  }, [refreshApiHealth]);
 
   useEffect(() => {
     screenProgress.setValue(0);
@@ -595,31 +712,30 @@ function AppContent() {
   }, [tab, screenProgress]);
 
   const loadSubscriptions = useCallback(async () => {
-    const db = dbRef.current;
-    if (!db) return;
-    const rows = await db.getAllAsync<Subscription>('SELECT * FROM subscriptions ORDER BY nextRenewal ASC, name COLLATE NOCASE ASC');
+    const rows = await withLocalDatabase((db) =>
+      db.getAllAsync<Subscription>('SELECT * FROM subscriptions ORDER BY nextRenewal ASC, name COLLATE NOCASE ASC'),
+    );
     setSubscriptions(rows);
-  }, []);
+  }, [withLocalDatabase]);
 
   useEffect(() => {
     let mounted = true;
     (async () => {
       try {
-        const db = await initializeDatabase();
-        if (!mounted) { await db.closeAsync(); return; }
-        dbRef.current = db;
-        const rows = await db.getAllAsync<Subscription>('SELECT * FROM subscriptions ORDER BY nextRenewal ASC, name COLLATE NOCASE ASC');
-        const preference = await db.getFirstAsync<{ value: string }>("SELECT value FROM app_settings WHERE key = 'notificationsEnabled'");
-        const aiPreference = await db.getFirstAsync<{ value: string }>("SELECT value FROM app_settings WHERE key = 'aiAssistedScan'");
+        const initial = await withLocalDatabase(async (db) => ({
+          rows: await db.getAllAsync<Subscription>('SELECT * FROM subscriptions ORDER BY nextRenewal ASC, name COLLATE NOCASE ASC'),
+          preference: await db.getFirstAsync<{ value: string }>("SELECT value FROM app_settings WHERE key = 'notificationsEnabled'"),
+          aiPreference: await db.getFirstAsync<{ value: string }>("SELECT value FROM app_settings WHERE key = 'aiAssistedScan'"),
+        }));
         if (mounted) {
-          setSubscriptions(rows);
-          if (preference) setNotificationsEnabled(preference.value === 'true');
-          if (aiPreference) setAiAssistedScan(aiPreference.value === 'true');
+          setSubscriptions(initial.rows);
+          if (initial.preference) setNotificationsEnabled(initial.preference.value === 'true');
+          if (initial.aiPreference) setAiAssistedScan(initial.aiPreference.value === 'true');
           setAiPreferenceLoaded(true);
         }
       } catch (error) {
-        Alert.alert('Could not open local database', 'Please restart the app. Your subscriptions have not been uploaded anywhere.');
-        console.warn(error);
+        Alert.alert('Local tracker needs repair', 'SubSathi could not open its on-device database. Your saved subscription file was not deliberately deleted. Restart the app and try again; if this persists, contact support before reinstalling.');
+        console.warn('Local database initialization failed', error);
       } finally {
         if (mounted) {
           setReady(true);
@@ -628,7 +744,7 @@ function AppContent() {
       }
     })();
     return () => { mounted = false; };
-  }, []);
+  }, [withLocalDatabase]);
 
   useEffect(() => {
     let mounted = true;
@@ -636,7 +752,7 @@ function AppContent() {
       try {
         const token = await SecureStore.getItemAsync(SESSION_KEY);
         if (!token || !mounted) return;
-        const response = await fetch(`${API_BASE_URL}/api/me`, { headers: { Authorization: `Bearer ${token}` } });
+        const response = await fetchWithNetworkRetry(`${API_BASE_URL}/api/me`, { headers: { Authorization: `Bearer ${token}` } }, 2, 12000);
         if (!response.ok) {
           await SecureStore.deleteItemAsync(SESSION_KEY);
           return;
@@ -792,20 +908,20 @@ function AppContent() {
   const openEdit = (item: Subscription) => { setEditing(item); setEditorOpen(true); };
 
   const saveSubscription = async (input: SubscriptionInput) => {
-    const db = dbRef.current;
-    if (!db) throw new Error('Database is not ready.');
-    if (editing) {
-      await db.runAsync(
-        'UPDATE subscriptions SET name = ?, category = ?, amount = ?, cycle = ?, nextRenewal = ?, manageUrl = ?, billingSource = ?, notes = ?, reminderEnabled = ? WHERE id = ?',
-        input.name, input.category, input.amount, input.cycle, input.nextRenewal, input.manageUrl, input.billingSource, input.notes, input.reminderEnabled, editing.id,
-      );
-    } else {
-      await db.runAsync(
-        'INSERT INTO subscriptions (name, category, amount, cycle, nextRenewal, manageUrl, billingSource, notes, reminderEnabled, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        input.name, input.category, input.amount, input.cycle, input.nextRenewal, input.manageUrl, input.billingSource, input.notes, input.reminderEnabled, new Date().toISOString(),
-      );
-    }
-    const rows = await db.getAllAsync<Subscription>('SELECT * FROM subscriptions ORDER BY nextRenewal ASC, name COLLATE NOCASE ASC');
+    const rows = await withLocalDatabase(async (db) => {
+      if (editing) {
+        await db.runAsync(
+          'UPDATE subscriptions SET name = ?, category = ?, amount = ?, cycle = ?, nextRenewal = ?, manageUrl = ?, billingSource = ?, notes = ?, reminderEnabled = ? WHERE id = ?',
+          input.name, input.category, input.amount, input.cycle, input.nextRenewal, input.manageUrl, input.billingSource, input.notes, input.reminderEnabled, editing.id,
+        );
+      } else {
+        await db.runAsync(
+          'INSERT INTO subscriptions (name, category, amount, cycle, nextRenewal, manageUrl, billingSource, notes, reminderEnabled, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          input.name, input.category, input.amount, input.cycle, input.nextRenewal, input.manageUrl, input.billingSource, input.notes, input.reminderEnabled, new Date().toISOString(),
+        );
+      }
+      return db.getAllAsync<Subscription>('SELECT * FROM subscriptions ORDER BY nextRenewal ASC, name COLLATE NOCASE ASC');
+    });
     setSubscriptions(rows);
     await rescheduleRenewalReminders(rows, notificationsEnabled);
     setEditorOpen(false);
@@ -816,13 +932,18 @@ function AppContent() {
     Alert.alert('Delete subscription?', `Remove ${item.name} from SubSathi? This only deletes the tracker entry; it does not cancel your actual subscription.`, [
       { text: 'Keep it', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: async () => {
-        const db = dbRef.current;
-        if (!db) return;
-        await db.runAsync('DELETE FROM subscriptions WHERE id = ?', item.id);
-        const rows = await db.getAllAsync<Subscription>('SELECT * FROM subscriptions ORDER BY nextRenewal ASC, name COLLATE NOCASE ASC');
-        setSubscriptions(rows);
-        await rescheduleRenewalReminders(rows, notificationsEnabled);
-        if (editing?.id === item.id) { setEditing(null); setEditorOpen(false); }
+        try {
+          const rows = await withLocalDatabase(async (db) => {
+            await db.runAsync('DELETE FROM subscriptions WHERE id = ?', item.id);
+            return db.getAllAsync<Subscription>('SELECT * FROM subscriptions ORDER BY nextRenewal ASC, name COLLATE NOCASE ASC');
+          });
+          setSubscriptions(rows);
+          await rescheduleRenewalReminders(rows, notificationsEnabled);
+          if (editing?.id === item.id) { setEditing(null); setEditorOpen(false); }
+        } catch (error) {
+          console.warn('Could not delete local tracker entry', error);
+          Alert.alert('Could not delete entry', 'Your existing tracker entries have not been deliberately removed. Retry after restarting SubSathi.');
+        }
       } },
     ]);
   };
@@ -882,16 +1003,18 @@ function AppContent() {
     setScanError('');
     setScanLoading(true);
     try {
-      const healthResponse = await fetch(`${API_BASE_URL}/health`);
+      const healthResponse = await fetchWithNetworkRetry(`${API_BASE_URL}/health`, {}, 3, 12000);
       const healthPayload = await healthResponse.json().catch(() => ({}));
       if (!healthResponse.ok) throw new Error('The SubSathi server is not healthy right now. Please retry in a moment.');
       setApiReachable(true);
       setGoogleOAuthConfigured(healthPayload.google_oauth_configured === true);
       setAiExtractionConfigured(healthPayload.ai_extraction_configured === true);
+      setDurableDatabaseConfigured(healthPayload.durable_database_configured === true);
+      setServerScanLimit(Number(healthPayload.scan_max_messages_per_inbox || 500));
       if (healthPayload.google_oauth_configured !== true) {
         throw new Error('Gmail connection is blocked by server setup, not by your phone. The hosted API does not have Google OAuth credentials configured. In Google Cloud, enable Gmail API and create a Web OAuth client. In Render, add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET, then set GOOGLE_REDIRECT_URI to https://subsathi-api.onrender.com/api/auth/google/callback. Add your Google account as an OAuth test user while the consent screen is in testing, deploy the changes, and try again. Never put the client secret inside the APK or send it in chat.');
       }
-      const startResponse = await fetch(`${API_BASE_URL}/api/auth/google/url?redirect_target=mobile`);
+      const startResponse = await fetchWithNetworkRetry(`${API_BASE_URL}/api/auth/google/url?redirect_target=mobile`, {}, 2, 12000);
       const startPayload = await startResponse.json().catch(() => ({}));
       if (!startResponse.ok || !startPayload.authorization_url) {
         throw new Error(startPayload.detail || 'The SubSathi API could not start Google authorization. Check the server URL and OAuth configuration.');
@@ -910,13 +1033,14 @@ function AppContent() {
       const exchangePayload = await exchangeResponse.json().catch(() => ({}));
       if (!exchangeResponse.ok || !exchangePayload.session) throw new Error(exchangePayload.detail || 'Could not exchange the one-time sign-in code. Please retry.');
       const token = String(exchangePayload.session);
-      const profileResponse = await fetch(`${API_BASE_URL}/api/me`, { headers: { Authorization: `Bearer ${token}` } });
+      const profileResponse = await fetchWithNetworkRetry(`${API_BASE_URL}/api/me`, { headers: { Authorization: `Bearer ${token}` } }, 2, 12000);
       const profile = await profileResponse.json().catch(() => ({}));
       if (!profileResponse.ok || !profile.gmail_connected) throw new Error(profile.detail || 'Gmail connection could not be verified by the SubSathi server.');
       await SecureStore.setItemAsync(SESSION_KEY, token);
       const connectedAccounts = profileGmailAccounts(profile);
       setGmailAccounts(connectedAccounts);
       setGmailEmail(profile.gmail_email || connectedAccounts[0]?.email || profile.email || callback.searchParams.get('email'));
+      setGmailNeedsRepair(false);
       setScanCandidates([]);
       setSelectedCandidateIds([]);
       setCandidateEdits({});
@@ -924,8 +1048,7 @@ function AppContent() {
       const activateConnectedSession = async (enableAI?: boolean) => {
         try {
           if (enableAI !== undefined) {
-            const localDb = dbRef.current;
-            if (localDb) {
+            await withLocalDatabase(async (localDb) => {
               await localDb.runAsync(
                 "INSERT INTO app_settings (key, value) VALUES ('aiAssistedScan', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
                 enableAI ? 'true' : 'false',
@@ -933,7 +1056,7 @@ function AppContent() {
               await localDb.runAsync(
                 "INSERT INTO app_settings (key, value) VALUES ('aiConsentResolved', 'true') ON CONFLICT(key) DO UPDATE SET value = excluded.value",
               );
-            }
+            });
             setAiAssistedScan(enableAI);
           }
           setApiSession(token);
@@ -952,13 +1075,10 @@ function AppContent() {
         }
       };
 
-      const localDb = dbRef.current;
-      const savedConsent = localDb
-        ? await localDb.getFirstAsync<{ value: string }>("SELECT value FROM app_settings WHERE key = 'aiConsentResolved'")
-        : null;
-      const savedAiPreference = localDb
-        ? await localDb.getFirstAsync<{ value: string }>("SELECT value FROM app_settings WHERE key = 'aiAssistedScan'")
-        : null;
+      const { savedConsent, savedAiPreference } = await withLocalDatabase(async (localDb) => ({
+        savedConsent: await localDb.getFirstAsync<{ value: string }>("SELECT value FROM app_settings WHERE key = 'aiConsentResolved'"),
+        savedAiPreference: await localDb.getFirstAsync<{ value: string }>("SELECT value FROM app_settings WHERE key = 'aiAssistedScan'"),
+      }));
       if (healthPayload.ai_extraction_configured === true && !savedConsent && !savedAiPreference) {
         Alert.alert(
           'Improve subscription detection with AI?',
@@ -979,9 +1099,10 @@ function AppContent() {
         setGoogleOAuthConfigured(false);
         setScanError('');
       } else {
-        const friendlyMessage = message.includes('Network request failed') || message.includes('Aborted')
-          ? `Could not reach the SubSathi server at ${API_BASE_URL}. The free server may be waking up; check your connection and retry.`
+        const friendlyMessage = isNetworkConnectivityError(error)
+          ? `SubSathi couldn't reach ${API_BASE_URL} after retrying. This is a network/DNS connection failure, not a Gmail detection failure. Your on-device tracker entries are safe; tap Retry server connection when ready.`
           : message;
+        if (isNetworkConnectivityError(error)) setApiReachable(false);
         setScanError(friendlyMessage);
       }
     } finally {
@@ -990,9 +1111,9 @@ function AppContent() {
   };
 
   const refreshGmailProfile = async (session: string) => {
-    const response = await fetch(API_BASE_URL + '/api/me', {
+    const response = await fetchWithNetworkRetry(API_BASE_URL + '/api/me', {
       headers: { Authorization: 'Bearer ' + session },
-    });
+    }, 2, 12000);
     const profile = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(profile.detail || 'Could not refresh connected Gmail accounts.');
     const accounts = profileGmailAccounts(profile);
@@ -1002,16 +1123,41 @@ function AppContent() {
   };
 
   const connectAdditionalGmail = async () => {
-    if (!apiSession) {
-      Alert.alert('Connect SubSathi first', 'Connect your first Gmail account before linking another inbox.');
+    let activeSession = apiSession;
+    if (!activeSession) {
+      try { activeSession = await SecureStore.getItemAsync(SESSION_KEY); } catch { activeSession = null; }
+    }
+    if (!activeSession) {
+      setGmailNeedsRepair(Boolean(gmailEmail));
+      Alert.alert(
+        gmailEmail ? 'Repair the primary Gmail connection' : 'Connect SubSathi first',
+        gmailEmail
+          ? 'This screen still remembers your Gmail address, but the saved SubSathi session is missing. Tap Repair Gmail connection to restore the primary account, then link another inbox.'
+          : 'Connect your first Gmail account before linking another inbox.',
+      );
       return;
     }
     setScanError('');
     setScanLoading(true);
     try {
-      const startResponse = await fetch(API_BASE_URL + '/api/auth/google/link-url', {
-        headers: { Authorization: 'Bearer ' + apiSession },
-      });
+      const profileResponse = await fetchWithNetworkRetry(API_BASE_URL + '/api/me', {
+        headers: { Authorization: 'Bearer ' + activeSession },
+      }, 2, 12000);
+      const profile = await profileResponse.json().catch(() => ({}));
+      if (!profileResponse.ok || !profile.gmail_connected) {
+        await SecureStore.deleteItemAsync(SESSION_KEY);
+        setApiSession(null);
+        setGmailEmail(null);
+        setGmailAccounts([]);
+        setGmailNeedsRepair(true);
+        throw new Error('Your saved SubSathi session is no longer valid. Tap Repair Gmail connection to reconnect the primary inbox; local tracker entries remain on this phone.');
+      }
+      setApiSession(activeSession);
+      setGmailAccounts(profileGmailAccounts(profile));
+      setGmailEmail(profile.gmail_email || profile.email || gmailEmail);
+      const startResponse = await fetchWithNetworkRetry(API_BASE_URL + '/api/auth/google/link-url', {
+        headers: { Authorization: 'Bearer ' + activeSession },
+      }, 2, 12000);
       const startPayload = await startResponse.json().catch(() => ({}));
       if (!startResponse.ok || !startPayload.authorization_url) {
         throw new Error(startPayload.detail || 'Could not start Google consent for the additional inbox.');
@@ -1028,7 +1174,7 @@ function AppContent() {
         throw new Error('Google did not confirm that the extra Gmail account was linked. Please retry.');
       }
       const email = callback.searchParams.get('email') || 'the new inbox';
-      await refreshGmailProfile(apiSession);
+      await refreshGmailProfile(activeSession);
       setScanCandidates([]);
       setSelectedCandidateIds([]);
       setCandidateEdits({});
@@ -1078,19 +1224,26 @@ function AppContent() {
     try {
       const useAi = (aiOverride ?? aiAssistedScan) && aiExtractionConfigured === true;
       const scanQuery = '?max_messages=1500' + (mode === 'full' ? '&force_full_scan=true' : '') + (useAi ? '&ai_assisted=true' : '');
-      const response = await fetch(API_BASE_URL + '/api/gmail/scan' + scanQuery, {
+      const response = await fetchWithNetworkRetry(API_BASE_URL + '/api/gmail/scan' + scanQuery, {
         method: 'POST',
         headers: { Authorization: `Bearer ${session}`, 'Content-Type': 'application/json' },
-      });
+      }, 2, 45000);
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        if (response.status === 401 || response.status === 409) {
+        if (response.status === 401) {
           await SecureStore.deleteItemAsync(SESSION_KEY);
           setApiSession(null);
           setGmailEmail(null);
+          setGmailNeedsRepair(true);
+        } else if (response.status === 409) {
+          // Keep the current phone session and local tracker; this status is also used
+          // for Gmail re-consent, and should never force a destructive disconnect flow.
+          setGmailNeedsRepair(true);
         }
+        if ([502, 503, 504].includes(response.status)) setApiReachable(false);
         throw new Error(payload.detail || 'Gmail scan failed. Please retry.');
       }
+      setApiReachable(true);
       const mapped: GmailCandidate[] = (payload.candidates || []).map((item: any) => {
         const category = CATEGORIES.some((entry) => entry.name === item.category) ? item.category as Category : 'Other';
         const cycle = CYCLES.includes(item.cycle as Cycle) ? item.cycle as Cycle : 'Unknown';
@@ -1113,10 +1266,11 @@ function AppContent() {
       // AI/full scans can discover a renewal date or official management page after
       // a plan was imported. Refresh only safe, missing/stale fields in the local
       // tracker; never replace a user-entered price or billing cycle silently.
-      const localDb = dbRef.current;
-      if (localDb && Array.isArray(payload.enriched_imported)) {
-        const localRows = await localDb.getAllAsync<Subscription>('SELECT * FROM subscriptions');
-        let localEnriched = false;
+      if (Array.isArray(payload.enriched_imported)) {
+        const localRows = await withLocalDatabase((db) => db.getAllAsync<Subscription>('SELECT * FROM subscriptions'));
+        const updates: {
+          id: number; amount: number | null; cycle: Cycle | 'Unknown'; nextRenewal: string; manageUrl: string; category: Category;
+        }[] = [];
         for (const remote of payload.enriched_imported) {
           const match = localRows.find((row) => localKey(row.name, row.billingSource) === localKey(String(remote.name || ''), remote.billingSource));
           if (!match) continue;
@@ -1135,19 +1289,25 @@ function AppContent() {
             ? remote.category as Category : 'Other';
           const category = match.category === 'Other' && remoteCategory !== 'Other' ? remoteCategory : match.category;
           if (amount !== match.amount || cycle !== match.cycle || nextRenewal !== match.nextRenewal || manageUrl !== match.manageUrl || category !== match.category) {
-            await localDb.runAsync(
-              'UPDATE subscriptions SET amount = ?, cycle = ?, nextRenewal = ?, manageUrl = ?, category = ? WHERE id = ?',
-              amount, cycle, nextRenewal, manageUrl, category, match.id,
-            );
+            updates.push({ id: match.id, amount, cycle, nextRenewal, manageUrl, category });
             match.amount = amount;
             match.cycle = cycle;
             match.nextRenewal = nextRenewal;
             match.manageUrl = manageUrl;
             match.category = category;
-            localEnriched = true;
           }
         }
-        if (localEnriched) await loadSubscriptions();
+        if (updates.length) {
+          await withLocalDatabase(async (db) => {
+            for (const update of updates) {
+              await db.runAsync(
+                'UPDATE subscriptions SET amount = ?, cycle = ?, nextRenewal = ?, manageUrl = ?, category = ? WHERE id = ?',
+                update.amount, update.cycle, update.nextRenewal, update.manageUrl, update.category, update.id,
+              );
+            }
+          });
+          await loadSubscriptions();
+        }
       }
 
       const locallyTrackedNames = new Set(subscriptions.map((item) => localKey(item.name, item.billingSource)));
@@ -1163,6 +1323,10 @@ function AppContent() {
       }])));
       setSelectedCandidateIds(adjusted.filter((item) => !item.alreadyImported).map((item) => item.id));
       setExpandedCandidateIds([]);
+      const accountErrors: { email: string; message: string }[] = Array.isArray(payload.account_errors)
+        ? payload.account_errors.map((item: any) => ({ email: String(item.email || ''), message: String(item.message || 'This inbox could not be scanned.') }))
+        : [];
+      setGmailNeedsRepair(accountErrors.some((item) => /permission|refresh token|reconnect this gmail|authorization expired/i.test(item.message)));
       setScanSummary({
         scannedMessages: Number(payload.scanned_messages || 0),
         fullMessagesFetched: Number(payload.full_messages_fetched || 0),
@@ -1174,14 +1338,23 @@ function AppContent() {
         candidateCount: Number(payload.candidate_count ?? adjusted.length),
         durationMs: Number(payload.scan_duration_ms || 0),
         accountsScanned: Array.isArray(payload.scanned_accounts) ? payload.scanned_accounts.map((email: unknown) => String(email)) : [],
-        accountErrors: Array.isArray(payload.account_errors) ? payload.account_errors.map((item: any) => ({ email: String(item.email || ''), message: String(item.message || 'This inbox could not be scanned.') })) : [],
+        accountErrors,
         mode: payload.scan_mode === 'full' ? 'full' : 'incremental',
         aiAssisted: Boolean(payload.ai_assisted_scan),
         aiAnalyzedMessages: Number(payload.ai_analyzed_messages || 0),
         aiWarning: String(payload.ai_warning || ''),
       });
     } catch (error) {
-      setScanError(error instanceof Error ? error.message : 'Could not scan Gmail. Please retry.');
+      const message = error instanceof Error ? error.message : 'Could not scan Gmail. Please retry.';
+      if (isNetworkConnectivityError(error)) {
+        setApiReachable(false);
+        setScanError(`SubSathi couldn't resolve or reach its server after retrying. Your tracker entries on this phone are safe. Check your connection and tap Retry server connection; no new scan result was confirmed.`);
+      } else {
+        if (/permission|refresh token|gmail authorization|reconnect this gmail|re-authori[sz]/i.test(message)) {
+          setGmailNeedsRepair(true);
+        }
+        setScanError(message);
+      }
     } finally {
       scanInFlightRef.current = false;
       setScanLoading(false);
@@ -1204,6 +1377,7 @@ function AppContent() {
     if (!apiSession || !selectedCandidateIds.length) return;
     setScanError('');
     setScanLoading(true);
+    let localSavedCount = 0;
     try {
       const selectedCandidates = selectedCandidateIds
         .map((id) => scanCandidates.find((candidate) => candidate.id === id))
@@ -1212,7 +1386,15 @@ function AppContent() {
         setSelectedCandidateIds([]);
         return;
       }
+
       const overrides: { candidate_id: number; amount?: number | null; cycle?: Cycle | 'Unknown'; next_renewal?: string }[] = [];
+      const reviewed: {
+        candidate: GmailCandidate;
+        amount: number | null;
+        cycle: Cycle | 'Unknown';
+        nextRenewal: string;
+      }[] = [];
+
       for (const candidate of selectedCandidates) {
         const draft = candidateEdits[candidate.id] || {
           amountText: candidate.amount === null ? '' : String(candidate.amount),
@@ -1236,42 +1418,93 @@ function AppContent() {
         const editedRenewal = draft.renewalText.trim();
         if (editedRenewal !== (candidate.nextRenewal || '')) override.next_renewal = editedRenewal;
         if (Object.keys(override).length > 1) overrides.push(override);
+        reviewed.push({
+          candidate,
+          amount: hasPriceText ? parsedAmount : null,
+          cycle: draft.cycle,
+          nextRenewal: editedRenewal,
+        });
       }
-      const response = await fetch(`${API_BASE_URL}/api/gmail/import`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${apiSession}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ candidate_ids: selectedCandidates.map((candidate) => candidate.id), overrides }),
+
+      // Save the user's reviewed entries on-device FIRST. The phone's tracker must
+      // never depend on a later Gmail API response; otherwise a remote import can
+      // succeed while SQLite fails and the item disappears from the import queue.
+      localSavedCount = await withLocalDatabase(async (db) => {
+        const existingRows = await db.getAllAsync<Subscription>('SELECT * FROM subscriptions');
+        const knownKeys = new Set(existingRows.map((item) =>
+          normalizedServiceName(item.name) + '|' + normalizeBillingSource(item.billingSource),
+        ));
+        let inserted = 0;
+        await db.withTransactionAsync(async () => {
+          for (const item of reviewed) {
+            const billingSource = normalizeBillingSource(item.candidate.billingSource);
+            const key = normalizedServiceName(item.candidate.name) + '|' + billingSource;
+            if (knownKeys.has(key)) continue;
+            await db.runAsync(
+              'INSERT INTO subscriptions (name, category, amount, cycle, nextRenewal, manageUrl, billingSource, notes, reminderEnabled, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+              item.candidate.name,
+              item.candidate.category,
+              item.amount,
+              item.cycle,
+              item.nextRenewal,
+              item.candidate.manageUrl || '',
+              billingSource,
+              'Imported from Gmail billing evidence; verify unconfirmed price/cycle/date before relying on forecasts.',
+              1,
+              new Date().toISOString(),
+            );
+            knownKeys.add(key);
+            inserted += 1;
+          }
+        });
+        return inserted;
       });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload.detail || 'Could not import selected detections.');
-      const db = dbRef.current;
-      if (!db) throw new Error('Local subscription database is not ready.');
-      let imported = 0;
-      for (const item of payload.imported || []) {
-        const billingSource = normalizeBillingSource(item.billingSource);
-        const key = normalizedServiceName(String(item.name)) + '|' + billingSource;
-        const existing = subscriptions.some((local) => normalizedServiceName(local.name) + '|' + normalizeBillingSource(local.billingSource) === key);
-        if (existing) continue;
-        await db.runAsync(
-          'INSERT INTO subscriptions (name, category, amount, cycle, nextRenewal, manageUrl, billingSource, notes, reminderEnabled, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-          String(item.name), CATEGORIES.some((entry) => entry.name === item.category) ? item.category : 'Other',
-          item.amount === null || item.amount === undefined ? null : Number(item.amount),
-          CYCLES.includes(item.cycle as Cycle) ? item.cycle : 'Unknown', String(item.nextRenewal || ''), String(item.manageUrl || ''), billingSource,
-          String(item.notes || 'Imported from billing email; verify the details.'), 1, new Date().toISOString(),
-        );
-        imported += 1;
-      }
       await loadSubscriptions();
-      const importedIds = new Set(selectedCandidateIds);
-      setScanCandidates((current) => current.map((item) => importedIds.has(item.id) ? { ...item, alreadyImported: true } : item));
+      const localRows = await withLocalDatabase((db) =>
+        db.getAllAsync<Subscription>('SELECT * FROM subscriptions ORDER BY nextRenewal ASC, name COLLATE NOCASE ASC'),
+      );
+      await rescheduleRenewalReminders(localRows, notificationsEnabled);
+      const importedKeys = new Set(reviewed.map((item) =>
+        normalizedServiceName(item.candidate.name) + '|' + normalizeBillingSource(item.candidate.billingSource),
+      ));
+      setScanCandidates((current) => current.map((item) =>
+        importedKeys.has(normalizedServiceName(item.name) + '|' + normalizeBillingSource(item.billingSource))
+          ? { ...item, alreadyImported: true }
+          : item,
+      ));
       setSelectedCandidateIds([]);
-      if (dbRef.current) {
-        const rows = await dbRef.current.getAllAsync<Subscription>('SELECT * FROM subscriptions ORDER BY nextRenewal ASC, name COLLATE NOCASE ASC');
-        await rescheduleRenewalReminders(rows, notificationsEnabled);
+
+      // Cloud confirmation is best-effort after the phone has safely saved the tracker.
+      // If Render/Gmail is offline, these locally saved entries remain usable and can
+      // be reconciled on a later scan without requiring the user to re-enter them.
+      let cloudSyncWarning = '';
+      try {
+        const response = await fetchWithNetworkRetry(`${API_BASE_URL}/api/gmail/import`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${apiSession}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ candidate_ids: selectedCandidates.map((candidate) => candidate.id), overrides }),
+        }, 1, 20000);
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          cloudSyncWarning = ' Your plans are safely saved on this phone, but Gmail sync could not be confirmed. You can retry the scan later.';
+          console.warn('Gmail import confirmation failed after local save', response.status, payload.detail || '');
+        }
+      } catch (error) {
+        cloudSyncWarning = ' Your plans are safely saved on this phone, but the server could not confirm the import. Retry Gmail sync when the connection is back.';
+        console.warn('Gmail import confirmation unavailable after local save', error);
       }
-      Alert.alert('Import complete', `${imported} subscription${imported === 1 ? '' : 's'} added to this device. Missing prices, cycles and dates remain unconfirmed; spend totals exclude unknown price/cycle values.`);
+      Alert.alert(
+        'Import complete',
+        `${localSavedCount} subscription${localSavedCount === 1 ? '' : 's'} saved on this phone. Missing prices, cycles and dates remain unconfirmed; spend totals exclude unknown price/cycle values.${cloudSyncWarning}`,
+      );
     } catch (error) {
-      setScanError(error instanceof Error ? error.message : 'Import failed. Please retry.');
+      const message = error instanceof Error ? error.message : 'Import failed. Please retry.';
+      setScanError(isNetworkConnectivityError(error)
+        ? 'The server could not be reached, but no import was marked complete. Your current on-device tracker entries are safe. Retry when the connection returns.'
+        : message);
+      if (localSavedCount > 0) {
+        Alert.alert('Tracker entries saved', `${localSavedCount} subscription(s) were saved on this phone. Some follow-up work did not finish; you do not need to enter them again.`);
+      }
     } finally {
       setScanLoading(false);
     }
@@ -1345,8 +1578,7 @@ function AppContent() {
         throw new Error(payload.detail || 'Could not disconnect Gmail on the server.');
       }
       await SecureStore.deleteItemAsync(SESSION_KEY);
-      const localDb = dbRef.current;
-      if (localDb) await localDb.runAsync("INSERT INTO app_settings (key, value) VALUES ('aiAssistedScan', 'false') ON CONFLICT(key) DO UPDATE SET value = excluded.value");
+      await withLocalDatabase((localDb) => localDb.runAsync("INSERT INTO app_settings (key, value) VALUES ('aiAssistedScan', 'false') ON CONFLICT(key) DO UPDATE SET value = excluded.value").then(() => undefined));
       setApiSession(null); setGmailEmail(null); setGmailAccounts([]); setScanCandidates([]); setSelectedCandidateIds([]); setAiAssistedScan(false);
       toastLocal('All Gmail accounts disconnected. Locally imported plans remain on this device.');
     } catch (error) {
@@ -1638,10 +1870,10 @@ function AppContent() {
   const renderSettings = () => (
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
       <View style={styles.pageHeader}><Text style={styles.pageEyebrow}>YOUR APP</Text><Text style={styles.pageTitle}>Settings</Text><Text style={styles.pageSub}>Privacy, alerts and connected services.</Text></View>
-      <View style={styles.profilePanel}><BrandMark size={52} /><View style={{ flex: 1 }}><Text style={styles.profilePanelTitle}>SubSathi</Text><Text style={styles.profilePanelSub}>Local-first · Version 0.5.4 · SmartSathi AI</Text></View><Pill tone="green">On device</Pill></View>
+      <View style={styles.profilePanel}><BrandMark size={52} /><View style={{ flex: 1 }}><Text style={styles.profilePanelTitle}>SubSathi</Text><Text style={styles.profilePanelSub}>Local-first · Version 0.5.10 · SmartSathi AI</Text></View><Pill tone="green">On device</Pill></View>
       <View style={styles.panel}>
         <Text style={styles.settingsSectionLabel}>REMINDERS</Text>
-        <View style={styles.settingRow}><View style={styles.settingIcon}><Text>🔔</Text></View><View style={styles.settingCopy}><Text style={styles.settingTitle}>Renewal notifications</Text><Text style={styles.settingBody}>Remind two days before, at 9:00 AM when permitted.</Text></View><Switch value={notificationsEnabled} onValueChange={(value) => { setNotificationsEnabled(value); const db = dbRef.current; if (db) void db.runAsync("INSERT INTO app_settings (key, value) VALUES ('notificationsEnabled', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", value ? 'true' : 'false'); void rescheduleRenewalReminders(subscriptions, value); }} trackColor={{ false: '#CBD5D4', true: '#A7E4CD' }} thumbColor={notificationsEnabled ? C.green : '#F6F7F7'} /></View>
+        <View style={styles.settingRow}><View style={styles.settingIcon}><Text>🔔</Text></View><View style={styles.settingCopy}><Text style={styles.settingTitle}>Renewal notifications</Text><Text style={styles.settingBody}>Remind two days before, at 9:00 AM when permitted.</Text></View><Switch value={notificationsEnabled} onValueChange={(value) => { setNotificationsEnabled(value); void withLocalDatabase((db) => db.runAsync("INSERT INTO app_settings (key, value) VALUES ('notificationsEnabled', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", value ? 'true' : 'false').then(() => undefined)).catch((error) => { console.warn('Could not save notification preference', error); Alert.alert('Preference not saved', 'Renewal notifications changed for this session. Restart SubSathi and retry if the setting does not persist.'); }); void rescheduleRenewalReminders(subscriptions, value); }} trackColor={{ false: '#CBD5D4', true: '#A7E4CD' }} thumbColor={notificationsEnabled ? C.green : '#F6F7F7'} /></View>
         <View style={styles.innerDivider} />
         <Text style={styles.settingsSectionLabel}>CONNECTED SERVICES</Text>
         <Pressable onPress={openScanner} style={styles.settingRow}><View style={[styles.settingIcon, { backgroundColor: C.bluePale }]}><Text>✉</Text></View><View style={styles.settingCopy}><Text style={styles.settingTitle}>Gmail auto-detection</Text><Text style={styles.settingBody}>{gmailEmail ? (gmailAccounts.length || 1) + ' Gmail account(s) connected · scan inboxes together.' : 'Not connected · secure Google OAuth setup required.'}</Text></View><Text style={styles.settingArrow}>›</Text></Pressable>
@@ -1653,7 +1885,7 @@ function AppContent() {
         <Text style={styles.settingsSectionLabel}>DATA MANAGEMENT</Text>
         <Pressable style={styles.settingsActionRow} onPress={() => { void exportSubscriptions(); }}><Text style={styles.settingsAction}>Export my subscription list (CSV)</Text><Text style={styles.settingArrow}>›</Text></Pressable>
         <View style={styles.innerDivider} />
-        <Pressable style={styles.settingsActionRow} onPress={() => Alert.alert('Clear all tracker data?', 'This permanently removes all subscriptions stored in this app. It will not cancel any real subscription.', [{ text: 'Keep data', style: 'cancel' }, { text: 'Clear all', style: 'destructive', onPress: async () => { const db = dbRef.current; if (!db) return; await db.runAsync('DELETE FROM subscriptions'); await Notifications.cancelAllScheduledNotificationsAsync(); await loadSubscriptions(); setTab('Home'); } }])}><Text style={[styles.settingsAction, { color: C.red }]}>Clear all tracker data</Text><Text style={styles.settingArrow}>›</Text></Pressable>
+        <Pressable style={styles.settingsActionRow} onPress={() => Alert.alert('Clear all tracker data?', 'This permanently removes all subscriptions stored in this app. It will not cancel any real subscription.', [{ text: 'Keep data', style: 'cancel' }, { text: 'Clear all', style: 'destructive', onPress: async () => { try { await withLocalDatabase((db) => db.runAsync('DELETE FROM subscriptions').then(() => undefined)); await Notifications.cancelAllScheduledNotificationsAsync(); await loadSubscriptions(); setTab('Home'); } catch (error) { console.warn('Could not clear local tracker', error); Alert.alert('Could not clear data', 'Your tracker was not deliberately cleared. Restart SubSathi and retry.'); } } }])}><Text style={[styles.settingsAction, { color: C.red }]}>Clear all tracker data</Text><Text style={styles.settingArrow}>›</Text></Pressable>
         {apiSession ? <><View style={styles.innerDivider} /><Pressable style={styles.settingsActionRow} onPress={() => Alert.alert('Delete server account?', 'This removes the SubSathi server account, encrypted Gmail credentials and cached scan candidates. Tracker entries saved locally on this phone will remain.', [{ text: 'Keep account', style: 'cancel' }, { text: 'Delete account', style: 'destructive', onPress: () => { void deleteServerAccount(); } }])}><Text style={[styles.settingsAction, { color: C.red }]}>Delete SubSathi server account</Text><Text style={styles.settingArrow}>›</Text></Pressable></> : null}
       </View>
       <Text style={styles.footerNote}>Gmail only finds subscriptions evidenced in connected inboxes. Phone-number-only sign-ups, SMS and UPI/card mandates need separate, explicit integrations.</Text>
@@ -1688,16 +1920,33 @@ function AppContent() {
       <SubscriptionEditor visible={editorOpen} initial={editing} onClose={() => { setEditorOpen(false); setEditing(null); }} onSave={saveSubscription} onDelete={editing ? () => deleteSubscription(editing) : undefined} />
       <Modal visible={scanInfoOpen} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setScanInfoOpen(false)}>
         <SafeAreaView style={styles.editorSafeArea}>
-          <View style={styles.editorHeader}><Pressable onPress={() => setScanInfoOpen(false)} style={styles.editorClose}><Text style={styles.editorCloseText}>✕</Text></Pressable><View style={{ flex: 1 }}><Text style={styles.editorTitle}>Automatic discovery</Text><Text style={styles.editorSubtitle}>Find subscriptions from billing emails</Text></View><Pill tone={gmailEmail ? 'green' : 'orange'}>{gmailEmail ? 'Connected' : 'Not connected'}</Pill></View>
+          <View style={styles.editorHeader}><Pressable onPress={() => setScanInfoOpen(false)} style={styles.editorClose}><Text style={styles.editorCloseText}>✕</Text></Pressable><View style={{ flex: 1 }}><Text style={styles.editorTitle}>Automatic discovery</Text><Text style={styles.editorSubtitle}>Find subscriptions from billing emails</Text></View><Pill tone={gmailEmail && apiReachable === true && !gmailNeedsRepair ? 'green' : 'orange'}>{!gmailEmail ? 'Not connected' : apiReachable === false ? 'Offline' : gmailNeedsRepair ? 'Repair access' : apiReachable === null ? 'Checking' : 'Connected'}</Pill></View>
           <ScrollView contentContainerStyle={styles.editorScroll} keyboardShouldPersistTaps="handled">
             <View style={{ backgroundColor: C.white, borderColor: C.line, borderWidth: 1, borderRadius: 20, padding: 18, marginBottom: 16 }}>
               <LinearGradient colors={['#DFF6EB', '#E7F0FF']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.infoModalIcon, { marginBottom: 12 }]}><Feather name="mail" size={26} color={C.greenDark} /></LinearGradient>
-              <Text style={styles.modalTitle}>{gmailEmail ? 'Gmail is connected' : 'Stop adding every plan manually'}</Text>
+              <Text style={styles.modalTitle}>{gmailEmail ? gmailNeedsRepair ? 'Gmail access needs repair' : apiReachable === false ? 'Gmail linked · server offline' : 'Gmail is connected' : 'Stop adding every plan manually'}</Text>
               <Text style={styles.modalIntro}>{gmailEmail ? `Connected account: ${gmailEmail}. Scan relevant billing emails, then review the detected subscriptions before importing them to this phone.` : 'Connect through Google’s official secure consent screen. SubSathi will search for billing receipts, renewal notices and recurring payment emails. It never asks for your Gmail password.'}</Text>
               {googleOAuthConfigured === false ? <View style={styles.oauthSetupNotice}>
                 <View style={styles.oauthNoticeTitleRow}><Feather name="alert-circle" size={17} color="#9B5A08" /><Text style={styles.oauthSetupTitle}>Server setup required</Text></View>
-                <Text style={styles.oauthSetupBody}>Google sign-in cannot start until the app owner configures a Google Cloud Web OAuth client on the hosted server. Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in Render and set GOOGLE_REDIRECT_URI to https://subsathi-api.onrender.com/api/auth/google/callback. Enable Gmail API, add your account as an OAuth test user, save and redeploy. Never paste the client secret into the APK or chat.</Text>
-              </View> : apiReachable === false ? <View style={styles.oauthSetupNotice}><View style={styles.oauthNoticeTitleRow}><Feather name="wifi-off" size={17} color="#9B5A08" /><Text style={styles.oauthSetupTitle}>Server not reachable</Text></View><Text style={styles.oauthSetupBody}>SubSathi can still track plans offline. Check your internet connection and retry when the server is awake.</Text></View> : null}
+                <Text style={styles.oauthSetupBody}>Google sign-in cannot start until the app owner configures Google OAuth on the hosted server. Enable Gmail API in that same project. Never paste a client secret into the APK or chat.</Text>
+              </View> : apiReachable === false ? <View style={styles.oauthSetupNotice}><View style={styles.oauthNoticeTitleRow}><Feather name="wifi-off" size={17} color="#9B5A08" /><Text style={styles.oauthSetupTitle}>Server temporarily unreachable</Text></View><Text style={styles.oauthSetupBody}>Gmail was linked previously, but SubSathi could not reach its server after retrying. This is a network/DNS or server-connectivity problem—not evidence that your subscriptions disappeared. Your phone's saved tracker remains available offline.</Text></View> : null}
+              {apiReachable === false ? <GhostButton title={scanLoading ? 'Retrying server…' : 'Retry server connection'} onPress={() => {
+                if (scanLoading) return;
+                void (async () => {
+                  setScanError('');
+                  const reachable = await refreshApiHealth();
+                  if (reachable && apiSession && gmailEmail) await scanGmail(undefined, 'quick');
+                  else if (!reachable) setScanError('SubSathi server is still unreachable after three checks. Your local tracker remains safe; retry once the network/server is available.');
+                })();
+              }} /> : null}
+              {durableDatabaseConfigured === false ? <View style={[styles.oauthSetupNotice, { marginTop: 10 }]}>
+                <View style={styles.oauthNoticeTitleRow}><Feather name="database" size={17} color="#9B5A08" /><Text style={styles.oauthSetupTitle}>Cloud storage needs a permanent database</Text></View>
+                <Text style={styles.oauthSetupBody}>The live API is reporting temporary storage. Gmail login details may need repair after a server restart, though your on-device subscription tracker is separate. The app owner must connect the managed PostgreSQL database before relying on persistent cloud connections.</Text>
+              </View> : null}
+              {gmailNeedsRepair && gmailEmail ? <View style={[styles.oauthSetupNotice, { marginTop: 10 }]}>
+                <View style={styles.oauthNoticeTitleRow}><Feather name="shield" size={17} color="#9B5A08" /><Text style={styles.oauthSetupTitle}>Gmail permission needs repair</Text></View>
+                <Text style={styles.oauthSetupBody}>Google rejected the saved Gmail access token. Use the repair button below to approve the permission again. Do not disconnect the whole SubSathi account, and do not uninstall the app.</Text>
+              </View> : null}
               <View style={styles.infoChecklist}>
                 <Text style={styles.infoChecklistLine}>✓ Read billing-related emails only using Gmail search</Text>
                 <Text style={styles.infoChecklistLine}>✓ Detect supported services, amounts and cycle hints</Text>
@@ -1708,8 +1957,8 @@ function AppContent() {
               {scanLoading ? <View style={{ paddingVertical: 18, alignItems: 'center' }}><ActivityIndicator color={C.green} size="large" /><Text style={styles.settingBody}>{gmailEmail ? 'Checking recent receipts and renewals in parallel…' : 'Opening Google authorization…'}</Text><Text style={[styles.fieldHint, { textAlign: 'center', marginTop: 5 }]}>Only likely billing emails are analysed. This should be much quicker than checking every message one by one.</Text></View> : null}
               {!gmailEmail ? <PrimaryButton title={googleOAuthConfigured === false ? 'Check Gmail setup again' : 'Connect Gmail securely'} onPress={() => { void connectGmail(); }} /> : <View style={{ gap: 9 }}>
                 <PrimaryButton title={scanLoading ? 'Syncing new emails…' : 'Quick sync new billing emails'} onPress={() => { if (!scanLoading) void scanGmail(undefined, 'quick'); }} />
-                <GhostButton title={scanLoading ? 'Rescanning…' : 'Deep rescan · up to 1,500 emails'} onPress={() => { if (!scanLoading) void scanGmail(undefined, 'full'); }} />
-                <Text style={styles.fieldHint}>Quick sync checks new email only. Deep rescan searches across provider, billing, trial and renewal wording (up to 1,500 messages per inbox). Gmail search is still bounded, so this is not a guarantee that every historic email was covered.</Text>
+                <GhostButton title={scanLoading ? 'Rescanning…' : 'Deep rescan' + (serverScanLimit ? ' · up to ' + serverScanLimit.toLocaleString() + ' emails' : '')} onPress={() => { if (!scanLoading) void scanGmail(undefined, 'full'); }} />
+                <Text style={styles.fieldHint}>Quick sync checks new email only. Deep rescan searches provider, billing, trial and renewal wording. {serverScanLimit ? 'The server limit is ' + serverScanLimit.toLocaleString() + ' selected messages per inbox.' : 'The server scan limit is being checked.'} Gmail search remains bounded, so no scan can promise every historic message was covered.</Text>
                 <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10, backgroundColor: '#F7FAF8', borderColor: C.line, borderWidth: 1, borderRadius: 13, padding: 12, marginTop: 10, marginBottom: 12 }}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.fieldLabel}>OPTIONAL AI-ASSISTED EXTRACTION</Text>
@@ -1723,23 +1972,20 @@ function AppContent() {
                     value={aiAssistedScan}
                     disabled={aiExtractionConfigured !== true || scanLoading}
                     onValueChange={(value) => {
-                      const db = dbRef.current;
-                      const savePreference = db
-                        ? Promise.all([
-                            db.runAsync("INSERT INTO app_settings (key, value) VALUES ('aiAssistedScan', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", value ? 'true' : 'false'),
-                            db.runAsync("INSERT INTO app_settings (key, value) VALUES ('aiConsentResolved', 'true') ON CONFLICT(key) DO UPDATE SET value = excluded.value"),
-                          ])
-                        : Promise.resolve();
-                      void savePreference.then(() => {
+                      void withLocalDatabase(async (db) => {
+                        await db.runAsync("INSERT INTO app_settings (key, value) VALUES ('aiAssistedScan', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", value ? 'true' : 'false');
+                        await db.runAsync("INSERT INTO app_settings (key, value) VALUES ('aiConsentResolved', 'true') ON CONFLICT(key) DO UPDATE SET value = excluded.value");
+                      }).then(() => {
                         setAiAssistedScan(value);
                         if (value && apiSession && gmailEmail && !scanLoading) void scanGmail(undefined, 'full', true);
-                      }).catch(() => Alert.alert('Could not save AI preference', 'Please retry. SubSathi has not changed the AI setting.'));
+                      }).catch(() => Alert.alert('Could not save AI preference', 'SubSathi has not changed the AI setting. Restart the app and retry.'));
                     }}
                     trackColor={{ false: '#CBD5D4', true: '#A7E4CD' }}
                     thumbColor={aiAssistedScan ? C.green : '#F6F7F7'}
                     accessibilityLabel="Allow AI-assisted billing email extraction"
                   />
                 </View>
+                <GhostButton title={scanLoading ? 'Checking access…' : gmailNeedsRepair ? 'Repair Gmail connection' : 'Refresh / repair Gmail access'} onPress={() => { if (!scanLoading) void connectGmail(); }} />
                 <GhostButton title="Connect another Gmail account" onPress={() => { if (!scanLoading) void connectAdditionalGmail(); }} />
                 <GhostButton title="Disconnect all Gmail accounts" onPress={() => { Alert.alert('Disconnect all Gmail accounts?', 'All linked Gmail credentials and cached detections will be removed from the server. Subscription entries already imported on this phone will remain.', [{ text: 'Keep connected', style: 'cancel' }, { text: 'Disconnect all', style: 'destructive', onPress: () => { void disconnectGmail(); } }]); }} />
                 {gmailAccounts.filter((account) => !account.primary).map((account) => <Pressable key={account.email} disabled={scanLoading} onPress={() => Alert.alert('Remove Gmail account?', 'Remove ' + account.email + ' from this SubSathi profile?', [{ text: 'Cancel', style: 'cancel' }, { text: 'Remove account', style: 'destructive', onPress: () => { void disconnectAdditionalGmail(account.email); } }])} style={{ paddingVertical: 7 }}><Text style={{ fontSize: 10, color: C.muted }}>Secondary inbox · {account.email} · tap to remove</Text></Pressable>)}

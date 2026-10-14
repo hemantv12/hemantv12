@@ -287,3 +287,54 @@ def test_gmail_import_request_allows_correcting_or_clearing_unverified_fields():
     assert override.amount is None
     assert override.cycle == "Unknown"
     assert override.next_renewal == ""
+
+
+
+def test_health_endpoint_reports_effective_scan_budget():
+    from app.config import settings
+
+    payload = client.get("/health").json()
+    assert payload["scan_max_messages_per_inbox"] == settings.scan_max_messages
+
+
+def test_gmail_permission_error_recommends_repair_without_disconnect():
+    from app.main import _gmail_http_error_message
+
+    message = _gmail_http_error_message(403, "PERMISSION_DENIED")
+    assert "Repair Gmail connection" in message
+    assert "tracker" in message.lower()
+
+
+def test_expired_google_refresh_token_does_not_invalidate_subsathi_session(monkeypatch):
+    from types import SimpleNamespace
+
+    import app.main as main
+    from fastapi import HTTPException
+
+    primary = SimpleNamespace(email="owner@gmail.com", user_id=7)
+    user = SimpleNamespace(id=7)
+
+    class FakeScalars:
+        def all(self):
+            return []
+
+    class FakeDB:
+        def scalar(self, statement):
+            return primary
+
+        def scalars(self, statement):
+            return FakeScalars()
+
+    def rejected_google_refresh(db, connection):
+        raise HTTPException(
+            status_code=401,
+            detail="Could not refresh this Gmail authorization. Reconnect this Gmail account.",
+        )
+
+    monkeypatch.setattr(main, "_credentials_for_mailbox", rejected_google_refresh)
+    with pytest.raises(HTTPException) as caught:
+        main.credentials_for_all_mailboxes(FakeDB(), user)
+
+    assert caught.value.status_code == 409
+    assert "Repair Gmail connection" in caught.value.detail
+    assert "local subscription tracker is untouched" in caught.value.detail
