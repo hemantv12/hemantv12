@@ -630,7 +630,15 @@ function AppContent() {
     dbOperationQueueRef.current = new Promise<void>((resolve) => { release = resolve; });
     await previous.catch(() => undefined);
     try {
-      const database = await ensureLocalDatabase();
+      let database: SQLite.SQLiteDatabase;
+      try {
+        database = await ensureLocalDatabase();
+      } catch (error) {
+        if (!isRecoverableSQLiteHandleError(error)) throw error;
+        console.warn('Recovering SQLite initialization after native database failure');
+        await sleep(250);
+        database = await ensureLocalDatabase(true);
+      }
       try {
         return await operation(database);
       } catch (error) {
