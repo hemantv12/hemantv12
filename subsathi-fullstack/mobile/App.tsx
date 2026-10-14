@@ -1553,7 +1553,7 @@ function AppContent() {
               {scanCandidates.map((candidate) => {
                 const selected = selectedCandidateIds.includes(candidate.id);
                 const categoryMetaItem = categoryMeta(candidate.category);
-                const needsFieldReview = candidate.amount === null || candidate.cycle === 'Unknown';
+                const needsFieldReview = candidate.amount === null || candidate.cycle === 'Unknown' || !candidate.nextRenewal;
                 const draft = candidateEdits[candidate.id] || {
                   amountText: candidate.amount === null ? '' : String(candidate.amount),
                   cycle: candidate.cycle,
@@ -1581,7 +1581,7 @@ function AppContent() {
                     </View>
                     <View style={{ alignItems: 'flex-end', maxWidth: 100 }}>
                       <Text style={styles.serviceAmount}>{candidate.amount !== null ? money(candidate.amount) : 'Price needed'}</Text>
-                      <Text style={[styles.serviceSub, { textAlign: 'right' }]}>{candidate.amount !== null ? `per ${candidate.cycle.toLowerCase()}` : 'Enter manually'}</Text>
+                      <Text style={[styles.serviceSub, { textAlign: 'right' }]}>{candidate.amount === null ? 'Price needed' : candidate.cycle === 'Unknown' ? 'Billing cycle needed' : `per ${candidate.cycle.toLowerCase()}`}</Text>
                     </View>
                   </Pressable>
                   {selected && !candidate.alreadyImported && needsFieldReview ? <View style={{ borderTopWidth: 1, borderTopColor: C.line, backgroundColor: '#F8FBF9', padding: 13 }}>
@@ -1600,6 +1600,20 @@ function AppContent() {
                     {candidate.cycle === 'Unknown' ? <>
                       <Text style={[styles.fieldLabel, { marginTop: 12 }]}>BILLING CYCLE *</Text>
                       <View style={styles.cycleRow}>{CYCLES.map((cycle) => <Pressable key={cycle} onPress={() => setCandidateEdits((current) => ({ ...current, [candidate.id]: { ...draft, cycle } }))} style={[styles.cycleChip, draft.cycle === cycle && styles.cycleChipActive]}><Text style={[styles.cycleChipText, draft.cycle === cycle && styles.cycleChipTextActive]}>{cycle}</Text></Pressable>)}</View>
+                    </> : null}
+                    {!candidate.nextRenewal ? <>
+                      <Text style={[styles.fieldLabel, { marginTop: 12 }]}>RENEWAL DATE (OPTIONAL)</Text>
+                      <Text style={styles.fieldHint}>Enter only if you know the date; SubSathi will not guess it.</Text>
+                      <TextInput
+                        value={draft.renewalText}
+                        onChangeText={(value) => setCandidateEdits((current) => ({ ...current, [candidate.id]: { ...draft, renewalText: value } }))}
+                        placeholder="YYYY-MM-DD"
+                        placeholderTextColor="#97A5A8"
+                        style={styles.input}
+                        keyboardType="numbers-and-punctuation"
+                        accessibilityLabel={`Optional renewal date for ${candidate.name}`}
+                        maxLength={10}
+                      />
                     </> : null}
                   </View> : null}
                 </View>;
