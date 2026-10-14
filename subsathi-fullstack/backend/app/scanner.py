@@ -96,7 +96,9 @@ def detect_billing_source(subject: str, sender: str, body: str) -> str:
     body_l = (body or "")[:18000].lower()
     combined = f"{subject_l}\n{sender_l}\n{body_l}"
     transaction_context = re.search(
-        r"\b(receipt|invoice|order|purchase|subscription|renewal|renewed|charged|payment|billing agreement|automatic payment)\b",
+        r"\b(receipt|invoice|order|purchase|subscription|renewal|renewed|charged|payment|billing agreement|automatic payment|"
+        r"auto[- ]?pay|autopay|mandate|e[- ]?nach|nach mandate|standing instruction|"
+        r"recurring debit|scheduled debit|will be debited)\b",
         combined,
         re.I,
     )
