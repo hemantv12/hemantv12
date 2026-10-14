@@ -17,6 +17,7 @@ from fastapi import Depends, FastAPI, HTTPException, Query, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from google.auth.exceptions import RefreshError
 from google.auth.transport.requests import Request as GoogleRequest
 from google.oauth2 import id_token
 from google.oauth2.credentials import Credentials
@@ -658,6 +659,7 @@ def health() -> dict[str, Any]:
         "ai_extraction_configured": settings.ai_extraction_configured,
         "database_backend": database_backend,
         "durable_database_configured": database_backend == "postgresql",
+        "scan_max_messages_per_inbox": settings.scan_max_messages,
     }
 
 
@@ -998,18 +1000,20 @@ def _gmail_http_error_context(exc: HttpError) -> tuple[int, str]:
 def _gmail_http_error_message(status_code: int, reason: str) -> str:
     normalized = reason.lower()
     if status_code == 401:
-        return "Google rejected the Gmail authorization. Disconnect Gmail in SubSathi, reconnect it, and approve Gmail read access."
+        return "Google no longer accepts the saved Gmail authorization. Tap Repair Gmail connection to approve Gmail read access again; you do not need to delete your tracker."
     if status_code == 403 and ("accessnotconfigured" in normalized or "servicedisabled" in normalized):
-        return "Gmail API is not enabled for the Google Cloud project used by this OAuth client. Enable Gmail API in that same project, then reconnect Gmail."
+        return "Gmail API is not enabled for the Google Cloud project used by this OAuth client. The app owner must enable Gmail API in that same project."
+    if status_code == 403 and any(token in normalized for token in ("insufficientpermissions", "insufficientauthentication", "permission_denied", "forbidden")):
+        return "Google denied Gmail read access for this inbox. Tap Repair Gmail connection and approve Gmail read access again. If the same account still fails, the app owner must check Gmail API enablement and Google OAuth access."
     if status_code in {403, 429} and any(token in normalized for token in ("ratelimit", "userratelimit", "quota", "resourceexhausted")):
-        return "Google is rate-limiting Gmail scans. Wait about a minute and retry; SubSathi now limits parallel requests and retries temporary failures."
+        return "Google is rate-limiting Gmail scans. Wait about a minute and retry; SubSathi will keep your saved tracker entries."
     if status_code == 403:
-        return "Google did not allow Gmail read access. Disconnect Gmail, reconnect, and approve the requested Gmail read permission. If it persists, check the OAuth consent screen and Gmail API enablement."
+        return "Google denied Gmail access. Tap Repair Gmail connection to renew the consent; your locally saved tracker entries are not affected."
     if status_code == 429:
         return "Google temporarily rate-limited this Gmail scan. Wait about a minute and retry."
     if status_code in {500, 502, 503, 504}:
         return "Google's Gmail service temporarily failed. Please wait briefly and retry the scan."
-    return f"Gmail API request failed (HTTP {status_code or 'unknown'}, reason {reason}). Please retry; if it repeats, check the server logs."
+    return f"Gmail API request failed (HTTP {status_code or 'unknown'}, reason {reason}). Please retry; if it repeats, use Repair Gmail connection."
 
 
 @app.post("/api/gmail/scan")
@@ -1061,6 +1065,12 @@ def scan_gmail(
                 "Gmail mailbox scan failed status=%s reason=%s", status_code or "unknown", reason
             )
             return mailbox_email, connection_row, None, {"email": mailbox_email, "message": _gmail_http_error_message(status_code, reason)}
+        except RefreshError:
+            logging.getLogger("uvicorn.error").warning("Gmail mailbox refresh rejected; reauthorization is required")
+            return mailbox_email, connection_row, None, {
+                "email": mailbox_email,
+                "message": "Google rejected the saved Gmail refresh token. Tap Repair Gmail connection to approve access again; keep your existing tracker entries.",
+            }
         except HTTPException as exc:
             return mailbox_email, connection_row, None, {"email": mailbox_email, "message": str(exc.detail)}
         except Exception as exc:
@@ -1101,7 +1111,19 @@ def scan_gmail(
         successful_rows.append((connection_row, result))
 
     if not successful_accounts and account_errors:
-        raise HTTPException(status_code=502, detail="All connected Gmail accounts failed to scan. " + account_errors[0]["message"])
+        first_message = str(account_errors[0].get("message") or "")
+        needs_reauthorization = any(
+            any(token in str(item.get("message") or "").lower() for token in (
+                "refresh token", "refresh this gmail authorization", "google denied gmail", "g mail read access", "reconnect this gmail",
+            ))
+            for item in account_errors
+        )
+        if needs_reauthorization:
+            raise HTTPException(
+                status_code=409,
+                detail="Google needs renewed permission for this Gmail inbox. Tap Repair Gmail connection below; there is no need to disconnect SubSathi or delete your tracker. " + first_message,
+            )
+        raise HTTPException(status_code=502, detail="All connected Gmail accounts failed to scan. " + first_message)
 
     full_reconciliation = (
         bool(successful_rows)
