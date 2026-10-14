@@ -654,11 +654,20 @@ def parse_billing_message(*, message_id: str, subject: str, sender: str, date_he
         body_service = body_service_match.group(1).strip() if body_service_match else ""
         payment_rail_domain = _domain_matches(sender_domain, (
             "hdfcbank.com", "icicibank.com", "sbi.co.in", "onlinesbi.sbi",
-            "axisbank.com", "kotak.com", "kotak Mahindra.com", "yesbank.in",
+            "axisbank.com", "kotak.com", "yesbank.in",
             "npci.org.in", "paytm.com", "phonepe.com", "googlepay.com", "amazonpay.in",
         ))
         sender_label = sender_domain.split(".")[0].replace("-", " ").title()
-        candidate_name = (clean_subject or body_service or ("" if payment_rail_domain else sender_label)).strip()
+        generic_mandate_subject = bool(re.search(
+            r"\b(?:upi\s+autopay|autopay|mandate|e[- ]?nach|nach|standing instruction|auto[- ]?debit|"
+            r"recurring debit|scheduled debit)\b",
+            subject,
+            re.IGNORECASE,
+        ))
+        candidate_name = (
+            clean_subject or body_service
+            or ("" if payment_rail_domain or generic_mandate_subject else sender_label)
+        ).strip()
         if not candidate_name or len(candidate_name) > 100:
             return None
         # Reject generic subjects that do not identify a product/service.
