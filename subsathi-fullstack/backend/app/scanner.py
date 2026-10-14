@@ -201,15 +201,15 @@ CYCLE_PATTERNS = (
 )
 RENEWAL_DATE_CUE = r"(?:upcoming\s+(?:renewal|billing|payment|charge|invoice|bill)(?:\s+date)?|next\s+(?:renewal|billing|payment|charge|invoice|bill)(?:\s+date)?|renewal\s+date|billing\s+date|payment\s+date|renews?(?:\s+on)?|renewal\s+on|will\s+be\s+charged\s+on|will\s+be\s+billed\s+on|next\s+payment\s+due|next\s+billing\s+due|trial\s+ends?(?:\s+on)?|expires?(?:\s+on)?|next\s+charge\s+date)"
 RENEWAL_DATE_PATTERNS = (
-    re.compile(RENEWAL_DATE_CUE + r"\s*(?:is(?:\s+due)?|due(?:\s+on)?|scheduled(?:\s+for)?|expected(?:\s+on)?|on|:|-)?\s*(\d{4}-\d{2}-\d{2})", re.I),
-    re.compile(RENEWAL_DATE_CUE + r"\s*(?:is(?:\s+due)?|due(?:\s+on)?|scheduled(?:\s+for)?|expected(?:\s+on)?|on|:|-)?\s*([A-Za-z]{3,9}\.?\s+\d{1,2},?\s+\d{4})", re.I),
-    re.compile(RENEWAL_DATE_CUE + r"\s*(?:is(?:\s+due)?|due(?:\s+on)?|scheduled(?:\s+for)?|expected(?:\s+on)?|on|:|-)?\s*(\d{1,2}\s+[A-Za-z]{3,9}\.?\s+\d{4})", re.I),
+    re.compile(RENEWAL_DATE_CUE + r"\s*(?:is(?:\s+due)?(?:\s+on)?|due(?:\s+on)?|scheduled(?:\s+for)?|expected(?:\s+on)?|on|:|-)?\s*(\d{4}-\d{2}-\d{2})", re.I),
+    re.compile(RENEWAL_DATE_CUE + r"\s*(?:is(?:\s+due)?(?:\s+on)?|due(?:\s+on)?|scheduled(?:\s+for)?|expected(?:\s+on)?|on|:|-)?\s*([A-Za-z]{3,9}\.?\s+\d{1,2},?\s+\d{4})", re.I),
+    re.compile(RENEWAL_DATE_CUE + r"\s*(?:is(?:\s+due)?(?:\s+on)?|due(?:\s+on)?|scheduled(?:\s+for)?|expected(?:\s+on)?|on|:|-)?\s*(\d{1,2}\s+[A-Za-z]{3,9}\.?\s+\d{4})", re.I),
     # Numeric dates are accepted only when the renewal/billing cue is explicit.
-    re.compile(RENEWAL_DATE_CUE + r"\s*(?:is(?:\s+due)?|due(?:\s+on)?|scheduled(?:\s+for)?|expected(?:\s+on)?|on|:|-)?\s*(\d{1,2}[/-]\d{1,2}[/-]\d{4})", re.I),
+    re.compile(RENEWAL_DATE_CUE + r"\s*(?:is(?:\s+due)?(?:\s+on)?|due(?:\s+on)?|scheduled(?:\s+for)?|expected(?:\s+on)?|on|:|-)?\s*(\d{1,2}[/-]\d{1,2}[/-]\d{4})", re.I),
 )
 RENEWAL_DATE_NO_YEAR_PATTERNS = (
-    re.compile(RENEWAL_DATE_CUE + r"\s*(?:is(?:\s+due)?|due(?:\s+on)?|scheduled(?:\s+for)?|expected(?:\s+on)?|on|:|-)?\s*([A-Za-z]{3,9}\.?\s+\d{1,2})(?!\s*,?\s*\d{4})", re.I),
-    re.compile(RENEWAL_DATE_CUE + r"\s*(?:is(?:\s+due)?|due(?:\s+on)?|scheduled(?:\s+for)?|expected(?:\s+on)?|on|:|-)?\s*(\d{1,2}\s+[A-Za-z]{3,9}\.?)(?!\s+\d{4})", re.I),
+    re.compile(RENEWAL_DATE_CUE + r"\s*(?:is(?:\s+due)?(?:\s+on)?|due(?:\s+on)?|scheduled(?:\s+for)?|expected(?:\s+on)?|on|:|-)?\s*([A-Za-z]{3,9}\.?\s+\d{1,2})(?!\s*,?\s*\d{4})", re.I),
+    re.compile(RENEWAL_DATE_CUE + r"\s*(?:is(?:\s+due)?(?:\s+on)?|due(?:\s+on)?|scheduled(?:\s+for)?|expected(?:\s+on)?|on|:|-)?\s*(\d{1,2}\s+[A-Za-z]{3,9}\.?)(?!\s+\d{4})", re.I),
 )
 
 
