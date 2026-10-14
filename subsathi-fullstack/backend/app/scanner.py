@@ -4,7 +4,7 @@ import base64
 import html
 import re
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from email.header import decode_header as _decode_header_parts, make_header
 from email.utils import parsedate_to_datetime
 from typing import Any
@@ -192,24 +192,30 @@ CURRENCY_AMOUNT = re.compile(
     r")",
     re.IGNORECASE,
 )
-RECURRING_TERMS = re.compile(r"\b(subscription|subscribed|recurring|auto[- ]?renew|renew(?:al|s|ed)?|monthly|annually|annual|yearly|per month|per year|membership|billing cycle|free trial|trial ends|plan will continue)\b", re.IGNORECASE)
+RECURRING_TERMS = re.compile(
+    r"\b(subscription|subscribed|recurring|auto[- ]?renew|renew(?:al|s|ed)?|monthly|annually|annual|yearly|"
+    r"per month|per year|membership|billing cycle|free trial|trial ends|plan will continue|"
+    r"next (?:billing|payment|charge|renewal|debit)|debit date|will renew|will be renewed|"
+    r"billed every|charged every|automatic renewal|subscription fee)\b",
+    re.IGNORECASE,
+)
 CYCLE_PATTERNS = (
     (re.compile(r"\b(weekly|every week|per week|billed weekly|each week|every 7 days|per 7 days)\b", re.I), "Weekly"),
     (re.compile(r"\b(quarterly|every 3 months|per quarter|for 3 months|3-month|billed quarterly|every 90 days|per 90 days)\b", re.I), "Quarterly"),
-    (re.compile(r"\b(annual|annually|yearly|per year|every 12 months|12-month|billed annually|billed yearly|per annum|each year|every 365 days|per 365 days)\b", re.I), "Yearly"),
-    (re.compile(r"\b(monthly|every month|per month|each month|billed monthly|billed every 30 days|every 30 days|per 30 days|every 1 month|each calendar month)\b", re.I), "Monthly"),
+    (re.compile(r"\b(annual|annually|yearly|per year|every year|every 12 months|12-month|billed annually|billed yearly|per annum|each year|every 365 days|per 365 days)\b", re.I), "Yearly"),
+    (re.compile(r"\b(monthly|every month|per month|each month|billed monthly|billed every month|every calendar month|billed every calendar month|per calendar month|billed every 30 days|every 30 days|per 30 days|every 1 month|each calendar month)\b", re.I), "Monthly"),
 )
-RENEWAL_DATE_CUE = r"(?:upcoming\s+(?:renewal|billing|payment|charge|invoice|bill)(?:\s+date)?|next\s+(?:renewal|billing|payment|charge|invoice|bill)(?:\s+date)?|renewal\s+date|billing\s+date|payment\s+date|renews?(?:\s+on)?|renewal\s+on|will\s+be\s+charged\s+on|will\s+be\s+billed\s+on|next\s+payment\s+due|next\s+billing\s+due|trial\s+ends?(?:\s+on)?|expires?(?:\s+on)?|next\s+charge\s+date)"
+RENEWAL_DATE_CUE = r"(?:upcoming\s+(?:renewal|billing|payment|charge|invoice|bill)(?:\s+date)?|next\s+(?:renewal|billing|payment|charge|invoice|bill|debit)(?:\s+date)?|renewal\s+date|billing\s+date|payment\s+date|debit\s+date|renews?(?:\s+on)?|will\s+renew(?:\s+on)?|renewal\s+on|will\s+be\s+charged\s+on|will\s+be\s+billed\s+on|payment\s+will\s+be\s+taken\s+on|next\s+payment\s+due|next\s+billing\s+due|next\s+debit\s+date|trial\s+ends?(?:\s+on)?|expires?(?:\s+on)?|subscription\s+ends?(?:\s+on)?|next\s+charge\s+date)"
 RENEWAL_DATE_PATTERNS = (
     re.compile(RENEWAL_DATE_CUE + r"\s*(?:is(?:\s+due)?(?:\s+on)?|due(?:\s+on)?|scheduled(?:\s+for)?|expected(?:\s+on)?|on|:|-)?\s*(\d{4}-\d{2}-\d{2})", re.I),
-    re.compile(RENEWAL_DATE_CUE + r"\s*(?:is(?:\s+due)?(?:\s+on)?|due(?:\s+on)?|scheduled(?:\s+for)?|expected(?:\s+on)?|on|:|-)?\s*([A-Za-z]{3,9}\.?\s+\d{1,2},?\s+\d{4})", re.I),
-    re.compile(RENEWAL_DATE_CUE + r"\s*(?:is(?:\s+due)?(?:\s+on)?|due(?:\s+on)?|scheduled(?:\s+for)?|expected(?:\s+on)?|on|:|-)?\s*(\d{1,2}\s+[A-Za-z]{3,9}\.?\s+\d{4})", re.I),
+    re.compile(RENEWAL_DATE_CUE + r"\s*(?:is(?:\s+due)?(?:\s+on)?|due(?:\s+on)?|scheduled(?:\s+for)?|expected(?:\s+on)?|on|:|-)?\s*([A-Za-z]{3,9}\.?\s+\d{1,2}(?:st|nd|rd|th)?,?\s+\d{4})", re.I),
+    re.compile(RENEWAL_DATE_CUE + r"\s*(?:is(?:\s+due)?(?:\s+on)?|due(?:\s+on)?|scheduled(?:\s+for)?|expected(?:\s+on)?|on|:|-)?\s*(\d{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]{3,9}\.?\s+\d{4})", re.I),
     # Numeric dates are accepted only when the renewal/billing cue is explicit.
     re.compile(RENEWAL_DATE_CUE + r"\s*(?:is(?:\s+due)?(?:\s+on)?|due(?:\s+on)?|scheduled(?:\s+for)?|expected(?:\s+on)?|on|:|-)?\s*(\d{1,2}[/-]\d{1,2}[/-]\d{4})", re.I),
 )
 RENEWAL_DATE_NO_YEAR_PATTERNS = (
-    re.compile(RENEWAL_DATE_CUE + r"\s*(?:is(?:\s+due)?(?:\s+on)?|due(?:\s+on)?|scheduled(?:\s+for)?|expected(?:\s+on)?|on|:|-)?\s*([A-Za-z]{3,9}\.?\s+\d{1,2})(?!\s*,?\s*\d{4})", re.I),
-    re.compile(RENEWAL_DATE_CUE + r"\s*(?:is(?:\s+due)?(?:\s+on)?|due(?:\s+on)?|scheduled(?:\s+for)?|expected(?:\s+on)?|on|:|-)?\s*(\d{1,2}\s+[A-Za-z]{3,9}\.?)(?!\s+\d{4})", re.I),
+    re.compile(RENEWAL_DATE_CUE + r"\s*(?:is(?:\s+due)?(?:\s+on)?|due(?:\s+on)?|scheduled(?:\s+for)?|expected(?:\s+on)?|on|:|-)?\s*([A-Za-z]{3,9}\.?\s+\d{1,2}(?:st|nd|rd|th)?)(?!\s*,?\s*\d{4})", re.I),
+    re.compile(RENEWAL_DATE_CUE + r"\s*(?:is(?:\s+due)?(?:\s+on)?|due(?:\s+on)?|scheduled(?:\s+for)?|expected(?:\s+on)?|on|:|-)?\s*(\d{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]{3,9}\.?)(?!\s+\d{4})", re.I),
 )
 
 
@@ -273,23 +279,41 @@ def parse_date(value: str | None, reference_date: date | datetime | None = None)
         match = pattern.search(value)
         if not match:
             continue
-        raw = match.group(1).strip().replace(".", "")
+        raw = re.sub(r"(?i)\b(\d{1,2})(?:st|nd|rd|th)\b", r"\1", match.group(1).strip().replace(".", ""))
         for fmt in full_date_formats:
             try:
                 return datetime.strptime(raw, fmt).date().isoformat()
             except ValueError:
                 continue
 
-    # If the provider omits the year, only resolve it when the email timestamp is
-    # available; choose the next occurrence of that month/day rather than guessing.
+    # Relative dates are resolved only against the email's timestamp, never today's date.
     if reference_date is None:
         return None
     reference = reference_date.date() if isinstance(reference_date, datetime) else reference_date
+    relative = re.search(
+        RENEWAL_DATE_CUE
+        + r"\s*(?:is\s+)?(?:due\s+)?(?:on\s+)?(tomorrow|next\s+week|in\s+(\d{1,3})\s+days?|in\s+(\d{1,2})\s+weeks?)",
+        value,
+        re.I,
+    )
+    if relative:
+        phrase = relative.group(1).lower()
+        if phrase == "tomorrow":
+            delta_days = 1
+        elif phrase == "next week":
+            delta_days = 7
+        elif relative.group(2):
+            delta_days = min(int(relative.group(2)), 366)
+        else:
+            delta_days = min(int(relative.group(3)) * 7, 366)
+        return (reference + timedelta(days=delta_days)).isoformat()
+
+    # If the provider omits the year, choose the next occurrence of that month/day.
     for pattern in RENEWAL_DATE_NO_YEAR_PATTERNS:
         match = pattern.search(value)
         if not match:
             continue
-        raw = match.group(1).strip().replace(".", "")
+        raw = re.sub(r"(?i)\b(\d{1,2})(?:st|nd|rd|th)\b", r"\1", match.group(1).strip().replace(".", ""))
         for no_year_fmt in ("%B %d", "%b %d", "%d %B", "%d %b"):
             try:
                 parsed = datetime.strptime(f"{raw} {reference.year}", f"{no_year_fmt} %Y").date()
@@ -335,8 +359,10 @@ def parse_sender_domain(sender: str) -> str:
 
 STRONG_RECURRING_EVIDENCE = re.compile(
     r"\b("
-    r"auto[- ]?renew|recurring payment|billing cycle|next (?:payment|billing|charge|renewal)|"
-    r"renewal(?: date)?|renewed|renews|renews on|will be charged|charged again|"
+    r"auto[- ]?renew|automatic renewal|set to renew|will renew(?: on)?|renewal scheduled|"
+    r"recurring payment|billing cycle|next (?:payment|billing|charge|renewal|debit)|"
+    r"renewal(?: date)?|billing date|payment date|debit date|renewed|renews|renews on|"
+    r"will be charged|charged again|billed every|charged every|"
     r"trial ends?(?: on)?|subscription (?:receipt|invoice|payment|renewal|renewed|was renewed|has been renewed|confirmed|activated)|"
     r"membership (?:renewal|renewed|extended)|you (?:have )?subscribed|"
     r"payment confirmation|payment successful|your plan renews|plan will continue|"
@@ -349,9 +375,10 @@ STRONG_RECURRING_EVIDENCE = re.compile(
 # wording must not become a subscription candidate on its own.
 UNKNOWN_RECURRING_EVIDENCE = re.compile(
     r"\b(?:"
-    r"auto[- ]?renew(?:al|s|ed|ing)?|recurring (?:payment|charge|subscription)|"
-    r"next (?:payment|billing|charge|renewal)|renew(?:s|ed)?\s+(?:on|every|each)|"
-    r"will be charged (?:again|every|each|on)|charged again|"
+    r"auto[- ]?renew(?:al|s|ed|ing)?|automatic renewal|recurring (?:payment|charge|subscription)|"
+    r"next (?:payment|billing|charge|renewal|debit)(?:\s+date)?|renewal date|billing date|payment date|"
+    r"renew(?:s|ed)?\s+(?:on|every|each)|will renew(?:\s+on)?|set to renew|"
+    r"will be charged (?:again|every|each|on)|charged again|billed every|charged every|"
     r"subscription (?:has been|was|will be) renewed|membership (?:has been|was|will be) renewed|"
     r"renewed(?:\s+\w+){0,4}\s+for\s+\d+\s+(?:days?|weeks?|months?|years?)|"
     r"subscription period|billing every\s+\d+\s+(?:days?|weeks?|months?|years?)"

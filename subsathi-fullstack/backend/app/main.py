@@ -124,8 +124,8 @@ ensure_linked_gmail_columns()
 class CandidateImportOverride(BaseModel):
     candidate_id: int
     amount: float | None = Field(default=None, gt=0, le=10_000_000)
-    cycle: str | None = Field(default=None, pattern=r"^(Weekly|Monthly|Quarterly|Yearly)$")
-    next_renewal: str | None = Field(default=None, pattern=r"^\d{4}-\d{2}-\d{2}$")
+    cycle: str | None = Field(default=None, pattern=r"^(Weekly|Monthly|Quarterly|Yearly|Unknown)$")
+    next_renewal: str | None = Field(default=None, pattern=r"^(?:\d{4}-\d{2}-\d{2})?$")
 
 
 class CandidateImportRequest(BaseModel):
@@ -468,6 +468,7 @@ def _scan_single_gmail_mailbox(
     candidate_by_message: dict[str, dict[str, Any] | None] = {}
     payload_by_message: dict[str, dict[str, Any]] = {}
     ai_inputs: list[dict[str, Any]] = []
+    ai_complete_inputs: list[dict[str, Any]] = []
     for message_id, message in zip(relevant_ids, full_messages):
         if not message:
             continue
@@ -498,20 +499,29 @@ def _scan_single_gmail_mailbox(
                 candidate["manage_url"] = extracted_url
             candidate["source_mailbox"] = mailbox_email
 
-        # Fully populated local matches are never sent to the external AI service.
-        if ai_assisted and (
-            not candidate
-            or candidate.get("amount") is None
-            or not candidate.get("cycle")
-            or not candidate.get("next_renewal")
-        ):
-            ai_inputs.append({
+        # Review uncertain detections first, then let opt-in AI verify complete local
+        # matches too. This catches deterministic parser mistakes without making AI a
+        # requirement for basic scanning. The extractor caps the review budget.
+        if ai_assisted:
+            ai_email = {
                 "message_id": message_id,
                 "subject": subject,
                 "sender": sender,
                 "date_header": date_header,
                 "body": body,
-            })
+            }
+            if (
+                not candidate
+                or candidate.get("amount") is None
+                or not candidate.get("cycle")
+                or not candidate.get("next_renewal")
+            ):
+                ai_inputs.append(ai_email)
+            else:
+                ai_complete_inputs.append(ai_email)
+
+    # Keep missing/incomplete or missed local matches at the front of the bounded AI queue.
+    ai_inputs.extend(ai_complete_inputs)
 
     ai_status = "off"
     ai_analyzed = 0
@@ -532,7 +542,7 @@ def _scan_single_gmail_mailbox(
                 warnings: list[str] = []
                 if len(ai_inputs) > MAX_AI_EMAILS_PER_MAILBOX:
                     warnings.append(
-                        f"AI reviewed the first {MAX_AI_EMAILS_PER_MAILBOX} incomplete emails in this inbox to keep scanning responsive; run another full scan to review more."
+                        f"AI reviewed up to {MAX_AI_EMAILS_PER_MAILBOX} billing-email excerpts in this inbox to keep scanning responsive; additional messages were not AI-reviewed in this pass."
                     )
                 failed_batches = int(getattr(ai_results, "failed_batches", 0) or 0)
                 if failed_batches:
@@ -546,11 +556,15 @@ def _scan_single_gmail_mailbox(
                     message_id = str(ai_candidate.get("message_id") or "")
                     existing = candidate_by_message.get(message_id)
                     if existing is not None:
-                        # Deterministic evidence always wins; AI only fills missing fields.
+                        # Every AI field was parsed from a quote verified against this exact
+                        # message. Allow it to correct a deterministic parse when it found a
+                        # clearer recurring amount, cycle or explicitly-labelled renewal date.
+                        # Missing AI values never erase existing evidence.
                         ai_filled = False
                         for field in ("amount", "cycle", "next_renewal"):
-                            if existing.get(field) in (None, "") and ai_candidate.get(field) not in (None, ""):
-                                existing[field] = ai_candidate[field]
+                            ai_value = ai_candidate.get(field)
+                            if ai_value not in (None, "") and existing.get(field) != ai_value:
+                                existing[field] = ai_value
                                 ai_filled = True
                         if ai_filled:
                             existing["confidence"] = max(
@@ -1194,7 +1208,8 @@ def import_candidates(payload: CandidateImportRequest, user: User = Depends(curr
         override = overrides.get(item.id)
         if override is None:
             continue
-        if override.amount is not None:
+        explicitly_set = getattr(override, "model_fields_set", getattr(override, "__fields_set__", set()))
+        if "amount" in explicitly_set:
             item.amount = override.amount
         if override.cycle is not None:
             item.cycle = override.cycle
