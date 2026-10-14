@@ -52,8 +52,8 @@ type Subscription = {
   id: number;
   name: string;
   category: Category;
-  amount: number;
-  cycle: Cycle;
+  amount: number | null;
+  cycle: Cycle | 'Unknown';
   nextRenewal: string;
   manageUrl: string;
   billingSource: BillingSource;
@@ -249,20 +249,27 @@ function money(value: number) {
     style: 'currency', currency: 'INR', maximumFractionDigits: value % 1 === 0 ? 0 : 2,
   }).format(value);
 }
-function monthlyEquivalent(item: Pick<Subscription, 'amount' | 'cycle'>) {
+function hasKnownPrice(item: Pick<Subscription, 'amount' | 'cycle'>): boolean {
+  return item.amount !== null && Number.isFinite(item.amount) && item.amount > 0 && item.cycle !== 'Unknown';
+}
+function monthlyEquivalent(item: Pick<Subscription, 'amount' | 'cycle'>): number {
+  if (!hasKnownPrice(item)) return 0;
   switch (item.cycle) {
-    case 'Weekly': return item.amount * 52 / 12;
-    case 'Monthly': return item.amount;
-    case 'Quarterly': return item.amount / 3;
-    case 'Yearly': return item.amount / 12;
+    case 'Weekly': return item.amount! * 52 / 12;
+    case 'Monthly': return item.amount!;
+    case 'Quarterly': return item.amount! / 3;
+    case 'Yearly': return item.amount! / 12;
+    default: return 0;
   }
 }
-function annualEquivalent(item: Pick<Subscription, 'amount' | 'cycle'>) {
+function annualEquivalent(item: Pick<Subscription, 'amount' | 'cycle'>): number {
+  if (!hasKnownPrice(item)) return 0;
   switch (item.cycle) {
-    case 'Weekly': return item.amount * 52;
-    case 'Monthly': return item.amount * 12;
-    case 'Quarterly': return item.amount * 4;
-    case 'Yearly': return item.amount;
+    case 'Weekly': return item.amount! * 52;
+    case 'Monthly': return item.amount! * 12;
+    case 'Quarterly': return item.amount! * 4;
+    case 'Yearly': return item.amount!;
+    default: return 0;
   }
 }
 function daysUntil(value: string) {
@@ -275,11 +282,16 @@ function daysUntil(value: string) {
 function buildAssistantReply(question: string, items: Subscription[], language: AssistantLanguage): string {
   const q = question.toLowerCase().trim();
   const hindi = language === 'hi-IN';
-  const monthly = items.reduce((sum, item) => sum + monthlyEquivalent(item), 0);
-  const yearly = items.reduce((sum, item) => sum + annualEquivalent(item), 0);
+  const pricedItems = items.filter(hasKnownPrice);
+  const unconfirmedCount = items.length - pricedItems.length;
+  const monthly = pricedItems.reduce((sum, item) => sum + monthlyEquivalent(item), 0);
+  const yearly = pricedItems.reduce((sum, item) => sum + annualEquivalent(item), 0);
+  const reviewNote = unconfirmedCount
+    ? (hindi ? ` ${unconfirmedCount} aur plan(s) ka price/cycle confirm nahi hai, isliye totals mein include nahi.` : ` ${unconfirmedCount} other plan(s) have an unconfirmed price/cycle and are excluded from totals.`)
+    : '';
   const upcoming = [...items].filter((item) => daysUntil(item.nextRenewal) >= -7 && daysUntil(item.nextRenewal) <= 45)
     .sort((a, b) => daysUntil(a.nextRenewal) - daysUntil(b.nextRenewal));
-  const ranked = [...items].sort((a, b) => monthlyEquivalent(b) - monthlyEquivalent(a));
+  const ranked = [...pricedItems].sort((a, b) => monthlyEquivalent(b) - monthlyEquivalent(a));
   const nameCounts = new Map<string, { name: string; count: number; monthly: number }>();
   items.forEach((item) => {
     const key = item.name.trim().toLowerCase();
@@ -291,6 +303,11 @@ function buildAssistantReply(question: string, items: Subscription[], language: 
     return hindi
       ? 'Pehle ek ya do subscriptions add karo. Phir main monthly kharcha, next renewals aur possible savings tumhare actual tracker se bata sakta hoon.'
       : 'Add a subscription or two first. Then I can explain your monthly spend, upcoming renewals and possible savings using your tracker.';
+  }
+  if (!pricedItems.length && /(year|annual|annually|yearly|saal|salana|save|saving|reduce|lower|cut|cheap|unused|bacha|bachat|kam karo|kam kar|sasta|waste|spend|expense|monthly|month|kharch|cost|budget|kitna|how much|category|stream|music|software|storage|entertainment|where|kahan|highest)/.test(q)) {
+    return hindi
+      ? `Abhi kisi plan ka price aur billing cycle dono confirm nahi hain, isliye spend calculate nahi kar sakta. ${unconfirmedCount} tracked plan(s) hain; email ya provider se details milne par total update hoga.`
+      : `I cannot calculate recurring spend yet because no tracked plan has both a confirmed price and billing cycle. ${unconfirmedCount} plan(s) are tracked; totals will update as details are confirmed.`;
   }
   if (/(duplicate|same plan|repeat|double charge|do baar|ek hi|same service)/.test(q)) {
     if (duplicates.length) {
@@ -309,13 +326,13 @@ function buildAssistantReply(question: string, items: Subscription[], language: 
         : 'I do not see a renewal within the next 45 days or the recent overdue window. Add verified renewal dates to make reminders more useful.';
     }
     return (hindi ? 'Tumhare tracker ke hisaab se closest renewals: ' : 'Your closest tracked renewals are: ') +
-      upcoming.slice(0, 3).map((item) => `${item.name}: ${money(item.amount)} per ${item.cycle.toLowerCase()}, ${dueLabel(item.nextRenewal)}`).join('; ') +
+      upcoming.slice(0, 3).map((item) => `${item.name}: ${item.amount === null ? 'price unconfirmed' : money(item.amount)}${item.cycle === 'Unknown' ? '' : ` per ${item.cycle.toLowerCase()}`}, ${dueLabel(item.nextRenewal)}`).join('; ') +
       (hindi ? '. Dates saved tracker se aati hain—provider par verify kar lena.' : '. These dates come from your saved tracker; verify them with each provider.');
   }
   if (/(year|annual|annually|yearly|saal|salana)/.test(q)) {
     return hindi
-      ? `Tumhara estimated yearly commitment ${money(yearly)} hai, jo ${items.length} tracked plans se calculate hua hai. Monthly equivalent ${money(monthly)} hai. Ye estimate hai, final bank statement nahi.`
-      : `Your estimated yearly commitment is ${money(yearly)} across ${items.length} tracked plans, or about ${money(monthly)} per month. This is an estimate based on saved entries, not a bank statement.`;
+      ? `Tumhara estimated yearly commitment ${money(yearly)} hai, ${pricedItems.length} price/cycle-confirmed plans se. Monthly equivalent ${money(monthly)} hai. Ye estimate hai, final bank statement nahi.${reviewNote}`
+      : `Your estimated yearly commitment is ${money(yearly)} across ${pricedItems.length} price/cycle-confirmed plans, or about ${money(monthly)} per month. This is an estimate based on saved entries, not a bank statement.${reviewNote}`;
   }
   if (/(save|saving|reduce|lower|cut|cheap|cancel|unused|bacha|bachat|kam karo|kam kar|sasta|waste)/.test(q)) {
     const top = ranked.slice(0, 3);
@@ -325,8 +342,8 @@ function buildAssistantReply(question: string, items: Subscription[], language: 
   }
   if (/(how many|number of|count|kitne plan|kitni subscription|total plan|total subscriptions)/.test(q)) {
     return hindi
-      ? `Tumne ${items.length} subscription track ki hain. Total estimated monthly equivalent ${money(monthly)} aur yearly commitment ${money(yearly)} hai.`
-      : `You are tracking ${items.length} subscriptions. Their estimated monthly equivalent is ${money(monthly)}, with a yearly commitment of ${money(yearly)}.`;
+      ? `Tumne ${items.length} subscription track ki hain. Confirmed price/cycle wale plans ka estimated monthly equivalent ${money(monthly)} aur yearly commitment ${money(yearly)} hai.${reviewNote}`
+      : `You are tracking ${items.length} subscriptions. Price/cycle-confirmed plans have an estimated monthly equivalent of ${money(monthly)} and yearly commitment of ${money(yearly)}.${reviewNote}`;
   }
   if (/(category|stream|music|software|storage|entertainment|kis par|kahan|where|spend|expense|monthly|month|kharch|cost|budget|kitna|how much|total)/.test(q)) {
     const categories = new Map<string, number>();
@@ -334,8 +351,8 @@ function buildAssistantReply(question: string, items: Subscription[], language: 
     const biggestCategory = [...categories.entries()].sort((a, b) => b[1] - a[1])[0];
     const highest = ranked[0];
     return hindi
-      ? `Abhi ${items.length} plans ka monthly equivalent ${money(monthly)} hai (yearly estimate ${money(yearly)}). Sabse bada category spend ${biggestCategory[0]} par ${money(biggestCategory[1])}/mo hai. Highest monthly-equivalent plan ${highest.name} hai (${money(monthlyEquivalent(highest))}/mo). Pehle is plan ko review karna useful rahega.`
-      : `Your ${items.length} tracked plans cost about ${money(monthly)} per month equivalent (${money(yearly)} yearly estimate). Your highest-spend category is ${biggestCategory[0]} at ${money(biggestCategory[1])}/mo. Your highest monthly-equivalent plan is ${highest.name} at ${money(monthlyEquivalent(highest))}/mo, so it is a useful first review.`;
+      ? `Abhi ${pricedItems.length} price/cycle-confirmed plans ka monthly equivalent ${money(monthly)} hai (yearly estimate ${money(yearly)}). Sabse bada category spend ${biggestCategory[0]} par ${money(biggestCategory[1])}/mo hai. Highest monthly-equivalent plan ${highest.name} hai (${money(monthlyEquivalent(highest))}/mo). Pehle is plan ko review karna useful rahega.${reviewNote}`
+      : `Your ${pricedItems.length} price/cycle-confirmed plans cost about ${money(monthly)} per month equivalent (${money(yearly)} yearly estimate). Your highest-spend category is ${biggestCategory[0]} at ${money(biggestCategory[1])}/mo. Your highest monthly-equivalent plan is ${highest.name} at ${money(monthlyEquivalent(highest))}/mo, so it is a useful first review.${reviewNote}`;
   }
   const top = ranked[0];
   const next = upcoming[0];
@@ -369,8 +386,8 @@ async function initializeDatabase() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
       category TEXT NOT NULL,
-      amount REAL NOT NULL,
-      cycle TEXT NOT NULL,
+      amount REAL,
+      cycle TEXT NOT NULL DEFAULT 'Unknown',
       nextRenewal TEXT NOT NULL,
       manageUrl TEXT NOT NULL DEFAULT '',
       billingSource TEXT NOT NULL DEFAULT 'provider',
@@ -383,6 +400,34 @@ async function initializeDatabase() {
   const existingColumns = await db.getAllAsync<{ name: string }>('PRAGMA table_info(subscriptions)');
   if (!existingColumns.some((column) => column.name === 'billingSource')) {
     await db.execAsync("ALTER TABLE subscriptions ADD COLUMN billingSource TEXT NOT NULL DEFAULT 'provider'");
+  }
+  // Older installs declared amount NOT NULL. Rebuild transactionally so scanned
+  // subscriptions can be saved with unknown prices instead of fake zero amounts.
+  const columnsAfterAdditions = await db.getAllAsync<{ name: string; notnull: number }>('PRAGMA table_info(subscriptions)');
+  if (columnsAfterAdditions.some((column) => column.name === 'amount' && column.notnull === 1)) {
+    await db.withTransactionAsync(async () => {
+      await db.execAsync(`
+        CREATE TABLE subscriptions_new (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          category TEXT NOT NULL,
+          amount REAL,
+          cycle TEXT NOT NULL DEFAULT 'Unknown',
+          nextRenewal TEXT NOT NULL DEFAULT '',
+          manageUrl TEXT NOT NULL DEFAULT '',
+          billingSource TEXT NOT NULL DEFAULT 'provider',
+          notes TEXT NOT NULL DEFAULT '',
+          reminderEnabled INTEGER NOT NULL DEFAULT 1,
+          createdAt TEXT NOT NULL
+        );
+      `);
+      await db.execAsync(`
+        INSERT INTO subscriptions_new (id, name, category, amount, cycle, nextRenewal, manageUrl, billingSource, notes, reminderEnabled, createdAt)
+        SELECT id, name, category, amount, cycle, nextRenewal, manageUrl, billingSource, notes, reminderEnabled, createdAt FROM subscriptions;
+      `);
+      await db.execAsync('DROP TABLE subscriptions;');
+      await db.execAsync('ALTER TABLE subscriptions_new RENAME TO subscriptions;');
+    });
   }
   return db;
 }
@@ -464,6 +509,7 @@ function AppContent() {
   const [scanError, setScanError] = useState('');
   const [scanCandidates, setScanCandidates] = useState<GmailCandidate[]>([]);
   const [selectedCandidateIds, setSelectedCandidateIds] = useState<number[]>([]);
+  const [expandedCandidateIds, setExpandedCandidateIds] = useState<number[]>([]);
   const [candidateEdits, setCandidateEdits] = useState<Record<number, GmailCandidateDraft>>({});
   const [scanSummary, setScanSummary] = useState<{
     scannedMessages: number;
@@ -637,7 +683,7 @@ function AppContent() {
     const date = parseLocalDate(item.nextRenewal);
     const now = new Date();
     return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth() && daysUntil(item.nextRenewal) >= 0;
-  }).reduce((sum, item) => sum + item.amount, 0), [subscriptions]);
+  }).reduce((sum, item) => sum + (item.amount ?? 0), 0), [subscriptions]);
   const filtered = useMemo(() => subscriptions.filter((item) => {
     const text = `${item.name} ${item.category}`.toLowerCase();
     return text.includes(search.trim().toLowerCase()) && (filter === 'All' || item.category === filter);
@@ -1029,17 +1075,24 @@ function AppContent() {
           const remoteDate = typeof remote.nextRenewal === 'string' ? remote.nextRenewal : '';
           const nextRenewal = remoteDate && (!match.nextRenewal || remoteDate > match.nextRenewal)
             ? remoteDate : match.nextRenewal;
+          const remoteAmount = typeof remote.amount === 'number' && Number.isFinite(remote.amount) && remote.amount > 0
+            ? remote.amount : null;
+          const amount = match.amount == null && remoteAmount !== null ? remoteAmount : match.amount;
+          const remoteCycle = CYCLES.includes(remote.cycle as Cycle) ? remote.cycle as Cycle : 'Unknown';
+          const cycle = match.cycle === 'Unknown' && remoteCycle !== 'Unknown' ? remoteCycle : match.cycle;
           const remoteUrl = typeof remote.manageUrl === 'string' ? remote.manageUrl : '';
-          const manageUrl = !match.manageUrl && remoteUrl.startsWith('https://') && !/\\s/.test(remoteUrl)
+          const manageUrl = !match.manageUrl && remoteUrl.startsWith('https://') && !/\s/.test(remoteUrl)
             ? remoteUrl : match.manageUrl;
           const remoteCategory = CATEGORIES.some((entry) => entry.name === remote.category && entry.name !== 'Other')
             ? remote.category as Category : 'Other';
           const category = match.category === 'Other' && remoteCategory !== 'Other' ? remoteCategory : match.category;
-          if (nextRenewal !== match.nextRenewal || manageUrl !== match.manageUrl || category !== match.category) {
+          if (amount !== match.amount || cycle !== match.cycle || nextRenewal !== match.nextRenewal || manageUrl !== match.manageUrl || category !== match.category) {
             await localDb.runAsync(
-              'UPDATE subscriptions SET nextRenewal = ?, manageUrl = ?, category = ? WHERE id = ?',
-              nextRenewal, manageUrl, category, match.id,
+              'UPDATE subscriptions SET amount = ?, cycle = ?, nextRenewal = ?, manageUrl = ?, category = ? WHERE id = ?',
+              amount, cycle, nextRenewal, manageUrl, category, match.id,
             );
+            match.amount = amount;
+            match.cycle = cycle;
             match.nextRenewal = nextRenewal;
             match.manageUrl = manageUrl;
             match.category = category;
@@ -1060,7 +1113,8 @@ function AppContent() {
         cycle: item.cycle,
         renewalText: item.nextRenewal || '',
       }])));
-      setSelectedCandidateIds(adjusted.filter((item) => !item.alreadyImported && item.amount !== null && item.cycle !== 'Unknown').map((item) => item.id));
+      setSelectedCandidateIds(adjusted.filter((item) => !item.alreadyImported).map((item) => item.id));
+      setExpandedCandidateIds([]);
       setScanSummary({
         scannedMessages: Number(payload.scanned_messages || 0),
         candidateCount: Number(payload.candidate_count ?? adjusted.length),
@@ -1111,13 +1165,10 @@ function AppContent() {
           cycle: candidate.cycle,
           renewalText: candidate.nextRenewal || '',
         };
-        const parsedAmount = Number(draft.amountText.replace(/,/g, '').trim());
-        if ((candidate.amount === null || candidate.amount <= 0) && (!Number.isFinite(parsedAmount) || parsedAmount <= 0 || parsedAmount > 10000000)) {
-          Alert.alert('Add the missing price', `Enter a valid price for ${candidate.name} before importing.`);
-          return;
-        }
-        if (candidate.cycle === 'Unknown' && !CYCLES.includes(draft.cycle as Cycle)) {
-          Alert.alert('Choose a billing cycle', `Select weekly, monthly, quarterly or yearly for ${candidate.name} before importing.`);
+        const hasPriceText = draft.amountText.trim().length > 0;
+        const parsedAmount = hasPriceText ? Number(draft.amountText.replace(/,/g, '').trim()) : null;
+        if (hasPriceText && (!Number.isFinite(parsedAmount) || (parsedAmount ?? 0) <= 0 || (parsedAmount ?? 0) > 10000000)) {
+          Alert.alert('Check the price', `Enter a valid INR amount for ${candidate.name}, or leave it blank until confirmed.`);
           return;
         }
         if (draft.renewalText.trim() && !validDate(draft.renewalText.trim())) {
@@ -1125,8 +1176,8 @@ function AppContent() {
           return;
         }
         const override: { candidate_id: number; amount?: number; cycle?: Cycle; next_renewal?: string } = { candidate_id: candidate.id };
-        if (candidate.amount === null || candidate.amount <= 0) override.amount = parsedAmount;
-        if (candidate.cycle === 'Unknown') override.cycle = draft.cycle as Cycle;
+        if ((candidate.amount === null || candidate.amount <= 0) && parsedAmount !== null) override.amount = parsedAmount;
+        if (candidate.cycle === 'Unknown' && draft.cycle !== 'Unknown') override.cycle = draft.cycle as Cycle;
         if (!candidate.nextRenewal && draft.renewalText.trim()) override.next_renewal = draft.renewalText.trim();
         if (Object.keys(override).length > 1) overrides.push(override);
       }
@@ -1147,8 +1198,9 @@ function AppContent() {
         if (existing) continue;
         await db.runAsync(
           'INSERT INTO subscriptions (name, category, amount, cycle, nextRenewal, manageUrl, billingSource, notes, reminderEnabled, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-          String(item.name), CATEGORIES.some((entry) => entry.name === item.category) ? item.category : 'Other', Number(item.amount),
-          CYCLES.includes(item.cycle as Cycle) ? item.cycle : 'Monthly', String(item.nextRenewal || ''), String(item.manageUrl || ''), billingSource,
+          String(item.name), CATEGORIES.some((entry) => entry.name === item.category) ? item.category : 'Other',
+          item.amount === null || item.amount === undefined ? null : Number(item.amount),
+          CYCLES.includes(item.cycle as Cycle) ? item.cycle : 'Unknown', String(item.nextRenewal || ''), String(item.manageUrl || ''), billingSource,
           String(item.notes || 'Imported from billing email; verify the details.'), 1, new Date().toISOString(),
         );
         imported += 1;
@@ -1161,7 +1213,7 @@ function AppContent() {
         const rows = await dbRef.current.getAllAsync<Subscription>('SELECT * FROM subscriptions ORDER BY nextRenewal ASC, name COLLATE NOCASE ASC');
         await rescheduleRenewalReminders(rows, notificationsEnabled);
       }
-      Alert.alert('Import complete', `${imported} subscription${imported === 1 ? '' : 's'} added to this device. Please review any missing renewal dates or billing cycles.`);
+      Alert.alert('Import complete', `${imported} subscription${imported === 1 ? '' : 's'} added to this device. Missing prices, cycles and dates remain unconfirmed; spend totals exclude unknown price/cycle values.`);
     } catch (error) {
       setScanError(error instanceof Error ? error.message : 'Import failed. Please retry.');
     } finally {
@@ -1283,13 +1335,13 @@ function AppContent() {
         <View style={[styles.serviceIcon, { backgroundColor: meta.tint }]}><MaterialCommunityIcons name={categoryIconName(item.category)} size={23} color={C.ink} /></View>
         <View style={styles.subscriptionMain}>
           <Text style={styles.serviceName} numberOfLines={1}>{item.name}</Text>
-          <Text style={styles.serviceSub}>{item.category} · {item.cycle}</Text>
+          <Text style={styles.serviceSub}>{item.category} · {item.cycle === 'Unknown' ? 'Cycle not confirmed' : item.cycle}</Text>
           <Text style={styles.serviceSub}>Billed via {billingSourceLabel(item.billingSource)}</Text>
           <View style={styles.duePillRow}><Pill tone={tone}>{dueLabel(item.nextRenewal)}</Pill></View>
         </View>
         <View style={styles.subscriptionRight}>
-          <Text style={styles.serviceAmount}>{money(item.amount)}</Text>
-          <Text style={styles.serviceSub}>{item.cycle === 'Yearly' ? '/ year' : item.cycle === 'Monthly' ? '/ month' : item.cycle === 'Quarterly' ? '/ quarter' : '/ week'}</Text>
+          <Text style={styles.serviceAmount}>{item.amount === null ? 'Price unknown' : money(item.amount)}</Text>
+          <Text style={styles.serviceSub}>{item.cycle === 'Unknown' ? 'Cycle not confirmed' : item.cycle === 'Yearly' ? '/ year' : item.cycle === 'Monthly' ? '/ month' : item.cycle === 'Quarterly' ? '/ quarter' : '/ week'}</Text>
           {!compact ? <Pressable onPress={(event) => { event.stopPropagation(); void openManage(item, 'manage'); }} style={styles.manageMini}><Text style={styles.manageMiniText}>Manage / renew ↗</Text></Pressable> : null}
         </View>
       </Pressable>
@@ -1315,6 +1367,7 @@ function AppContent() {
           <View style={styles.heroStatsSeparator} />
           <View><Text style={styles.heroStatLabel}>Due in 30 days</Text><Text style={styles.heroStatValue}>{nextThirtyDays.length}</Text></View>
         </View>
+        {subscriptions.some((item) => !hasKnownPrice(item)) ? <Text style={{ color: '#D7EEE7', fontSize: 10, lineHeight: 14, marginTop: 10 }}>{subscriptions.filter((item) => !hasKnownPrice(item)).length} plan(s) with unconfirmed price/cycle are excluded from spend totals.</Text> : null}
       </LinearGradient>
       <Pressable accessibilityRole="button" onPress={openScanner} style={({ pressed }) => [styles.gmailBannerPressable, pressed && { opacity: 0.9, transform: [{ scale: 0.99 }] }]}>
         <LinearGradient colors={gmailEmail ? ['#E8F8F0', '#D8F3E8'] : googleOAuthConfigured === false ? ['#EAF2FF', '#DCE8FF'] : ['#E9F8F1', '#D9F2E7']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.gmailBanner}>
@@ -1342,7 +1395,8 @@ function AppContent() {
 
   const renderSubscriptions = () => (
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-      <View style={styles.pageHeader}><Text style={styles.pageEyebrow}>YOUR SERVICES</Text><Text style={styles.pageTitle}>Subscriptions</Text><Text style={styles.pageSub}>{subscriptions.length} plan{subscriptions.length === 1 ? '' : 's'} tracked · {money(activeMonthly)} / month equivalent</Text></View>
+      <View style={styles.pageHeader}><Text style={styles.pageEyebrow}>YOUR SERVICES</Text><Text style={styles.pageTitle}>Subscriptions</Text><Text style={styles.pageSub}>{subscriptions.length} plan{subscriptions.length === 1 ? '' : 's'} tracked · {money(activeMonthly)} estimated monthly spend from confirmed prices</Text>
+       {subscriptions.some((item) => !hasKnownPrice(item)) ? <Text style={styles.fieldHint}>{subscriptions.filter((item) => !hasKnownPrice(item)).length} plan(s) excluded from spend totals until price and billing cycle are confirmed.</Text> : null}</View>
       <View style={styles.searchBox}><Text style={styles.searchIcon}>⌕</Text><TextInput value={search} onChangeText={setSearch} placeholder="Search subscriptions..." placeholderTextColor="#91A0A4" style={styles.searchInput} returnKeyType="search" /><Pressable onPress={openNew} style={styles.searchAdd}><Text style={styles.searchAddText}>＋</Text></Pressable></View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
         {(['All', ...CATEGORIES.map((category) => category.name)] as ('All' | Category)[]).map((name) => <Pressable key={name} onPress={() => setFilter(name)} style={[styles.filterChip, filter === name && styles.filterChipActive]}><Text style={[styles.filterText, filter === name && styles.filterTextActive]}>{name}</Text></Pressable>)}
@@ -1355,7 +1409,7 @@ function AppContent() {
   const renderInsights = () => (
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
       <View style={styles.pageHeader}><Text style={styles.pageEyebrow}>YOUR MONEY SNAPSHOT</Text><Text style={styles.pageTitle}>Insights</Text><Text style={styles.pageSub}>Know where your recurring money goes.</Text></View>
-      <View style={styles.insightHero}><Text style={styles.insightHeroLabel}>ESTIMATED YEARLY COMMITMENT</Text><Text style={styles.insightHeroAmount}>{money(activeAnnual)}</Text><Text style={styles.insightHeroNote}>Based on the plans you have added. Actual charges may vary.</Text><View style={styles.insightMetricRow}><View style={styles.insightMetric}><Text style={styles.insightMetricLabel}>Monthly equivalent</Text><Text style={styles.insightMetricValue}>{money(activeMonthly)}</Text></View><View style={styles.insightMetric}><Text style={styles.insightMetricLabel}>Due this month</Text><Text style={styles.insightMetricValue}>{money(currentMonthDue)}</Text></View></View></View>
+      <View style={styles.insightHero}><Text style={styles.insightHeroLabel}>ESTIMATED YEARLY COMMITMENT</Text><Text style={styles.insightHeroAmount}>{money(activeAnnual)}</Text><Text style={styles.insightHeroNote}>Totals include only plans with a confirmed price and billing cycle. Actual charges may vary.</Text><View style={styles.insightMetricRow}><View style={styles.insightMetric}><Text style={styles.insightMetricLabel}>Monthly equivalent</Text><Text style={styles.insightMetricValue}>{money(activeMonthly)}</Text></View><View style={styles.insightMetric}><Text style={styles.insightMetricLabel}>Due this month</Text><Text style={styles.insightMetricValue}>{money(currentMonthDue)}</Text></View></View></View>
       <SectionTitle title="Spend by category" />
       {categorySpend.length ? <View style={styles.panel}>{categorySpend.map((cat) => <View key={cat.name} style={styles.categorySpendRow}><View style={[styles.categorySpendIcon, { backgroundColor: cat.tint }]}><MaterialCommunityIcons name={categoryIconName(cat.name)} size={21} color={C.ink} /></View><View style={styles.categorySpendMain}><View style={styles.categorySpendNameRow}><Text style={styles.categorySpendName}>{cat.name}</Text><Text style={styles.categorySpendAmount}>{money(cat.amount)}<Text style={styles.categoryMonthly}> / mo</Text></Text></View><View style={styles.barTrack}><View style={[styles.barFill, { width: `${Math.max(4, (cat.amount / (categorySpend[0]?.amount || 1)) * 100)}%` }]} /></View></View></View>)}</View> : <View style={styles.emptyCard}><Text style={styles.emptyTitle}>Insights will appear here</Text><Text style={styles.emptyBody}>Add a few subscriptions to see your spending breakdown.</Text><PrimaryButton title="Add a plan" onPress={openNew} /></View>}
       <SectionTitle title="Things to review" />
@@ -1370,8 +1424,8 @@ function AppContent() {
 
 
   const renderAI = () => {
-    const mostExpensive = [...subscriptions].sort((a, b) => monthlyEquivalent(b) - monthlyEquivalent(a))[0];
-    const nextTracked = [...subscriptions].filter((item) => daysUntil(item.nextRenewal) >= -7)
+    const mostExpensive = [...subscriptions].filter(hasKnownPrice).sort((a, b) => monthlyEquivalent(b) - monthlyEquivalent(a))[0];
+    const nextTracked = [...subscriptions].filter((item) => Boolean(item.nextRenewal) && daysUntil(item.nextRenewal) >= -7)
       .sort((a, b) => daysUntil(a.nextRenewal) - daysUntil(b.nextRenewal))[0];
     const duplicateNameCount = new Set(subscriptions.filter((item, index, all) =>
       all.findIndex((other) => other.name.trim().toLowerCase() === item.name.trim().toLowerCase()) !== index
@@ -1393,6 +1447,7 @@ function AppContent() {
             </View>
             <Pill tone={voiceListening ? 'orange' : 'green'}>{voiceListening ? 'Listening' : 'Ready'}</Pill>
           </View>
+          {subscriptions.some((item) => !hasKnownPrice(item)) ? <Text style={[styles.aiHeroSub, { marginTop: 8 }]}>{subscriptions.filter((item) => !hasKnownPrice(item)).length} plan(s) with unconfirmed price/cycle are excluded from spend totals.</Text> : null}
           <View style={styles.aiHeroStatsRow}>
             <View style={styles.aiHeroStat}><Text style={styles.aiHeroStatLabel}>Monthly equivalent</Text><Text style={styles.aiHeroStatValue}>{money(activeMonthly)}</Text></View>
             <View style={styles.aiHeroStat}><Text style={styles.aiHeroStatLabel}>Tracked plans</Text><Text style={styles.aiHeroStatValue}>{subscriptions.length}</Text></View>
@@ -1411,7 +1466,7 @@ function AppContent() {
             <>
               <View style={styles.aiHighlightRow}>
                 <View style={styles.aiHighlightIcon}><Feather name="trending-up" size={20} color={C.greenDark} /></View>
-                <View style={styles.aiHighlightCopy}><Text style={styles.aiHighlightTitle}>Highest monthly-equivalent cost</Text><Text style={styles.aiHighlightBody}>{mostExpensive?.name}: {money(mostExpensive ? monthlyEquivalent(mostExpensive) : 0)} per month equivalent. Review whether the plan still fits your needs.</Text></View>
+                <View style={styles.aiHighlightCopy}><Text style={styles.aiHighlightTitle}>Highest monthly-equivalent cost</Text><Text style={styles.aiHighlightBody}>{mostExpensive ? `${mostExpensive.name}: ${money(monthlyEquivalent(mostExpensive))} per month equivalent. Review whether the plan still fits your needs.` : 'No confirmed price and billing cycle yet. Review a detected plan to add details when you have them.'}</Text></View>
               </View>
               <View style={styles.innerDivider} />
               <View style={styles.aiHighlightRow}>
@@ -1596,12 +1651,12 @@ function AppContent() {
             {gmailEmail && scanCandidates.length > 0 ? <View style={{ marginBottom: 18 }}>
               <SectionTitle
                 title="Detected subscriptions"
-                action={selectedCandidateIds.length ? 'Clear selection' : 'Select ready'}
+                action={selectedCandidateIds.length ? 'Clear selection' : 'Select all new'}
                 onAction={() => setSelectedCandidateIds((current) => current.length
                   ? []
-                  : scanCandidates.filter((item) => !item.alreadyImported && item.amount !== null && item.amount > 0 && item.cycle !== 'Unknown').map((item) => item.id))}
+                  : scanCandidates.filter((item) => !item.alreadyImported).map((item) => item.id))}
               />
-              <Text style={styles.fieldHint}>Tap a row to select it. We will never invent a price, billing cycle or renewal date. Items missing a price or cycle can be selected and completed below.</Text>
+              <Text style={styles.fieldHint}>New detections are selected automatically. Import now and fill in missing details later—SubSathi never invents a price, cycle or renewal date.</Text>
               {scanCandidates.map((candidate) => {
                 const selected = selectedCandidateIds.includes(candidate.id);
                 const categoryMetaItem = categoryMeta(candidate.category);
@@ -1636,9 +1691,11 @@ function AppContent() {
                       <Text style={[styles.serviceSub, { textAlign: 'right' }]}>{candidate.amount === null ? 'Price needed' : candidate.cycle === 'Unknown' ? 'Billing cycle needed' : `per ${candidate.cycle.toLowerCase()}`}</Text>
                     </View>
                   </Pressable>
-                  {selected && !candidate.alreadyImported && needsFieldReview ? <View style={{ borderTopWidth: 1, borderTopColor: C.line, backgroundColor: '#F8FBF9', padding: 13 }}>
+                  {!candidate.alreadyImported && needsFieldReview ? <Pressable onPress={() => setExpandedCandidateIds((current) => current.includes(candidate.id) ? current.filter((id) => id !== candidate.id) : [...current, candidate.id])} style={{ paddingHorizontal: 14, paddingVertical: 10, borderTopWidth: 1, borderTopColor: C.line }}><Text style={{ color: C.greenDark, fontSize: 11, fontWeight: '800' }}>{expandedCandidateIds.includes(candidate.id) ? 'Hide details' : 'Review missing details (optional)'}</Text></Pressable> : null}
+                  {expandedCandidateIds.includes(candidate.id) && !candidate.alreadyImported && needsFieldReview ? <View style={{ borderTopWidth: 1, borderTopColor: C.line, backgroundColor: '#F8FBF9', padding: 13 }}>
                     {candidate.amount === null ? <>
-                      <Text style={styles.fieldLabel}>CONFIRM PRICE (INR) *</Text>
+                      <Text style={styles.fieldLabel}>PRICE (INR, OPTIONAL)</Text>
+                      <Text style={styles.fieldHint}>Leave blank to import now and add the verified price later.</Text>
                       <TextInput
                         value={draft.amountText}
                         onChangeText={(value) => setCandidateEdits((current) => ({ ...current, [candidate.id]: { ...draft, amountText: value } }))}
@@ -1650,8 +1707,8 @@ function AppContent() {
                       />
                     </> : null}
                     {candidate.cycle === 'Unknown' ? <>
-                      <Text style={[styles.fieldLabel, { marginTop: 12 }]}>BILLING CYCLE *</Text>
-                      <View style={styles.cycleRow}>{CYCLES.map((cycle) => <Pressable key={cycle} onPress={() => setCandidateEdits((current) => ({ ...current, [candidate.id]: { ...draft, cycle } }))} style={[styles.cycleChip, draft.cycle === cycle && styles.cycleChipActive]}><Text style={[styles.cycleChipText, draft.cycle === cycle && styles.cycleChipTextActive]}>{cycle}</Text></Pressable>)}</View>
+                      <Text style={[styles.fieldLabel, { marginTop: 12 }]}>BILLING CYCLE (OPTIONAL)</Text>
+                      <View style={styles.cycleRow}>{(['Unknown', ...CYCLES] as (Cycle | 'Unknown')[]).map((cycle) => <Pressable key={cycle} onPress={() => setCandidateEdits((current) => ({ ...current, [candidate.id]: { ...draft, cycle } }))} style={[styles.cycleChip, draft.cycle === cycle && styles.cycleChipActive]}><Text style={[styles.cycleChipText, draft.cycle === cycle && styles.cycleChipTextActive]}>{cycle === 'Unknown' ? 'Not confirmed' : cycle}</Text></Pressable>)}</View>
                     </> : null}
                     {!candidate.nextRenewal ? <>
                       <Text style={[styles.fieldLabel, { marginTop: 12 }]}>RENEWAL DATE (OPTIONAL)</Text>
@@ -1693,7 +1750,7 @@ function SubscriptionEditor({ visible, initial, onClose, onSave, onDelete }: {
   const [name, setName] = useState('');
   const [category, setCategory] = useState<Category>('Entertainment');
   const [amount, setAmount] = useState('');
-  const [cycle, setCycle] = useState<Cycle>('Monthly');
+  const [cycle, setCycle] = useState<Cycle | 'Unknown'>('Monthly');
   const [nextRenewal, setNextRenewal] = useState('');
   const [manageUrl, setManageUrl] = useState('');
   const [billingSource, setBillingSource] = useState<BillingSource>('provider');
@@ -1705,7 +1762,7 @@ function SubscriptionEditor({ visible, initial, onClose, onSave, onDelete }: {
     if (!visible) return;
     setName(initial?.name ?? '');
     setCategory(initial?.category ?? 'Entertainment');
-    setAmount(initial ? String(initial.amount) : '');
+    setAmount(initial?.amount == null ? '' : String(initial.amount));
     setCycle(initial?.cycle ?? 'Monthly');
     setNextRenewal(initial?.nextRenewal ?? '');
     setManageUrl(initial?.manageUrl ?? '');
@@ -1716,9 +1773,10 @@ function SubscriptionEditor({ visible, initial, onClose, onSave, onDelete }: {
   }, [visible, initial]);
 
   const submit = async () => {
-    const numericAmount = Number(amount.replace(/,/g, '').trim());
+    const hasAmount = amount.trim().length > 0;
+    const numericAmount = hasAmount ? Number(amount.replace(/,/g, '').trim()) : null;
     if (!name.trim()) { Alert.alert('Add a service name', 'For example, Adobe, Netflix, Hotstar or Gym.'); return; }
-    if (!Number.isFinite(numericAmount) || numericAmount <= 0 || numericAmount > 10000000) { Alert.alert('Check the amount', 'Enter a valid amount greater than ₹0.'); return; }
+    if (hasAmount && (!Number.isFinite(numericAmount) || (numericAmount ?? 0) <= 0 || (numericAmount ?? 0) > 10000000)) { Alert.alert('Check the amount', 'Enter a valid amount greater than ₹0, or leave it blank until confirmed.'); return; }
     if (nextRenewal.trim() && !validDate(nextRenewal.trim())) { Alert.alert('Check the renewal date', 'Use YYYY-MM-DD, or leave the field blank until you confirm the date with the provider.'); return; }
     if (manageUrl.trim() && !/^(https?:\/\/)?[a-z0-9.-]+\.[a-z]{2,}([/:?#].*)?$/i.test(manageUrl.trim())) { Alert.alert('Check the management link', 'Enter a website address such as https://example.com/account.'); return; }
     setSaving(true);
@@ -1740,8 +1798,8 @@ function SubscriptionEditor({ visible, initial, onClose, onSave, onDelete }: {
         <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={styles.editorScroll}>
           <Text style={styles.fieldLabel}>SERVICE NAME *</Text><TextInput value={name} onChangeText={setName} placeholder="e.g. Adobe Creative Cloud" placeholderTextColor="#97A5A8" style={styles.input} maxLength={70} autoCapitalize="words" />
           <Text style={styles.fieldLabel}>CATEGORY</Text><View style={styles.categoryGrid}>{CATEGORIES.map((cat) => <Pressable key={cat.name} onPress={() => setCategory(cat.name)} style={[styles.categoryOption, category === cat.name && styles.categoryOptionActive]}><MaterialCommunityIcons name={categoryIconName(cat.name)} size={19} color={category === cat.name ? C.greenDark : C.muted} /><Text style={[styles.categoryOptionText, category === cat.name && styles.categoryOptionTextActive]}>{cat.name}</Text></Pressable>)}</View>
-          <Text style={styles.fieldLabel}>PRICE (INR) *</Text><View style={styles.amountInputWrap}><Text style={styles.rupeeSign}>₹</Text><TextInput value={amount} onChangeText={setAmount} placeholder="0.00" placeholderTextColor="#97A5A8" style={styles.amountInput} keyboardType="decimal-pad" /></View>
-          <Text style={styles.fieldLabel}>BILLING CYCLE</Text><View style={styles.cycleRow}>{CYCLES.map((item) => <Pressable key={item} onPress={() => setCycle(item)} style={[styles.cycleChip, item === cycle && styles.cycleChipActive]}><Text style={[styles.cycleChipText, item === cycle && styles.cycleChipTextActive]}>{item}</Text></Pressable>)}</View>
+          <Text style={styles.fieldLabel}>PRICE (INR, OPTIONAL UNTIL CONFIRMED)</Text><View style={styles.amountInputWrap}><Text style={styles.rupeeSign}>₹</Text><TextInput value={amount} onChangeText={setAmount} placeholder="Leave blank if unknown" placeholderTextColor="#97A5A8" style={styles.amountInput} keyboardType="decimal-pad" /></View>
+          <Text style={styles.fieldLabel}>BILLING CYCLE</Text><View style={styles.cycleRow}>{(['Unknown', ...CYCLES] as (Cycle | 'Unknown')[]).map((item) => <Pressable key={item} onPress={() => setCycle(item)} style={[styles.cycleChip, item === cycle && styles.cycleChipActive]}><Text style={[styles.cycleChipText, item === cycle && styles.cycleChipTextActive]}>{item === 'Unknown' ? 'Not confirmed' : item}</Text></Pressable>)}</View>
           <Text style={styles.fieldLabel}>NEXT RENEWAL DATE (OPTIONAL)</Text><TextInput value={nextRenewal} onChangeText={setNextRenewal} placeholder="Leave blank if not confirmed" placeholderTextColor="#97A5A8" style={styles.input} autoCapitalize="none" maxLength={10} />
           <Text style={styles.fieldHint}>Only enter a date confirmed by the provider. Format: YYYY-MM-DD. Leave blank if unknown; reminders need a verified date.</Text>
           <Text style={styles.fieldLabel}>BILLED THROUGH</Text>
@@ -1753,7 +1811,7 @@ function SubscriptionEditor({ visible, initial, onClose, onSave, onDelete }: {
           <View style={styles.reminderRow}><View style={{ flex: 1 }}><Text style={styles.settingTitle}>Renewal reminder</Text><Text style={styles.settingBody}>Notify me two days before, if permissions allow.</Text></View><Switch value={reminderEnabled} onValueChange={setReminderEnabled} trackColor={{ false: '#CBD5D4', true: '#A7E4CD' }} thumbColor={reminderEnabled ? C.green : '#F6F7F7'} /></View>
           <PrimaryButton title={saving ? 'Saving...' : initial ? 'Save changes' : 'Save subscription'} onPress={() => { if (!saving) void submit(); }} />
           {initial && onDelete ? <Pressable onPress={onDelete} style={styles.deleteFromEditor}><Text style={styles.deleteFromEditorText}>Remove from tracker</Text></Pressable> : null}
-          <Text style={styles.formPrivacyNote}>Details stay in local app storage in this MVP. This does not cancel, renew or change your real provider plan.</Text>
+          <Text style={styles.formPrivacyNote}>Details stay in local app storage in this MVP. Unknown prices are excluded from spend estimates. This does not cancel, renew or change your real provider plan.</Text>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
