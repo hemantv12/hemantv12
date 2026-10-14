@@ -317,7 +317,7 @@ def _list_gmail_refs_for_query(credentials: Credentials, query: str, budget: int
         page = service.users().messages().list(
             userId="me",
             q=query,
-            maxResults=min(100, budget - len(refs)),
+            maxResults=min(500, budget - len(refs)),
             pageToken=page_token,
         ).execute(num_retries=2)
         refs.extend(page.get("messages") or [])
@@ -431,7 +431,7 @@ def _scan_single_gmail_mailbox(
 
     if scan_mode == "full":
         queries = gmail_scan_queries()
-        per_query_budget = min(100, max(40, (limit + max(1, len(queries)) - 1) // max(1, len(queries)) + 12))
+        per_query_budget = min(500, max(100, (limit + max(1, len(queries)) - 1) // max(1, len(queries)) + 20))
         if queries:
             with ThreadPoolExecutor(max_workers=min(3, len(queries))) as executor:
                 query_results = list(executor.map(
@@ -882,7 +882,7 @@ def _gmail_http_error_message(status_code: int, reason: str) -> str:
 
 @app.post("/api/gmail/scan")
 def scan_gmail(
-    max_messages: int = Query(200, ge=1, le=200),
+    max_messages: int = Query(500, ge=1, le=500),
     force_full_scan: bool = Query(False),
     user: User = Depends(current_user),
     db: Session = Depends(get_db),
@@ -1051,7 +1051,7 @@ def scan_gmail(
         "notice": "SubSathi combines billing evidence from all linked Gmail inboxes. Repeat scans use Gmail history to process new email; missing prices or renewal dates remain unverified.",
         "scan_limit_per_account": limit,
         "scan_duration_ms": duration_ms,
-        "scan_workers": 6,
+        "scan_fetch_strategy": "gmail-api-batch",
         "scanned_accounts": successful_accounts,
         "account_errors": account_errors,
         "scan_mode": overall_mode,
