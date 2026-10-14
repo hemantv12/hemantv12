@@ -1,6 +1,6 @@
 # SubSathi Android frontend
 
-Current build: **0.5.5 (versionCode 11)** — internal installable test APK, not a Play Store-signed release. The app includes Android/iOS safe-area handling and a consent-aware AdMob banner slot. The checked-in AdMob App ID is Google’s official test App ID; the default banner unit is a test ad and does not earn money.
+Current build: **0.5.6 (versionCode 12)** — internal installable test APK, not a Play Store-signed release. The app includes Android/iOS safe-area handling and a consent-aware AdMob banner slot. The checked-in AdMob App ID is Google’s official test App ID; the default banner unit is a test ad and does not earn money.
 
 React Native + Expo Android application for subscription tracking, renewal reminders, spending insights and optional Gmail-driven discovery.
 
@@ -12,6 +12,7 @@ React Native + Expo Android application for subscription tracking, renewal remin
 - OAuth returns a one-time code to `subsathi://auth`; the app exchanges it with the API for a session and stores the session using Expo SecureStore.
 - After connecting Gmail, the app triggers a scan. Opening the Email scan screen while connected triggers another scan.
 - Link multiple Gmail accounts using separate Google consent and combine detections in one review list.
+- **Quick sync** uses Gmail history to fetch new messages; **Full rescan** searches up to 200 recent billing-related messages per inbox to help find missed detections.
 - Export the local subscription list as a CSV file through the Android share sheet.
 - Missing renewal dates remain optional; they are never guessed or required for import.
 - Scans search billing query groups and linked inboxes in parallel and deduplicate by service plus billing source.

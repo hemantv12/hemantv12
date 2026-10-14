@@ -4,7 +4,7 @@
 
 - **Web workspace:** https://subsathi-web.onrender.com
 - **API health endpoint:** https://subsathi-api.onrender.com/health
-- **Android:** version 0.5.5 (versionCode 11) is an installable internal test APK after CI completes; it is not a Play Store-signed release.
+- **Android:** version 0.5.6 (versionCode 12) is an installable internal test APK after CI completes; it is not a Play Store-signed release.
 - **Automated checks:** backend regression tests cover price/date parsing, provider filtering, multi-inbox scanning, source-aware billing routes and safe management-link extraction; the current CI run must pass before installing this release.
 - **Gmail:** hosted API health and Google OAuth-start preflight passed. A real account's end-to-end Gmail scan/import still needs physical-device acceptance testing.
 - **Production gate:** verify the running API uses durable PostgreSQL, upgrade the temporary free database before expiry, and complete Google restricted-scope verification/security requirements before accepting real customer data.
