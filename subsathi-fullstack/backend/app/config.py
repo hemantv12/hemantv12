@@ -25,6 +25,8 @@ class Settings:
     api_base_url: str = os.getenv("API_BASE_URL", "http://localhost:8000").rstrip("/")
     google_client_id: str = os.getenv("GOOGLE_CLIENT_ID", "").strip()
     google_client_secret: str = os.getenv("GOOGLE_CLIENT_SECRET", "").strip()
+    openai_api_key: str = os.getenv("OPENAI_API_KEY", "").strip()
+    openai_model: str = os.getenv("OPENAI_MODEL", "gpt-5-mini").strip() or "gpt-5-mini"
     google_redirect_uri: str = os.getenv("GOOGLE_REDIRECT_URI", "http://localhost:8000/api/auth/google/callback").strip()
     mobile_redirect_uri: str = os.getenv("MOBILE_REDIRECT_URI", "subsathi://auth").strip()
     jwt_secret: str = os.getenv("JWT_SECRET", "development-only-change-this-secret")
@@ -45,6 +47,10 @@ class Settings:
     @property
     def google_configured(self) -> bool:
         return bool(self.google_client_id and self.google_client_secret and self.google_redirect_uri)
+
+    @property
+    def ai_extraction_configured(self) -> bool:
+        return bool(self.openai_api_key)
 
     def validate_production(self) -> None:
         if self.app_env.lower() == "production":

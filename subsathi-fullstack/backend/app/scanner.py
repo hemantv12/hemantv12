@@ -185,13 +185,19 @@ def extract_management_link(
     return sorted(ranked, key=lambda item: item[0], reverse=True)[0][1] if ranked else fallback_url
 
 
-CURRENCY_AMOUNT = re.compile(r"(?:₹\s*|INR\s*|Rs\.?\s*)([\d,]+(?:\.\d{1,2})?)", re.IGNORECASE)
+CURRENCY_AMOUNT = re.compile(
+    r"(?:"
+    r"(?:₹|INR\b|Rs\.?|rupees?)\s*(?P<prefix_amount>\d[\d,]*(?:\.\d{1,2})?)"
+    r"|(?P<suffix_amount>\d[\d,]*(?:\.\d{1,2})?)\s*(?:INR\b|Rs\.?|rupees?)"
+    r")",
+    re.IGNORECASE,
+)
 RECURRING_TERMS = re.compile(r"\b(subscription|subscribed|recurring|auto[- ]?renew|renew(?:al|s|ed)?|monthly|annually|annual|yearly|per month|per year|membership|billing cycle|free trial|trial ends|plan will continue)\b", re.IGNORECASE)
 CYCLE_PATTERNS = (
     (re.compile(r"\b(weekly|every week|per week|billed weekly|each week)\b", re.I), "Weekly"),
     (re.compile(r"\b(quarterly|every 3 months|per quarter|for 3 months|3-month|billed quarterly)\b", re.I), "Quarterly"),
     (re.compile(r"\b(annual|annually|yearly|per year|every 12 months|12-month|billed annually|billed yearly|per annum|each year)\b", re.I), "Yearly"),
-    (re.compile(r"\b(monthly|every month|per month|each month|billed monthly)\b", re.I), "Monthly"),
+    (re.compile(r"\b(monthly|every month|per month|each month|billed monthly|billed every 30 days|every 30 days|per 30 days|every 1 month)\b", re.I), "Monthly"),
 )
 RENEWAL_DATE_CUE = r"(?:next\s+(?:renewal|billing|payment|charge|invoice)(?:\s+date)?|renewal\s+date|billing\s+date|payment\s+date|renews?(?:\s+on)?|renewal\s+on|will\s+be\s+charged\s+on|trial\s+ends?(?:\s+on)?|expires?(?:\s+on)?|next\s+charge\s+date)"
 RENEWAL_DATE_PATTERNS = (
@@ -307,9 +313,10 @@ def parse_amount_near(text: str, anchor: int) -> float | None:
     # when no currency amount follows the matched service name.
     following = [item for item in matches if item.start() >= anchor and item.start() - anchor <= 220]
     match = min(following, key=lambda item: item.start() - anchor) if following else min(matches, key=lambda item: abs(item.start() - anchor))
+    raw_amount = match.group("prefix_amount") or match.group("suffix_amount")
     try:
-        amount = float(match.group(1).replace(",", ""))
-    except ValueError:
+        amount = float(raw_amount.replace(",", ""))
+    except (ValueError, AttributeError):
         return None
     return amount if 0 < amount <= 10_000_000 else None
 

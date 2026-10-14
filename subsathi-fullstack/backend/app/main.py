@@ -29,6 +29,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .config import settings
+from .ai_extractor import extract_billing_evidence_with_ai
 from .database import Base, SessionLocal, engine, get_db
 from .models import GoogleConnection, LinkedGmailAccount, OAuthLoginTicket, OAuthState, ScanCandidate, User, utcnow
 from .scanner import MERCHANTS, MERCHANT_SENDER_DOMAINS, extract_management_link, extract_message_text, group_billing_evidence, parse_billing_message, should_fetch_full_message
@@ -403,6 +404,7 @@ def _scan_single_gmail_mailbox(
     last_history_id: str | None = None,
     last_deep_scan_at: datetime | None = None,
     force_full_scan: bool = False,
+    ai_assisted: bool = False,
 ) -> dict[str, Any]:
     service = build("gmail", "v1", credentials=credentials, cache_discovery=False)
     profile = service.users().getProfile(userId="me").execute(num_retries=2)
@@ -463,7 +465,9 @@ def _scan_single_gmail_mailbox(
         credentials, relevant_ids, message_format="full"
     )
 
-    parsed: list[dict[str, Any]] = []
+    candidate_by_message: dict[str, dict[str, Any] | None] = {}
+    payload_by_message: dict[str, dict[str, Any]] = {}
+    ai_inputs: list[dict[str, Any]] = []
     for message_id, message in zip(relevant_ids, full_messages):
         if not message:
             continue
@@ -472,14 +476,17 @@ def _scan_single_gmail_mailbox(
         fallback = metadata_by_id.get(message_id, {})
         subject = headers.get("subject", fallback.get("subject", ""))
         sender = headers.get("from", fallback.get("from", ""))
+        date_header = headers.get("date", fallback.get("date", ""))
         body = _body_from_gmail_payload(payload)
         candidate = parse_billing_message(
             message_id=message_id,
             subject=subject,
             sender=sender,
-            date_header=headers.get("date", fallback.get("date", "")),
+            date_header=date_header,
             body=body,
         )
+        payload_by_message[message_id] = payload
+        candidate_by_message[message_id] = candidate
         if candidate:
             extracted_url = extract_management_link(
                 payload,
@@ -490,7 +497,78 @@ def _scan_single_gmail_mailbox(
             if extracted_url:
                 candidate["manage_url"] = extracted_url
             candidate["source_mailbox"] = mailbox_email
-            parsed.append(candidate)
+
+        # Fully populated local matches are never sent to the external AI service.
+        if ai_assisted and (
+            not candidate
+            or candidate.get("amount") is None
+            or not candidate.get("cycle")
+            or not candidate.get("next_renewal")
+        ):
+            ai_inputs.append({
+                "message_id": message_id,
+                "subject": subject,
+                "sender": sender,
+                "date_header": date_header,
+                "body": body,
+            })
+
+    ai_status = "off"
+    ai_analyzed = 0
+    ai_warning = ""
+    if ai_assisted and ai_inputs:
+        if not settings.ai_extraction_configured:
+            ai_status = "not_configured"
+            ai_warning = "AI-assisted extraction is not configured on the server; standard results are shown."
+        else:
+            try:
+                ai_results = extract_billing_evidence_with_ai(
+                    ai_inputs,
+                    api_key=settings.openai_api_key,
+                    model=settings.openai_model,
+                )
+                ai_analyzed = min(len(ai_inputs), 25)
+                ai_status = "completed"
+                email_lookup = {str(item["message_id"]): item for item in ai_inputs}
+                for ai_candidate in ai_results:
+                    message_id = str(ai_candidate.get("message_id") or "")
+                    existing = candidate_by_message.get(message_id)
+                    if existing is not None:
+                        # Deterministic evidence always wins; AI only fills missing fields.
+                        ai_filled = False
+                        for field in ("amount", "cycle", "next_renewal"):
+                            if existing.get(field) in (None, "") and ai_candidate.get(field) not in (None, ""):
+                                existing[field] = ai_candidate[field]
+                                ai_filled = True
+                        if ai_filled:
+                            existing["confidence"] = max(
+                                int(existing.get("confidence") or 0),
+                                int(ai_candidate.get("confidence") or 0),
+                            )
+                            existing["ai_evidence_used"] = True
+                        continue
+
+                    payload = payload_by_message.get(message_id, {})
+                    source_email = email_lookup.get(message_id, {})
+                    extracted_url = extract_management_link(
+                        payload,
+                        service_name=str(ai_candidate.get("service_name") or ""),
+                        sender=str(source_email.get("sender") or ""),
+                        billing_source=str(ai_candidate.get("billing_source") or "provider"),
+                    )
+                    if extracted_url:
+                        ai_candidate["manage_url"] = extracted_url
+                    ai_candidate["source_mailbox"] = mailbox_email
+                    candidate_by_message[message_id] = ai_candidate
+            except Exception as exc:
+                # Never log API credentials, message contents, or provider responses.
+                logging.getLogger("uvicorn.error").warning(
+                    "AI-assisted extraction failed type=%s", type(exc).__name__
+                )
+                ai_status = "failed"
+                ai_warning = "AI-assisted extraction could not complete; standard detection results are shown."
+
+    parsed = [candidate for candidate in candidate_by_message.values() if candidate is not None]
     return {
         "searched": len(message_ids),
         "full_fetched": len(relevant_ids),
@@ -498,6 +576,9 @@ def _scan_single_gmail_mailbox(
         "history_id": current_history_id or profile_history_id or None,
         "full_scan": scan_mode == "full",
         "scan_mode": scan_mode,
+        "ai_status": ai_status,
+        "ai_analyzed": ai_analyzed,
+        "ai_warning": ai_warning,
     }
 
 
@@ -524,6 +605,7 @@ def health() -> dict[str, Any]:
         "service": "subsathi-api",
         "environment": settings.app_env,
         "google_oauth_configured": settings.google_configured,
+        "ai_extraction_configured": settings.ai_extraction_configured,
         "database_backend": database_backend,
         "durable_database_configured": database_backend == "postgresql",
     }
@@ -884,10 +966,16 @@ def _gmail_http_error_message(status_code: int, reason: str) -> str:
 def scan_gmail(
     max_messages: int = Query(500, ge=1, le=500),
     force_full_scan: bool = Query(False),
+    ai_assisted: bool = Query(False),
     user: User = Depends(current_user),
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
     scan_started = perf_counter()
+    if ai_assisted and not settings.ai_extraction_configured:
+        raise HTTPException(
+            status_code=503,
+            detail="AI-assisted extraction is not configured. The owner must add OPENAI_API_KEY in the private Render environment settings.",
+        )
     mailboxes, account_errors = credentials_for_all_mailboxes(db, user)
     limit = min(max_messages, settings.scan_max_messages)
     parsed: list[dict[str, Any]] = []
@@ -896,6 +984,8 @@ def scan_gmail(
     successful_accounts: list[str] = []
     account_scan_modes: dict[str, str] = {}
     successful_rows: list[tuple[GoogleConnection | LinkedGmailAccount, dict[str, Any]]] = []
+    ai_analyzed_messages = 0
+    ai_warnings: list[str] = []
 
     def scan_one_mailbox(
         mailbox: tuple[str, Credentials, GoogleConnection | LinkedGmailAccount],
@@ -909,6 +999,7 @@ def scan_gmail(
                 last_history_id=connection_row.last_history_id,
                 last_deep_scan_at=connection_row.last_deep_scan_at,
                 force_full_scan=force_full_scan,
+                ai_assisted=ai_assisted,
             )
             return mailbox_email, connection_row, result, None
         except HttpError as exc:
@@ -941,6 +1032,9 @@ def scan_gmail(
         scanned_messages += int(result["searched"])
         full_fetched += int(result["full_fetched"])
         parsed.extend(result["parsed"])
+        ai_analyzed_messages += int(result.get("ai_analyzed") or 0)
+        if result.get("ai_warning"):
+            ai_warnings.append(str(result["ai_warning"]))
         successful_accounts.append(mailbox_email)
         account_scan_modes[mailbox_email] = str(result.get("scan_mode") or "full")
         if result.get("history_id"):
@@ -1058,6 +1152,9 @@ def scan_gmail(
         "scan_modes": account_scan_modes,
         "full_scan_requested": force_full_scan,
         "scan_note": "Initial and weekly reconciliation scans use billing/provider queries. Between those scans, SubSathi processes newly added messages using per-inbox Gmail history cursors.",
+        "ai_assisted_scan": ai_assisted,
+        "ai_analyzed_messages": ai_analyzed_messages,
+        "ai_warning": ai_warnings[0] if ai_warnings else "",
     }
 
 

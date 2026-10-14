@@ -472,9 +472,14 @@ function AppContent() {
     accountsScanned: string[];
     accountErrors: { email: string; message: string }[];
     mode: 'full' | 'incremental';
+    aiAssisted: boolean;
+    aiAnalyzedMessages: number;
+    aiWarning: string;
   } | null>(null);
   const [apiReachable, setApiReachable] = useState<boolean | null>(null);
   const [googleOAuthConfigured, setGoogleOAuthConfigured] = useState<boolean | null>(null);
+  const [aiExtractionConfigured, setAiExtractionConfigured] = useState<boolean | null>(null);
+  const [aiAssistedScan, setAiAssistedScan] = useState(false);
   const autoScanSessionRef = useRef<string | null>(null);
   const scanInFlightRef = useRef(false);
   const screenProgress = useRef(new Animated.Value(1)).current;
@@ -516,10 +521,11 @@ function AppContent() {
         if (active) {
           setApiReachable(true);
           setGoogleOAuthConfigured(payload.google_oauth_configured === true);
+          setAiExtractionConfigured(payload.ai_extraction_configured === true);
         }
       })
       .catch(() => {
-        if (active) { setApiReachable(false); setGoogleOAuthConfigured(null); }
+        if (active) { setApiReachable(false); setGoogleOAuthConfigured(null); setAiExtractionConfigured(null); }
       })
       .finally(() => clearTimeout(timeout));
     return () => { active = false; clearTimeout(timeout); controller.abort(); };
@@ -780,6 +786,7 @@ function AppContent() {
       if (!healthResponse.ok) throw new Error('The SubSathi server is not healthy right now. Please retry in a moment.');
       setApiReachable(true);
       setGoogleOAuthConfigured(healthPayload.google_oauth_configured === true);
+      setAiExtractionConfigured(healthPayload.ai_extraction_configured === true);
       if (healthPayload.google_oauth_configured !== true) {
         throw new Error('Gmail connection is blocked by server setup, not by your phone. The hosted API does not have Google OAuth credentials configured. In Google Cloud, enable Gmail API and create a Web OAuth client. In Render, add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET, then set GOOGLE_REDIRECT_URI to https://subsathi-api.onrender.com/api/auth/google/callback. Add your Google account as an OAuth test user while the consent screen is in testing, deploy the changes, and try again. Never put the client secret inside the APK or send it in chat.');
       }
@@ -919,7 +926,7 @@ function AppContent() {
     setScanSummary(null);
     setScanLoading(true);
     try {
-      const scanQuery = '?max_messages=500' + (mode === 'full' ? '&force_full_scan=true' : '');
+      const scanQuery = '?max_messages=500' + (mode === 'full' ? '&force_full_scan=true' : '') + (aiAssistedScan ? '&ai_assisted=true' : '');
       const response = await fetch(API_BASE_URL + '/api/gmail/scan' + scanQuery, {
         method: 'POST',
         headers: { Authorization: `Bearer ${session}`, 'Content-Type': 'application/json' },
@@ -970,6 +977,9 @@ function AppContent() {
         accountsScanned: Array.isArray(payload.scanned_accounts) ? payload.scanned_accounts.map((email: unknown) => String(email)) : [],
         accountErrors: Array.isArray(payload.account_errors) ? payload.account_errors.map((item: any) => ({ email: String(item.email || ''), message: String(item.message || 'This inbox could not be scanned.') })) : [],
         mode: payload.scan_mode === 'full' ? 'full' : 'incremental',
+        aiAssisted: Boolean(payload.ai_assisted_scan),
+        aiAnalyzedMessages: Number(payload.ai_analyzed_messages || 0),
+        aiWarning: String(payload.ai_warning || ''),
       });
     } catch (error) {
       setScanError(error instanceof Error ? error.message : 'Could not scan Gmail. Please retry.');
@@ -1136,7 +1146,7 @@ function AppContent() {
         throw new Error(payload.detail || 'Could not disconnect Gmail on the server.');
       }
       await SecureStore.deleteItemAsync(SESSION_KEY);
-      setApiSession(null); setGmailEmail(null); setGmailAccounts([]); setScanCandidates([]); setSelectedCandidateIds([]);
+      setApiSession(null); setGmailEmail(null); setGmailAccounts([]); setScanCandidates([]); setSelectedCandidateIds([]); setAiAssistedScan(false);
       toastLocal('All Gmail accounts disconnected. Locally imported plans remain on this device.');
     } catch (error) {
       setScanError(error instanceof Error ? error.message : 'Disconnect failed.');
@@ -1448,7 +1458,25 @@ function AppContent() {
               {!gmailEmail ? <PrimaryButton title={googleOAuthConfigured === false ? 'Check Gmail setup again' : 'Connect Gmail securely'} onPress={() => { void connectGmail(); }} /> : <View style={{ gap: 9 }}>
                 <PrimaryButton title={scanLoading ? 'Syncing new emails…' : 'Quick sync new billing emails'} onPress={() => { if (!scanLoading) void scanGmail(undefined, 'quick'); }} />
                 <GhostButton title={scanLoading ? 'Rescanning…' : 'Full rescan (find missed subscriptions)'} onPress={() => { if (!scanLoading) void scanGmail(undefined, 'full'); }} />
-                <Text style={styles.fieldHint}>Quick sync checks new email only. Full rescan searches up to 200 recent billing-related messages per inbox and preserves older detections outside this batch.</Text>
+                <Text style={styles.fieldHint}>Quick sync checks new email only. Full rescan searches up to 500 recent billing-related messages per inbox and preserves older detections outside this batch.</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10, backgroundColor: '#F7FAF8', borderColor: C.line, borderWidth: 1, borderRadius: 13, padding: 12, marginTop: 10, marginBottom: 12 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.fieldLabel}>OPTIONAL AI-ASSISTED EXTRACTION</Text>
+                    <Text style={styles.fieldHint}>{aiExtractionConfigured === true
+                      ? 'When enabled, up to 25 incomplete or uncertain billing-email excerpts per linked inbox (max 3,500 body characters each) are sent to OpenAI using the owner-configured API key. Fully detected emails are not sent. AI never invents missing prices or dates. Enable only if you consent; toggle applies to the next scan.'
+                      : aiExtractionConfigured === false
+                        ? 'AI extraction is not configured on the server yet. Standard email detection remains available; the app will not send email text to an AI service.'
+                        : 'Checking whether optional AI extraction is configured on the server…'}</Text>
+                  </View>
+                  <Switch
+                    value={aiAssistedScan}
+                    disabled={aiExtractionConfigured !== true}
+                    onValueChange={setAiAssistedScan}
+                    trackColor={{ false: '#CBD5D4', true: '#A7E4CD' }}
+                    thumbColor={aiAssistedScan ? C.green : '#F6F7F7'}
+                    accessibilityLabel="Allow AI-assisted billing email extraction"
+                  />
+                </View>
                 <GhostButton title="Connect another Gmail account" onPress={() => { if (!scanLoading) void connectAdditionalGmail(); }} />
                 <GhostButton title="Disconnect all Gmail accounts" onPress={() => { Alert.alert('Disconnect all Gmail accounts?', 'All linked Gmail credentials and cached detections will be removed from the server. Subscription entries already imported on this phone will remain.', [{ text: 'Keep connected', style: 'cancel' }, { text: 'Disconnect all', style: 'destructive', onPress: () => { void disconnectGmail(); } }]); }} />
                 {gmailAccounts.filter((account) => !account.primary).map((account) => <Pressable key={account.email} disabled={scanLoading} onPress={() => Alert.alert('Remove Gmail account?', 'Remove ' + account.email + ' from this SubSathi profile?', [{ text: 'Cancel', style: 'cancel' }, { text: 'Remove account', style: 'destructive', onPress: () => { void disconnectAdditionalGmail(account.email); } }])} style={{ paddingVertical: 7 }}><Text style={{ fontSize: 10, color: C.muted }}>Secondary inbox · {account.email} · tap to remove</Text></Pressable>)}
@@ -1457,6 +1485,7 @@ function AppContent() {
             {gmailEmail && scanSummary ? <View style={{ backgroundColor: C.greenPale, borderRadius: 13, padding: 12, marginBottom: 14 }}>
               <Text style={{ color: C.greenDark, fontSize: 11, fontWeight: '800' }}>{scanSummary.mode === 'full' ? 'Full rescan' : 'Quick sync'} · Checked {scanSummary.scannedMessages} billing-related emails across {scanSummary.accountsScanned.length} Gmail account(s){scanSummary.durationMs > 0 ? ` in ${(scanSummary.durationMs / 1000).toFixed(1)}s` : ''}</Text>
               <Text style={{ color: '#42695E', fontSize: 10, lineHeight: 15, marginTop: 4 }}>{scanSummary.candidateCount > 0 ? `Found ${scanSummary.candidateCount} likely subscription(s). Review each result before importing.` : 'No strong matches found. Missing prices and dates are not invented.'}</Text>
+              {scanSummary.aiAssisted ? <Text style={{ color: '#42695E', fontSize: 10, lineHeight: 15, marginTop: 5 }}>{scanSummary.aiWarning || (scanSummary.aiAnalyzedMessages > 0 ? `AI-assisted extraction reviewed ${scanSummary.aiAnalyzedMessages} incomplete/uncertain email(s) and only added fields supported by quoted email evidence.` : 'AI-assisted mode was enabled, but no incomplete or uncertain emails needed extra analysis in this scan.')}</Text> : null}
               {scanSummary.accountErrors.map((item) => <Text key={item.email} style={{ color: C.red, fontSize: 10, lineHeight: 15, marginTop: 5 }}>{item.email}: {item.message}</Text>)}
             </View> : null}
             {gmailEmail && scanCandidates.length > 0 ? <View style={{ marginBottom: 18 }}>
