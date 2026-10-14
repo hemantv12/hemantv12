@@ -293,17 +293,28 @@ def credentials_for_all_mailboxes(
 
 
 def gmail_scan_queries() -> list[str]:
-    """Use configured billing terms, known provider senders and a broad five-year query."""
+    """Return varied five-year Gmail searches; round-robin merging preserves recall across query families."""
     configured = (settings.gmail_query or "").strip()
     domains = sorted({domain for values in MERCHANT_SENDER_DOMAINS.values() for domain in values})
     sender_query = "newer_than:5y {" + " ".join(f"from:{domain}" for domain in domains) + "}"
     broad_query = (
         'newer_than:5y {subject:receipt subject:invoice subject:renewal subject:renewed '
-        'subject:subscription subject:membership subject:purchase "auto-renew" '
-        '"recurring payment" "next payment" "your plan renews" "payment successful"}'
+        'subject:subscription subject:membership subject:purchase subject:billing '
+        '"auto-renew" "recurring payment" "next payment" "next billing date" '
+        '"your plan renews" "payment successful" "upcoming bill"}'
+    )
+    trial_and_activation_query = (
+        'newer_than:5y {"free trial" "trial ends" "trial will end" "subscription starts" '
+        '"thank you for subscribing" "membership is active" "plan is active" '
+        '"subscription activated" "subscription confirmed" "welcome to premium"}'
+    )
+    recurring_charge_query = (
+        'newer_than:5y {"automatic renewal" "recurring charge" "charged every" '
+        '"billed every" "billed monthly" "billed annually" "next debit" '
+        '"subscription period" "your membership" "renewal notice"}'
     )
     queries: list[str] = []
-    for query in (configured, sender_query, broad_query):
+    for query in (configured, sender_query, broad_query, trial_and_activation_query, recurring_charge_query):
         if query and query not in queries:
             queries.append(query)
     return queries
@@ -431,16 +442,26 @@ def _scan_single_gmail_mailbox(
         message_ids = []
         current_history_id = profile_history_id
 
+    query_limit_reached = False
+    query_count = 0
+    query_result_hits = 0
     if scan_mode == "full":
         queries = gmail_scan_queries()
-        per_query_budget = min(500, max(100, (limit + max(1, len(queries)) - 1) // max(1, len(queries)) + 20))
+        query_count = len(queries)
+        # Each query can contribute up to 500 refs; round-robin merging selects from
+        # the broader pool instead of starving provider/trial searches. The API's total
+        # selected-message limit remains explicit and is surfaced to the mobile client.
+        per_query_budget = min(500, max(250, limit))
         if queries:
-            with ThreadPoolExecutor(max_workers=min(3, len(queries))) as executor:
+            with ThreadPoolExecutor(max_workers=min(4, len(queries))) as executor:
                 query_results = list(executor.map(
                     lambda query: _list_gmail_refs_for_query(credentials, query, per_query_budget),
                     queries,
                 ))
+        query_result_hits = sum(len(items) for items in query_results)
+        query_limit_reached = any(len(items) >= per_query_budget for items in query_results)
         message_ids = _interleave_query_results(query_results, limit)
+        query_limit_reached = query_limit_reached or len(message_ids) >= limit
         # Keep the history watermark captured before listing messages. Items arriving
         # during this deep scan will appear after this cursor and be fetched next time.
 
@@ -598,6 +619,9 @@ def _scan_single_gmail_mailbox(
     return {
         "searched": len(message_ids),
         "full_fetched": len(relevant_ids),
+        "queries_used": query_count,
+        "search_result_hits": query_result_hits,
+        "scan_limit_reached": query_limit_reached,
         "parsed": parsed,
         "history_id": current_history_id or profile_history_id or None,
         "full_scan": scan_mode == "full",
@@ -990,7 +1014,7 @@ def _gmail_http_error_message(status_code: int, reason: str) -> str:
 
 @app.post("/api/gmail/scan")
 def scan_gmail(
-    max_messages: int = Query(500, ge=1, le=500),
+    max_messages: int = Query(1500, ge=1, le=1500),
     force_full_scan: bool = Query(False),
     ai_assisted: bool = Query(False),
     user: User = Depends(current_user),
@@ -1007,6 +1031,9 @@ def scan_gmail(
     parsed: list[dict[str, Any]] = []
     scanned_messages = 0
     full_fetched = 0
+    queries_used = 0
+    search_result_hits = 0
+    scan_limit_reached = False
     successful_accounts: list[str] = []
     account_scan_modes: dict[str, str] = {}
     successful_rows: list[tuple[GoogleConnection | LinkedGmailAccount, dict[str, Any]]] = []
@@ -1057,6 +1084,9 @@ def scan_gmail(
             continue
         scanned_messages += int(result["searched"])
         full_fetched += int(result["full_fetched"])
+        queries_used += int(result.get("queries_used") or 0)
+        search_result_hits += int(result.get("search_result_hits") or 0)
+        scan_limit_reached = scan_limit_reached or bool(result.get("scan_limit_reached"))
         parsed.extend(result["parsed"])
         ai_analyzed_messages += int(result.get("ai_analyzed") or 0)
         if result.get("ai_warning"):
@@ -1081,8 +1111,8 @@ def scan_gmail(
     grouped = group_billing_evidence(parsed)
     duration_ms = round((perf_counter() - scan_started) * 1000)
     logging.getLogger("uvicorn.error").info(
-        "Gmail scan complete: accounts=%s modes=%s searched=%s full_fetched=%s matched=%s candidates=%s duration_ms=%s",
-        len(successful_accounts), account_scan_modes, scanned_messages, full_fetched, len(parsed), len(grouped), duration_ms,
+        "Gmail scan complete: accounts=%s modes=%s searched=%s full_fetched=%s matched=%s candidates=%s limit_reached=%s duration_ms=%s",
+        len(successful_accounts), account_scan_modes, scanned_messages, full_fetched, len(parsed), len(grouped), scan_limit_reached, duration_ms,
     )
 
     # A deep scan is still capped to a slice of recent billing messages. Never delete
@@ -1172,6 +1202,9 @@ def scan_gmail(
         "scanned_messages": scanned_messages,
         "full_messages_fetched": full_fetched,
         "matched_receipts": len(parsed),
+        "queries_used": queries_used,
+        "search_result_hits": search_result_hits,
+        "scan_limit_reached": scan_limit_reached,
         "candidate_count": len(saved),
         "new_candidate_count": len(grouped),
         "scanned_at": now_utc().isoformat() + "Z",
