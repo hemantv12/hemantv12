@@ -334,8 +334,13 @@ def gmail_scan_queries() -> list[str]:
         '"billed every" "billed monthly" "billed annually" "next debit" '
         '"subscription period" "your membership" "renewal notice"}'
     )
+    autopay_mandate_query = (
+        'newer_than:5y {"UPI AutoPay" "autopay mandate" "mandate registered" '
+        '"mandate created" "recurring debit" "scheduled debit" "will be debited" '
+        '"e-NACH" "NACH mandate" "standing instruction" "auto-debit"}'
+    )
     queries: list[str] = []
-    for query in (configured, sender_query, broad_query, trial_and_activation_query, recurring_charge_query):
+    for query in (configured, sender_query, broad_query, trial_and_activation_query, recurring_charge_query, autopay_mandate_query):
         if query and query not in queries:
             queries.append(query)
     return queries
@@ -506,6 +511,8 @@ def _scan_single_gmail_mailbox(
     full_messages = _batch_fetch_gmail_messages_for_scan(
         credentials, relevant_ids, message_format="full"
     )
+    # Count actual message bodies returned by Gmail, not merely requests attempted.
+    full_fetched = sum(message is not None for message in full_messages)
 
     candidate_by_message: dict[str, dict[str, Any] | None] = {}
     payload_by_message: dict[str, dict[str, Any]] = {}
@@ -639,7 +646,7 @@ def _scan_single_gmail_mailbox(
     parsed = [candidate for candidate in candidate_by_message.values() if candidate is not None]
     return {
         "searched": len(message_ids),
-        "full_fetched": len(relevant_ids),
+        "full_fetched": full_fetched,
         "queries_used": query_count,
         "search_result_hits": query_result_hits,
         "scan_limit_reached": query_limit_reached,
@@ -976,10 +983,18 @@ def _batch_fetch_gmail_messages_for_scan(
         return []
     service = build("gmail", "v1", credentials=credentials, cache_discovery=False)
     responses: dict[str, dict[str, Any] | None] = {}
+    errors: dict[str, Exception] = {}
 
     def callback(request_id: str, response: Any, exception: Exception | None) -> None:
-        # A single vanished message should not fail the entire mailbox scan.
-        responses[str(request_id)] = response if exception is None and isinstance(response, dict) else None
+        # A single vanished message is harmless. Any other request failure must be
+        # surfaced; silently mapping 403/401 body-fetch failures to None made the app
+        # report "0 subscriptions found" when Gmail had actually denied body access.
+        key = str(request_id)
+        if exception is not None:
+            errors[key] = exception
+            responses[key] = None
+        else:
+            responses[key] = response if isinstance(response, dict) else None
 
     for offset in range(0, len(message_ids), 50):
         batch = service.new_batch_http_request(callback=callback)
@@ -996,6 +1011,15 @@ def _batch_fetch_gmail_messages_for_scan(
                 request_id=message_id,
             )
         batch.execute()
+        for message_id in message_ids[offset : offset + 50]:
+            exception = errors.get(message_id)
+            if exception is None:
+                continue
+            if isinstance(exception, HttpError):
+                status_code = int(getattr(getattr(exception, "resp", None), "status", 0) or 0)
+                if status_code == 404:
+                    continue
+            raise exception
     return [responses.get(message_id) for message_id in message_ids]
 
 
@@ -1007,10 +1031,14 @@ def _gmail_http_error_context(exc: HttpError) -> tuple[int, str]:
         payload = json.loads((exc.content or b"").decode("utf-8", errors="replace"))
         error = payload.get("error", {}) if isinstance(payload, dict) else {}
         if isinstance(error, dict):
-            reason = str(error.get("status") or "")
+            # Google includes a broad top-level status (e.g. PERMISSION_DENIED)
+            # and a more actionable per-error reason (e.g. accessNotConfigured or
+            # userRateLimitExceeded). Always prefer the detailed reason for recovery UI.
             details = error.get("errors") or []
-            if not reason and details and isinstance(details[0], dict):
+            if details and isinstance(details[0], dict):
                 reason = str(details[0].get("reason") or "")
+            if not reason:
+                reason = str(error.get("status") or "")
     except (ValueError, TypeError, AttributeError):
         pass
     reason = "".join(ch for ch in reason if ch.isalnum() or ch in "_.-")[:64] or "unknown"

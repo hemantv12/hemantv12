@@ -393,3 +393,54 @@ def test_date_parser_handles_upcoming_bill_and_scheduled_renewal_phrasing():
     assert parse_date("Next renewal scheduled for November 20, 2026") == "2026-11-20"
     assert parse_date("Upcoming payment expected on 2026-12-01") == "2026-12-01"
     assert parse_date("Upcoming payment will happen soon") is None
+
+
+
+def test_detects_indian_upi_autopay_service_and_explicit_debit_date():
+    result = parse_billing_message(
+        message_id="upi-1",
+        subject="UPI AutoPay mandate renewed for JioSaavn Pro",
+        sender="Alerts <alerts@hdfcbank.com>",
+        date_header="Mon, 12 Oct 2026 10:00:00 +0000",
+        body=(
+            "Your UPI AutoPay mandate for JioSaavn Pro enables a recurring debit of ₹99 every month. "
+            "Next debit scheduled for November 15, 2026."
+        ),
+    )
+    assert result is not None
+    assert result["service_name"] == "JioSaavn Pro"
+    assert result["amount"] == 99
+    assert result["cycle"] == "Monthly"
+    assert result["next_renewal"] == "2026-11-15"
+    assert result["billing_source"] == "upi_autopay"
+    assert result["manage_url"] == ""
+
+
+def test_detects_unknown_service_only_when_autopay_email_names_the_plan():
+    result = parse_billing_message(
+        message_id="upi-2",
+        subject="AutoPay mandate registered for FitTrack Plus",
+        sender="Bank Alerts <alerts@bank.example>",
+        date_header="Mon, 12 Oct 2026 10:00:00 +0000",
+        body=(
+            "Your UPI AutoPay mandate for FitTrack Plus authorizes a recurring debit of ₹199 monthly. "
+            "Next debit scheduled for November 15, 2026."
+        ),
+    )
+    assert result is not None
+    assert result["service_name"] == "FitTrack Plus"
+    assert result["amount"] == 199
+    assert result["cycle"] == "Monthly"
+    assert result["next_renewal"] == "2026-11-15"
+    assert result["billing_source"] == "upi_autopay"
+
+
+def test_generic_upi_mandate_without_a_named_service_is_not_a_subscription():
+    result = parse_billing_message(
+        message_id="upi-3",
+        subject="UPI AutoPay mandate registered",
+        sender="Bank Alerts <alerts@bank.example>",
+        date_header="Mon, 12 Oct 2026 10:00:00 +0000",
+        body="Your UPI AutoPay mandate was registered successfully.",
+    )
+    assert result is None
