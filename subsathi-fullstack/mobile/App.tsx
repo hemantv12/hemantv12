@@ -1213,7 +1213,7 @@ function AppContent() {
         const rows = await dbRef.current.getAllAsync<Subscription>('SELECT * FROM subscriptions ORDER BY nextRenewal ASC, name COLLATE NOCASE ASC');
         await rescheduleRenewalReminders(rows, notificationsEnabled);
       }
-      Alert.alert('Import complete', `${imported} subscription${imported === 1 ? '' : 's'} added to this device. Please review any missing renewal dates or billing cycles.`);
+      Alert.alert('Import complete', `${imported} subscription${imported === 1 ? '' : 's'} added to this device. Missing prices, cycles and dates remain unconfirmed; spend totals exclude unknown price/cycle values.`);
     } catch (error) {
       setScanError(error instanceof Error ? error.message : 'Import failed. Please retry.');
     } finally {
@@ -1367,6 +1367,7 @@ function AppContent() {
           <View style={styles.heroStatsSeparator} />
           <View><Text style={styles.heroStatLabel}>Due in 30 days</Text><Text style={styles.heroStatValue}>{nextThirtyDays.length}</Text></View>
         </View>
+        {subscriptions.some((item) => !hasKnownPrice(item)) ? <Text style={{ color: '#D7EEE7', fontSize: 10, lineHeight: 14, marginTop: 10 }}>{subscriptions.filter((item) => !hasKnownPrice(item)).length} plan(s) with unconfirmed price/cycle are excluded from spend totals.</Text> : null}
       </LinearGradient>
       <Pressable accessibilityRole="button" onPress={openScanner} style={({ pressed }) => [styles.gmailBannerPressable, pressed && { opacity: 0.9, transform: [{ scale: 0.99 }] }]}>
         <LinearGradient colors={gmailEmail ? ['#E8F8F0', '#D8F3E8'] : googleOAuthConfigured === false ? ['#EAF2FF', '#DCE8FF'] : ['#E9F8F1', '#D9F2E7']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.gmailBanner}>
