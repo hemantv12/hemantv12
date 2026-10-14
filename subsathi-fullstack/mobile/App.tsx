@@ -1467,9 +1467,56 @@ function AppContent() {
       <View style={styles.panel}>
         {nextThirtyDays.length ? <View style={styles.reviewRow}><View style={[styles.reviewIcon, { backgroundColor: C.orangePale }]}><Text>⏰</Text></View><View style={styles.reviewCopy}><Text style={styles.reviewTitle}>{nextThirtyDays.length} upcoming renewal{nextThirtyDays.length === 1 ? '' : 's'}</Text><Text style={styles.reviewBody}>Review the plan and price before the charge date.</Text></View><Text style={styles.reviewArrow}>›</Text></View> : <View style={styles.reviewRow}><View style={[styles.reviewIcon, { backgroundColor: C.greenPale }]}><Text>✓</Text></View><View style={styles.reviewCopy}><Text style={styles.reviewTitle}>No renewals due in 30 days</Text><Text style={styles.reviewBody}>Add renewal dates to get a more useful view.</Text></View></View>}
         <View style={styles.innerDivider} />
-        <View style={styles.reviewRow}><View style={[styles.reviewIcon, { backgroundColor: C.bluePale }]}><Text>🔍</Text></View><View style={styles.reviewCopy}><Text style={styles.reviewTitle}>Check for duplicate plans</Text><Text style={styles.reviewBody}>Compare your streaming, storage and music services yourself. Automatic duplicate detection is on the roadmap.</Text></View></View>
+        <View style={styles.reviewRow}><View style={[styles.reviewIcon, { backgroundColor: C.bluePale }]}><Text>🔍</Text></View><View style={styles.reviewCopy}><Text style={styles.reviewTitle}>Smart Savings Radar</Text><Text style={styles.reviewBody}>A live review of repeated tracker entries, category overlap, upcoming renewals and missing billing details is shown below.</Text></View></View>
       </View>
-      <Text style={styles.footerNote}>SubSathi shows estimates based on your entries; it does not have access to your bank or provider billing records in this MVP.</Text>
+      <SectionTitle title="Smart Savings Radar" />
+      <View style={styles.panel}>
+        <View style={{ backgroundColor: C.navy, borderRadius: 15, padding: 15, marginTop: 8, marginBottom: 10 }}>
+          <Text style={{ color: '#B7CDD2', fontSize: 9, fontWeight: '800', letterSpacing: 1 }}>POTENTIAL MONTHLY SAVINGS TO INVESTIGATE</Text>
+          <Text style={{ color: C.white, fontSize: 26, fontWeight: '800', marginTop: 5 }}>{money(savingsRadar.potentialMonthly)}<Text style={{ color: '#B7CDD2', fontSize: 11, fontWeight: '600' }}> / month</Text></Text>
+          <Text style={{ color: '#B7CDD2', fontSize: 10, lineHeight: 15, marginTop: 5 }}>Estimated conservatively from the lowest-priced plan in each overlapping category. This is only a review opportunity—not confirmed savings or proof that plans are duplicates.</Text>
+        </View>
+        {savingsRadar.overlaps.length ? savingsRadar.overlaps.slice(0, 4).map((group) => (
+          <View key={group.category} style={{ borderTopWidth: 1, borderTopColor: '#EEF2F1', paddingVertical: 12 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: categoryMeta(group.category).tint, alignItems: 'center', justifyContent: 'center' }}><Text>{categoryMeta(group.category).emoji}</Text></View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.reviewTitle}>{group.category} · {group.items.length} plans</Text>
+                <Text style={styles.reviewBody}>{group.items.map((item) => item.name).join(' · ')}</Text>
+                <Text style={styles.reviewBody}>{money(group.monthlySpend)}/mo tracked{group.reviewOpportunity > 0 ? ' · ' + money(group.reviewOpportunity) + '/mo to review' : ' · confirm prices to estimate'}</Text>
+              </View>
+              <Pressable accessibilityRole="button" onPress={() => { setSearch(''); setFilter(group.category); setTab('Subscriptions'); }} style={{ borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, backgroundColor: C.greenPale }}><Text style={{ color: C.greenDark, fontSize: 10, fontWeight: '800' }}>Review</Text></Pressable>
+            </View>
+          </View>
+        )) : <Text style={styles.reviewBody}>No multi-plan overlap found in entertainment, music, software or storage yet. Add or import plans and this review updates automatically.</Text>}
+        {savingsRadar.repeatedEntries.map((item) => (
+          <View key={item.name + item.category + item.count} style={{ borderTopWidth: 1, borderTopColor: '#EEF2F1', paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <View style={[styles.reviewIcon, { backgroundColor: C.orangePale }]}><Text>↻</Text></View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.reviewTitle}>Repeated tracker entry · {item.name}</Text>
+              <Text style={styles.reviewBody}>{item.count} entries · {money(item.monthlySpend)}/mo equivalent in the tracker. This does not prove the provider charged you twice.</Text>
+            </View>
+            <Pressable accessibilityRole="button" onPress={() => { setSearch(item.name); setFilter('All'); setTab('Subscriptions'); }} style={{ borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, backgroundColor: C.greenPale }}><Text style={{ color: C.greenDark, fontSize: 10, fontWeight: '800' }}>Check</Text></Pressable>
+          </View>
+        ))}
+        <View style={{ borderTopWidth: 1, borderTopColor: '#EEF2F1', paddingTop: 12, marginTop: 4, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <View style={[styles.reviewIcon, { backgroundColor: C.bluePale }]}><Text>🧾</Text></View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.reviewTitle}>{savingsRadar.missingDetails} plan(s) need a details check</Text>
+            <Text style={styles.reviewBody}>Missing price, billing cycle or renewal date means a plan may be absent from forecasts or alerts.</Text>
+          </View>
+          <Pressable accessibilityRole="button" onPress={() => { setSearch(''); setFilter('All'); setTab('Subscriptions'); }} style={{ borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, backgroundColor: C.greenPale }}><Text style={{ color: C.greenDark, fontSize: 10, fontWeight: '800' }}>Fix</Text></Pressable>
+        </View>
+        {nextThirtyDays.length ? <View style={{ borderTopWidth: 1, borderTopColor: '#EEF2F1', paddingTop: 12, marginTop: 4, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <View style={[styles.reviewIcon, { backgroundColor: C.orangePale }]}><Text>⏰</Text></View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.reviewTitle}>{nextThirtyDays.length} renewal(s) in the next 30 days</Text>
+            <Text style={styles.reviewBody}>Review upcoming charges before they happen. SubSathi cannot cancel a provider plan automatically.</Text>
+          </View>
+          <Pressable accessibilityRole="button" onPress={() => { setSearch(''); setFilter('All'); setTab('Subscriptions'); }} style={{ borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, backgroundColor: C.greenPale }}><Text style={{ color: C.greenDark, fontSize: 10, fontWeight: '800' }}>Review</Text></Pressable>
+        </View> : null}
+      </View>
+      <Text style={styles.footerNote}>SubSathi calculates estimates from plans you saved on this device. It does not read bank statements or confirm which services you actively use.</Text>
     </ScrollView>
   );
 
