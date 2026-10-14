@@ -966,6 +966,40 @@ function AppContent() {
         };
       });
       const localKey = (name: string, source: unknown) => normalizedServiceName(name) + '|' + normalizeBillingSource(source);
+
+      // AI/full scans can discover a renewal date or official management page after
+      // a plan was imported. Refresh only safe, missing/stale fields in the local
+      // tracker; never replace a user-entered price or billing cycle silently.
+      const localDb = dbRef.current;
+      if (localDb && Array.isArray(payload.enriched_imported)) {
+        const localRows = await localDb.getAllAsync<Subscription>('SELECT * FROM subscriptions');
+        let localEnriched = false;
+        for (const remote of payload.enriched_imported) {
+          const match = localRows.find((row) => localKey(row.name, row.billingSource) === localKey(String(remote.name || ''), remote.billingSource));
+          if (!match) continue;
+          const remoteDate = typeof remote.nextRenewal === 'string' ? remote.nextRenewal : '';
+          const nextRenewal = remoteDate && (!match.nextRenewal || remoteDate > match.nextRenewal)
+            ? remoteDate : match.nextRenewal;
+          const remoteUrl = typeof remote.manageUrl === 'string' ? remote.manageUrl : '';
+          const manageUrl = !match.manageUrl && remoteUrl.startsWith('https://') && !/\\s/.test(remoteUrl)
+            ? remoteUrl : match.manageUrl;
+          const remoteCategory = CATEGORIES.some((entry) => entry.name === remote.category && entry.name !== 'Other')
+            ? remote.category as Category : 'Other';
+          const category = match.category === 'Other' && remoteCategory !== 'Other' ? remoteCategory : match.category;
+          if (nextRenewal !== match.nextRenewal || manageUrl !== match.manageUrl || category !== match.category) {
+            await localDb.runAsync(
+              'UPDATE subscriptions SET nextRenewal = ?, manageUrl = ?, category = ? WHERE id = ?',
+              nextRenewal, manageUrl, category, match.id,
+            );
+            match.nextRenewal = nextRenewal;
+            match.manageUrl = manageUrl;
+            match.category = category;
+            localEnriched = true;
+          }
+        }
+        if (localEnriched) await loadSubscriptions();
+      }
+
       const locallyTrackedNames = new Set(subscriptions.map((item) => localKey(item.name, item.billingSource)));
       const adjusted = mapped.map((item) => ({
         ...item,
