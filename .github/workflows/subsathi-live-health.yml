@@ -6,6 +6,11 @@ on:
       - subsathi-launch
     paths:
       - ".github/workflows/subsathi-live-health.yml"
+  pull_request:
+    branches:
+      - subsathi-launch
+    paths:
+      - ".github/workflows/subsathi-live-health.yml"
   workflow_dispatch:
 
 permissions:
