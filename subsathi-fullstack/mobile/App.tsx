@@ -1119,16 +1119,41 @@ function AppContent() {
   };
 
   const connectAdditionalGmail = async () => {
-    if (!apiSession) {
-      Alert.alert('Connect SubSathi first', 'Connect your first Gmail account before linking another inbox.');
+    let activeSession = apiSession;
+    if (!activeSession) {
+      try { activeSession = await SecureStore.getItemAsync(SESSION_KEY); } catch { activeSession = null; }
+    }
+    if (!activeSession) {
+      setGmailNeedsRepair(Boolean(gmailEmail));
+      Alert.alert(
+        gmailEmail ? 'Repair the primary Gmail connection' : 'Connect SubSathi first',
+        gmailEmail
+          ? 'This screen still remembers your Gmail address, but the saved SubSathi session is missing. Tap Repair Gmail connection to restore the primary account, then link another inbox.'
+          : 'Connect your first Gmail account before linking another inbox.',
+      );
       return;
     }
     setScanError('');
     setScanLoading(true);
     try {
-      const startResponse = await fetch(API_BASE_URL + '/api/auth/google/link-url', {
-        headers: { Authorization: 'Bearer ' + apiSession },
-      });
+      const profileResponse = await fetchWithNetworkRetry(API_BASE_URL + '/api/me', {
+        headers: { Authorization: 'Bearer ' + activeSession },
+      }, 2, 12000);
+      const profile = await profileResponse.json().catch(() => ({}));
+      if (!profileResponse.ok || !profile.gmail_connected) {
+        await SecureStore.deleteItemAsync(SESSION_KEY);
+        setApiSession(null);
+        setGmailEmail(null);
+        setGmailAccounts([]);
+        setGmailNeedsRepair(true);
+        throw new Error('Your saved SubSathi session is no longer valid. Tap Repair Gmail connection to reconnect the primary inbox; local tracker entries remain on this phone.');
+      }
+      setApiSession(activeSession);
+      setGmailAccounts(profileGmailAccounts(profile));
+      setGmailEmail(profile.gmail_email || profile.email || gmailEmail);
+      const startResponse = await fetchWithNetworkRetry(API_BASE_URL + '/api/auth/google/link-url', {
+        headers: { Authorization: 'Bearer ' + activeSession },
+      }, 2, 12000);
       const startPayload = await startResponse.json().catch(() => ({}));
       if (!startResponse.ok || !startPayload.authorization_url) {
         throw new Error(startPayload.detail || 'Could not start Google consent for the additional inbox.');
@@ -1145,7 +1170,7 @@ function AppContent() {
         throw new Error('Google did not confirm that the extra Gmail account was linked. Please retry.');
       }
       const email = callback.searchParams.get('email') || 'the new inbox';
-      await refreshGmailProfile(apiSession);
+      await refreshGmailProfile(activeSession);
       setScanCandidates([]);
       setSelectedCandidateIds([]);
       setCandidateEdits({});
