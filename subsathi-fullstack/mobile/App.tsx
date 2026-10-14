@@ -471,6 +471,7 @@ function AppContent() {
     durationMs: number;
     accountsScanned: string[];
     accountErrors: { email: string; message: string }[];
+    mode: 'full' | 'incremental';
   } | null>(null);
   const [apiReachable, setApiReachable] = useState<boolean | null>(null);
   const [googleOAuthConfigured, setGoogleOAuthConfigured] = useState<boolean | null>(null);
@@ -907,7 +908,7 @@ function AppContent() {
     }
   };
 
-  const scanGmail = async (sessionOverride?: string) => {
+  const scanGmail = async (sessionOverride?: string, mode: 'quick' | 'full' = 'quick') => {
     const session = sessionOverride || apiSession;
     if (!session) { setScanError('Connect Gmail first.'); return; }
     // Connecting Gmail and opening the scanner can both request a scan. Never run
@@ -918,7 +919,8 @@ function AppContent() {
     setScanSummary(null);
     setScanLoading(true);
     try {
-      const response = await fetch(API_BASE_URL + '/api/gmail/scan?max_messages=100', {
+      const scanQuery = '?max_messages=200' + (mode === 'full' ? '&force_full_scan=true' : '');
+      const response = await fetch(API_BASE_URL + '/api/gmail/scan' + scanQuery, {
         method: 'POST',
         headers: { Authorization: `Bearer ${session}`, 'Content-Type': 'application/json' },
       });
@@ -967,6 +969,7 @@ function AppContent() {
         durationMs: Number(payload.scan_duration_ms || 0),
         accountsScanned: Array.isArray(payload.scanned_accounts) ? payload.scanned_accounts.map((email: unknown) => String(email)) : [],
         accountErrors: Array.isArray(payload.account_errors) ? payload.account_errors.map((item: any) => ({ email: String(item.email || ''), message: String(item.message || 'This inbox could not be scanned.') })) : [],
+        mode: payload.scan_mode === 'full' ? 'full' : 'incremental',
       });
     } catch (error) {
       setScanError(error instanceof Error ? error.message : 'Could not scan Gmail. Please retry.');
@@ -1443,14 +1446,16 @@ function AppContent() {
               {scanError && googleOAuthConfigured !== false ? <View style={{ borderRadius: 12, backgroundColor: C.redPale, padding: 12, marginBottom: 12 }}><Text style={{ color: C.red, fontSize: 11, lineHeight: 16 }}>{scanError}</Text></View> : null}
               {scanLoading ? <View style={{ paddingVertical: 18, alignItems: 'center' }}><ActivityIndicator color={C.green} size="large" /><Text style={styles.settingBody}>{gmailEmail ? 'Checking recent receipts and renewals in parallel…' : 'Opening Google authorization…'}</Text><Text style={[styles.fieldHint, { textAlign: 'center', marginTop: 5 }]}>Only likely billing emails are analysed. This should be much quicker than checking every message one by one.</Text></View> : null}
               {!gmailEmail ? <PrimaryButton title={googleOAuthConfigured === false ? 'Check Gmail setup again' : 'Connect Gmail securely'} onPress={() => { void connectGmail(); }} /> : <View style={{ gap: 9 }}>
-                <PrimaryButton title={scanLoading ? 'Scanning all inboxes…' : 'Scan ' + (gmailAccounts.length || 1) + ' Gmail account(s)'} onPress={() => { if (!scanLoading) void scanGmail(); }} />
+                <PrimaryButton title={scanLoading ? 'Syncing new emails…' : 'Quick sync new billing emails'} onPress={() => { if (!scanLoading) void scanGmail(undefined, 'quick'); }} />
+                <GhostButton title={scanLoading ? 'Rescanning…' : 'Full rescan (find missed subscriptions)'} onPress={() => { if (!scanLoading) void scanGmail(undefined, 'full'); }} />
+                <Text style={styles.fieldHint}>Quick sync checks new email only. Full rescan searches up to 200 recent billing-related messages per inbox and preserves older detections outside this batch.</Text>
                 <GhostButton title="Connect another Gmail account" onPress={() => { if (!scanLoading) void connectAdditionalGmail(); }} />
                 <GhostButton title="Disconnect all Gmail accounts" onPress={() => { Alert.alert('Disconnect all Gmail accounts?', 'All linked Gmail credentials and cached detections will be removed from the server. Subscription entries already imported on this phone will remain.', [{ text: 'Keep connected', style: 'cancel' }, { text: 'Disconnect all', style: 'destructive', onPress: () => { void disconnectGmail(); } }]); }} />
                 {gmailAccounts.filter((account) => !account.primary).map((account) => <Pressable key={account.email} disabled={scanLoading} onPress={() => Alert.alert('Remove Gmail account?', 'Remove ' + account.email + ' from this SubSathi profile?', [{ text: 'Cancel', style: 'cancel' }, { text: 'Remove account', style: 'destructive', onPress: () => { void disconnectAdditionalGmail(account.email); } }])} style={{ paddingVertical: 7 }}><Text style={{ fontSize: 10, color: C.muted }}>Secondary inbox · {account.email} · tap to remove</Text></Pressable>)}
               </View>}
             </View>
             {gmailEmail && scanSummary ? <View style={{ backgroundColor: C.greenPale, borderRadius: 13, padding: 12, marginBottom: 14 }}>
-              <Text style={{ color: C.greenDark, fontSize: 11, fontWeight: '800' }}>Checked {scanSummary.scannedMessages} billing-related emails across {scanSummary.accountsScanned.length} Gmail account(s){scanSummary.durationMs > 0 ? ` in ${(scanSummary.durationMs / 1000).toFixed(1)}s` : ''}</Text>
+              <Text style={{ color: C.greenDark, fontSize: 11, fontWeight: '800' }}>{scanSummary.mode === 'full' ? 'Full rescan' : 'Quick sync'} · Checked {scanSummary.scannedMessages} billing-related emails across {scanSummary.accountsScanned.length} Gmail account(s){scanSummary.durationMs > 0 ? ` in ${(scanSummary.durationMs / 1000).toFixed(1)}s` : ''}</Text>
               <Text style={{ color: '#42695E', fontSize: 10, lineHeight: 15, marginTop: 4 }}>{scanSummary.candidateCount > 0 ? `Found ${scanSummary.candidateCount} likely subscription(s). Review each result before importing.` : 'No strong matches found. Missing prices and dates are not invented.'}</Text>
               {scanSummary.accountErrors.map((item) => <Text key={item.email} style={{ color: C.red, fontSize: 10, lineHeight: 15, marginTop: 5 }}>{item.email}: {item.message}</Text>)}
             </View> : null}
