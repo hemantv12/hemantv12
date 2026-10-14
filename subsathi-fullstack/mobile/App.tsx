@@ -752,7 +752,7 @@ function AppContent() {
       try {
         const token = await SecureStore.getItemAsync(SESSION_KEY);
         if (!token || !mounted) return;
-        const response = await fetch(`${API_BASE_URL}/api/me`, { headers: { Authorization: `Bearer ${token}` } });
+        const response = await fetchWithNetworkRetry(`${API_BASE_URL}/api/me`, { headers: { Authorization: `Bearer ${token}` } }, 2, 12000);
         if (!response.ok) {
           await SecureStore.deleteItemAsync(SESSION_KEY);
           return;
@@ -1924,7 +1924,7 @@ function AppContent() {
           <ScrollView contentContainerStyle={styles.editorScroll} keyboardShouldPersistTaps="handled">
             <View style={{ backgroundColor: C.white, borderColor: C.line, borderWidth: 1, borderRadius: 20, padding: 18, marginBottom: 16 }}>
               <LinearGradient colors={['#DFF6EB', '#E7F0FF']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.infoModalIcon, { marginBottom: 12 }]}><Feather name="mail" size={26} color={C.greenDark} /></LinearGradient>
-              <Text style={styles.modalTitle}>{gmailEmail ? 'Gmail is connected' : 'Stop adding every plan manually'}</Text>
+              <Text style={styles.modalTitle}>{gmailEmail ? gmailNeedsRepair ? 'Gmail access needs repair' : apiReachable === false ? 'Gmail linked · server offline' : 'Gmail is connected' : 'Stop adding every plan manually'}</Text>
               <Text style={styles.modalIntro}>{gmailEmail ? `Connected account: ${gmailEmail}. Scan relevant billing emails, then review the detected subscriptions before importing them to this phone.` : 'Connect through Google’s official secure consent screen. SubSathi will search for billing receipts, renewal notices and recurring payment emails. It never asks for your Gmail password.'}</Text>
               {googleOAuthConfigured === false ? <View style={styles.oauthSetupNotice}>
                 <View style={styles.oauthNoticeTitleRow}><Feather name="alert-circle" size={17} color="#9B5A08" /><Text style={styles.oauthSetupTitle}>Server setup required</Text></View>
