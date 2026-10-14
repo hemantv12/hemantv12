@@ -334,8 +334,13 @@ def gmail_scan_queries() -> list[str]:
         '"billed every" "billed monthly" "billed annually" "next debit" '
         '"subscription period" "your membership" "renewal notice"}'
     )
+    autopay_mandate_query = (
+        'newer_than:5y {"UPI AutoPay" "autopay mandate" "mandate registered" '
+        '"mandate created" "recurring debit" "scheduled debit" "will be debited" '
+        '"e-NACH" "NACH mandate" "standing instruction" "auto-debit"}'
+    )
     queries: list[str] = []
-    for query in (configured, sender_query, broad_query, trial_and_activation_query, recurring_charge_query):
+    for query in (configured, sender_query, broad_query, trial_and_activation_query, recurring_charge_query, autopay_mandate_query):
         if query and query not in queries:
             queries.append(query)
     return queries
