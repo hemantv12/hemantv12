@@ -1323,7 +1323,7 @@ function AppContent() {
       }])));
       setSelectedCandidateIds(adjusted.filter((item) => !item.alreadyImported).map((item) => item.id));
       setExpandedCandidateIds([]);
-      const accountErrors = Array.isArray(payload.account_errors)
+      const accountErrors: { email: string; message: string }[] = Array.isArray(payload.account_errors)
         ? payload.account_errors.map((item: any) => ({ email: String(item.email || ''), message: String(item.message || 'This inbox could not be scanned.') }))
         : [];
       setGmailNeedsRepair(accountErrors.some((item) => /permission|refresh token|reconnect this gmail|authorization expired/i.test(item.message)));
@@ -1944,7 +1944,7 @@ function AppContent() {
                 <Text style={styles.oauthSetupBody}>The live API is reporting temporary storage. Gmail login details may need repair after a server restart, though your on-device subscription tracker is separate. The app owner must connect the managed PostgreSQL database before relying on persistent cloud connections.</Text>
               </View> : null}
               {gmailNeedsRepair && gmailEmail ? <View style={[styles.oauthSetupNotice, { marginTop: 10 }]}>
-                <View style={styles.oauthNoticeTitleRow}><Feather name="shield-alert" size={17} color="#9B5A08" /><Text style={styles.oauthSetupTitle}>Gmail permission needs repair</Text></View>
+                <View style={styles.oauthNoticeTitleRow}><Feather name="shield" size={17} color="#9B5A08" /><Text style={styles.oauthSetupTitle}>Gmail permission needs repair</Text></View>
                 <Text style={styles.oauthSetupBody}>Google rejected the saved Gmail access token. Use the repair button below to approve the permission again. Do not disconnect the whole SubSathi account, and do not uninstall the app.</Text>
               </View> : null}
               <View style={styles.infoChecklist}>
