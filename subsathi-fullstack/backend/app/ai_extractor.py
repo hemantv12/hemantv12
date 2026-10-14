@@ -169,6 +169,7 @@ def extract_billing_evidence_with_ai(
     request_body = {
         "model": model,
         "store": False,
+        "max_output_tokens": 6000,
         "input": [
             {"role": "system", "content": [{"type": "input_text", "text": system_prompt}]},
             {"role": "user", "content": [{"type": "input_text", "text": json.dumps({"emails": selected}, ensure_ascii=False)}]},
