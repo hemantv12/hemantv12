@@ -32,6 +32,8 @@ class GoogleConnection(Base):
     email: Mapped[str] = mapped_column(String(320))
     encrypted_credentials: Mapped[str] = mapped_column(Text)
     granted_scopes: Mapped[str] = mapped_column(Text, default="")
+    last_history_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    last_deep_scan_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     connected_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
     user: Mapped[User] = relationship(back_populates="google_connection")
@@ -59,6 +61,8 @@ class LinkedGmailAccount(Base):
     google_sub: Mapped[str] = mapped_column(String(255), default="")
     encrypted_credentials: Mapped[str] = mapped_column(Text)
     granted_scopes: Mapped[str] = mapped_column(Text, default="")
+    last_history_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    last_deep_scan_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     connected_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, onupdate=utcnow)
 

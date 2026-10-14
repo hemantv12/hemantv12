@@ -106,6 +106,15 @@ def ensure_linked_gmail_columns() -> None:
                 connection.execute(text("ALTER TABLE scan_candidates ADD COLUMN billing_source VARCHAR(40) NOT NULL DEFAULT 'provider'"))
             if "manage_url" not in columns:
                 connection.execute(text("ALTER TABLE scan_candidates ADD COLUMN manage_url TEXT NOT NULL DEFAULT ''"))
+    for table_name in ("google_connections", "linked_gmail_accounts"):
+        if not inspector.has_table(table_name):
+            continue
+        columns = {column["name"] for column in inspector.get_columns(table_name)}
+        with engine.begin() as connection:
+            if "last_history_id" not in columns:
+                connection.execute(text(f"ALTER TABLE {table_name} ADD COLUMN last_history_id VARCHAR(64)"))
+            if "last_deep_scan_at" not in columns:
+                connection.execute(text(f"ALTER TABLE {table_name} ADD COLUMN last_deep_scan_at TIMESTAMP NULL"))
 
 
 ensure_linked_gmail_columns()
@@ -252,7 +261,7 @@ def _credentials_for_mailbox(db: Session, connection: GoogleConnection | LinkedG
 
 def credentials_for_all_mailboxes(
     db: Session, user: User
-) -> tuple[list[tuple[str, Credentials]], list[dict[str, str]]]:
+) -> tuple[list[tuple[str, Credentials, GoogleConnection | LinkedGmailAccount]], list[dict[str, str]]]:
     """Load each explicitly linked mailbox; one broken secondary inbox won't block others."""
     rows: list[GoogleConnection | LinkedGmailAccount] = []
     primary = db.scalar(select(GoogleConnection).where(GoogleConnection.user_id == user.id))
@@ -268,11 +277,11 @@ def credentials_for_all_mailboxes(
     if not rows:
         raise HTTPException(status_code=409, detail="Connect at least one Gmail account before scanning.")
 
-    credentials_by_email: list[tuple[str, Credentials]] = []
+    credentials_by_email: list[tuple[str, Credentials, GoogleConnection | LinkedGmailAccount]] = []
     errors: list[dict[str, str]] = []
     for row in rows:
         try:
-            credentials_by_email.append((row.email, _credentials_for_mailbox(db, row)))
+            credentials_by_email.append((row.email, _credentials_for_mailbox(db, row), row))
         except HTTPException as exc:
             errors.append({"email": row.email, "message": str(exc.detail)})
         except Exception:
@@ -300,7 +309,7 @@ def gmail_scan_queries() -> list[str]:
 
 
 def _list_gmail_refs_for_query(credentials: Credentials, query: str, budget: int) -> list[dict[str, str]]:
-    """Fetch a capped slice of one Gmail query using its own thread-local API client."""
+    """Fetch a capped slice of one Gmail query using its own API client."""
     service = build("gmail", "v1", credentials=credentials, cache_discovery=False)
     refs: list[dict[str, str]] = []
     page_token = None
@@ -319,7 +328,7 @@ def _list_gmail_refs_for_query(credentials: Credentials, query: str, budget: int
 
 
 def _interleave_query_results(query_results: list[list[dict[str, str]]], limit: int) -> list[str]:
-    """Round-robin the newest results from each query so one broad query can't starve others."""
+    """Round-robin results so one broad query cannot starve all other query families."""
     ids: list[str] = []
     seen: set[str] = set()
     max_len = max((len(items) for items in query_results), default=0)
@@ -336,20 +345,100 @@ def _interleave_query_results(query_results: list[list[dict[str, str]]], limit: 
     return ids
 
 
-def _scan_single_gmail_mailbox(credentials: Credentials, mailbox_email: str, limit: int) -> dict[str, Any]:
-    queries = gmail_scan_queries()
-    per_query_budget = min(100, max(40, (limit + max(1, len(queries)) - 1) // max(1, len(queries)) + 12))
-    # Query families are independent. Parallel listing reduces the long serial wait
-    # while the round-robin merge preserves coverage from both provider and text searches.
-    if queries:
-        with ThreadPoolExecutor(max_workers=min(3, len(queries))) as executor:
-            query_results = list(executor.map(
-                lambda query: _list_gmail_refs_for_query(credentials, query, per_query_budget),
-                queries,
-            ))
+def _list_gmail_history_message_ids(
+    credentials: Credentials,
+    start_history_id: str,
+    limit: int,
+) -> tuple[list[str], str] | None:
+    """Collect newly added message IDs; a stale history cursor asks the caller to deep-scan."""
+    service = build("gmail", "v1", credentials=credentials, cache_discovery=False)
+    message_ids: list[str] = []
+    seen: set[str] = set()
+    page_token = None
+    resume_history_id = start_history_id
+    try:
+        while True:
+            page = service.users().history().list(
+                userId="me",
+                startHistoryId=start_history_id,
+                historyTypes=["messageAdded"],
+                maxResults=500,
+                pageToken=page_token,
+            ).execute(num_retries=2)
+            rows = page.get("history") or []
+            for history_row in rows:
+                row_ids = []
+                for added in history_row.get("messagesAdded") or []:
+                    message = added.get("message") or {}
+                    message_id = str(message.get("id") or "")
+                    if message_id and message_id not in seen:
+                        row_ids.append(message_id)
+                # If the budget is reached, stop before this record so its messages
+                # are safely re-read next time. Never advance the cursor past work skipped.
+                if message_ids and len(message_ids) + len(row_ids) > limit:
+                    return message_ids, resume_history_id
+                for message_id in row_ids:
+                    if message_id not in seen:
+                        seen.add(message_id)
+                        message_ids.append(message_id)
+                if history_row.get("id"):
+                    resume_history_id = str(history_row["id"])
+                # One history record can contain more messages than the budget; finish
+                # that record atomically so no messages are lost between incremental scans.
+            page_token = page.get("nextPageToken")
+            if not page_token:
+                return message_ids, str(page.get("historyId") or resume_history_id)
+    except HttpError as exc:
+        # Gmail drops older history cursors after a retention window. A 404 triggers
+        # a safe full reconciliation instead of silently skipping missed messages.
+        if int(getattr(getattr(exc, "resp", None), "status", 0) or 0) == 404:
+            return None
+        raise
+
+
+def _scan_single_gmail_mailbox(
+    credentials: Credentials,
+    mailbox_email: str,
+    limit: int,
+    last_history_id: str | None = None,
+    last_deep_scan_at: datetime | None = None,
+) -> dict[str, Any]:
+    service = build("gmail", "v1", credentials=credentials, cache_discovery=False)
+    profile = service.users().getProfile(userId="me").execute(num_retries=2)
+    profile_history_id = str(profile.get("historyId") or last_history_id or "")
+    deep_scan_due = (
+        not last_history_id
+        or not last_deep_scan_at
+        or now_utc() - last_deep_scan_at >= timedelta(days=7)
+    )
+    query_results: list[list[dict[str, str]]] = []
+    scan_mode = "full"
+    if not deep_scan_due and last_history_id:
+        history_result = _list_gmail_history_message_ids(credentials, last_history_id, limit)
+        if history_result is not None:
+            message_ids, current_history_id = history_result
+            scan_mode = "incremental"
+        else:
+            # Cursor too old: rebuild from normal billing/provider searches.
+            message_ids = []
+            current_history_id = profile_history_id
+            scan_mode = "full"
     else:
-        query_results = []
-    message_ids = _interleave_query_results(query_results, limit)
+        message_ids = []
+        current_history_id = profile_history_id
+
+    if scan_mode == "full":
+        queries = gmail_scan_queries()
+        per_query_budget = min(100, max(40, (limit + max(1, len(queries)) - 1) // max(1, len(queries)) + 12))
+        if queries:
+            with ThreadPoolExecutor(max_workers=min(3, len(queries))) as executor:
+                query_results = list(executor.map(
+                    lambda query: _list_gmail_refs_for_query(credentials, query, per_query_budget),
+                    queries,
+                ))
+        message_ids = _interleave_query_results(query_results, limit)
+        # Keep the history watermark captured before listing messages. Items arriving
+        # during this deep scan will appear after this cursor and be fetched next time.
 
     if message_ids:
         with ThreadPoolExecutor(
@@ -410,7 +499,14 @@ def _scan_single_gmail_mailbox(credentials: Credentials, mailbox_email: str, lim
                 candidate["manage_url"] = extracted_url
             candidate["source_mailbox"] = mailbox_email
             parsed.append(candidate)
-    return {"searched": len(message_ids), "full_fetched": len(relevant_ids), "parsed": parsed}
+    return {
+        "searched": len(message_ids),
+        "full_fetched": len(relevant_ids),
+        "parsed": parsed,
+        "history_id": current_history_id or profile_history_id or None,
+        "full_scan": scan_mode == "full",
+        "scan_mode": scan_mode,
+    }
 
 
 def callback_deeplink(*, code: str | None = None, email: str | None = None, error: str | None = None, linked: bool = False) -> RedirectResponse:
@@ -764,32 +860,44 @@ def scan_gmail(max_messages: int = Query(100, ge=1, le=200), user: User = Depend
     scanned_messages = 0
     full_fetched = 0
     successful_accounts: list[str] = []
+    account_scan_modes: dict[str, str] = {}
+    successful_rows: list[tuple[GoogleConnection | LinkedGmailAccount, dict[str, Any]]] = []
 
-    def scan_one_mailbox(mailbox: tuple[str, Credentials]) -> tuple[str, dict[str, Any] | None, dict[str, str] | None]:
-        mailbox_email, credentials = mailbox
+    def scan_one_mailbox(
+        mailbox: tuple[str, Credentials, GoogleConnection | LinkedGmailAccount],
+    ) -> tuple[str, GoogleConnection | LinkedGmailAccount, dict[str, Any] | None, dict[str, str] | None]:
+        mailbox_email, credentials, connection_row = mailbox
         try:
-            return mailbox_email, _scan_single_gmail_mailbox(credentials, mailbox_email, limit), None
+            result = _scan_single_gmail_mailbox(
+                credentials,
+                mailbox_email,
+                limit,
+                last_history_id=connection_row.last_history_id,
+                last_deep_scan_at=connection_row.last_deep_scan_at,
+            )
+            return mailbox_email, connection_row, result, None
         except HttpError as exc:
             status_code, reason = _gmail_http_error_context(exc)
             logging.getLogger("uvicorn.error").warning(
                 "Gmail mailbox scan failed status=%s reason=%s", status_code or "unknown", reason
             )
-            return mailbox_email, None, {"email": mailbox_email, "message": _gmail_http_error_message(status_code, reason)}
+            return mailbox_email, connection_row, None, {"email": mailbox_email, "message": _gmail_http_error_message(status_code, reason)}
         except HTTPException as exc:
-            return mailbox_email, None, {"email": mailbox_email, "message": str(exc.detail)}
+            return mailbox_email, connection_row, None, {"email": mailbox_email, "message": str(exc.detail)}
         except Exception as exc:
             logging.getLogger("uvicorn.error").error(
                 "Unexpected Gmail mailbox scan failure type=%s", type(exc).__name__
             )
-            return mailbox_email, None, {
+            return mailbox_email, connection_row, None, {
                 "email": mailbox_email,
                 "message": "This Gmail account could not be scanned due to a temporary server error.",
             }
 
-    # A slow second inbox no longer holds back results from the first inbox.
+    # Linked inboxes scan concurrently. First/weekly runs perform deeper searches;
+    # the normal refresh only reads new messages after the last Gmail history cursor.
     with ThreadPoolExecutor(max_workers=min(3, len(mailboxes))) as executor:
         mailbox_results = list(executor.map(scan_one_mailbox, mailboxes))
-    for mailbox_email, result, error in mailbox_results:
+    for mailbox_email, connection_row, result, error in mailbox_results:
         if error:
             account_errors.append(error)
             continue
@@ -799,68 +907,111 @@ def scan_gmail(max_messages: int = Query(100, ge=1, le=200), user: User = Depend
         full_fetched += int(result["full_fetched"])
         parsed.extend(result["parsed"])
         successful_accounts.append(mailbox_email)
+        account_scan_modes[mailbox_email] = str(result.get("scan_mode") or "full")
+        if result.get("history_id"):
+            connection_row.last_history_id = str(result["history_id"])
+        if result.get("full_scan"):
+            connection_row.last_deep_scan_at = now_utc()
+        connection_row.updated_at = utcnow()
+        successful_rows.append((connection_row, result))
 
     if not successful_accounts and account_errors:
         raise HTTPException(status_code=502, detail="All connected Gmail accounts failed to scan. " + account_errors[0]["message"])
 
+    reset_pending_candidates = (
+        bool(successful_rows)
+        and not account_errors
+        and all(bool(result.get("full_scan")) for _, result in successful_rows)
+    )
     grouped = group_billing_evidence(parsed)
     duration_ms = round((perf_counter() - scan_started) * 1000)
     logging.getLogger("uvicorn.error").info(
-        "Gmail scan complete: accounts=%s searched=%s full_fetched=%s matched=%s candidates=%s duration_ms=%s",
-        len(successful_accounts), scanned_messages, full_fetched, len(parsed), len(grouped), duration_ms, 4,
+        "Gmail scan complete: accounts=%s modes=%s searched=%s full_fetched=%s matched=%s candidates=%s duration_ms=%s",
+        len(successful_accounts), account_scan_modes, scanned_messages, full_fetched, len(parsed), len(grouped), duration_ms,
     )
 
-    db.query(ScanCandidate).filter(
-        ScanCandidate.user_id == user.id,
-        ScanCandidate.imported.is_(False),
-    ).delete(synchronize_session=False)
+    # Incremental scans should never erase old detections simply because those email
+    # messages were not part of today's history delta.
+    if reset_pending_candidates:
+        db.query(ScanCandidate).filter(
+            ScanCandidate.user_id == user.id,
+            ScanCandidate.imported.is_(False),
+        ).delete(synchronize_session=False)
+
     for candidate in grouped:
         fingerprint = candidate["fingerprint"][:300]
         existing = db.scalar(select(ScanCandidate).where(
             ScanCandidate.user_id == user.id,
             ScanCandidate.fingerprint == fingerprint,
         ))
+        is_new = existing is None
         if existing is None:
             existing = ScanCandidate(
                 user_id=user.id,
                 fingerprint=fingerprint,
                 service_name=candidate["service_name"],
                 category=candidate["category"],
+                cycle="Unknown",
             )
             db.add(existing)
         existing.service_name = candidate["service_name"]
         existing.category = candidate["category"]
-        existing.amount = candidate.get("amount")
-        existing.cycle = candidate.get("cycle") or "Unknown"
-        existing.next_renewal = candidate.get("next_renewal") or ""
-        existing.confidence = int(candidate.get("confidence", 50))
-        existing.evidence_count = int(candidate.get("evidence_count", 1))
-        existing.evidence_date = str(candidate.get("evidence_date") or "")
-        existing.source_accounts = json.dumps(candidate.get("source_accounts") or [])
-        existing.billing_source = str(candidate.get("billing_source") or "provider")
-        existing.manage_url = str(candidate.get("manage_url") or _manage_url_for(candidate["service_name"], candidate.get("billing_source")))[:2000]
+        if reset_pending_candidates or is_new:
+            existing.amount = candidate.get("amount")
+            existing.cycle = candidate.get("cycle") or "Unknown"
+            existing.next_renewal = candidate.get("next_renewal") or ""
+            existing.evidence_count = int(candidate.get("evidence_count", 1))
+            existing.evidence_date = str(candidate.get("evidence_date") or "")
+            existing.source_accounts = json.dumps(candidate.get("source_accounts") or [])
+            existing.billing_source = str(candidate.get("billing_source") or "provider")
+            existing.manage_url = str(candidate.get("manage_url") or _manage_url_for(candidate["service_name"], candidate.get("billing_source")))[:2000]
+            existing.confidence = int(candidate.get("confidence", 50))
+        else:
+            if candidate.get("amount") is not None:
+                existing.amount = candidate["amount"]
+            if candidate.get("cycle") in {"Weekly", "Monthly", "Quarterly", "Yearly"}:
+                existing.cycle = candidate["cycle"]
+            if candidate.get("next_renewal"):
+                existing.next_renewal = candidate["next_renewal"]
+            if candidate.get("evidence_date") and str(candidate["evidence_date"]) > (existing.evidence_date or ""):
+                existing.evidence_date = str(candidate["evidence_date"])
+            try:
+                old_accounts = json.loads(existing.source_accounts or "[]")
+            except (ValueError, TypeError):
+                old_accounts = []
+            existing.source_accounts = json.dumps(sorted(set(old_accounts) | set(candidate.get("source_accounts") or [])))
+            existing.evidence_count = min(10000, int(existing.evidence_count or 0) + int(candidate.get("evidence_count", 1)))
+            existing.billing_source = str(candidate.get("billing_source") or existing.billing_source or "provider")
+            new_url = str(candidate.get("manage_url") or _manage_url_for(candidate["service_name"], candidate.get("billing_source")))
+            if new_url:
+                existing.manage_url = new_url[:2000]
+            existing.confidence = max(int(existing.confidence or 0), int(candidate.get("confidence", 50)))
         existing.updated_at = utcnow()
-    db.commit()
 
+    db.commit()
     saved = db.scalars(
         select(ScanCandidate)
         .where(ScanCandidate.user_id == user.id, ScanCandidate.imported.is_(False))
         .order_by(ScanCandidate.updated_at.desc())
     ).all()
+    overall_mode = "full" if reset_pending_candidates else "incremental"
     return {
         "scanned_messages": scanned_messages,
         "full_messages_fetched": full_fetched,
         "matched_receipts": len(parsed),
-        "candidate_count": len(grouped),
+        "candidate_count": len(saved),
+        "new_candidate_count": len(grouped),
         "scanned_at": now_utc().isoformat() + "Z",
         "candidates": [candidate_public(item) for item in saved[:100]],
-        "notice": "SubSathi combines billing evidence from all linked Gmail inboxes. Missing prices or renewal dates remain unverified; review results before importing.",
+        "notice": "SubSathi combines billing evidence from all linked Gmail inboxes. Repeat scans use Gmail history to process new email; missing prices or renewal dates remain unverified.",
         "scan_limit_per_account": limit,
         "scan_duration_ms": duration_ms,
-        "scan_workers": 4,
+        "scan_workers": 6,
         "scanned_accounts": successful_accounts,
         "account_errors": account_errors,
-        "scan_note": "Each linked inbox is searched with multiple billing/provider query strategies, then duplicate evidence is grouped for review.",
+        "scan_mode": overall_mode,
+        "scan_modes": account_scan_modes,
+        "scan_note": "Initial and weekly reconciliation scans use billing/provider queries. Between those scans, SubSathi processes newly added messages using per-inbox Gmail history cursors.",
     }
 
 

@@ -304,3 +304,13 @@ def test_latest_receipt_wins_when_price_or_renewal_changes():
     assert len(grouped) == 1
     assert grouped[0]["amount"] == 149
     assert grouped[0]["next_renewal"] == "2026-11-12"
+
+
+def test_interleave_query_results_preserves_coverage_and_deduplicates():
+    from app.main import _interleave_query_results
+
+    ids = _interleave_query_results(
+        [[{"id": "a"}, {"id": "b"}, {"id": "c"}], [{"id": "a"}, {"id": "x"}, {"id": "y"}]],
+        5,
+    )
+    assert ids == ["a", "x", "b", "y", "c"]
