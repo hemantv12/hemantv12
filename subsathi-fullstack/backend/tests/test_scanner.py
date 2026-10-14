@@ -1,3 +1,5 @@
+from datetime import date
+
 from app.scanner import group_billing_evidence, parse_billing_message, parse_date
 
 
@@ -42,6 +44,37 @@ def test_parse_date_supported_formats():
     assert parse_date("Your plan renews on November 18, 2026") == "2026-11-18"
     assert parse_date("Trial ends on 18 Nov 2026") == "2026-11-18"
     assert parse_date("Nothing here") is None
+
+
+def test_parse_renewal_date_without_year_using_email_timestamp():
+    result = parse_billing_message(
+        message_id="m-date-no-year",
+        subject="Your Spotify Premium subscription renewal",
+        sender="Spotify <no-reply@spotify.com>",
+        date_header="Mon, 12 Oct 2026 10:00:00 +0000",
+        body="Your Spotify Premium plan renews November 12. You will be charged ₹1,499, billed annually.",
+    )
+    assert result is not None
+    assert result["amount"] == 1499
+    assert result["cycle"] == "Yearly"
+    assert result["next_renewal"] == "2026-11-12"
+
+
+def test_no_year_renewal_date_rolls_forward_after_email_date():
+    result = parse_billing_message(
+        message_id="m-date-rollover",
+        subject="Your Spotify Premium renewal notice",
+        sender="Spotify <no-reply@spotify.com>",
+        date_header="Fri, 20 Nov 2026 10:00:00 +0000",
+        body="Your Spotify Premium plan renews on January 15. You will be charged ₹119 per month.",
+    )
+    assert result is not None
+    assert result["next_renewal"] == "2027-01-15"
+
+
+def test_no_year_renewal_date_is_not_guessed_without_reference_date():
+    assert parse_date("Your plan renews on November 18") is None
+    assert parse_date("Next billing date: 14/11/2026") == "2026-11-14"
 
 
 def test_ignores_known_brand_marketing_email_with_generic_monthly_word():
