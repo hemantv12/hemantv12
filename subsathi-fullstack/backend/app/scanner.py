@@ -233,7 +233,7 @@ CYCLE_PATTERNS = (
     (re.compile(r"\b(annual|annually|yearly|per year|every year|every 12 months|12-month|billed annually|billed yearly|per annum|each year|every 365 days|per 365 days)\b", re.I), "Yearly"),
     (re.compile(r"\b(monthly|every month|per month|each month|billed monthly|billed every month|every calendar month|billed every calendar month|per calendar month|billed every 30 days|every 30 days|per 30 days|every 1 month|each calendar month)\b", re.I), "Monthly"),
 )
-RENEWAL_DATE_CUE = r"(?:upcoming\s+(?:renewal|billing|payment|charge|invoice|bill)(?:\s+date)?|next\s+(?:renewal|billing|payment|charge|invoice|bill|debit)(?:\s+date)?|renewal\s+date|billing\s+date|payment\s+date|debit\s+date|renews?(?:\s+on)?|will\s+renew(?:\s+on)?|renewal\s+on|will\s+be\s+charged\s+on|will\s+be\s+billed\s+on|payment\s+will\s+be\s+taken\s+on|next\s+payment\s+due|next\s+billing\s+due|next\s+debit\s+date|trial\s+ends?(?:\s+on)?|expires?(?:\s+on)?|subscription\s+ends?(?:\s+on)?|next\s+charge\s+date)"
+RENEWAL_DATE_CUE = r"(?:upcoming\s+(?:renewal|billing|payment|charge|invoice|bill)(?:\s+date)?|next\s+(?:renewal|billing|payment|charge|invoice|bill|debit)(?:\s+date)?|debit\s+scheduled(?:\s+date)?|autopay\s+date|renewal\s+date|billing\s+date|payment\s+date|debit\s+date|renews?(?:\s+on)?|will\s+renew(?:\s+on)?|renewal\s+on|will\s+be\s+charged\s+on|will\s+be\s+billed\s+on|payment\s+will\s+be\s+taken\s+on|next\s+payment\s+due|next\s+billing\s+due|next\s+debit\s+date|trial\s+ends?(?:\s+on)?|expires?(?:\s+on)?|subscription\s+ends?(?:\s+on)?|next\s+charge\s+date)"
 RENEWAL_DATE_PATTERNS = (
     re.compile(RENEWAL_DATE_CUE + r"\s*(?:is(?:\s+due)?(?:\s+on)?|due(?:\s+on)?|scheduled(?:\s+for)?|expected(?:\s+on)?|on|:|-)?\s*(\d{4}-\d{2}-\d{2})", re.I),
     re.compile(RENEWAL_DATE_CUE + r"\s*(?:is(?:\s+due)?(?:\s+on)?|due(?:\s+on)?|scheduled(?:\s+for)?|expected(?:\s+on)?|on|:|-)?\s*([A-Za-z]{3,9}\.?\s+\d{1,2}(?:st|nd|rd|th)?,?\s+\d{4})", re.I),
@@ -614,16 +614,24 @@ def parse_billing_message(*, message_id: str, subject: str, sender: str, date_he
         if not UNKNOWN_RECURRING_EVIDENCE.search(combined):
             return None
         transactional_subject = re.search(
-            r"\b(receipt|invoice|payment|billing|renewal|renewed|subscription|membership|trial ends?|charge)\b",
+            r"\b(receipt|invoice|payment|billing|renewal|renewed|subscription|membership|trial ends?|charge|"
+            r"auto[- ]?pay|autopay|mandate|e[- ]?nach|nach|standing instruction|auto[- ]?debit|"
+            r"recurring debit|scheduled debit|preapproved payment)\b",
             subject,
             re.IGNORECASE,
         )
         if not transactional_subject:
             return None
+        clean_subject = re.sub(r"(?i)^(your|the)\s+", "", subject)
         clean_subject = re.sub(
-            r"(?i)^(your|the)\s+|^(receipt|invoice|payment|renewal|subscription|membership)\s*[:#-]?\s*",
+            r"(?i)^(?:receipt|invoice|payment|renewal|subscription|membership|"
+            r"autopay|auto[- ]?pay|upi\s+autopay|upi\s+mandate|bank\s+mandate|mandate|"
+            r"e[- ]?nach|nach\s+mandate|standing\s+instruction|auto[- ]?debit|"
+            r"recurring\s+debit|scheduled\s+debit)"
+            r"(?:\s+(?:mandate|notice|notification|registered|created|activated|approved|successfully))*"
+            r"\s*(?:for|from|to|[:#-])?\s*",
             "",
-            subject,
+            clean_subject,
         ).strip(" \t:-")
         # Trim renewal boilerplate and duration from a real product name, e.g.
         # "Zomato Gold has been renewed successfully for 3 months" -> "Zomato Gold".
@@ -641,7 +649,10 @@ def parse_billing_message(*, message_id: str, subject: str, sender: str, date_he
             "subscription", "membership", "payment", "invoice", "receipt", "renewal", "billing",
             "confirmation", "confirmed", "successful", "success", "notification", "update",
             "notice", "account update", "payment confirmation", "payment successful",
-            "transaction notice", "billing notice", "subscription notice",
+            "transaction notice", "billing notice", "subscription notice", "autopay mandate",
+            "upi autopay", "upi mandate", "bank mandate", "mandate notification", "mandate created",
+            "mandate registered", "e nach", "nach mandate", "standing instruction", "auto debit",
+            "auto-debit", "recurring debit", "scheduled debit", "preapproved payment",
         }:
             return None
         merchant_name, category, manage_url = candidate_name, "Other", ""
