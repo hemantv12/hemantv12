@@ -218,3 +218,49 @@ def test_manage_url_is_specific_to_billing_platform():
     assert _manage_url_for("Netflix", "google_play") == "https://play.google.com/store/account/subscriptions"
     assert _manage_url_for("Netflix", "provider") == "https://www.netflix.com/YourAccount"
     assert _billing_source_label("apple_app_store") == "Apple App Store"
+
+def test_gmail_import_preserves_detected_subscription_when_price_and_cycle_are_unknown():
+    from types import SimpleNamespace
+    from app.main import CandidateImportRequest, import_candidates
+
+    candidate = SimpleNamespace(
+        id=11,
+        user_id=4,
+        service_name="Netflix",
+        category="Entertainment",
+        amount=None,
+        cycle="Unknown",
+        next_renewal="",
+        manage_url="",
+        billing_source="provider",
+        evidence_count=2,
+        source_accounts='["person@example.com"]',
+        imported=False,
+        updated_at=None,
+    )
+
+    class FakeScalars:
+        def all(self):
+            return [candidate]
+
+    class FakeDB:
+        def scalars(self, _statement):
+            return FakeScalars()
+
+        def commit(self):
+            return None
+
+    response = import_candidates(
+        CandidateImportRequest(candidate_ids=[11]),
+        user=SimpleNamespace(id=4),
+        db=FakeDB(),
+    )
+
+    assert response["count"] == 1
+    imported = response["imported"][0]
+    assert imported["name"] == "Netflix"
+    assert imported["amount"] is None
+    assert imported["cycle"] == "Unknown"
+    assert imported["needsReview"] is True
+    assert "Price not found" in imported["notes"]
+    assert "Billing cycle not found" in imported["notes"]
