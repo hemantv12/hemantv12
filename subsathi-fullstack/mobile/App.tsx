@@ -100,6 +100,42 @@ const API_BASE_URL = (process.env.EXPO_PUBLIC_API_BASE_URL || 'https://subsathi-
 const SESSION_KEY = 'subsathi_api_session_v1';
 const GOOGLE_AUTH_RETURN_URL = 'subsathi://auth';
 
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+async function fetchWithNetworkRetry(
+  url: string,
+  init: RequestInit = {},
+  attempts = 3,
+  timeoutMs = 15000,
+): Promise<Response> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetch(url, { ...init, signal: controller.signal });
+      if ([502, 503, 504].includes(response.status) && attempt + 1 < attempts) {
+        await sleep(600 * (attempt + 1));
+        continue;
+      }
+      return response;
+    } catch (error) {
+      lastError = error;
+      if (attempt + 1 >= attempts) throw error;
+      await sleep(700 * (attempt + 1));
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error('Network request failed. Please retry.');
+}
+
+function isRecoverableSQLiteHandleError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error ?? '');
+  return /NativeDatabase\.prepareAsync|NativeDatabase\.(?:runAsync|getFirstAsync|getAllAsync)|NullPointerException|database.*closed|native database.*null/i.test(message);
+}
+
+
 
 const C = {
   ink: '#102A35',
@@ -490,6 +526,8 @@ function AppContent() {
   const isTestAds = !adUnitFromEnv;
   const adsInitializedRef = useRef(false);
   const dbRef = useRef<SQLite.SQLiteDatabase | null>(null);
+  const dbRecoveryRef = useRef<Promise<SQLite.SQLiteDatabase> | null>(null);
+  const dbOperationQueueRef = useRef<Promise<void>>(Promise.resolve());
   const [ready, setReady] = useState(false);
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [tab, setTab] = useState<Tab>('Home');
@@ -531,6 +569,9 @@ function AppContent() {
   const [apiReachable, setApiReachable] = useState<boolean | null>(null);
   const [googleOAuthConfigured, setGoogleOAuthConfigured] = useState<boolean | null>(null);
   const [aiExtractionConfigured, setAiExtractionConfigured] = useState<boolean | null>(null);
+  const [durableDatabaseConfigured, setDurableDatabaseConfigured] = useState<boolean | null>(null);
+  const [serverScanLimit, setServerScanLimit] = useState<number | null>(null);
+  const [gmailNeedsRepair, setGmailNeedsRepair] = useState(false);
   const [aiAssistedScan, setAiAssistedScan] = useState(false);
   const [aiPreferenceLoaded, setAiPreferenceLoaded] = useState(false);
   const autoScanSessionRef = useRef<string | null>(null);
@@ -545,6 +586,79 @@ function AppContent() {
   const [assistantMessages, setAssistantMessages] = useState<AssistantMessage[]>([
     { id: 'welcome', role: 'assistant', text: 'Namaste! Main SmartSathi hoon. Main tumhare saved plans se monthly kharcha, upcoming renewals aur possible savings samjha sakta hoon. Type karo ya mic dabao.' },
   ]);
+
+  const ensureLocalDatabase = useCallback(async (forceReopen = false): Promise<SQLite.SQLiteDatabase> => {
+    if (dbRecoveryRef.current) return dbRecoveryRef.current;
+    const opening = (async () => {
+      let database = dbRef.current;
+      if (database && !forceReopen) {
+        try {
+          await database.getFirstAsync<{ ok: number }>('SELECT 1 AS ok');
+          return database;
+        } catch (error) {
+          console.warn('Local SQLite handle needs recovery', error);
+          forceReopen = true;
+        }
+      }
+      dbRef.current = null;
+      if (database) {
+        try { await database.closeAsync(); } catch { /* A native stale handle may already be closed. */ }
+      }
+      database = await initializeDatabase();
+      dbRef.current = database;
+      await database.getFirstAsync<{ ok: number }>('SELECT 1 AS ok');
+      return database;
+    })();
+    dbRecoveryRef.current = opening;
+    try {
+      return await opening;
+    } finally {
+      if (dbRecoveryRef.current === opening) dbRecoveryRef.current = null;
+    }
+  }, []);
+
+  const withLocalDatabase = useCallback(async <T,>(
+    operation: (database: SQLite.SQLiteDatabase) => Promise<T>,
+  ): Promise<T> => {
+    const previous = dbOperationQueueRef.current;
+    let release!: () => void;
+    dbOperationQueueRef.current = new Promise<void>((resolve) => { release = resolve; });
+    await previous.catch(() => undefined);
+    try {
+      const database = await ensureLocalDatabase();
+      try {
+        return await operation(database);
+      } catch (error) {
+        if (!isRecoverableSQLiteHandleError(error)) throw error;
+        console.warn('Recovering native SQLite handle and retrying one database operation');
+        const recovered = await ensureLocalDatabase(true);
+        return await operation(recovered);
+      }
+    } finally {
+      release();
+    }
+  }, [ensureLocalDatabase]);
+
+  const refreshApiHealth = useCallback(async (): Promise<boolean> => {
+    try {
+      const response = await fetchWithNetworkRetry(`${API_BASE_URL}/health`, {}, 3, 12000);
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error('SubSathi API health check failed.');
+      setApiReachable(true);
+      setGoogleOAuthConfigured(payload.google_oauth_configured === true);
+      setAiExtractionConfigured(payload.ai_extraction_configured === true);
+      setDurableDatabaseConfigured(payload.durable_database_configured === true);
+      setServerScanLimit(Number(payload.scan_max_messages_per_inbox || 500));
+      return true;
+    } catch {
+      setApiReachable(false);
+      setGoogleOAuthConfigured(null);
+      setAiExtractionConfigured(null);
+      setDurableDatabaseConfigured(null);
+      setServerScanLimit(null);
+      return false;
+    }
+  }, []);
 
   useSpeechRecognitionEvent('start', () => { setVoiceListening(true); setVoiceError(''); });
   useSpeechRecognitionEvent('end', () => setVoiceListening(false));
@@ -565,24 +679,14 @@ function AppContent() {
 
   useEffect(() => {
     let active = true;
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 18000);
-    fetch(`${API_BASE_URL}/health`, { signal: controller.signal })
-      .then(async (response) => {
-        const payload = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error('SubSathi API health check failed.');
-        if (active) {
-          setApiReachable(true);
-          setGoogleOAuthConfigured(payload.google_oauth_configured === true);
-          setAiExtractionConfigured(payload.ai_extraction_configured === true);
-        }
-      })
-      .catch(() => {
-        if (active) { setApiReachable(false); setGoogleOAuthConfigured(null); setAiExtractionConfigured(null); }
-      })
-      .finally(() => clearTimeout(timeout));
-    return () => { active = false; clearTimeout(timeout); controller.abort(); };
-  }, []);
+    void refreshApiHealth().then(() => {
+      // A single temporary mobile-DNS failure should not permanently mark the API offline.
+      // refreshApiHealth itself makes three bounded attempts before reporting failure.
+    }).finally(() => {
+      if (!active) return;
+    });
+    return () => { active = false; };
+  }, [refreshApiHealth]);
 
   useEffect(() => {
     screenProgress.setValue(0);
