@@ -29,7 +29,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .config import settings
-from .ai_extractor import extract_billing_evidence_with_ai
+from .ai_extractor import MAX_AI_EMAILS_PER_MAILBOX, extract_billing_evidence_with_ai
 from .database import Base, SessionLocal, engine, get_db
 from .models import GoogleConnection, LinkedGmailAccount, OAuthLoginTicket, OAuthState, ScanCandidate, User, utcnow
 from .scanner import MERCHANTS, MERCHANT_SENDER_DOMAINS, extract_management_link, extract_message_text, group_billing_evidence, parse_billing_message, should_fetch_full_message
@@ -527,8 +527,20 @@ def _scan_single_gmail_mailbox(
                     api_key=settings.openai_api_key,
                     model=settings.openai_model,
                 )
-                ai_analyzed = min(len(ai_inputs), 25)
+                ai_analyzed = min(len(ai_inputs), MAX_AI_EMAILS_PER_MAILBOX)
                 ai_status = "completed"
+                warnings: list[str] = []
+                if len(ai_inputs) > MAX_AI_EMAILS_PER_MAILBOX:
+                    warnings.append(
+                        f"AI reviewed the first {MAX_AI_EMAILS_PER_MAILBOX} incomplete emails in this inbox to keep scanning responsive; run another full scan to review more."
+                    )
+                failed_batches = int(getattr(ai_results, "failed_batches", 0) or 0)
+                if failed_batches:
+                    ai_status = "partial"
+                    warnings.append(
+                        f"AI could not finish {failed_batches} analysis batch(es); successful results were kept. Retry the scan to check the remaining emails."
+                    )
+                ai_warning = " ".join(warnings)
                 email_lookup = {str(item["message_id"]): item for item in ai_inputs}
                 for ai_candidate in ai_results:
                     message_id = str(ai_candidate.get("message_id") or "")
