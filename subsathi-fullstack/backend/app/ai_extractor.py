@@ -241,10 +241,9 @@ def extract_billing_evidence_with_ai(
             )
 
         # AI is an evidence finder, not an authority for merchant, amount or dates.
-        # Ignore a weak new candidate with no independently verifiable billing field.
-        if amount is None and cycle is None and next_renewal is None:
-            continue
-
+        # Keep a service when both identity and recurring evidence are verified, even
+        # if this email lacks all three billing fields. The review queue can then show
+        # the detected service instead of silently dropping a real subscription.
         name, category, manage_url = _known_merchant(service_name.strip(), source)
         billing_source = detect_billing_source(email["subject"], email["sender"], email["body"])
         confidence = min(95, 48 + (14 if amount is not None else 0) + (12 if cycle else 0) + (14 if next_renewal else 0))

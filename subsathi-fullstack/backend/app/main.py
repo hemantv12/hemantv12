@@ -1133,6 +1133,14 @@ def scan_gmail(
         .where(ScanCandidate.user_id == user.id, ScanCandidate.imported.is_(False))
         .order_by(ScanCandidate.updated_at.desc())
     ).all()
+    # Imported rows stay hidden from the import queue, but their latest verified
+    # renewal date / official management link can enrich the device-local tracker.
+    enriched_imported = db.scalars(
+        select(ScanCandidate)
+        .where(ScanCandidate.user_id == user.id, ScanCandidate.imported.is_(True))
+        .order_by(ScanCandidate.updated_at.desc())
+        .limit(200)
+    ).all()
     overall_mode = "full" if full_reconciliation else "incremental"
     return {
         "scanned_messages": scanned_messages,
@@ -1142,6 +1150,7 @@ def scan_gmail(
         "new_candidate_count": len(grouped),
         "scanned_at": now_utc().isoformat() + "Z",
         "candidates": [candidate_public(item) for item in saved[:100]],
+        "enriched_imported": [candidate_public(item) for item in enriched_imported],
         "notice": "SubSathi combines billing evidence from all linked Gmail inboxes. Repeat scans use Gmail history to process new email; missing prices or renewal dates remain unverified.",
         "scan_limit_per_account": limit,
         "scan_duration_ms": duration_ms,

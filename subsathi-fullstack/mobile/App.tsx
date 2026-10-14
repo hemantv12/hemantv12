@@ -480,6 +480,7 @@ function AppContent() {
   const [googleOAuthConfigured, setGoogleOAuthConfigured] = useState<boolean | null>(null);
   const [aiExtractionConfigured, setAiExtractionConfigured] = useState<boolean | null>(null);
   const [aiAssistedScan, setAiAssistedScan] = useState(false);
+  const [aiPreferenceLoaded, setAiPreferenceLoaded] = useState(false);
   const autoScanSessionRef = useRef<string | null>(null);
   const scanInFlightRef = useRef(false);
   const screenProgress = useRef(new Animated.Value(1)).current;
@@ -557,15 +558,21 @@ function AppContent() {
         dbRef.current = db;
         const rows = await db.getAllAsync<Subscription>('SELECT * FROM subscriptions ORDER BY nextRenewal ASC, name COLLATE NOCASE ASC');
         const preference = await db.getFirstAsync<{ value: string }>("SELECT value FROM app_settings WHERE key = 'notificationsEnabled'");
+        const aiPreference = await db.getFirstAsync<{ value: string }>("SELECT value FROM app_settings WHERE key = 'aiAssistedScan'");
         if (mounted) {
           setSubscriptions(rows);
           if (preference) setNotificationsEnabled(preference.value === 'true');
+          if (aiPreference) setAiAssistedScan(aiPreference.value === 'true');
+          setAiPreferenceLoaded(true);
         }
       } catch (error) {
         Alert.alert('Could not open local database', 'Please restart the app. Your subscriptions have not been uploaded anywhere.');
         console.warn(error);
       } finally {
-        if (mounted) setReady(true);
+        if (mounted) {
+          setReady(true);
+          setAiPreferenceLoaded(true);
+        }
       }
     })();
     return () => { mounted = false; };
@@ -915,7 +922,7 @@ function AppContent() {
     }
   };
 
-  const scanGmail = async (sessionOverride?: string, mode: 'quick' | 'full' = 'quick') => {
+  const scanGmail = async (sessionOverride?: string, mode: 'quick' | 'full' = 'quick', aiOverride?: boolean) => {
     const session = sessionOverride || apiSession;
     if (!session) { setScanError('Connect Gmail first.'); return; }
     // Connecting Gmail and opening the scanner can both request a scan. Never run
@@ -926,7 +933,8 @@ function AppContent() {
     setScanSummary(null);
     setScanLoading(true);
     try {
-      const scanQuery = '?max_messages=500' + (mode === 'full' ? '&force_full_scan=true' : '') + (aiAssistedScan ? '&ai_assisted=true' : '');
+      const useAi = (aiOverride ?? aiAssistedScan) && aiExtractionConfigured === true;
+      const scanQuery = '?max_messages=500' + (mode === 'full' ? '&force_full_scan=true' : '') + (useAi ? '&ai_assisted=true' : '');
       const response = await fetch(API_BASE_URL + '/api/gmail/scan' + scanQuery, {
         method: 'POST',
         headers: { Authorization: `Bearer ${session}`, 'Content-Type': 'application/json' },
@@ -958,6 +966,40 @@ function AppContent() {
         };
       });
       const localKey = (name: string, source: unknown) => normalizedServiceName(name) + '|' + normalizeBillingSource(source);
+
+      // AI/full scans can discover a renewal date or official management page after
+      // a plan was imported. Refresh only safe, missing/stale fields in the local
+      // tracker; never replace a user-entered price or billing cycle silently.
+      const localDb = dbRef.current;
+      if (localDb && Array.isArray(payload.enriched_imported)) {
+        const localRows = await localDb.getAllAsync<Subscription>('SELECT * FROM subscriptions');
+        let localEnriched = false;
+        for (const remote of payload.enriched_imported) {
+          const match = localRows.find((row) => localKey(row.name, row.billingSource) === localKey(String(remote.name || ''), remote.billingSource));
+          if (!match) continue;
+          const remoteDate = typeof remote.nextRenewal === 'string' ? remote.nextRenewal : '';
+          const nextRenewal = remoteDate && (!match.nextRenewal || remoteDate > match.nextRenewal)
+            ? remoteDate : match.nextRenewal;
+          const remoteUrl = typeof remote.manageUrl === 'string' ? remote.manageUrl : '';
+          const manageUrl = !match.manageUrl && remoteUrl.startsWith('https://') && !/\\s/.test(remoteUrl)
+            ? remoteUrl : match.manageUrl;
+          const remoteCategory = CATEGORIES.some((entry) => entry.name === remote.category && entry.name !== 'Other')
+            ? remote.category as Category : 'Other';
+          const category = match.category === 'Other' && remoteCategory !== 'Other' ? remoteCategory : match.category;
+          if (nextRenewal !== match.nextRenewal || manageUrl !== match.manageUrl || category !== match.category) {
+            await localDb.runAsync(
+              'UPDATE subscriptions SET nextRenewal = ?, manageUrl = ?, category = ? WHERE id = ?',
+              nextRenewal, manageUrl, category, match.id,
+            );
+            match.nextRenewal = nextRenewal;
+            match.manageUrl = manageUrl;
+            match.category = category;
+            localEnriched = true;
+          }
+        }
+        if (localEnriched) await loadSubscriptions();
+      }
+
       const locallyTrackedNames = new Set(subscriptions.map((item) => localKey(item.name, item.billingSource)));
       const adjusted = mapped.map((item) => ({
         ...item,
@@ -996,10 +1038,10 @@ function AppContent() {
       autoScanSessionRef.current = null;
       return;
     }
-    if (!ready || !gmailEmail || autoScanSessionRef.current === apiSession) return;
+    if (!ready || !aiPreferenceLoaded || apiReachable !== true || !gmailEmail || autoScanSessionRef.current === apiSession) return;
     autoScanSessionRef.current = apiSession;
     void scanGmail(apiSession);
-  }, [ready, apiSession, gmailEmail]);
+  }, [ready, aiPreferenceLoaded, apiReachable, apiSession, gmailEmail]);
 
   const importGmailCandidates = async () => {
     if (!apiSession || !selectedCandidateIds.length) return;
@@ -1146,6 +1188,8 @@ function AppContent() {
         throw new Error(payload.detail || 'Could not disconnect Gmail on the server.');
       }
       await SecureStore.deleteItemAsync(SESSION_KEY);
+      const localDb = dbRef.current;
+      if (localDb) await localDb.runAsync("INSERT INTO app_settings (key, value) VALUES ('aiAssistedScan', 'false') ON CONFLICT(key) DO UPDATE SET value = excluded.value");
       setApiSession(null); setGmailEmail(null); setGmailAccounts([]); setScanCandidates([]); setSelectedCandidateIds([]); setAiAssistedScan(false);
       toastLocal('All Gmail accounts disconnected. Locally imported plans remain on this device.');
     } catch (error) {
@@ -1463,15 +1507,24 @@ function AppContent() {
                   <View style={{ flex: 1 }}>
                     <Text style={styles.fieldLabel}>OPTIONAL AI-ASSISTED EXTRACTION</Text>
                     <Text style={styles.fieldHint}>{aiExtractionConfigured === true
-                      ? 'When enabled, up to 25 incomplete or uncertain billing-email excerpts per linked inbox (max 3,500 body characters each) are sent to OpenAI using the owner-configured API key. Fully detected emails are not sent. AI never invents missing prices or dates. Enable only if you consent; toggle applies to the next scan.'
+                      ? 'When enabled, future syncs use AI on up to 25 incomplete or uncertain billing-email excerpts per inbox (max 3,500 body characters each). On first enable, SubSathi runs a full rescan. Only excerpt text is sent to OpenAI; fully detected emails are not sent, and AI never invents prices or dates. This preference is saved on this phone.'
                       : aiExtractionConfigured === false
                         ? 'AI extraction is not configured on the server yet. Standard email detection remains available; the app will not send email text to an AI service.'
                         : 'Checking whether optional AI extraction is configured on the server…'}</Text>
                   </View>
                   <Switch
                     value={aiAssistedScan}
-                    disabled={aiExtractionConfigured !== true}
-                    onValueChange={setAiAssistedScan}
+                    disabled={aiExtractionConfigured !== true || scanLoading}
+                    onValueChange={(value) => {
+                      const db = dbRef.current;
+                      const savePreference = db
+                        ? db.runAsync("INSERT INTO app_settings (key, value) VALUES ('aiAssistedScan', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", value ? 'true' : 'false')
+                        : Promise.resolve();
+                      void savePreference.then(() => {
+                        setAiAssistedScan(value);
+                        if (value && apiSession && gmailEmail && !scanLoading) void scanGmail(undefined, 'full', true);
+                      }).catch(() => Alert.alert('Could not save AI preference', 'Please retry. SubSathi has not changed the AI setting.'));
+                    }}
                     trackColor={{ false: '#CBD5D4', true: '#A7E4CD' }}
                     thumbColor={aiAssistedScan ? C.green : '#F6F7F7'}
                     accessibilityLabel="Allow AI-assisted billing email extraction"
@@ -1500,7 +1553,7 @@ function AppContent() {
               {scanCandidates.map((candidate) => {
                 const selected = selectedCandidateIds.includes(candidate.id);
                 const categoryMetaItem = categoryMeta(candidate.category);
-                const needsFieldReview = candidate.amount === null || candidate.cycle === 'Unknown';
+                const needsFieldReview = candidate.amount === null || candidate.cycle === 'Unknown' || !candidate.nextRenewal;
                 const draft = candidateEdits[candidate.id] || {
                   amountText: candidate.amount === null ? '' : String(candidate.amount),
                   cycle: candidate.cycle,
@@ -1528,7 +1581,7 @@ function AppContent() {
                     </View>
                     <View style={{ alignItems: 'flex-end', maxWidth: 100 }}>
                       <Text style={styles.serviceAmount}>{candidate.amount !== null ? money(candidate.amount) : 'Price needed'}</Text>
-                      <Text style={[styles.serviceSub, { textAlign: 'right' }]}>{candidate.amount !== null ? `per ${candidate.cycle.toLowerCase()}` : 'Enter manually'}</Text>
+                      <Text style={[styles.serviceSub, { textAlign: 'right' }]}>{candidate.amount === null ? 'Price needed' : candidate.cycle === 'Unknown' ? 'Billing cycle needed' : `per ${candidate.cycle.toLowerCase()}`}</Text>
                     </View>
                   </Pressable>
                   {selected && !candidate.alreadyImported && needsFieldReview ? <View style={{ borderTopWidth: 1, borderTopColor: C.line, backgroundColor: '#F8FBF9', padding: 13 }}>
@@ -1547,6 +1600,20 @@ function AppContent() {
                     {candidate.cycle === 'Unknown' ? <>
                       <Text style={[styles.fieldLabel, { marginTop: 12 }]}>BILLING CYCLE *</Text>
                       <View style={styles.cycleRow}>{CYCLES.map((cycle) => <Pressable key={cycle} onPress={() => setCandidateEdits((current) => ({ ...current, [candidate.id]: { ...draft, cycle } }))} style={[styles.cycleChip, draft.cycle === cycle && styles.cycleChipActive]}><Text style={[styles.cycleChipText, draft.cycle === cycle && styles.cycleChipTextActive]}>{cycle}</Text></Pressable>)}</View>
+                    </> : null}
+                    {!candidate.nextRenewal ? <>
+                      <Text style={[styles.fieldLabel, { marginTop: 12 }]}>RENEWAL DATE (OPTIONAL)</Text>
+                      <Text style={styles.fieldHint}>Enter only if you know the date; SubSathi will not guess it.</Text>
+                      <TextInput
+                        value={draft.renewalText}
+                        onChangeText={(value) => setCandidateEdits((current) => ({ ...current, [candidate.id]: { ...draft, renewalText: value } }))}
+                        placeholder="YYYY-MM-DD"
+                        placeholderTextColor="#97A5A8"
+                        style={styles.input}
+                        keyboardType="numbers-and-punctuation"
+                        accessibilityLabel={`Optional renewal date for ${candidate.name}`}
+                        maxLength={10}
+                      />
                     </> : null}
                   </View> : null}
                 </View>;

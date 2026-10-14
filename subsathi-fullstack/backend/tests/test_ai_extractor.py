@@ -78,3 +78,35 @@ def test_ai_extraction_is_noop_without_key():
         [{"message_id": "msg-1", "subject": "A subscription"}],
         api_key="",
     ) == []
+
+
+def test_ai_keeps_verified_subscription_when_billing_fields_are_absent(monkeypatch):
+    input_email = {
+        "message_id": "msg-no-fields",
+        "subject": "Your Spotify Premium membership renewed",
+        "sender": "Spotify <no-reply@spotify.com>",
+        "date_header": "Mon, 12 Oct 2026 10:00:00 +0000",
+        "body": "Your Spotify Premium subscription has been renewed successfully.",
+    }
+    result = _email_result(
+        email_id="msg-no-fields",
+        service_name="Spotify Premium",
+        service_evidence="Spotify Premium",
+        recurrence_evidence="subscription has been renewed successfully",
+        amount_evidence=None,
+        cycle_evidence=None,
+        renewal_evidence=None,
+    )
+
+    def fake_post(url, **kwargs):
+        return FakeResponse({"output_text": json.dumps({"results": [result]})})
+
+    monkeypatch.setattr("app.ai_extractor.httpx.post", fake_post)
+    results = extract_billing_evidence_with_ai([input_email], api_key="test-key")
+
+    assert len(results) == 1
+    assert results[0]["service_name"] == "Spotify Premium"
+    assert results[0]["amount"] is None
+    assert results[0]["cycle"] is None
+    assert results[0]["next_renewal"] is None
+    assert results[0]["confidence"] == 48
