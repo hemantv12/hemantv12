@@ -156,6 +156,62 @@ def test_gmail_scan_queries_include_known_sender_and_longer_history():
     assert any("from:swiggy.com" in query for query in queries)
 
 
+
+def test_gmail_batch_fetch_uses_supported_execute_signature_and_preserves_order(monkeypatch):
+    import app.main as main
+
+    batches = []
+
+    class FakeBatch:
+        def __init__(self, callback):
+            self.callback = callback
+            self.requests = []
+            batches.append(self)
+
+        def add(self, request, request_id):
+            self.requests.append((request, request_id))
+
+        # Intentionally mirrors BatchHttpRequest.execute(self, http=None):
+        # passing num_retries here would raise TypeError.
+        def execute(self):
+            for request, request_id in self.requests:
+                self.callback(request_id, {
+                    "id": request["id"],
+                    "format": request["format"],
+                    "metadataHeaders": request.get("metadataHeaders"),
+                }, None)
+
+    class FakeMessages:
+        def get(self, **kwargs):
+            return kwargs
+
+    class FakeUsers:
+        def messages(self):
+            return FakeMessages()
+
+    class FakeService:
+        def users(self):
+            return FakeUsers()
+
+        def new_batch_http_request(self, callback):
+            return FakeBatch(callback)
+
+    monkeypatch.setattr(main, "build", lambda *args, **kwargs: FakeService())
+    ids = [f"message-{index}" for index in range(101)]
+
+    result = main._batch_fetch_gmail_messages_for_scan(
+        credentials=object(),
+        message_ids=ids,
+        message_format="metadata",
+    )
+
+    assert len(batches) == 2
+    assert [len(batch.requests) for batch in batches] == [100, 1]
+    assert [item["id"] for item in result] == ids
+    assert all(item["format"] == "metadata" for item in result)
+    assert all(item["metadataHeaders"] == ["From", "Subject", "Date"] for item in result)
+
+
 def test_manage_url_is_specific_to_billing_platform():
     from app.main import _manage_url_for, _billing_source_label
 
