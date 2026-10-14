@@ -156,6 +156,8 @@ def test_gmail_scan_queries_include_known_sender_and_longer_history():
     assert any("from:swiggy.com" in query for query in queries)
     assert any("free trial" in query for query in queries)
     assert any("recurring charge" in query for query in queries)
+    assert any("UPI AutoPay" in query for query in queries)
+    assert any("standing instruction" in query for query in queries)
 
 
 
