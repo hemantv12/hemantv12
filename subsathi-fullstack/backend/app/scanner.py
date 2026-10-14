@@ -434,7 +434,7 @@ HEADER_PROVIDER_CONTEXT = re.compile(
     re.IGNORECASE,
 )
 HEADER_MARKETING_SUBJECT = re.compile(
-    r"\b(newsletter|weekly picks|week in review|product update|what'?s new|new features?|"
+    r"\b(newsletter|weekly picks|weekend music picks|week in review|product update|what'?s new|new features?|"
     r"special offers?|promo(?:tion)?s?|discounts?|deals?|webinar|event invitation|"
     r"recommended for you|trending now|top picks)\b",
     re.IGNORECASE,
