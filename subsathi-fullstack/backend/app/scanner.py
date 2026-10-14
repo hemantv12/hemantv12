@@ -163,6 +163,7 @@ def extract_management_link(
         for child in part.get("parts") or []:
             walk(child)
     walk(payload)
+    fallback_url = merchant.manage_url if merchant else ""
     ranked: list[tuple[int, str]] = []
     for chunk in html_parts:
         for match in re.finditer(r"<a\b([^>]*?)href\s*=\s*(['\"])(.*?)\2([^>]*)>(.*?)</a\s*>", chunk, re.I | re.S):
@@ -181,7 +182,7 @@ def extract_management_link(
             stable_url = urlunparse((parsed.scheme, parsed.netloc, parsed.path or "/", "", "", ""))
             priority = 3 if re.search(r"cancel subscription|cancel plan", label, re.I) else 2 if re.search(r"manage|billing|subscription settings", label, re.I) else 1
             ranked.append((priority, stable_url))
-    return sorted(ranked, key=lambda item: item[0], reverse=True)[0][1] if ranked else ""
+    return sorted(ranked, key=lambda item: item[0], reverse=True)[0][1] if ranked else fallback_url
 
 
 CURRENCY_AMOUNT = re.compile(r"(?:₹\s*|INR\s*|Rs\.?\s*)([\d,]+(?:\.\d{1,2})?)", re.IGNORECASE)
