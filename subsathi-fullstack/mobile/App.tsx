@@ -1348,6 +1348,7 @@ function AppContent() {
     if (!apiSession || !selectedCandidateIds.length) return;
     setScanError('');
     setScanLoading(true);
+    let localSavedCount = 0;
     try {
       const selectedCandidates = selectedCandidateIds
         .map((id) => scanCandidates.find((candidate) => candidate.id === id))
@@ -1356,7 +1357,15 @@ function AppContent() {
         setSelectedCandidateIds([]);
         return;
       }
+
       const overrides: { candidate_id: number; amount?: number | null; cycle?: Cycle | 'Unknown'; next_renewal?: string }[] = [];
+      const reviewed: {
+        candidate: GmailCandidate;
+        amount: number | null;
+        cycle: Cycle | 'Unknown';
+        nextRenewal: string;
+      }[] = [];
+
       for (const candidate of selectedCandidates) {
         const draft = candidateEdits[candidate.id] || {
           amountText: candidate.amount === null ? '' : String(candidate.amount),
@@ -1380,42 +1389,93 @@ function AppContent() {
         const editedRenewal = draft.renewalText.trim();
         if (editedRenewal !== (candidate.nextRenewal || '')) override.next_renewal = editedRenewal;
         if (Object.keys(override).length > 1) overrides.push(override);
+        reviewed.push({
+          candidate,
+          amount: hasPriceText ? parsedAmount : null,
+          cycle: draft.cycle,
+          nextRenewal: editedRenewal,
+        });
       }
-      const response = await fetch(`${API_BASE_URL}/api/gmail/import`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${apiSession}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ candidate_ids: selectedCandidates.map((candidate) => candidate.id), overrides }),
+
+      // Save the user's reviewed entries on-device FIRST. The phone's tracker must
+      // never depend on a later Gmail API response; otherwise a remote import can
+      // succeed while SQLite fails and the item disappears from the import queue.
+      localSavedCount = await withLocalDatabase(async (db) => {
+        const existingRows = await db.getAllAsync<Subscription>('SELECT * FROM subscriptions');
+        const knownKeys = new Set(existingRows.map((item) =>
+          normalizedServiceName(item.name) + '|' + normalizeBillingSource(item.billingSource),
+        ));
+        let inserted = 0;
+        await db.withTransactionAsync(async () => {
+          for (const item of reviewed) {
+            const billingSource = normalizeBillingSource(item.candidate.billingSource);
+            const key = normalizedServiceName(item.candidate.name) + '|' + billingSource;
+            if (knownKeys.has(key)) continue;
+            await db.runAsync(
+              'INSERT INTO subscriptions (name, category, amount, cycle, nextRenewal, manageUrl, billingSource, notes, reminderEnabled, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+              item.candidate.name,
+              item.candidate.category,
+              item.amount,
+              item.cycle,
+              item.nextRenewal,
+              item.candidate.manageUrl || '',
+              billingSource,
+              'Imported from Gmail billing evidence; verify unconfirmed price/cycle/date before relying on forecasts.',
+              1,
+              new Date().toISOString(),
+            );
+            knownKeys.add(key);
+            inserted += 1;
+          }
+        });
+        return inserted;
       });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload.detail || 'Could not import selected detections.');
-      const db = dbRef.current;
-      if (!db) throw new Error('Local subscription database is not ready.');
-      let imported = 0;
-      for (const item of payload.imported || []) {
-        const billingSource = normalizeBillingSource(item.billingSource);
-        const key = normalizedServiceName(String(item.name)) + '|' + billingSource;
-        const existing = subscriptions.some((local) => normalizedServiceName(local.name) + '|' + normalizeBillingSource(local.billingSource) === key);
-        if (existing) continue;
-        await db.runAsync(
-          'INSERT INTO subscriptions (name, category, amount, cycle, nextRenewal, manageUrl, billingSource, notes, reminderEnabled, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-          String(item.name), CATEGORIES.some((entry) => entry.name === item.category) ? item.category : 'Other',
-          item.amount === null || item.amount === undefined ? null : Number(item.amount),
-          CYCLES.includes(item.cycle as Cycle) ? item.cycle : 'Unknown', String(item.nextRenewal || ''), String(item.manageUrl || ''), billingSource,
-          String(item.notes || 'Imported from billing email; verify the details.'), 1, new Date().toISOString(),
-        );
-        imported += 1;
-      }
       await loadSubscriptions();
-      const importedIds = new Set(selectedCandidateIds);
-      setScanCandidates((current) => current.map((item) => importedIds.has(item.id) ? { ...item, alreadyImported: true } : item));
+      const localRows = await withLocalDatabase((db) =>
+        db.getAllAsync<Subscription>('SELECT * FROM subscriptions ORDER BY nextRenewal ASC, name COLLATE NOCASE ASC'),
+      );
+      await rescheduleRenewalReminders(localRows, notificationsEnabled);
+      const importedKeys = new Set(reviewed.map((item) =>
+        normalizedServiceName(item.candidate.name) + '|' + normalizeBillingSource(item.candidate.billingSource),
+      ));
+      setScanCandidates((current) => current.map((item) =>
+        importedKeys.has(normalizedServiceName(item.name) + '|' + normalizeBillingSource(item.billingSource))
+          ? { ...item, alreadyImported: true }
+          : item,
+      ));
       setSelectedCandidateIds([]);
-      if (dbRef.current) {
-        const rows = await dbRef.current.getAllAsync<Subscription>('SELECT * FROM subscriptions ORDER BY nextRenewal ASC, name COLLATE NOCASE ASC');
-        await rescheduleRenewalReminders(rows, notificationsEnabled);
+
+      // Cloud confirmation is best-effort after the phone has safely saved the tracker.
+      // If Render/Gmail is offline, these locally saved entries remain usable and can
+      // be reconciled on a later scan without requiring the user to re-enter them.
+      let cloudSyncWarning = '';
+      try {
+        const response = await fetchWithNetworkRetry(`${API_BASE_URL}/api/gmail/import`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${apiSession}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ candidate_ids: selectedCandidates.map((candidate) => candidate.id), overrides }),
+        }, 1, 20000);
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          cloudSyncWarning = ' Your plans are safely saved on this phone, but Gmail sync could not be confirmed. You can retry the scan later.';
+          console.warn('Gmail import confirmation failed after local save', response.status, payload.detail || '');
+        }
+      } catch (error) {
+        cloudSyncWarning = ' Your plans are safely saved on this phone, but the server could not confirm the import. Retry Gmail sync when the connection is back.';
+        console.warn('Gmail import confirmation unavailable after local save', error);
       }
-      Alert.alert('Import complete', `${imported} subscription${imported === 1 ? '' : 's'} added to this device. Missing prices, cycles and dates remain unconfirmed; spend totals exclude unknown price/cycle values.`);
+      Alert.alert(
+        'Import complete',
+        `${localSavedCount} subscription${localSavedCount === 1 ? '' : 's'} saved on this phone. Missing prices, cycles and dates remain unconfirmed; spend totals exclude unknown price/cycle values.${cloudSyncWarning}`,
+      );
     } catch (error) {
-      setScanError(error instanceof Error ? error.message : 'Import failed. Please retry.');
+      const message = error instanceof Error ? error.message : 'Import failed. Please retry.';
+      setScanError(isNetworkConnectivityError(error)
+        ? 'The server could not be reached, but no import was marked complete. Your current on-device tracker entries are safe. Retry when the connection returns.'
+        : message);
+      if (localSavedCount > 0) {
+        Alert.alert('Tracker entries saved', `${localSavedCount} subscription(s) were saved on this phone. Some follow-up work did not finish; you do not need to enter them again.`);
+      }
     } finally {
       setScanLoading(false);
     }
