@@ -43,6 +43,7 @@ Notifications.setNotificationHandler({
 
 type Category = 'Entertainment' | 'Software' | 'Storage' | 'Music' | 'Fitness' | 'Utilities' | 'Learning' | 'Other';
 type Cycle = 'Weekly' | 'Monthly' | 'Quarterly' | 'Yearly';
+type BillingSource = 'provider' | 'google_play' | 'apple_app_store' | 'paypal' | 'upi_autopay' | 'bank_mandate';
 type Tab = 'Home' | 'Subscriptions' | 'AI' | 'Insights' | 'Settings';
 type AssistantLanguage = 'en-IN' | 'hi-IN';
 type AssistantMessage = { id: string; role: 'assistant' | 'user'; text: string };
@@ -55,6 +56,7 @@ type Subscription = {
   cycle: Cycle;
   nextRenewal: string;
   manageUrl: string;
+  billingSource: BillingSource;
   notes: string;
   reminderEnabled: number;
   createdAt: string;
@@ -73,6 +75,8 @@ type GmailCandidate = {
   sourceAccounts: string[];
   needsReview: boolean;
   manageUrl: string;
+  billingSource: BillingSource;
+  billingSourceLabel: string;
   alreadyImported: boolean;
 };
 type GmailAccountSummary = { email: string; primary: boolean };
@@ -125,6 +129,31 @@ const CATEGORIES: { name: Category; emoji: string; tint: string }[] = [
   { name: 'Other', emoji: '🔁', tint: '#EDF1F1' },
 ];
 const CYCLES: Cycle[] = ['Weekly', 'Monthly', 'Quarterly', 'Yearly'];
+const BILLING_SOURCE_OPTIONS: { value: BillingSource; label: string }[] = [
+  { value: 'provider', label: 'Service website' },
+  { value: 'google_play', label: 'Google Play' },
+  { value: 'apple_app_store', label: 'Apple App Store' },
+  { value: 'paypal', label: 'PayPal' },
+  { value: 'upi_autopay', label: 'UPI AutoPay' },
+  { value: 'bank_mandate', label: 'Bank / card mandate' },
+];
+const BILLING_SOURCE_LABELS: Record<BillingSource, string> = {
+  provider: 'Service website', google_play: 'Google Play', apple_app_store: 'Apple App Store',
+  paypal: 'PayPal', upi_autopay: 'UPI AutoPay', bank_mandate: 'Bank / card mandate',
+};
+const BILLING_SOURCE_MANAGEMENT_URLS: Partial<Record<BillingSource, string>> = {
+  google_play: 'https://play.google.com/store/account/subscriptions',
+  apple_app_store: 'https://apps.apple.com/account/subscriptions',
+  paypal: 'https://www.paypal.com/myaccount/autopay/',
+  upi_autopay: '', bank_mandate: '',
+};
+function normalizeBillingSource(value: unknown): BillingSource {
+  const valid: BillingSource[] = ['provider', 'google_play', 'apple_app_store', 'paypal', 'upi_autopay', 'bank_mandate'];
+  return valid.includes(value as BillingSource) ? value as BillingSource : 'provider';
+}
+function billingSourceLabel(value: unknown): string {
+  return BILLING_SOURCE_LABELS[normalizeBillingSource(value)];
+}
 
 const SERVICE_MANAGEMENT_URLS: Record<string, string> = {
   adobecreativecloud: 'https://account.adobe.com/plans',
@@ -164,7 +193,9 @@ const SERVICE_MANAGEMENT_URLS: Record<string, string> = {
 function normalizedServiceName(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]/g, '');
 }
-function knownManagementUrl(serviceName: string): string {
+function knownManagementUrl(serviceName: string, billingSource: BillingSource = 'provider'): string {
+  const sourceUrl = BILLING_SOURCE_MANAGEMENT_URLS[billingSource];
+  if (sourceUrl !== undefined) return sourceUrl;
   const key = normalizedServiceName(serviceName);
   if (SERVICE_MANAGEMENT_URLS[key]) return SERVICE_MANAGEMENT_URLS[key];
   const aliases: Array<[string, string]> = [
@@ -342,11 +373,17 @@ async function initializeDatabase() {
       cycle TEXT NOT NULL,
       nextRenewal TEXT NOT NULL,
       manageUrl TEXT NOT NULL DEFAULT '',
+      billingSource TEXT NOT NULL DEFAULT 'provider',
       notes TEXT NOT NULL DEFAULT '',
       reminderEnabled INTEGER NOT NULL DEFAULT 1,
       createdAt TEXT NOT NULL
     );
   `);
+  // Additive migration keeps entries created by older versions intact.
+  const existingColumns = await db.getAllAsync<{ name: string }>('PRAGMA table_info(subscriptions)');
+  if (!existingColumns.some((column) => column.name === 'billingSource')) {
+    await db.execAsync("ALTER TABLE subscriptions ADD COLUMN billingSource TEXT NOT NULL DEFAULT 'provider'");
+  }
   return db;
 }
 
@@ -651,13 +688,13 @@ function AppContent() {
     if (!db) throw new Error('Database is not ready.');
     if (editing) {
       await db.runAsync(
-        'UPDATE subscriptions SET name = ?, category = ?, amount = ?, cycle = ?, nextRenewal = ?, manageUrl = ?, notes = ?, reminderEnabled = ? WHERE id = ?',
-        input.name, input.category, input.amount, input.cycle, input.nextRenewal, input.manageUrl, input.notes, input.reminderEnabled, editing.id,
+        'UPDATE subscriptions SET name = ?, category = ?, amount = ?, cycle = ?, nextRenewal = ?, manageUrl = ?, billingSource = ?, notes = ?, reminderEnabled = ? WHERE id = ?',
+        input.name, input.category, input.amount, input.cycle, input.nextRenewal, input.manageUrl, input.billingSource, input.notes, input.reminderEnabled, editing.id,
       );
     } else {
       await db.runAsync(
-        'INSERT INTO subscriptions (name, category, amount, cycle, nextRenewal, manageUrl, notes, reminderEnabled, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        input.name, input.category, input.amount, input.cycle, input.nextRenewal, input.manageUrl, input.notes, input.reminderEnabled, new Date().toISOString(),
+        'INSERT INTO subscriptions (name, category, amount, cycle, nextRenewal, manageUrl, billingSource, notes, reminderEnabled, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        input.name, input.category, input.amount, input.cycle, input.nextRenewal, input.manageUrl, input.billingSource, input.notes, input.reminderEnabled, new Date().toISOString(),
       );
     }
     const rows = await db.getAllAsync<Subscription>('SELECT * FROM subscriptions ORDER BY nextRenewal ASC, name COLLATE NOCASE ASC');
@@ -682,32 +719,57 @@ function AppContent() {
     ]);
   };
 
-  const openManage = async (item: Subscription) => {
-    const directUrl = item.manageUrl.trim() || knownManagementUrl(item.name);
-    if (!directUrl) {
+  const openManage = async (item: Subscription, intent: 'manage' | 'cancel' = 'manage') => {
+    const source = normalizeBillingSource(item.billingSource);
+    const directUrl = item.manageUrl.trim() || knownManagementUrl(item.name, source);
+    if (source === 'upi_autopay' || source === 'bank_mandate') {
+      const isUpi = source === 'upi_autopay';
       Alert.alert(
-        'Find the official management page',
-        'SubSathi does not yet have a confirmed direct billing link for ' + item.name + '. Search for the provider\'s official subscription page instead?',
+        isUpi ? 'Manage UPI AutoPay mandate' : 'Manage bank / card mandate',
+        isUpi
+          ? 'Open the UPI app used to approve this mandate, then go to Profile or Payments → AutoPay / Mandates. SubSathi cannot cancel a UPI mandate from inside the app without a supported payment-provider integration.'
+          : 'Open the bank or card issuer app used for this recurring instruction, then find Standing Instructions, e-Mandates or Recurring Payments. SubSathi cannot cancel a bank mandate directly yet.',
         [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Search official page', onPress: () => {
-            const query = encodeURIComponent(item.name + ' official subscription manage billing');
-            void Linking.openURL('https://www.google.com/search?q=' + query)
-              .catch(() => Alert.alert('Could not open search', 'Please check your internet connection and try again.'));
+          { text: 'Got it', style: 'cancel' },
+          { text: 'Open official help', onPress: () => {
+            const helpUrl = isUpi ? 'https://www.npci.org.in/what-we-do/upi/upi-autopay' : 'https://www.rbi.org.in/';
+            void Linking.openURL(helpUrl).catch(() => Alert.alert('Could not open help', 'Please check your internet connection.'));
           } },
         ],
       );
       return;
     }
-    const safeUrl = /^https:\/\//i.test(directUrl) ? directUrl : /^http:\/\//i.test(directUrl) ? 'https://' + directUrl.replace(/^http:\/\//i, '') : 'https://' + directUrl;
-    try {
-      await Linking.openURL(safeUrl);
-    } catch {
-      Alert.alert('Could not open link', 'Please check your internet connection and try again.');
+    if (!directUrl) {
+      Alert.alert(
+        'Management link not verified',
+        'SubSathi could not confirm an official management page for ' + item.name + '. It will not send you to a generic web search. Edit this subscription and save the provider’s official account or billing URL.',
+        [{ text: 'OK' }],
+      );
+      return;
     }
+    const safeUrl = /^https:\/\//i.test(directUrl) ? directUrl : 'https://' + directUrl.replace(/^https?:\/\//i, '');
+    const launchOfficialPage = async () => {
+      try {
+        await Linking.openURL(safeUrl);
+      } catch {
+        Alert.alert('Could not open billing page', 'Please check your internet connection and try again.');
+      }
+    };
+    if (intent === 'cancel') {
+      Alert.alert(
+        'Continue to cancel renewal?',
+        'SubSathi will open ' + billingSourceLabel(source) + ' for ' + item.name + '. Review the plan there and confirm cancellation with the provider. This step does not cancel it automatically.',
+        [
+          { text: 'Not now', style: 'cancel' },
+          { text: 'Open cancellation page', style: 'destructive', onPress: () => { void launchOfficialPage(); } },
+        ],
+      );
+      return;
+    }
+    await launchOfficialPage();
   };
 
-  const connectGmail = async () => {
+    const connectGmail = async () => {
     setScanError('');
     setScanLoading(true);
     try {
@@ -871,6 +933,7 @@ function AppContent() {
       const mapped: GmailCandidate[] = (payload.candidates || []).map((item: any) => {
         const category = CATEGORIES.some((entry) => entry.name === item.category) ? item.category as Category : 'Other';
         const cycle = CYCLES.includes(item.cycle as Cycle) ? item.cycle as Cycle : 'Unknown';
+        const billingSource = normalizeBillingSource(item.billingSource);
         return {
           id: Number(item.id), name: String(item.name || 'Unknown service'), category,
           amount: item.amount === null || item.amount === undefined ? null : Number(item.amount),
@@ -878,11 +941,18 @@ function AppContent() {
           evidenceCount: Number(item.evidenceCount || 1),
           sourceAccounts: Array.isArray(item.sourceAccounts) ? item.sourceAccounts.map((email: unknown) => String(email)) : [],
           needsReview: Boolean(item.needsReview),
-          manageUrl: String(item.manageUrl || ''), alreadyImported: Boolean(item.alreadyImported),
+          manageUrl: String(item.manageUrl || ''),
+          billingSource,
+          billingSourceLabel: String(item.billingSourceLabel || billingSourceLabel(billingSource)),
+          alreadyImported: Boolean(item.alreadyImported),
         };
       });
-      const locallyTrackedNames = new Set(subscriptions.map((item) => item.name.toLowerCase().replace(/[^a-z0-9]/g, '')));
-      const adjusted = mapped.map((item) => ({ ...item, alreadyImported: item.alreadyImported || locallyTrackedNames.has(item.name.toLowerCase().replace(/[^a-z0-9]/g, '')) }));
+      const localKey = (name: string, source: unknown) => normalizedServiceName(name) + '|' + normalizeBillingSource(source);
+      const locallyTrackedNames = new Set(subscriptions.map((item) => localKey(item.name, item.billingSource)));
+      const adjusted = mapped.map((item) => ({
+        ...item,
+        alreadyImported: item.alreadyImported || locallyTrackedNames.has(localKey(item.name, item.billingSource)),
+      }));
       setScanCandidates(adjusted);
       setCandidateEdits(Object.fromEntries(adjusted.map((item) => [item.id, {
         amountText: item.amount === null ? '' : String(item.amount),
@@ -966,13 +1036,15 @@ function AppContent() {
       if (!db) throw new Error('Local subscription database is not ready.');
       let imported = 0;
       for (const item of payload.imported || []) {
-        const existing = subscriptions.some((local) => local.name.toLowerCase().replace(/[^a-z0-9]/g, '') === String(item.name).toLowerCase().replace(/[^a-z0-9]/g, ''));
+        const billingSource = normalizeBillingSource(item.billingSource);
+        const key = normalizedServiceName(String(item.name)) + '|' + billingSource;
+        const existing = subscriptions.some((local) => normalizedServiceName(local.name) + '|' + normalizeBillingSource(local.billingSource) === key);
         if (existing) continue;
         await db.runAsync(
-          'INSERT INTO subscriptions (name, category, amount, cycle, nextRenewal, manageUrl, notes, reminderEnabled, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+          'INSERT INTO subscriptions (name, category, amount, cycle, nextRenewal, manageUrl, billingSource, notes, reminderEnabled, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
           String(item.name), CATEGORIES.some((entry) => entry.name === item.category) ? item.category : 'Other', Number(item.amount),
-          CYCLES.includes(item.cycle as Cycle) ? item.cycle : 'Monthly', String(item.nextRenewal || ''), String(item.manageUrl || ''),
-          String(item.notes || 'Imported from Gmail receipt; verify the billing details.'), 1, new Date().toISOString(),
+          CYCLES.includes(item.cycle as Cycle) ? item.cycle : 'Monthly', String(item.nextRenewal || ''), String(item.manageUrl || ''), billingSource,
+          String(item.notes || 'Imported from billing email; verify the details.'), 1, new Date().toISOString(),
         );
         imported += 1;
       }
@@ -1105,12 +1177,13 @@ function AppContent() {
         <View style={styles.subscriptionMain}>
           <Text style={styles.serviceName} numberOfLines={1}>{item.name}</Text>
           <Text style={styles.serviceSub}>{item.category} · {item.cycle}</Text>
+          <Text style={styles.serviceSub}>Billed via {billingSourceLabel(item.billingSource)}</Text>
           <View style={styles.duePillRow}><Pill tone={tone}>{dueLabel(item.nextRenewal)}</Pill></View>
         </View>
         <View style={styles.subscriptionRight}>
           <Text style={styles.serviceAmount}>{money(item.amount)}</Text>
           <Text style={styles.serviceSub}>{item.cycle === 'Yearly' ? '/ year' : item.cycle === 'Monthly' ? '/ month' : item.cycle === 'Quarterly' ? '/ quarter' : '/ week'}</Text>
-          {!compact ? <Pressable onPress={(event) => { event.stopPropagation(); void openManage(item); }} style={styles.manageMini}><Text style={styles.manageMiniText}>Manage ↗</Text></Pressable> : null}
+          {!compact ? <Pressable onPress={(event) => { event.stopPropagation(); void openManage(item, 'manage'); }} style={styles.manageMini}><Text style={styles.manageMiniText}>Manage / renew ↗</Text></Pressable> : null}
         </View>
       </Pressable>
     );
@@ -1167,7 +1240,7 @@ function AppContent() {
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
         {(['All', ...CATEGORIES.map((category) => category.name)] as ('All' | Category)[]).map((name) => <Pressable key={name} onPress={() => setFilter(name)} style={[styles.filterChip, filter === name && styles.filterChipActive]}><Text style={[styles.filterText, filter === name && styles.filterTextActive]}>{name}</Text></Pressable>)}
       </ScrollView>
-      {filtered.length ? <View style={styles.listCard}>{filtered.map((item, index) => <View key={item.id}>{renderSubscriptionCard(item)}<View style={styles.cardActionsRow}><Pressable onPress={() => openEdit(item)}><Text style={styles.cardAction}>Edit details</Text></Pressable><Text style={styles.actionDot}>·</Text><Pressable onPress={() => deleteSubscription(item)}><Text style={[styles.cardAction, { color: C.red }]}>Remove tracker</Text></Pressable></View>{index < filtered.length - 1 ? <View style={styles.listDivider} /> : null}</View>)}</View> : <View style={styles.emptyCard}><View style={styles.emptyIcon}><Text style={{ fontSize: 26 }}>🔎</Text></View><Text style={styles.emptyTitle}>{subscriptions.length ? 'No matches found' : 'Your list starts here'}</Text><Text style={styles.emptyBody}>{subscriptions.length ? 'Try another search or category.' : 'Add recurring plans like OTT, software, storage, gym, broadband and memberships.'}</Text>{!subscriptions.length ? <PrimaryButton title="Add subscription" onPress={openNew} /> : <GhostButton title="Clear filters" onPress={() => { setSearch(''); setFilter('All'); }} />}</View>}
+      {filtered.length ? <View style={styles.listCard}>{filtered.map((item, index) => <View key={item.id}>{renderSubscriptionCard(item)}<View style={styles.cardActionsRow}><Pressable onPress={() => openEdit(item)}><Text style={styles.cardAction}>Edit details</Text></Pressable><Text style={styles.actionDot}>·</Text><Pressable onPress={() => { void openManage(item, 'cancel'); }}><Text style={[styles.cardAction, { color: C.red }]}>Cancel renewal</Text></Pressable><Text style={styles.actionDot}>·</Text><Pressable onPress={() => deleteSubscription(item)}><Text style={[styles.cardAction, { color: C.muted }]}>Remove tracker</Text></Pressable></View>{index < filtered.length - 1 ? <View style={styles.listDivider} /> : null}</View>)}</View> : <View style={styles.emptyCard}><View style={styles.emptyIcon}><Text style={{ fontSize: 26 }}>🔎</Text></View><Text style={styles.emptyTitle}>{subscriptions.length ? 'No matches found' : 'Your list starts here'}</Text><Text style={styles.emptyBody}>{subscriptions.length ? 'Try another search or category.' : 'Add recurring plans like OTT, software, storage, gym, broadband and memberships.'}</Text>{!subscriptions.length ? <PrimaryButton title="Add subscription" onPress={openNew} /> : <GhostButton title="Clear filters" onPress={() => { setSearch(''); setFilter('All'); }} />}</View>}
       <View style={styles.noteBanner}><Text style={styles.noteBannerIcon}>ⓘ</Text><Text style={styles.noteBannerText}>Removing a plan here only removes it from your tracker. It does not cancel the provider's subscription.</Text></View>
     </ScrollView>
   );
@@ -1413,6 +1486,7 @@ function AppContent() {
                     <View style={{ flex: 1, minWidth: 0 }}>
                       <Text style={styles.serviceName}>{candidate.name}</Text>
                       <Text style={styles.serviceSub}>{candidate.evidenceCount} billing email(s) · Confidence {candidate.confidence}%</Text>
+                      <Text style={styles.serviceSub}>Billed via {candidate.billingSourceLabel}</Text>
                       {candidate.sourceAccounts.length ? <Text style={styles.serviceSub}>Inbox: {candidate.sourceAccounts.join(', ')}</Text> : null}
                       <Text style={styles.serviceSub}>{candidate.nextRenewal ? `Renewal: ${formatDate(candidate.nextRenewal)}` : 'Renewal date not in email — optional'}{candidate.cycle === 'Unknown' ? ' · Cycle needs review' : ` · ${candidate.cycle}`}</Text>
                       {candidate.alreadyImported ? <Pill tone="grey">Already tracked</Pill> : candidate.needsReview ? <Pill tone="orange">Review details</Pill> : <Pill tone="green">Detected</Pill>}
@@ -1468,6 +1542,7 @@ function SubscriptionEditor({ visible, initial, onClose, onSave, onDelete }: {
   const [cycle, setCycle] = useState<Cycle>('Monthly');
   const [nextRenewal, setNextRenewal] = useState('');
   const [manageUrl, setManageUrl] = useState('');
+  const [billingSource, setBillingSource] = useState<BillingSource>('provider');
   const [notes, setNotes] = useState('');
   const [reminderEnabled, setReminderEnabled] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -1480,6 +1555,7 @@ function SubscriptionEditor({ visible, initial, onClose, onSave, onDelete }: {
     setCycle(initial?.cycle ?? 'Monthly');
     setNextRenewal(initial?.nextRenewal ?? '');
     setManageUrl(initial?.manageUrl ?? '');
+    setBillingSource(normalizeBillingSource(initial?.billingSource));
     setNotes(initial?.notes ?? '');
     setReminderEnabled(initial ? Boolean(initial.reminderEnabled) : true);
     setSaving(false);
@@ -1495,7 +1571,7 @@ function SubscriptionEditor({ visible, initial, onClose, onSave, onDelete }: {
     try {
       await onSave({
         name: name.trim(), category, amount: numericAmount, cycle, nextRenewal: nextRenewal.trim(),
-        manageUrl: manageUrl.trim(), notes: notes.trim(), reminderEnabled: reminderEnabled ? 1 : 0,
+        manageUrl: manageUrl.trim(), billingSource, notes: notes.trim(), reminderEnabled: reminderEnabled ? 1 : 0,
       });
     } catch (error) {
       Alert.alert('Could not save', 'Please try again. Your existing entries have not been changed.');
@@ -1514,8 +1590,11 @@ function SubscriptionEditor({ visible, initial, onClose, onSave, onDelete }: {
           <Text style={styles.fieldLabel}>BILLING CYCLE</Text><View style={styles.cycleRow}>{CYCLES.map((item) => <Pressable key={item} onPress={() => setCycle(item)} style={[styles.cycleChip, item === cycle && styles.cycleChipActive]}><Text style={[styles.cycleChipText, item === cycle && styles.cycleChipTextActive]}>{item}</Text></Pressable>)}</View>
           <Text style={styles.fieldLabel}>NEXT RENEWAL DATE (OPTIONAL)</Text><TextInput value={nextRenewal} onChangeText={setNextRenewal} placeholder="Leave blank if not confirmed" placeholderTextColor="#97A5A8" style={styles.input} autoCapitalize="none" maxLength={10} />
           <Text style={styles.fieldHint}>Only enter a date confirmed by the provider. Format: YYYY-MM-DD. Leave blank if unknown; reminders need a verified date.</Text>
-          <Text style={styles.fieldLabel}>OFFICIAL MANAGE / RENEW LINK</Text><TextInput value={manageUrl} onChangeText={setManageUrl} placeholder="https://provider.com/account" placeholderTextColor="#97A5A8" style={styles.input} autoCapitalize="none" keyboardType="url" autoCorrect={false} />
-          <Text style={styles.fieldHint}>Use the provider's official account or billing page. SubSathi does not process payments.</Text>
+          <Text style={styles.fieldLabel}>BILLED THROUGH</Text>
+          <View style={styles.categoryGrid}>{BILLING_SOURCE_OPTIONS.map((option) => <Pressable key={option.value} onPress={() => setBillingSource(option.value)} style={[styles.categoryOption, billingSource === option.value && styles.categoryOptionActive]}><Text style={[styles.categoryOptionText, billingSource === option.value && styles.categoryOptionTextActive]}>{option.label}</Text></Pressable>)}</View>
+          <Text style={styles.fieldHint}>Choose where this subscription is charged so SubSathi can open the correct official management page.</Text>
+          <Text style={styles.fieldLabel}>OFFICIAL MANAGEMENT LINK (OPTIONAL)</Text><TextInput value={manageUrl} onChangeText={setManageUrl} placeholder="https://provider.com/account" placeholderTextColor="#97A5A8" style={styles.input} autoCapitalize="none" keyboardType="url" autoCorrect={false} />
+          <Text style={styles.fieldHint}>Only use the service’s official account page. Renewal and cancellation confirmation happen with that provider.</Text>
           <Text style={styles.fieldLabel}>NOTES (OPTIONAL)</Text><TextInput value={notes} onChangeText={setNotes} placeholder="Plan name, billing account, cancellation notes..." placeholderTextColor="#97A5A8" style={[styles.input, styles.notesInput]} multiline maxLength={400} />
           <View style={styles.reminderRow}><View style={{ flex: 1 }}><Text style={styles.settingTitle}>Renewal reminder</Text><Text style={styles.settingBody}>Notify me two days before, if permissions allow.</Text></View><Switch value={reminderEnabled} onValueChange={setReminderEnabled} trackColor={{ false: '#CBD5D4', true: '#A7E4CD' }} thumbColor={reminderEnabled ? C.green : '#F6F7F7'} /></View>
           <PrimaryButton title={saving ? 'Saving...' : initial ? 'Save changes' : 'Save subscription'} onPress={() => { if (!saving) void submit(); }} />
