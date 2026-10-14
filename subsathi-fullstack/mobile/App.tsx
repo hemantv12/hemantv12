@@ -1150,13 +1150,10 @@ function AppContent() {
           cycle: candidate.cycle,
           renewalText: candidate.nextRenewal || '',
         };
-        const parsedAmount = Number(draft.amountText.replace(/,/g, '').trim());
-        if ((candidate.amount === null || candidate.amount <= 0) && (!Number.isFinite(parsedAmount) || parsedAmount <= 0 || parsedAmount > 10000000)) {
-          Alert.alert('Add the missing price', `Enter a valid price for ${candidate.name} before importing.`);
-          return;
-        }
-        if (candidate.cycle === 'Unknown' && !CYCLES.includes(draft.cycle as Cycle)) {
-          Alert.alert('Choose a billing cycle', `Select weekly, monthly, quarterly or yearly for ${candidate.name} before importing.`);
+        const hasPriceText = draft.amountText.trim().length > 0;
+        const parsedAmount = hasPriceText ? Number(draft.amountText.replace(/,/g, '').trim()) : null;
+        if (hasPriceText && (!Number.isFinite(parsedAmount) || (parsedAmount ?? 0) <= 0 || (parsedAmount ?? 0) > 10000000)) {
+          Alert.alert('Check the price', `Enter a valid INR amount for ${candidate.name}, or leave it blank until confirmed.`);
           return;
         }
         if (draft.renewalText.trim() && !validDate(draft.renewalText.trim())) {
@@ -1164,8 +1161,8 @@ function AppContent() {
           return;
         }
         const override: { candidate_id: number; amount?: number; cycle?: Cycle; next_renewal?: string } = { candidate_id: candidate.id };
-        if (candidate.amount === null || candidate.amount <= 0) override.amount = parsedAmount;
-        if (candidate.cycle === 'Unknown') override.cycle = draft.cycle as Cycle;
+        if ((candidate.amount === null || candidate.amount <= 0) && parsedAmount !== null) override.amount = parsedAmount;
+        if (candidate.cycle === 'Unknown' && draft.cycle !== 'Unknown') override.cycle = draft.cycle as Cycle;
         if (!candidate.nextRenewal && draft.renewalText.trim()) override.next_renewal = draft.renewalText.trim();
         if (Object.keys(override).length > 1) overrides.push(override);
       }
@@ -1323,13 +1320,13 @@ function AppContent() {
         <View style={[styles.serviceIcon, { backgroundColor: meta.tint }]}><MaterialCommunityIcons name={categoryIconName(item.category)} size={23} color={C.ink} /></View>
         <View style={styles.subscriptionMain}>
           <Text style={styles.serviceName} numberOfLines={1}>{item.name}</Text>
-          <Text style={styles.serviceSub}>{item.category} · {item.cycle}</Text>
+          <Text style={styles.serviceSub}>{item.category} · {item.cycle === 'Unknown' ? 'Cycle not confirmed' : item.cycle}</Text>
           <Text style={styles.serviceSub}>Billed via {billingSourceLabel(item.billingSource)}</Text>
           <View style={styles.duePillRow}><Pill tone={tone}>{dueLabel(item.nextRenewal)}</Pill></View>
         </View>
         <View style={styles.subscriptionRight}>
-          <Text style={styles.serviceAmount}>{money(item.amount)}</Text>
-          <Text style={styles.serviceSub}>{item.cycle === 'Yearly' ? '/ year' : item.cycle === 'Monthly' ? '/ month' : item.cycle === 'Quarterly' ? '/ quarter' : '/ week'}</Text>
+          <Text style={styles.serviceAmount}>{item.amount === null ? 'Price unknown' : money(item.amount)}</Text>
+          <Text style={styles.serviceSub}>{item.cycle === 'Unknown' ? 'Cycle not confirmed' : item.cycle === 'Yearly' ? '/ year' : item.cycle === 'Monthly' ? '/ month' : item.cycle === 'Quarterly' ? '/ quarter' : '/ week'}</Text>
           {!compact ? <Pressable onPress={(event) => { event.stopPropagation(); void openManage(item, 'manage'); }} style={styles.manageMini}><Text style={styles.manageMiniText}>Manage / renew ↗</Text></Pressable> : null}
         </View>
       </Pressable>
@@ -1382,7 +1379,8 @@ function AppContent() {
 
   const renderSubscriptions = () => (
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-      <View style={styles.pageHeader}><Text style={styles.pageEyebrow}>YOUR SERVICES</Text><Text style={styles.pageTitle}>Subscriptions</Text><Text style={styles.pageSub}>{subscriptions.length} plan{subscriptions.length === 1 ? '' : 's'} tracked · {money(activeMonthly)} / month equivalent</Text></View>
+      <View style={styles.pageHeader}><Text style={styles.pageEyebrow}>YOUR SERVICES</Text><Text style={styles.pageTitle}>Subscriptions</Text><Text style={styles.pageSub}>{subscriptions.length} plan{subscriptions.length === 1 ? '' : 's'} tracked · {money(activeMonthly)} estimated monthly spend from confirmed prices</Text>
+       {subscriptions.some((item) => !hasKnownPrice(item)) ? <Text style={styles.fieldHint}>{subscriptions.filter((item) => !hasKnownPrice(item)).length} plan(s) excluded from spend totals until price and billing cycle are confirmed.</Text> : null></View>
       <View style={styles.searchBox}><Text style={styles.searchIcon}>⌕</Text><TextInput value={search} onChangeText={setSearch} placeholder="Search subscriptions..." placeholderTextColor="#91A0A4" style={styles.searchInput} returnKeyType="search" /><Pressable onPress={openNew} style={styles.searchAdd}><Text style={styles.searchAddText}>＋</Text></Pressable></View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
         {(['All', ...CATEGORIES.map((category) => category.name)] as ('All' | Category)[]).map((name) => <Pressable key={name} onPress={() => setFilter(name)} style={[styles.filterChip, filter === name && styles.filterChipActive]}><Text style={[styles.filterText, filter === name && styles.filterTextActive]}>{name}</Text></Pressable>)}
@@ -1410,7 +1408,7 @@ function AppContent() {
 
 
   const renderAI = () => {
-    const mostExpensive = [...subscriptions].sort((a, b) => monthlyEquivalent(b) - monthlyEquivalent(a))[0];
+    const mostExpensive = [...subscriptions].filter(hasKnownPrice).sort((a, b) => monthlyEquivalent(b) - monthlyEquivalent(a))[0];
     const nextTracked = [...subscriptions].filter((item) => daysUntil(item.nextRenewal) >= -7)
       .sort((a, b) => daysUntil(a.nextRenewal) - daysUntil(b.nextRenewal))[0];
     const duplicateNameCount = new Set(subscriptions.filter((item, index, all) =>
@@ -1636,12 +1634,12 @@ function AppContent() {
             {gmailEmail && scanCandidates.length > 0 ? <View style={{ marginBottom: 18 }}>
               <SectionTitle
                 title="Detected subscriptions"
-                action={selectedCandidateIds.length ? 'Clear selection' : 'Select ready'}
+                action={selectedCandidateIds.length ? 'Clear selection' : 'Select all new'}
                 onAction={() => setSelectedCandidateIds((current) => current.length
                   ? []
-                  : scanCandidates.filter((item) => !item.alreadyImported && item.amount !== null && item.amount > 0 && item.cycle !== 'Unknown').map((item) => item.id))}
+                  : scanCandidates.filter((item) => !item.alreadyImported).map((item) => item.id))}
               />
-              <Text style={styles.fieldHint}>Tap a row to select it. We will never invent a price, billing cycle or renewal date. Items missing a price or cycle can be selected and completed below.</Text>
+              <Text style={styles.fieldHint}>New detections are selected automatically. Import now and fill in missing details later—SubSathi never invents a price, cycle or renewal date.</Text>
               {scanCandidates.map((candidate) => {
                 const selected = selectedCandidateIds.includes(candidate.id);
                 const categoryMetaItem = categoryMeta(candidate.category);
@@ -1676,9 +1674,11 @@ function AppContent() {
                       <Text style={[styles.serviceSub, { textAlign: 'right' }]}>{candidate.amount === null ? 'Price needed' : candidate.cycle === 'Unknown' ? 'Billing cycle needed' : `per ${candidate.cycle.toLowerCase()}`}</Text>
                     </View>
                   </Pressable>
-                  {selected && !candidate.alreadyImported && needsFieldReview ? <View style={{ borderTopWidth: 1, borderTopColor: C.line, backgroundColor: '#F8FBF9', padding: 13 }}>
+                  {!candidate.alreadyImported && needsFieldReview ? <Pressable onPress={() => setExpandedCandidateIds((current) => current.includes(candidate.id) ? current.filter((id) => id !== candidate.id) : [...current, candidate.id])} style={{ paddingHorizontal: 14, paddingVertical: 10, borderTopWidth: 1, borderTopColor: C.line }}><Text style={{ color: C.greenDark, fontSize: 11, fontWeight: '800' }}>{expandedCandidateIds.includes(candidate.id) ? 'Hide details' : 'Review missing details (optional)'}</Text></Pressable> : null}
+                  {expandedCandidateIds.includes(candidate.id) && !candidate.alreadyImported && needsFieldReview ? <View style={{ borderTopWidth: 1, borderTopColor: C.line, backgroundColor: '#F8FBF9', padding: 13 }}>
                     {candidate.amount === null ? <>
-                      <Text style={styles.fieldLabel}>CONFIRM PRICE (INR) *</Text>
+                      <Text style={styles.fieldLabel}>PRICE (INR, OPTIONAL)</Text>
+                      <Text style={styles.fieldHint}>Leave blank to import now and add the verified price later.</Text>
                       <TextInput
                         value={draft.amountText}
                         onChangeText={(value) => setCandidateEdits((current) => ({ ...current, [candidate.id]: { ...draft, amountText: value } }))}
@@ -1690,8 +1690,8 @@ function AppContent() {
                       />
                     </> : null}
                     {candidate.cycle === 'Unknown' ? <>
-                      <Text style={[styles.fieldLabel, { marginTop: 12 }]}>BILLING CYCLE *</Text>
-                      <View style={styles.cycleRow}>{CYCLES.map((cycle) => <Pressable key={cycle} onPress={() => setCandidateEdits((current) => ({ ...current, [candidate.id]: { ...draft, cycle } }))} style={[styles.cycleChip, draft.cycle === cycle && styles.cycleChipActive]}><Text style={[styles.cycleChipText, draft.cycle === cycle && styles.cycleChipTextActive]}>{cycle}</Text></Pressable>)}</View>
+                      <Text style={[styles.fieldLabel, { marginTop: 12 }]}>BILLING CYCLE (OPTIONAL)</Text>
+                      <View style={styles.cycleRow}>{(['Unknown', ...CYCLES] as (Cycle | 'Unknown')[]).map((cycle) => <Pressable key={cycle} onPress={() => setCandidateEdits((current) => ({ ...current, [candidate.id]: { ...draft, cycle } }))} style={[styles.cycleChip, draft.cycle === cycle && styles.cycleChipActive]}><Text style={[styles.cycleChipText, draft.cycle === cycle && styles.cycleChipTextActive]}>{cycle === 'Unknown' ? 'Not confirmed' : cycle}</Text></Pressable>)}</View>
                     </> : null}
                     {!candidate.nextRenewal ? <>
                       <Text style={[styles.fieldLabel, { marginTop: 12 }]}>RENEWAL DATE (OPTIONAL)</Text>
