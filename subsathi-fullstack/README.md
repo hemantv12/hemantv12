@@ -1,12 +1,13 @@
 # SubSathi — Full-stack build (Android + Gmail discovery API)
 
-## Current deployment status — 13 October 2026
+## Current deployment status — 14 October 2026
 
 - **Web workspace:** https://subsathi-web.onrender.com
 - **API health endpoint:** https://subsathi-api.onrender.com/health
-- **Android:** an installable debug/test APK has been built via GitHub Actions; it is not a signed Play Store release.
-- **Automated checks:** backend tests and frontend/manifest/service-worker syntax checks passed in GitHub Actions run 38356294917.
-- **Not public-production-ready yet:** Google OAuth credentials are not configured, the live API is still using SQLite, and the separately created free PostgreSQL instance is not yet bound to the API's `DATABASE_URL`. Do not store real users' account data until the database binding and Google OAuth review are complete.
+- **Android:** version 0.5.3 (versionCode 9) is an installable internal test APK built by GitHub Actions; it is not a Play Store-signed release.
+- **Automated checks:** latest backend regression tests passed (23 tests); Android type-check and APK packaging are verified by the linked GitHub Actions build.
+- **Gmail:** hosted API health and Google OAuth-start preflight passed. A real account's end-to-end Gmail scan/import still needs physical-device acceptance testing.
+- **Production gate:** verify the running API uses durable PostgreSQL, upgrade the temporary free database before expiry, and complete Google restricted-scope verification/security requirements before accepting real customer data.
 
 The current project code is in the public `hemantv12/hemantv12` repository on the `subsathi-launch` branch. Do not put real user data, .env files, OAuth secrets, database URLs, signing keys or customer records in this repository. Use a private repository for production if you want the implementation source kept private.
 
@@ -27,7 +28,7 @@ SubSathi is an Android-first subscription organiser. This project contains a Rea
 - Local subscription money coach with Hindi/English questions, personalised monthly/yearly estimates, upcoming-renewal summaries, highest-cost plan review and exact-name duplicate warnings.
 - Voice input uses the native speech-recognition service; voice replies use device text-to-speech. Users must grant microphone/speech permissions, and actual recognition availability depends on the device's installed speech service.
 - This release is a local, rule-based money helper rather than a cloud generative LLM. Saved tracker data and typed chat prompts are not sent to a cloud AI API; voice transcription may be processed by the device's configured speech service.
-- Android version 0.5.0 (versionCode 6) includes the native voice-recognition config plugin and needs a fresh APK plus real-device microphone/speech validation.
+- Android version 0.5.3 (versionCode 9) includes native voice-recognition configuration and CSV export; real-device microphone/speech validation is still required.
 
 ### API backend (`backend/`)
 - FastAPI health check, Google OAuth start/callback and session endpoint.
@@ -41,8 +42,8 @@ SubSathi is an Android-first subscription organiser. This project contains a Rea
 
 ## Important limitations before calling this production-ready
 
-- The Google Cloud OAuth client is **not provisioned by this project**. You must create it in your own Google Cloud project, enable Gmail API, set the exact authorised redirect URI, configure the consent screen and complete whatever verification/security assessment Google requires for the selected Gmail scope. A project with empty credentials cannot scan a real inbox.
-- The API is deployed at `https://subsathi-api.onrender.com` and `/health` is its health check. The current live service still uses SQLite; that does not provide durable database storage on a free Render web service. The PostgreSQL database exists separately and must be linked to `DATABASE_URL` by syncing the root `render.yaml` Blueprint before real user accounts are accepted.
+- Google OAuth credentials are configured on the hosted service and the authorization-start endpoint passes preflight, but that does not mean Google has approved the app for public use. The owner must complete applicable restricted-scope verification/security review and test the full sign-in/scan/import path with an account they control.
+- The API is deployed at `https://subsathi-api.onrender.com` and `/health` is its health check. The repository's Render Blueprint declares a PostgreSQL binding, but the active service must be verified in the Render dashboard to confirm `DATABASE_URL` is actually PostgreSQL. The existing free database is temporary; do not store real user accounts until durable database binding, backup and migration status are confirmed.
 - The native app reads `EXPO_PUBLIC_API_BASE_URL`; set it to your hosted API URL for an installed build. The default `http://10.0.2.2:8000` is for an Android Studio emulator only.
 - The mobile tracker stores imported subscriptions locally on the device. The backend stores encrypted Google credentials and scan candidates, but this current MVP does not yet synchronise the user's entire tracker across devices.
 - SMS, phone-number-only subscriptions, banks, cards and UPI AutoPay are not automatically accessible. These require separate supported user-provided imports or authorised provider/banking integrations; Gmail alone cannot discover them.

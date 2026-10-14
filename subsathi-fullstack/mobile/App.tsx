@@ -18,6 +18,8 @@ import {
   View,
 } from 'react-native';
 import * as SQLite from 'expo-sqlite';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
 import * as Notifications from 'expo-notifications';
 import * as SecureStore from 'expo-secure-store';
 import * as WebBrowser from 'expo-web-browser';
@@ -822,6 +824,48 @@ function AppContent() {
     }
   };
 
+  const exportSubscriptions = async () => {
+    if (!subscriptions.length) {
+      Alert.alert('Nothing to export', 'Add or import a subscription before exporting your list.');
+      return;
+    }
+    try {
+      // Escape CSV cells and neutralise spreadsheet formulas in user-controlled text.
+      const csvCell = (value: unknown) => {
+        let text = String(value ?? '');
+        if (/^[\s]*[=+\-@]/.test(text)) text = "'" + text;
+        return '"' + text.replace(/"/g, '""') + '"';
+      };
+      const header = [
+        'Service name', 'Category', 'Price (INR)', 'Billing cycle',
+        'Next renewal date', 'Management URL', 'Notes', 'Reminder enabled', 'Created at',
+      ];
+      const rows = subscriptions.map((item) => [
+        item.name, item.category, item.amount, item.cycle, item.nextRenewal,
+        item.manageUrl, item.notes, item.reminderEnabled ? 'Yes' : 'No', item.createdAt,
+      ]);
+      const csv = '\uFEFF' + [header, ...rows]
+        .map((row) => row.map(csvCell).join(','))
+        .join('\r\n');
+      const directory = FileSystem.cacheDirectory;
+      if (!directory) throw new Error('The app cache folder is unavailable.');
+      const fileUri = directory + 'subsathi-subscriptions-' + localDateString(new Date()) + '.csv';
+      await FileSystem.writeAsStringAsync(fileUri, csv, { encoding: FileSystem.EncodingType.UTF8 });
+      if (!(await Sharing.isAvailableAsync())) {
+        Alert.alert('Sharing is unavailable', 'This device cannot open the share sheet right now. Try again after restarting the app.');
+        return;
+      }
+      await Sharing.shareAsync(fileUri, {
+        mimeType: 'text/csv',
+        dialogTitle: 'Export SubSathi subscriptions',
+        UTI: 'public.comma-separated-values-text',
+      });
+    } catch (error) {
+      console.warn('Could not export subscriptions', error);
+      Alert.alert('Export failed', 'SubSathi could not create the CSV file. Your saved subscriptions have not been changed.');
+    }
+  };
+
   const deleteServerAccount = async () => {
     if (!apiSession) return;
     setScanLoading(true);
@@ -1088,7 +1132,7 @@ function AppContent() {
   const renderSettings = () => (
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
       <View style={styles.pageHeader}><Text style={styles.pageEyebrow}>YOUR APP</Text><Text style={styles.pageTitle}>Settings</Text><Text style={styles.pageSub}>Privacy, alerts and connected services.</Text></View>
-      <View style={styles.profilePanel}><BrandMark size={52} /><View style={{ flex: 1 }}><Text style={styles.profilePanelTitle}>SubSathi</Text><Text style={styles.profilePanelSub}>Local-first · Version 0.5.2 · SmartSathi AI</Text></View><Pill tone="green">On device</Pill></View>
+      <View style={styles.profilePanel}><BrandMark size={52} /><View style={{ flex: 1 }}><Text style={styles.profilePanelTitle}>SubSathi</Text><Text style={styles.profilePanelSub}>Local-first · Version 0.5.3 · SmartSathi AI</Text></View><Pill tone="green">On device</Pill></View>
       <View style={styles.panel}>
         <Text style={styles.settingsSectionLabel}>REMINDERS</Text>
         <View style={styles.settingRow}><View style={styles.settingIcon}><Text>🔔</Text></View><View style={styles.settingCopy}><Text style={styles.settingTitle}>Renewal notifications</Text><Text style={styles.settingBody}>Remind two days before, at 9:00 AM when permitted.</Text></View><Switch value={notificationsEnabled} onValueChange={(value) => { setNotificationsEnabled(value); const db = dbRef.current; if (db) void db.runAsync("INSERT INTO app_settings (key, value) VALUES ('notificationsEnabled', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", value ? 'true' : 'false'); void rescheduleRenewalReminders(subscriptions, value); }} trackColor={{ false: '#CBD5D4', true: '#A7E4CD' }} thumbColor={notificationsEnabled ? C.green : '#F6F7F7'} /></View>
@@ -1101,7 +1145,7 @@ function AppContent() {
       </View>
       <View style={styles.panel}>
         <Text style={styles.settingsSectionLabel}>DATA MANAGEMENT</Text>
-        <Pressable style={styles.settingsActionRow} onPress={() => Alert.alert('Export is not available yet', 'CSV export is planned for a later MVP update.')}><Text style={styles.settingsAction}>Export my subscription list</Text><Text style={styles.settingArrow}>›</Text></Pressable>
+        <Pressable style={styles.settingsActionRow} onPress={() => { void exportSubscriptions(); }}><Text style={styles.settingsAction}>Export my subscription list (CSV)</Text><Text style={styles.settingArrow}>›</Text></Pressable>
         <View style={styles.innerDivider} />
         <Pressable style={styles.settingsActionRow} onPress={() => Alert.alert('Clear all tracker data?', 'This permanently removes all subscriptions stored in this app. It will not cancel any real subscription.', [{ text: 'Keep data', style: 'cancel' }, { text: 'Clear all', style: 'destructive', onPress: async () => { const db = dbRef.current; if (!db) return; await db.runAsync('DELETE FROM subscriptions'); await Notifications.cancelAllScheduledNotificationsAsync(); await loadSubscriptions(); setTab('Home'); } }])}><Text style={[styles.settingsAction, { color: C.red }]}>Clear all tracker data</Text><Text style={styles.settingArrow}>›</Text></Pressable>
         {apiSession ? <><View style={styles.innerDivider} /><Pressable style={styles.settingsActionRow} onPress={() => Alert.alert('Delete server account?', 'This removes the SubSathi server account, encrypted Gmail credentials and cached scan candidates. Tracker entries saved locally on this phone will remain.', [{ text: 'Keep account', style: 'cancel' }, { text: 'Delete account', style: 'destructive', onPress: () => { void deleteServerAccount(); } }])}><Text style={[styles.settingsAction, { color: C.red }]}>Delete SubSathi server account</Text><Text style={styles.settingArrow}>›</Text></Pressable></> : null}
@@ -1261,7 +1305,7 @@ function SubscriptionEditor({ visible, initial, onClose, onSave, onDelete }: {
   const [category, setCategory] = useState<Category>('Entertainment');
   const [amount, setAmount] = useState('');
   const [cycle, setCycle] = useState<Cycle>('Monthly');
-  const [nextRenewal, setNextRenewal] = useState(localDateString(new Date(Date.now() + 7 * 86400000)));
+  const [nextRenewal, setNextRenewal] = useState('');
   const [manageUrl, setManageUrl] = useState('');
   const [notes, setNotes] = useState('');
   const [reminderEnabled, setReminderEnabled] = useState(true);
@@ -1273,7 +1317,7 @@ function SubscriptionEditor({ visible, initial, onClose, onSave, onDelete }: {
     setCategory(initial?.category ?? 'Entertainment');
     setAmount(initial ? String(initial.amount) : '');
     setCycle(initial?.cycle ?? 'Monthly');
-    setNextRenewal(initial?.nextRenewal ?? localDateString(new Date(Date.now() + 7 * 86400000)));
+    setNextRenewal(initial?.nextRenewal ?? '');
     setManageUrl(initial?.manageUrl ?? '');
     setNotes(initial?.notes ?? '');
     setReminderEnabled(initial ? Boolean(initial.reminderEnabled) : true);
@@ -1284,12 +1328,12 @@ function SubscriptionEditor({ visible, initial, onClose, onSave, onDelete }: {
     const numericAmount = Number(amount.replace(/,/g, '').trim());
     if (!name.trim()) { Alert.alert('Add a service name', 'For example, Adobe, Netflix, Hotstar or Gym.'); return; }
     if (!Number.isFinite(numericAmount) || numericAmount <= 0 || numericAmount > 10000000) { Alert.alert('Check the amount', 'Enter a valid amount greater than ₹0.'); return; }
-    if (!validDate(nextRenewal)) { Alert.alert('Check the renewal date', 'Use the format YYYY-MM-DD, for example 2026-11-18.'); return; }
+    if (nextRenewal.trim() && !validDate(nextRenewal.trim())) { Alert.alert('Check the renewal date', 'Use YYYY-MM-DD, or leave the field blank until you confirm the date with the provider.'); return; }
     if (manageUrl.trim() && !/^(https?:\/\/)?[a-z0-9.-]+\.[a-z]{2,}([/:?#].*)?$/i.test(manageUrl.trim())) { Alert.alert('Check the management link', 'Enter a website address such as https://example.com/account.'); return; }
     setSaving(true);
     try {
       await onSave({
-        name: name.trim(), category, amount: numericAmount, cycle, nextRenewal,
+        name: name.trim(), category, amount: numericAmount, cycle, nextRenewal: nextRenewal.trim(),
         manageUrl: manageUrl.trim(), notes: notes.trim(), reminderEnabled: reminderEnabled ? 1 : 0,
       });
     } catch (error) {
@@ -1307,8 +1351,8 @@ function SubscriptionEditor({ visible, initial, onClose, onSave, onDelete }: {
           <Text style={styles.fieldLabel}>CATEGORY</Text><View style={styles.categoryGrid}>{CATEGORIES.map((cat) => <Pressable key={cat.name} onPress={() => setCategory(cat.name)} style={[styles.categoryOption, category === cat.name && styles.categoryOptionActive]}><MaterialCommunityIcons name={categoryIconName(cat.name)} size={19} color={category === cat.name ? C.greenDark : C.muted} /><Text style={[styles.categoryOptionText, category === cat.name && styles.categoryOptionTextActive]}>{cat.name}</Text></Pressable>)}</View>
           <Text style={styles.fieldLabel}>PRICE (INR) *</Text><View style={styles.amountInputWrap}><Text style={styles.rupeeSign}>₹</Text><TextInput value={amount} onChangeText={setAmount} placeholder="0.00" placeholderTextColor="#97A5A8" style={styles.amountInput} keyboardType="decimal-pad" /></View>
           <Text style={styles.fieldLabel}>BILLING CYCLE</Text><View style={styles.cycleRow}>{CYCLES.map((item) => <Pressable key={item} onPress={() => setCycle(item)} style={[styles.cycleChip, item === cycle && styles.cycleChipActive]}><Text style={[styles.cycleChipText, item === cycle && styles.cycleChipTextActive]}>{item}</Text></Pressable>)}</View>
-          <Text style={styles.fieldLabel}>NEXT RENEWAL DATE *</Text><TextInput value={nextRenewal} onChangeText={setNextRenewal} placeholder="YYYY-MM-DD" placeholderTextColor="#97A5A8" style={styles.input} autoCapitalize="none" maxLength={10} />
-          <Text style={styles.fieldHint}>Enter the date shown by the provider. Format: YYYY-MM-DD.</Text>
+          <Text style={styles.fieldLabel}>NEXT RENEWAL DATE (OPTIONAL)</Text><TextInput value={nextRenewal} onChangeText={setNextRenewal} placeholder="Leave blank if not confirmed" placeholderTextColor="#97A5A8" style={styles.input} autoCapitalize="none" maxLength={10} />
+          <Text style={styles.fieldHint}>Only enter a date confirmed by the provider. Format: YYYY-MM-DD. Leave blank if unknown; reminders need a verified date.</Text>
           <Text style={styles.fieldLabel}>OFFICIAL MANAGE / RENEW LINK</Text><TextInput value={manageUrl} onChangeText={setManageUrl} placeholder="https://provider.com/account" placeholderTextColor="#97A5A8" style={styles.input} autoCapitalize="none" keyboardType="url" autoCorrect={false} />
           <Text style={styles.fieldHint}>Use the provider's official account or billing page. SubSathi does not process payments.</Text>
           <Text style={styles.fieldLabel}>NOTES (OPTIONAL)</Text><TextInput value={notes} onChangeText={setNotes} placeholder="Plan name, billing account, cancellation notes..." placeholderTextColor="#97A5A8" style={[styles.input, styles.notesInput]} multiline maxLength={400} />
