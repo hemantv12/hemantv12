@@ -19,7 +19,7 @@ A mobile-first creator and brand collaboration platform. The public landing page
 GitHub Actions builds a debug APK on pushes to the `collabzy-android` branch. Open Actions > Build Collabzy Android APK and download the `Collabzy-Android-APK` artifact. A debug APK is for testing; a Play Store release needs release signing and real-device testing.
 
 ## Before public commercial launch
-- **Persistent database:** the current deployment uses SQLite on a free web service unless a managed `DATABASE_URL` is configured. The free service filesystem may reset on redeploy/restart. A durable database must be attached and verified before real users rely on the app.
+- **Persistent database:** the current deployment uses SQLite on a free web service; managed PostgreSQL is not wired into this version. The free service filesystem may reset on redeploy/restart. A durable database must be attached and the backend migrated and verified before real users rely on the app.
 - **Instagram:** the screen reports setup status, but OAuth, Meta app credentials, callback verification and approved permissions are not yet implemented.
 - **Payments:** the planned ₹299/year membership is displayed as planned only; checkout is not enabled and no payment is collected.
 - **Operations:** configure durable backups, account recovery/email verification, monitoring, and support contact ownership before scaling.
