@@ -83,6 +83,15 @@ test('Collabzy API supports registration, campaign publishing and application wo
   assert.equal(creatorAppsAfterInvite.length,2,'accepting an invitation should create a trackable application');
   const brandConversations=(await (await fetch(base+'/api/conversations',{headers:{authorization:'Bearer '+brand.token}})).json()).conversations;
   assert.ok(brandConversations.some(c=>c.campaign_id===brandCampaign.id),'accepted invitations should create a brand-creator conversation');
+  const brandApplications=(await (await fetch(base+'/api/applications',{headers:{authorization:'Bearer '+brand.token}})).json()).applications;
+  const invitedApplication=brandApplications.find(a=>Number(a.campaign_id)===Number(brandCampaign.id));
+  assert.ok(invitedApplication,'brand should be able to review applications created by accepted invitations');
+  const acceptApp=await fetch(base+'/api/applications/'+invitedApplication.id+'/status',{method:'PATCH',headers:{'content-type':'application/json',authorization:'Bearer '+brand.token},body:JSON.stringify({status:'accepted'})});
+  assert.equal(acceptApp.status,200);
+  const completeApp=await fetch(base+'/api/applications/'+invitedApplication.id+'/status',{method:'PATCH',headers:{'content-type':'application/json',authorization:'Bearer '+brand.token},body:JSON.stringify({status:'completed'})});
+  assert.equal(completeApp.status,200,'brand should mark a collaboration as completed');
+  const completedApps=(await (await fetch(base+'/api/applications',{headers:{authorization:'Bearer '+creator.token}})).json()).applications;
+  assert.equal(completedApps.find(a=>Number(a.id)===Number(invitedApplication.id)).status,'completed');
   const login=await fetch(base+'/api/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email,password:'TestPassword123!'})});
   assert.equal(login.status,200);
   const invalid=await fetch(base+'/api/auth/register',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({name:'No email',email:'bad',password:'TestPassword123!',role:'creator'})});
