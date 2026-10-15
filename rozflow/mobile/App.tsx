@@ -639,14 +639,14 @@ function AppContent() {
     if (!query || aiBusy) return;
     setAiBusy(true);
     setAiQuery('');
-    setAiMessages((current) => [...current, { id: String(Date.now()) + '-u', role: 'user', text: query }].slice(-14));
+    setAiMessages((current) => [...current, { id: String(Date.now()) + '-u', role: 'user' as const, text: query }].slice(-14));
     const lower = query.toLowerCase();
     const createSignal = /\b(add|create|make|schedule|remind|track|save|log|record|start|build)\b/.test(lower);
     const amountSafeQuery = query.replace(/\b20\d{2}-\d{2}-\d{2}\b/g, '').replace(/\b\d{1,3}\s*(?:min|mins|minutes?)\b/gi, '');
     const amountMatch = amountSafeQuery.match(/(?:₹|rs\.?|inr)?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i);
     const parsedAmount = amountMatch ? Number(amountMatch[1].replace(/,/g, '')) : null;
     let answer = '';
-    const reply = (text: string) => setAiMessages((current) => [...current, { id: String(Date.now()) + '-a', role: 'assistant', text }].slice(-14));
+    const reply = (text: string) => setAiMessages((current) => [...current, { id: String(Date.now()) + '-a', role: 'assistant' as const, text }].slice(-14));
     try {
       const dateInText = lower.match(/20\d{2}-\d{2}-\d{2}/)?.[0];
       const dueDate = /\b(tomorrow|kal)\b/.test(lower) ? dayOffset(1)
