@@ -918,6 +918,7 @@ private fun CollabzyNativeApp(activity: MainActivity, oauthResult: String?, bill
                     aiReportStatus = aiReportStatus,
                     aiLoading = aiLoading,
                     subscriptionActive = billingStatus.flag("active"),
+                    betaAccess = billingStatus.flag("beta_access"),
                     onGenerateAi = { perform { generateAiReport() } },
                     onUpgrade = { screen = "subscription" },
                     onConnect = {
@@ -928,7 +929,7 @@ private fun CollabzyNativeApp(activity: MainActivity, oauthResult: String?, bill
                             activity.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
                         }
                     },
-                    onRefresh = { perform { refreshInstagram(); if (billingStatus.flag("active")) generateAiReport(); toast("Instagram insights refreshed.") } },
+                    onRefresh = { perform { refreshInstagram(); if (billingStatus.flag("active") || billingStatus.flag("beta_access")) generateAiReport(); toast("Instagram insights refreshed.") } },
                     onDisconnect = {
                         perform {
                             Api.call("/instagram/disconnect", "POST")
@@ -2019,6 +2020,8 @@ private fun SubscriptionPane(
     onSubscribe: () -> Unit
 ) {
     val active = status.flag("active")
+    val betaAccess = status.flag("beta_access")
+    val checkoutReady = status.flag("checkout_ready")
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 18.dp, vertical = 10.dp)) {
         Card(
             colors = CardDefaults.cardColors(containerColor = Panel),
@@ -2062,27 +2065,36 @@ private fun SubscriptionPane(
                         }
                     }
                 }
+                if (betaAccess) {
+                    Spacer(Modifier.height(10.dp))
+                    Surface(color = SoftBlue, shape = RoundedCornerShape(14.dp), border = BorderStroke(1.dp, Violet.copy(alpha = 0.25f))) {
+                        Column(Modifier.fillMaxWidth().padding(13.dp)) {
+                            Text("PRIVATE BETA ACCESS", color = VioletStrong, fontWeight = FontWeight.ExtraBold, fontSize = 12.sp)
+                            Text("AI access is enabled for this approved tester. This is not a paid subscription and no payment has been taken.", color = White, fontSize = 12.sp, lineHeight = 17.sp)
+                        }
+                    }
+                }
                 if (message.isNotBlank()) {
                     Spacer(Modifier.height(12.dp))
-                    Text(message, color = if (active) Mint else Danger, fontSize = 12.sp, lineHeight = 18.sp)
+                    Text(message, color = if (active || betaAccess) Mint else Danger, fontSize = 12.sp, lineHeight = 18.sp)
                 }
                 Spacer(Modifier.height(17.dp))
                 Button(
                     onClick = onSubscribe,
-                    enabled = !loading,
+                    enabled = !loading && checkoutReady,
                     modifier = Modifier.fillMaxWidth().height(54.dp),
                     shape = RoundedCornerShape(15.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Violet, contentColor = Color.White)
                 ) {
                     if (loading) CircularProgressIndicator(Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
-                    else Text(if (active) "Renew for ₹299 / year" else "Activate Pro · ₹299 / year", fontWeight = FontWeight.Bold)
+                    else Text(if (active) "Renew for ₹299 / year" else if (checkoutReady) "Activate Pro · ₹299 / year" else "Payments setup pending", fontWeight = FontWeight.Bold)
                 }
                 Spacer(Modifier.height(7.dp))
                 OutlinedButton(onClick = onRefresh, enabled = !loading, modifier = Modifier.fillMaxWidth(), border = BorderStroke(1.dp, Border), colors = ButtonDefaults.outlinedButtonColors(contentColor = Violet)) {
                     Icon(Icons.Outlined.Refresh, null); Spacer(Modifier.width(6.dp)); Text("Refresh plan status")
                 }
                 Spacer(Modifier.height(8.dp))
-                Text("Payments unlock only after a verified server-side payment. Never share an OTP or payment PIN with anyone.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
+                Text(if (checkoutReady) "Payments unlock only after a verified server-side payment. Never share an OTP or payment PIN with anyone." else "Secure checkout is not enabled yet. No payment will be collected; use approved beta access while payment setup is pending.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
             }
         }
         Spacer(Modifier.height(18.dp))
@@ -2099,6 +2111,7 @@ private fun InstagramPane(
     aiReportStatus: String,
     aiLoading: Boolean,
     subscriptionActive: Boolean,
+    betaAccess: Boolean,
     onGenerateAi: () -> Unit,
     onUpgrade: () -> Unit,
     onConnect: () -> Unit,
@@ -2177,13 +2190,13 @@ private fun InstagramPane(
                             Text("AI Growth Coach", color = White, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
                             Text("A practical plan, not vanity metrics", color = Muted, fontSize = 11.sp)
                         }
-                        Pill(if (subscriptionActive) "PRO" else "PREVIEW", if (subscriptionActive) Mint else Violet)
+                        Pill(if (subscriptionActive) "PRO" else if (betaAccess) "BETA" else "PREVIEW", if (subscriptionActive || betaAccess) Mint else Violet)
                     }
                     Spacer(Modifier.height(11.dp))
                     Text("Analyze reach, views, interactions and your latest post captions to find what is working and what to try next.", color = Muted, fontSize = 12.sp, lineHeight = 18.sp)
                     Spacer(Modifier.height(9.dp))
                     Text("Privacy: when you tap Generate, Collabzy sends the metrics and recent caption text shown for this report to its AI provider. Instagram access tokens and passwords are never sent to the AI provider.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
-                    if (!subscriptionActive) {
+                    if (!subscriptionActive && !betaAccess) {
                         Spacer(Modifier.height(14.dp))
                         Text("Unlock personalized strengths, growth opportunities and a 7-day action plan with Collabzy Pro.", color = White, fontSize = 13.sp, lineHeight = 19.sp)
                         Spacer(Modifier.height(9.dp))
