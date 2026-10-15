@@ -85,7 +85,8 @@ async function start(PORT,SECRET){
   const metaReady=()=>!!(process.env.META_APP_ID&&process.env.META_APP_SECRET&&process.env.META_REDIRECT_URI);
   const supportReady=()=>!!process.env.SUPPORT_EMAIL;
   const legalIdentityReady=()=>!!(process.env.OPERATOR_LEGAL_NAME&&process.env.OPERATOR_JURISDICTION);
-  const registrationReady=()=>!requireEmailVerification||(emailReady()&&supportReady()&&legalIdentityReady()&&(process.env.REQUIRE_INSTAGRAM_CONFIG!=='true'||metaReady()));
+  const publicLaunchApproved=()=>process.env.PUBLIC_LAUNCH_APPROVED==='true';
+  const registrationReady=()=>!requireEmailVerification||(publicLaunchApproved()&&emailReady()&&supportReady()&&legalIdentityReady()&&(process.env.REQUIRE_INSTAGRAM_CONFIG!=='true'||metaReady()));
   async function sendEmailMessage({to,subject,html,text}){
     if(!emailReady())throw Error('Email delivery is not configured.');
     const response=await fetch('https://api.resend.com/emails',{method:'POST',headers:{Authorization:'Bearer '+process.env.RESEND_API_KEY,'Content-Type':'application/json'},body:JSON.stringify({from:process.env.EMAIL_FROM,to:[to],subject,html,text})});
@@ -124,7 +125,7 @@ async function start(PORT,SECRET){
     q.sessionVersion=Number(r.rows[0].session_version||0);
     q.user=publicUser(r.rows[0]);n();
   });
-  app.get('/api/health',asyncRoute(async(q,s)=>{await pool.query('SELECT 1');s.json({ok:true,app:'Collabzy',version:'2.2.1',database:'connected',mode:'postgres-persistent',integrations:{instagram:metaReady()?'configured':'setup_required',email:emailReady()?'configured':'setup_required',emailVerification:requireEmailVerification?'required':'not_enforced',payments:'disabled',support:supportReady()&&emailReady()?'configured':'setup_required',operatorIdentity:legalIdentityReady()?'configured':'setup_required',publicRegistration:registrationReady()?'open':'setup_required'}})}));
+  app.get('/api/health',asyncRoute(async(q,s)=>{await pool.query('SELECT 1');s.json({ok:true,app:'Collabzy',version:'2.2.1',database:'connected',mode:'postgres-persistent',integrations:{instagram:metaReady()?'configured':'setup_required',email:emailReady()?'configured':'setup_required',emailVerification:requireEmailVerification?'required':'not_enforced',payments:'disabled',support:supportReady()&&emailReady()?'configured':'setup_required',operatorIdentity:legalIdentityReady()?'configured':'setup_required',publicLaunchApproval:publicLaunchApproved()?'approved':'required',publicRegistration:registrationReady()?'open':'setup_required'}})}));
   app.get('/api/public-config',(q,s)=>s.json({operatorName:process.env.OPERATOR_LEGAL_NAME||'',jurisdiction:process.env.OPERATOR_JURISDICTION||'',supportEmail:process.env.SUPPORT_EMAIL||'',supportReady:supportReady()&&emailReady()}));
   app.post('/api/auth/register',asyncRoute(async(q,s)=>{
     const name=String(q.body?.name||'').trim(),email=validEmail(q.body?.email),password=String(q.body?.password||''),role=q.body?.role||'creator';
