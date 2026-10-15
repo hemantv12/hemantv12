@@ -86,7 +86,7 @@ function Tag({label,color=C.greenDark,bg=C.mint}:{label:string;color?:string;bg?
   return <View style={[s.tag,{backgroundColor:bg}]}><Text style={[s.tagText,{color}]}>{label}</Text></View>;
 }
 function ProgressBar({value,color=C.green,track='#E8F0ED'}:{value:number;color?:string;track?:string}) {
-  return <View style={[s.progressTrack,{backgroundColor:track}]}><View style={[s.progressFill,{width:Math.max(0,Math.min(100,value))+'%',backgroundColor:color}]}/></View>;
+  return <View style={[s.progressTrack,{backgroundColor:track}]}><View style={[s.progressFill,{width:(Math.max(0,Math.min(100,value))+'%') as any,backgroundColor:color}]}/></View>;
 }
 function PrimaryButton({title,onPress}:{title:string;onPress:()=>void}) {
   return <Pressable onPress={onPress} style={({pressed})=>[s.primaryButton,pressed&&s.pressed]}><Text style={s.primaryButtonText}>{title}</Text></Pressable>;
@@ -233,7 +233,7 @@ function DayPilotApp() {
       answer='Try a gentle focus sprint: choose just one task, put the phone on silent, and work for 25 minutes. DayPilot has a built-in focus timer. The aim is progress, not perfection.';
     else
       answer='Here is your current snapshot: '+openToday.length+' task(s) still open today, '+doneHabits.length+'/'+habits.length+' habits completed, and '+money(monthSpend)+' spent this month against a '+money(budget)+' budget. Pick the area that would make tomorrow easier, and I’ll help you break it into a small next step. I use only data saved in this app; no account or inbox connection is needed.';
-    const stamp=Date.now();setChat(items=>[...items,{id:'you-'+stamp,role:'you',text:raw.trim()},{id:'coach-'+(stamp+1),role:'coach',text:answer}].slice(-12));setChatInput('');
+    const stamp=Date.now();setChat(items=>[...items,{id:'you-'+stamp,role:'you' as const,text:raw.trim()},{id:'coach-'+(stamp+1),role:'coach' as const,text:answer}].slice(-12));setChatInput('');
   };
   const renderTaskRow=(task:DayTask)=><View key={task.id} style={[s.taskRow,!!task.completed&&s.taskRowDone]}>
     <Pressable accessibilityRole="checkbox" accessibilityState={{checked:!!task.completed}} onPress={()=>{void toggleTask(task);}} style={[s.checkCircle,!!task.completed&&s.checkCircleDone]}>{task.completed?<Feather name="check" size={15} color="#FFFFFF"/>:null}</Pressable>
