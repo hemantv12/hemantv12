@@ -5,7 +5,7 @@
   "description":"Creator and brand collaboration platform",
   "main":"src/server.js",
   "scripts":{"start":"node src/server.js","dev":"node --watch src/server.js"},
-  "engines":{"node":">=20"},
+  "engines":{"node":"22.x"},
   "dependencies":{
     "@capacitor/android":"^7.4.3",
     "@capacitor/core":"^7.4.3",
