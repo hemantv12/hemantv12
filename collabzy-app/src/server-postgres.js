@@ -84,7 +84,8 @@ async function start(PORT,SECRET){
   const requireEmailVerification=process.env.NODE_ENV==='production'&&process.env.REQUIRE_EMAIL_VERIFICATION==='true';
   const metaReady=()=>!!(process.env.META_APP_ID&&process.env.META_APP_SECRET&&process.env.META_REDIRECT_URI);
   const supportReady=()=>!!process.env.SUPPORT_EMAIL;
-  const registrationReady=()=>!requireEmailVerification||(emailReady()&&supportReady()&&(process.env.REQUIRE_INSTAGRAM_CONFIG!=='true'||metaReady()));
+  const legalIdentityReady=()=>!!(process.env.OPERATOR_LEGAL_NAME&&process.env.OPERATOR_JURISDICTION);
+  const registrationReady=()=>!requireEmailVerification||(emailReady()&&supportReady()&&legalIdentityReady()&&(process.env.REQUIRE_INSTAGRAM_CONFIG!=='true'||metaReady()));
   async function sendEmailMessage({to,subject,html,text}){
     if(!emailReady())throw Error('Email delivery is not configured.');
     const response=await fetch('https://api.resend.com/emails',{method:'POST',headers:{Authorization:'Bearer '+process.env.RESEND_API_KEY,'Content-Type':'application/json'},body:JSON.stringify({from:process.env.EMAIL_FROM,to:[to],subject,html,text})});
@@ -123,7 +124,8 @@ async function start(PORT,SECRET){
     q.sessionVersion=Number(r.rows[0].session_version||0);
     q.user=publicUser(r.rows[0]);n();
   });
-  app.get('/api/health',asyncRoute(async(q,s)=>{await pool.query('SELECT 1');s.json({ok:true,app:'Collabzy',version:'2.2.0',database:'connected',mode:'postgres-persistent',integrations:{instagram:metaReady()?'configured':'setup_required',email:emailReady()?'configured':'setup_required',emailVerification:requireEmailVerification?'required':'not_enforced',payments:'disabled',support:supportReady()?'configured':'setup_required',publicRegistration:registrationReady()?'open':'setup_required'}})}));
+  app.get('/api/health',asyncRoute(async(q,s)=>{await pool.query('SELECT 1');s.json({ok:true,app:'Collabzy',version:'2.2.0',database:'connected',mode:'postgres-persistent',integrations:{instagram:metaReady()?'configured':'setup_required',email:emailReady()?'configured':'setup_required',emailVerification:requireEmailVerification?'required':'not_enforced',payments:'disabled',support:supportReady()&&emailReady()?'configured':'setup_required',operatorIdentity:legalIdentityReady()?'configured':'setup_required',publicRegistration:registrationReady()?'open':'setup_required'}})}));
+  app.get('/api/public-config',(q,s)=>s.json({operatorName:process.env.OPERATOR_LEGAL_NAME||'',jurisdiction:process.env.OPERATOR_JURISDICTION||'',supportEmail:process.env.SUPPORT_EMAIL||'',supportReady:supportReady()&&emailReady()}));
   app.post('/api/auth/register',asyncRoute(async(q,s)=>{
     const name=String(q.body?.name||'').trim(),email=validEmail(q.body?.email),password=String(q.body?.password||''),role=q.body?.role||'creator';
     if(!name||!email||!password)return s.status(400).json({error:'Name, email and password are required.'});
@@ -131,7 +133,7 @@ async function start(PORT,SECRET){
     if(password.length<8||password.length>200)return s.status(400).json({error:'Password must contain 8 to 200 characters.'});
     if(!['creator','brand'].includes(role))return s.status(400).json({error:'Choose creator or brand.'});
     if(process.env.NODE_ENV==='production'&&q.body?.accepted_terms!==true)return s.status(400).json({error:'Please accept the Terms of Use and Privacy Notice.'});
-    if(!registrationReady())return s.status(503).json({error:'Account creation is paused until email verification, a monitored support contact, and required Meta integration are configured.'});
+    if(!registrationReady())return s.status(503).json({error:'Account creation is paused until email verification, operator/legal contact details, a monitored support mailbox, and required Meta integration are configured.'});
     const hash=await bcrypt.hash(password,12);
     try{
       const acceptedAt=q.body?.accepted_terms===true?new Date():null;
