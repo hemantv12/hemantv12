@@ -44,6 +44,7 @@ async function start(PORT,SECRET){
   await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS session_version INTEGER NOT NULL DEFAULT 0");
   await pool.query("CREATE TABLE IF NOT EXISTS email_action_tokens(id BIGSERIAL PRIMARY KEY,user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,token_hash TEXT NOT NULL UNIQUE,purpose TEXT NOT NULL CHECK(purpose IN('verify_email','password_reset')),expires_at TIMESTAMPTZ NOT NULL,consumed_at TIMESTAMPTZ,created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP)");
   await pool.query("CREATE INDEX IF NOT EXISTS email_action_tokens_user_idx ON email_action_tokens(user_id,purpose,created_at DESC)");
+  await pool.query("CREATE TABLE IF NOT EXISTS support_requests(id BIGSERIAL PRIMARY KEY,name TEXT NOT NULL,email TEXT NOT NULL,category TEXT NOT NULL,subject TEXT NOT NULL,message TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'open',created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP)");
   await pool.query("CREATE TABLE IF NOT EXISTS campaigns(id BIGSERIAL PRIMARY KEY,brand_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,title TEXT NOT NULL,brand_name TEXT NOT NULL,description TEXT NOT NULL,category TEXT NOT NULL,collaboration_type TEXT NOT NULL CHECK(collaboration_type IN('Paid','Barter','Hybrid')),budget_min BIGINT NOT NULL DEFAULT 0,budget_max BIGINT NOT NULL DEFAULT 0,deliverables TEXT NOT NULL DEFAULT '',location TEXT NOT NULL DEFAULT 'India',status TEXT NOT NULL DEFAULT 'active',created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP)");
   await pool.query("CREATE TABLE IF NOT EXISTS applications(id BIGSERIAL PRIMARY KEY,campaign_id BIGINT NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,creator_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,pitch TEXT NOT NULL DEFAULT '',proposed_rate BIGINT NOT NULL DEFAULT 0,status TEXT NOT NULL DEFAULT 'pending',created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,UNIQUE(campaign_id,creator_id))");
   await pool.query("CREATE TABLE IF NOT EXISTS saved_campaigns(user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,campaign_id BIGINT NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,PRIMARY KEY(user_id,campaign_id))");
@@ -72,11 +73,15 @@ async function start(PORT,SECRET){
   app.use(cors({origin:(origin,cb)=>{if(!origin||origin.startsWith('http://localhost')||origin.startsWith('https://localhost')||origin.startsWith('http://127.0.0.1')||origin==='https://collabzy-api.onrender.com'||origin==='capacitor://localhost')return cb(null,true);return cb(null,false)},credentials:false}));
   app.use(express.json({limit:'1mb'}));
   app.use('/api/auth',rateLimit({windowMs:900000,limit:20,standardHeaders:true,legacyHeaders:false}));
+  app.use('/api/support',rateLimit({windowMs:3600000,limit:5,standardHeaders:true,legacyHeaders:false}));
   app.use('/api',rateLimit({windowMs:60000,limit:240,standardHeaders:true,legacyHeaders:false,skip:req=>req.path==='/health'}));
   app.use(express.static(path.join(__dirname,'..','public')));
   const notify=async(userId,title,body,kind='general',entityId=0)=>pool.query('INSERT INTO notifications(user_id,title,body,kind,entity_id) VALUES($1,$2,$3,$4,$5)',[userId,String(title).slice(0,120),String(body).slice(0,500),String(kind).slice(0,40),Number(entityId)||0]);
   const emailReady=()=>!!(process.env.RESEND_API_KEY&&process.env.EMAIL_FROM);
   const requireEmailVerification=process.env.NODE_ENV==='production'&&process.env.REQUIRE_EMAIL_VERIFICATION==='true';
+  const metaReady=()=>!!(process.env.META_APP_ID&&process.env.META_APP_SECRET&&process.env.META_REDIRECT_URI);
+  const supportReady=()=>!!process.env.SUPPORT_EMAIL;
+  const registrationReady=()=>!requireEmailVerification||(emailReady()&&supportReady()&&(process.env.REQUIRE_INSTAGRAM_CONFIG!=='true'||metaReady()));
   async function sendEmailMessage({to,subject,html,text}){
     if(!emailReady())throw Error('Email delivery is not configured.');
     const response=await fetch('https://api.resend.com/emails',{method:'POST',headers:{Authorization:'Bearer '+process.env.RESEND_API_KEY,'Content-Type':'application/json'},body:JSON.stringify({from:process.env.EMAIL_FROM,to:[to],subject,html,text})});
@@ -115,7 +120,7 @@ async function start(PORT,SECRET){
     q.sessionVersion=Number(r.rows[0].session_version||0);
     q.user=publicUser(r.rows[0]);n();
   });
-  app.get('/api/health',asyncRoute(async(q,s)=>{await pool.query('SELECT 1');s.json({ok:true,app:'Collabzy',version:'2.2.0',database:'connected',mode:'postgres-persistent',integrations:{instagram:process.env.META_APP_ID&&process.env.META_APP_SECRET?'configured':'setup_required',email:emailReady()?'configured':'setup_required',emailVerification:requireEmailVerification?'required':'not_enforced',payments:'disabled',support:process.env.SUPPORT_EMAIL?'configured':'setup_required'}})}));
+  app.get('/api/health',asyncRoute(async(q,s)=>{await pool.query('SELECT 1');s.json({ok:true,app:'Collabzy',version:'2.2.0',database:'connected',mode:'postgres-persistent',integrations:{instagram:metaReady()?'configured':'setup_required',email:emailReady()?'configured':'setup_required',emailVerification:requireEmailVerification?'required':'not_enforced',payments:'disabled',support:supportReady()?'configured':'setup_required',publicRegistration:registrationReady()?'open':'setup_required'}})}));
   app.post('/api/auth/register',asyncRoute(async(q,s)=>{
     const name=String(q.body?.name||'').trim(),email=validEmail(q.body?.email),password=String(q.body?.password||''),role=q.body?.role||'creator';
     if(!name||!email||!password)return s.status(400).json({error:'Name, email and password are required.'});
@@ -123,7 +128,7 @@ async function start(PORT,SECRET){
     if(password.length<8||password.length>200)return s.status(400).json({error:'Password must contain 8 to 200 characters.'});
     if(!['creator','brand'].includes(role))return s.status(400).json({error:'Choose creator or brand.'});
     if(process.env.NODE_ENV==='production'&&q.body?.accepted_terms!==true)return s.status(400).json({error:'Please accept the Terms of Use and Privacy Notice.'});
-    if(requireEmailVerification&&!emailReady())return s.status(503).json({error:'Account creation is temporarily disabled until secure email verification is configured.'});
+    if(!registrationReady())return s.status(503).json({error:'Account creation is paused until email verification, a monitored support contact, and required Meta integration are configured.'});
     const hash=await bcrypt.hash(password,12);
     try{
       const r=await pool.query('INSERT INTO users(name,email,password_hash,role,email_verified_at) VALUES($1,$2,$3,$4,$5) RETURNING '+PROFILE_FIELDS,[name,email,hash,role,requireEmailVerification?null:new Date()]);
@@ -370,6 +375,17 @@ async function start(PORT,SECRET){
     const r=await pool.query('INSERT INTO messages(conversation_id,sender_id,body) VALUES($1,$2,$3) RETURNING *',[c.rows[0].id,q.user.id,body]);
     await pool.query('UPDATE conversations SET updated_at=CURRENT_TIMESTAMP WHERE id=$1',[c.rows[0].id]);const recipient=String(q.user.id)===String(c.rows[0].creator_id)?c.rows[0].brand_id:c.rows[0].creator_id;
     await notify(recipient,'New collaboration message',q.user.name+': '+body.slice(0,160),'message',c.rows[0].id);s.status(201).json({message:r.rows[0]});
+  }));
+  app.post('/api/support',asyncRoute(async(q,s)=>{
+    const name=String(q.body?.name||'').trim().slice(0,80),email=validEmail(q.body?.email),category=String(q.body?.category||'general'),subject=String(q.body?.subject||'').trim().slice(0,120),message=String(q.body?.message||'').trim().slice(0,4000);
+    if(!name||!email||subject.length<4||message.length<20)return s.status(400).json({error:'Enter your name, a valid email, a subject, and a message of at least 20 characters.'});
+    if(!['general','privacy','deletion','security'].includes(category))return s.status(400).json({error:'Choose a valid request category.'});
+    if(!emailReady()||!supportReady())return s.status(503).json({error:'The support channel is not configured yet. Account self-service controls remain available in Profile.'});
+    const saved=await pool.query('INSERT INTO support_requests(name,email,category,subject,message) VALUES($1,$2,$3,$4,$5) RETURNING id,created_at',[name,email,category,subject,message]);
+    try{
+      await sendEmailMessage({to:process.env.SUPPORT_EMAIL,subject:'[Collabzy '+category+'] '+subject,text:'Request ID: '+saved.rows[0].id+'\nFrom: '+name+' <'+email+'>\nCategory: '+category+'\n\n'+message,html:'<!doctype html><html><body style="font-family:Arial,sans-serif;color:#211c35"><h2>Collabzy support request #'+saved.rows[0].id+'</h2><p><b>From:</b> '+name+' &lt;'+email+'&gt;</p><p><b>Category:</b> '+category+'</p><p><b>Subject:</b> '+subject+'</p><pre style="white-space:pre-wrap">'+message.replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]))+'</pre></body></html>'});
+    }catch(error){console.error('Support notification delivery failed:',error.message);return s.status(202).json({ok:true,request_id:saved.rows[0].id,message:'Your request was stored, but notification delivery failed. Please retry later if you do not receive an acknowledgement.'})}
+    s.status(201).json({ok:true,request_id:saved.rows[0].id,message:'Your request was sent to Collabzy support.'});
   }));
   app.post('/api/instagram/disconnect',auth,asyncRoute(async(q,s)=>{await pool.query("UPDATE users SET instagram_user_id='',instagram_access_token_enc='',instagram_connected_at=NULL,instagram_token_expires_at=NULL,instagram_handle='',followers=0 WHERE id=$1",[q.user.id]);s.json({ok:true,connected:false})}));
   async function accessForInstagram(userId,row){
