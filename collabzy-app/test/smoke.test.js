@@ -32,6 +32,14 @@ test('Collabzy API supports registration, campaign publishing and application wo
   const duplicate=await fetch(base+'/api/auth/register',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({name:'Test Creator',email,password:'TestPassword123!',role:'creator'})});
   assert.equal(duplicate.status,409);
   const campaignId=campaigns[0].id;
+  const save=await fetch(base+'/api/campaigns/'+campaignId+'/save',{method:'POST',headers:{authorization:'Bearer '+creator.token}});
+  assert.equal(save.status,200);
+  const saved=(await (await fetch(base+'/api/saved-campaigns',{headers:{authorization:'Bearer '+creator.token}})).json()).campaigns;
+  assert.equal(saved.length,1,'creator should be able to save a campaign');
+  const unsave=await fetch(base+'/api/campaigns/'+campaignId+'/save',{method:'DELETE',headers:{authorization:'Bearer '+creator.token}});
+  assert.equal(unsave.status,200);
+  const savedAfter=(await (await fetch(base+'/api/saved-campaigns',{headers:{authorization:'Bearer '+creator.token}})).json()).campaigns;
+  assert.equal(savedAfter.length,0,'creator should be able to remove a saved campaign');
   const apply=await fetch(base+'/api/campaigns/'+campaignId+'/apply',{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+creator.token},body:JSON.stringify({pitch:'I am a good fit',proposed_rate:2500})});
   assert.equal(apply.status,201);
   const applications=(await (await fetch(base+'/api/applications',{headers:{authorization:'Bearer '+creator.token}})).json()).applications;
