@@ -483,7 +483,7 @@ private fun CollabzyNativeApp(activity: MainActivity, oauthResult: String?, bill
         aiLoading = true
         aiReportStatus = "Analyzing the authorized Instagram metrics and recent captions…"
         try {
-            aiReport = Api.call("/instagram/ai-analysis", "POST", JSONObject())
+            aiReport = Api.call("/instagram/ai-analysis", "POST", JSONObject().put("confirmed_ai_disclosure", true))
             aiReportStatus = "Fresh report generated from your connected account data."
         } catch (e: Exception) {
             aiReport = null
@@ -2105,6 +2105,7 @@ private fun InstagramPane(
     onRefresh: () -> Unit,
     onDisconnect: () -> Unit
 ) {
+    val context = LocalContext.current
     var aiConsent by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 18.dp, vertical = 8.dp)) {
         Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(22.dp), border = BorderStroke(1.dp, Border), modifier = Modifier.fillMaxWidth()) {
@@ -2262,7 +2263,7 @@ private fun InstagramPane(
                         val url = post.optString("permalink")
                         if (url.startsWith("https://www.instagram.com/") || url.startsWith("https://instagram.com/")) {
                             Spacer(Modifier.height(5.dp))
-                            Text("Open on Instagram ↗", color = Violet, fontSize = 11.sp, modifier = Modifier.clickable { }.padding(vertical = 3.dp))
+                            Text("Open on Instagram ↗", color = Violet, fontSize = 11.sp, modifier = Modifier.clickable { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }.padding(vertical = 3.dp))
                         }
                     }
                 }
