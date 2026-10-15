@@ -56,6 +56,7 @@ async function start(PORT,SECRET){
   await pool.query('CREATE INDEX IF NOT EXISTS applications_campaign_status_idx ON applications(campaign_id,status,created_at DESC)');
   await pool.query('CREATE INDEX IF NOT EXISTS saved_campaigns_user_created_idx ON saved_campaigns(user_id,created_at DESC)');
   await pool.query("INSERT INTO conversations(application_id,creator_id,brand_id) SELECT a.id,a.creator_id,c.brand_id FROM applications a JOIN campaigns c ON c.id=a.campaign_id ON CONFLICT(application_id) DO NOTHING");
+  if(process.env.NODE_ENV==='production'&&process.env.SEED_DEMO_DATA!=='true')await pool.query('DELETE FROM users WHERE email=$1',['hello@collabzy.demo']);
   app.disable('x-powered-by');
   app.use((req,res,next)=>{res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('X-Frame-Options','DENY');res.setHeader('Referrer-Policy','strict-origin-when-cross-origin');res.setHeader('Permissions-Policy','camera=(), microphone=(), geolocation=()');next()});
   app.use(cors({origin:(origin,cb)=>{if(!origin||origin.startsWith('http://localhost')||origin.startsWith('https://localhost')||origin.startsWith('http://127.0.0.1')||origin==='https://collabzy-api.onrender.com'||origin==='capacitor://localhost')return cb(null,true);return cb(null,false)},credentials:false}));
