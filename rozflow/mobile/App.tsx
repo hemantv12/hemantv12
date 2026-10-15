@@ -20,18 +20,20 @@ Notifications.setNotificationHandler({
   }),
 });
 
-type Screen = 'Today' | 'Plan' | 'Habits' | 'Focus' | 'Money' | 'Settings';
+type Screen = 'Today' | 'Plan' | 'AI' | 'Habits' | 'Focus' | 'Money' | 'Settings';
 type AddKind = 'task' | 'habit' | 'bill' | 'expense' | null;
 type Priority = 'High' | 'Medium' | 'Low';
-type Task = { id: number; title: string; note: string; dueDate: string; priority: Priority; done: number; createdAt: string };
+type ChatMessage = { id: string; role: 'assistant' | 'user'; text: string };
+type SmartBriefing = { title: string; body: string; action: string; screen: Screen; icon: keyof typeof Feather.glyphMap; tone: string };
+type Task = { id: number; title: string; note: string; dueDate: string; priority: Priority; done: number; createdAt: string; notificationId?: string | null };
 type Habit = { id: number; title: string; icon: string; tint: string; createdAt: string };
 type HabitLog = { habit_id: number; day: string };
 type Bill = { id: number; title: string; amount: number; dueDate: string; repeatEvery: 'Never' | 'Monthly' | 'Yearly'; notificationId: string | null; createdAt: string };
 type Expense = { id: number; amount: number; category: string; note: string; day: string; createdAt: string };
 type AddForm = { title: string; note: string; date: string; amount: string; category: string; priority: Priority; repeatEvery: 'Never' | 'Monthly' | 'Yearly' };
 const C = {
-  ink: '#112A33', muted: '#71848A', green: '#13A879', greenDark: '#087B58',
-  mint: '#DDF8EB', cream: '#F5F8F6', white: '#FFFFFF', line: '#E1EAE6',
+  ink: '#111B2E', muted: '#6E7B91', green: '#11B88A', greenDark: '#087B65',
+  mint: '#DCF8EF', cream: '#F4F6FB', white: '#FFFFFF', line: '#E3E8F1',
   navy: '#0A2532', blue: '#E5F0FF', amber: '#FFF1D9', red: '#C84D55',
   redPale: '#FCE9E9', violet: '#EFE8FF', shadow: '#082A32',
 };
@@ -46,6 +48,24 @@ const PRIORITIES: Priority[] = ['High', 'Medium', 'Low'];
 
 function localDay(date = new Date()) {
   return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, '0'), String(date.getDate()).padStart(2, '0')].join('-');
+}
+function dayOffset(offset: number) {
+  const date = new Date();
+  date.setDate(date.getDate() + offset);
+  return localDay(date);
+}
+function daysFromToday(day: string) {
+  if (!validDay(day)) return 9999;
+  return Math.round((dayDate(day).getTime() - dayDate(localDay()).getTime()) / 86400000);
+}
+function categoryFromText(value: string) {
+  const text = value.toLowerCase();
+  if (/lunch|dinner|breakfast|coffee|food|restaurant|grocery|groceries|snack|khana|chai/.test(text)) return 'Food';
+  if (/uber|ola|cab|metro|train|bus|petrol|fuel|travel|flight|auto/.test(text)) return 'Travel';
+  if (/shopping|clothes|amazon|flipkart|mall|shoes/.test(text)) return 'Shopping';
+  if (/bill|rent|electricity|recharge|wifi|internet|emi|insurance/.test(text)) return 'Bills';
+  if (/doctor|medicine|medical|health|gym|pharmacy/.test(text)) return 'Health';
+  return 'Other';
 }
 function dayDate(day: string) {
   const [year, month, date] = day.split('-').map(Number);
@@ -143,6 +163,11 @@ function AppContent() {
   const [expenseFilter, setExpenseFilter] = useState<'Month' | 'Today'>('Month');
   const [budgetDraft, setBudgetDraft] = useState('15000');
   const [search, setSearch] = useState('');
+  const [aiQuery, setAiQuery] = useState('');
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiMessages, setAiMessages] = useState<ChatMessage[]>([
+    { id: 'welcome', role: 'assistant', text: 'I can organise your day, log spending, add habits and set bill reminders. Try “Add task call the dentist tomorrow” or “I spent 250 on lunch”. Your entries stay on this phone.' },
+  ]);
   const focusFinishHandled = useRef(false);
 
   const withDb = useCallback(async <T,>(fn: (db: SQLite.SQLiteDatabase) => Promise<T>): Promise<T> => {
@@ -160,6 +185,8 @@ function AppContent() {
         CREATE TABLE IF NOT EXISTS focus_sessions (id INTEGER PRIMARY KEY AUTOINCREMENT, minutes INTEGER NOT NULL, day TEXT NOT NULL, completedAt TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL);
       `);
+      // Safe migration: older RozFlow installs did not store local task notification IDs.
+      try { await db.execAsync('ALTER TABLE tasks ADD COLUMN notificationId TEXT'); } catch { /* Column already exists on newer installs. */ }
     }
     return fn(db);
   }, []);
@@ -251,6 +278,26 @@ function AppContent() {
   const remainingBudget = budgetNumber - spentThisMonth;
   const taskProgress = todayTasks.length ? Math.round(completedToday / todayTasks.length * 100) : 0;
   const habitCompletedToday = habits.filter((habit) => habitLogs.some((log) => log.habit_id === habit.id && log.day === today)).length;
+  const overdueTasks = openTasks.filter((task) => task.dueDate < today);
+  const nextTask = [...openTasks].sort((a, b) => {
+    const daysA = daysFromToday(a.dueDate), daysB = daysFromToday(b.dueDate);
+    const priority = (value: Priority) => value === 'High' ? 0 : value === 'Medium' ? 1 : 2;
+    return daysA - daysB || priority(a.priority) - priority(b.priority);
+  })[0];
+  const nextBill = bills.filter((bill) => bill.dueDate >= today).sort((a, b) => a.dueDate.localeCompare(b.dueDate))[0];
+  const billDueSoon = nextBill && daysFromToday(nextBill.dueDate) <= 3;
+  const budgetUsedPercent = budgetNumber > 0 ? Math.round(spentThisMonth / budgetNumber * 100) : 0;
+  const smartBriefing: SmartBriefing = useMemo(() => {
+    if (overdueTasks.length) return { title: 'Clear one overdue task', body: overdueTasks[0].title + ' is past its due date. Spend 10–15 minutes on the next step, or update its date if plans changed.', action: 'Open planner', screen: 'Plan', icon: 'alert-circle', tone: 'amber' };
+    if (budgetNumber > 0 && spentThisMonth >= budgetNumber) return { title: 'Your monthly guide has been reached', body: 'You have logged ' + money(spentThisMonth) + ' against ' + money(budgetNumber) + '. Review the biggest categories before the next purchase.', action: 'Review spending', screen: 'Money', icon: 'trending-up', tone: 'red' };
+    if (budgetNumber > 0 && budgetUsedPercent >= 80) return { title: 'Keep an eye on spending', body: budgetUsedPercent + '% of your monthly guide is used. ' + money(Math.max(0, remainingBudget)) + ' remains in your personal target.', action: 'Open money', screen: 'Money', icon: 'pie-chart', tone: 'amber' };
+    if (billDueSoon && nextBill) return { title: 'A bill is coming up', body: nextBill.title + ' · ' + money(nextBill.amount) + ' due ' + (daysFromToday(nextBill.dueDate) === 0 ? 'today' : dateLabel(nextBill.dueDate) + ' (' + daysFromToday(nextBill.dueDate) + ' days)') + '. Review it before the date.', action: 'Review bills', screen: 'Plan', icon: 'bell', tone: 'blue' };
+    if (nextTask) return { title: 'Your next best move', body: nextTask.title + ' is your nearest open task. A short focused session is usually easier than waiting for a perfect moment.', action: 'Start focus', screen: 'Focus', icon: 'target', tone: 'green' };
+    const habitToCheck = habits.find((habit) => !habitLogs.some((log) => log.habit_id === habit.id && log.day === today));
+    if (habitToCheck) return { title: 'Make your habit easy to finish', body: 'A quick check-in for “' + habitToCheck.title + '” will keep your streak moving.', action: 'Check habits', screen: 'Habits', icon: 'activity', tone: 'violet' };
+    return { title: 'You have room to plan ahead', body: 'Your saved details look calm right now. Capture tomorrow’s top priority or take a short focus session while your schedule is clear.', action: 'Plan next step', screen: 'AI', icon: 'zap', tone: 'green' };
+  }, [overdueTasks, budgetNumber, spentThisMonth, budgetUsedPercent, remainingBudget, billDueSoon, nextBill, nextTask, habits, habitLogs, today]);
+
   const filteredTasks = tasks.filter((task) => (search.trim() === '' || (task.title + ' ' + task.note).toLowerCase().includes(search.toLowerCase())));
   const visibleExpenses = expenseFilter === 'Today' ? todayExpenses : monthExpenses;
   const categoryTotals = EXPENSE_CATEGORIES.map((category) => ({
@@ -265,15 +312,40 @@ function AppContent() {
     setForm({ title: '', note: '', date: today, amount: '', category: 'Food', priority: 'Medium', repeatEvery: 'Monthly' });
     setAddKind(kind);
   };
+  const scheduleTaskReminder = async (task: Pick<Task, 'title' | 'dueDate'>) => {
+    try {
+      let permission = await Notifications.getPermissionsAsync();
+      if (!permission.granted) permission = await Notifications.requestPermissionsAsync();
+      if (!permission.granted) return null;
+      const due = dayDate(task.dueDate);
+      due.setHours(9, 0, 0, 0);
+      if (task.dueDate === today && due.getTime() <= Date.now()) due.setTime(Date.now() + 45 * 60 * 1000);
+      if (due.getTime() <= Date.now()) return null;
+      return await Notifications.scheduleNotificationAsync({
+        content: { title: 'A nudge from RozFlow: ' + task.title, body: 'Your task is due ' + (task.dueDate === today ? 'today' : dateLabel(task.dueDate)) + '. Take the next small step.', data: { task: task.title, dueDate: task.dueDate } },
+        trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: due },
+      });
+    } catch (error) {
+      console.warn('Task reminder could not be scheduled', error);
+      return null;
+    }
+  };
   const markTask = async (task: Task) => {
     try {
-      await withDb((db) => db.runAsync('UPDATE tasks SET done = ? WHERE id = ?', task.done ? 0 : 1, task.id).then(() => undefined));
+      if (task.done === 0) {
+        if (task.notificationId) await Notifications.cancelScheduledNotificationAsync(task.notificationId).catch(() => undefined);
+        await withDb((db) => db.runAsync('UPDATE tasks SET done = 1, notificationId = NULL WHERE id = ?', task.id).then(() => undefined));
+      } else {
+        const notificationId = await scheduleTaskReminder(task);
+        await withDb((db) => db.runAsync('UPDATE tasks SET done = 0, notificationId = ? WHERE id = ?', notificationId, task.id).then(() => undefined));
+      }
       await refreshData();
     } catch { Alert.alert('Could not update task', 'Your saved tasks are unchanged. Please try again.'); }
   };
   const deleteTask = (task: Task) => Alert.alert('Remove task?', task.title, [
     { text: 'Keep', style: 'cancel' },
     { text: 'Remove', style: 'destructive', onPress: async () => {
+      if (task.notificationId) await Notifications.cancelScheduledNotificationAsync(task.notificationId).catch(() => undefined);
       await withDb((db) => db.runAsync('DELETE FROM tasks WHERE id = ?', task.id).then(() => undefined));
       await refreshData();
     } },
@@ -328,7 +400,13 @@ function AppContent() {
       if (addKind === 'task') {
         if (!form.title.trim()) { Alert.alert('Add a task name', 'Give your next action a short, clear title.'); return; }
         if (!validDay(form.date)) { Alert.alert('Check the date', 'Use YYYY-MM-DD, for example 2026-10-20.'); return; }
-        await withDb((db) => db.runAsync('INSERT INTO tasks (title, note, dueDate, priority, done, createdAt) VALUES (?, ?, ?, ?, 0, ?)', form.title.trim(), form.note.trim(), form.date, form.priority, new Date().toISOString()).then(() => undefined));
+        const taskData = { title: form.title.trim(), dueDate: form.date };
+        const taskId = await withDb(async (db) => {
+          const result = await db.runAsync('INSERT INTO tasks (title, note, dueDate, priority, done, createdAt) VALUES (?, ?, ?, ?, 0, ?)', taskData.title, form.note.trim(), taskData.dueDate, form.priority, new Date().toISOString());
+          return result.lastInsertRowId;
+        });
+        const notificationId = await scheduleTaskReminder(taskData);
+        if (notificationId) await withDb((db) => db.runAsync('UPDATE tasks SET notificationId = ? WHERE id = ?', notificationId, taskId).then(() => undefined));
       } else if (addKind === 'habit') {
         if (!form.title.trim()) { Alert.alert('Name your habit', 'A small habit is easier to repeat.'); return; }
         if (habits.some((habit) => habit.title.toLowerCase() === form.title.trim().toLowerCase())) { Alert.alert('Habit already exists', 'Choose a different name or check in on your existing habit.'); return; }
@@ -469,6 +547,13 @@ function AppContent() {
           <View><Text style={styles.heroStatLabel}>SPENT TODAY</Text><Text style={styles.heroStatValue}>{money(spentToday)}</Text></View>
         </View>
       </LinearGradient>
+      <Pressable accessibilityRole="button" onPress={() => setScreen('AI')} style={({ pressed }) => [styles.aiHomePrompt, pressed && styles.quickPressed]}>
+        <LinearGradient colors={['#10182E', '#123C48', '#087B65']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.aiHomePromptInner}>
+          <View style={styles.aiHomeSpark}><MaterialCommunityIcons name="brain" size={22} color="#0B5649" /></View>
+          <View style={{ flex: 1 }}><Text style={styles.aiHomeKicker}>MEET YOUR CO-PILOT</Text><Text style={styles.aiHomeTitle}>{smartBriefing.title}</Text><Text style={styles.aiHomeSub}>Tap to plan, log spending or automate a small task.</Text></View>
+          <Feather name="arrow-up-right" size={20} color="#91F3D3" />
+        </LinearGradient>
+      </Pressable>
       <View style={styles.quickGrid}>
         <Pressable onPress={() => openAdd('task')} style={({ pressed }) => [styles.quickCard, pressed && styles.quickPressed]}><View style={[styles.quickIcon, { backgroundColor: C.mint }]}><Feather name="plus" size={20} color={C.greenDark} /></View><Text style={styles.quickTitle}>Add a task</Text><Text style={styles.quickSub}>Clear your head</Text></Pressable>
         <Pressable onPress={() => setScreen('Focus')} style={({ pressed }) => [styles.quickCard, pressed && styles.quickPressed]}><View style={[styles.quickIcon, { backgroundColor: C.violet }]}><Feather name="target" size={19} color="#7152B8" /></View><Text style={styles.quickTitle}>Focus mode</Text><Text style={styles.quickSub}>One thing at a time</Text></Pressable>
@@ -548,6 +633,192 @@ function AppContent() {
   const resetFocus = () => { setFocusEndAt(null); setSecondsLeft(focusMinutes * 60); focusFinishHandled.current = false; };
   const setDuration = (mins: number) => { if (focusEndAt !== null) return; setFocusMinutes(mins); setSecondsLeft(mins * 60); };
   const clock = `${String(Math.floor(secondsLeft / 60)).padStart(2, '0')}:${String(secondsLeft % 60).padStart(2, '0')}`;
+
+  const sendAiCommand = async (rawQuery?: string) => {
+    const query = (rawQuery ?? aiQuery).trim();
+    if (!query || aiBusy) return;
+    setAiBusy(true);
+    setAiQuery('');
+    setAiMessages((current) => [...current, { id: String(Date.now()) + '-u', role: 'user' as const, text: query }].slice(-14));
+    const lower = query.toLowerCase();
+    const createSignal = /\b(add|create|make|schedule|remind|track|save|log|record|start|build)\b/.test(lower);
+    const amountSafeQuery = query.replace(/\b20\d{2}-\d{2}-\d{2}\b/g, '').replace(/\b\d{1,3}\s*(?:min|mins|minutes?)\b/gi, '');
+    const amountMatch = amountSafeQuery.match(/(?:₹|rs\.?|inr)?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i);
+    const parsedAmount = amountMatch ? Number(amountMatch[1].replace(/,/g, '')) : null;
+    let answer = '';
+    const reply = (text: string) => setAiMessages((current) => [...current, { id: String(Date.now()) + '-a', role: 'assistant' as const, text }].slice(-14));
+    try {
+      const dateInText = lower.match(/20\d{2}-\d{2}-\d{2}/)?.[0];
+      const dueDate = /\b(tomorrow|kal)\b/.test(lower) ? dayOffset(1)
+        : /\b(next week|agle hafte)\b/.test(lower) ? dayOffset(7)
+        : /\b(today|aaj)\b/.test(lower) ? today
+        : dateInText && validDay(dateInText) ? dateInText : today;
+      const repeatEvery: 'Never' | 'Monthly' | 'Yearly' = /\b(yearly|annual|year)\b/.test(lower) ? 'Yearly' : /\b(one.?time|never|once)\b/.test(lower) ? 'Never' : 'Monthly';
+      const isBillCommand = createSignal && /\b(bill|rent|electricity|recharge|emi|insurance|payment|utility)\b/.test(lower) && parsedAmount !== null && Number.isFinite(parsedAmount) && parsedAmount > 0;
+      const isExpenseCommand = parsedAmount !== null && Number.isFinite(parsedAmount) && parsedAmount > 0
+        && /\b(spent|expense|kharch|kharcha|paid|log|record)\b/.test(lower)
+        && !isBillCommand;
+      const isHabitCommand = /^(please\s+)?(add|create|start|build)\s+(a\s+)?habit\b/.test(lower);
+
+      if (/\b(focus|pomodoro|deep work|concentrate)\b/.test(lower) && /\b(min|mins|minute|minutes|focus|timer|pomodoro|deep work)\b/.test(lower)) {
+        const match = lower.match(/(\d{1,3})\s*(?:min|mins|minute|minutes)/);
+        const duration = Math.min(120, Math.max(5, match ? Number(match[1]) : 25));
+        const supported = duration === 15 || duration === 25 || duration === 50 ? duration : 25;
+        focusFinishHandled.current = false;
+        setFocusMinutes(supported);
+        setSecondsLeft(supported * 60);
+        setFocusEndAt(Date.now() + supported * 60 * 1000);
+        setScreen('Focus');
+        answer = 'Focus mode is running for ' + supported + ' minutes. I started the timer and opened Focus mode. Put one meaningful task first; you can pause or reset anytime.';
+      } else if (isBillCommand) {
+        const title = query.replace(/^(please\s+)?(add|create|remind me to|remind me|remind|schedule|track|save)\s+/i, '')
+          .replace(/\b(bill|reminder|monthly|yearly|annual|one.?time|never|once|today|tomorrow|kal|aaj|next week|agle hafte|20\d{2}-\d{2}-\d{2})\b/gi, '')
+          .replace(/(?:₹|rs\.?|inr)?\s*[0-9][0-9,]*(?:\.[0-9]{1,2})?/ig, '')
+          .replace(/[,.!?]+$/g, '').trim();
+        const billTitle = title || 'Bill payment';
+        const data = { title: billTitle, amount: parsedAmount!, dueDate };
+        const result = await withDb(async (db) => {
+          const saved = await db.runAsync('INSERT INTO bills (title, amount, dueDate, repeatEvery, notificationId, createdAt) VALUES (?, ?, ?, ?, NULL, ?)', data.title, data.amount, data.dueDate, repeatEvery, new Date().toISOString());
+          return saved.lastInsertRowId;
+        });
+        const notificationId = await scheduleBillReminder(data);
+        if (notificationId) await withDb((db) => db.runAsync('UPDATE bills SET notificationId = ? WHERE id = ?', notificationId, result).then(() => undefined));
+        await refreshData();
+        answer = 'Saved ' + billTitle + ' for ' + money(data.amount) + ', due ' + dateLabel(data.dueDate) + '. I scheduled a local reminder if Android notifications are allowed. Repeat: ' + repeatEvery + '. RozFlow will not pay the bill for you.';
+        setScreen('Plan');
+      } else if (isExpenseCommand) {
+        const category = categoryFromText(query);
+        const note = query.replace(/\b(i\s+)?(spent|paid|log|record|expense|kharch|kharcha|on|for|rupees?|rs\.?)\b/gi, '')
+          .replace(/(?:₹|inr)?\s*[0-9][0-9,]*(?:\.[0-9]{1,2})?/ig, '').replace(/[,.!?]+$/g, '').trim() || category;
+        await withDb((db) => db.runAsync('INSERT INTO expenses (amount, category, note, day, createdAt) VALUES (?, ?, ?, ?, ?)', parsedAmount!, category, note, today, new Date().toISOString()).then(() => undefined));
+        await refreshData();
+        answer = 'Logged ' + money(parsedAmount!) + ' under ' + category + (note ? ' for “' + note + '”' : '') + '. Your month-to-date total is now ' + money(monthExpenses.reduce((sum, item) => sum + item.amount, 0) + parsedAmount!) + '.';
+        setScreen('Money');
+      } else if (isHabitCommand) {
+        const title = query.replace(/^(please\s+)?(add|create|start|build)\s+(a\s+)?habit\s*/i, '').replace(/^(called|named)\s+/i, '').trim();
+        if (!title) {
+          answer = 'Tell me the habit name, for example “Add habit drink water”. I will create it and you can check in each day.';
+        } else if (habits.some((habit) => habit.title.toLowerCase() === title.toLowerCase())) {
+          answer = 'You already have a habit named “' + title + '”. Open Habits and check in on it instead of making a duplicate.';
+          setScreen('Habits');
+        } else {
+          await withDb((db) => db.runAsync('INSERT INTO habits (title, icon, tint, createdAt) VALUES (?, ?, ?, ?)', title, 'star-four-points-outline', '#DCF8EF', new Date().toISOString()).then(() => undefined));
+          await refreshData();
+          answer = 'Added “' + title + '” to your habits. A tiny daily check-in is ready—RozFlow will keep the streak on this phone.';
+          setScreen('Habits');
+        }
+      } else if (/^(please\s+)?(add|create|make|schedule)\s+(a\s+)?(task|todo)\b/.test(lower) || /^remind me to\b/.test(lower)) {
+        const title = query.replace(/^(please\s+)?(add|create|make|schedule)\s+(a\s+)?(task|todo)\s*/i, '')
+          .replace(/^remind me to\s*/i, '').replace(/\b(today|tomorrow|kal|aaj|next week|agle hafte|urgent|asap|high priority|medium priority|low priority|20\d{2}-\d{2}-\d{2})\b/gi, '')
+          .replace(/[,.!?]+$/g, '').trim();
+        if (!title) {
+          answer = 'Try “Add task call the dentist tomorrow” and I will create it with a due date and notification when allowed.';
+        } else {
+          const priority: Priority = /\b(urgent|asap|important|high priority)\b/.test(lower) ? 'High' : /\b(low priority|whenever)\b/.test(lower) ? 'Low' : 'Medium';
+          const taskId = await withDb(async (db) => {
+            const result = await db.runAsync('INSERT INTO tasks (title, note, dueDate, priority, done, createdAt) VALUES (?, ?, ?, ?, 0, ?)', title, 'Created by RozFlow Smart Assistant.', dueDate, priority, new Date().toISOString());
+            return result.lastInsertRowId;
+          });
+          const notificationId = await scheduleTaskReminder({ title, dueDate });
+          if (notificationId) await withDb((db) => db.runAsync('UPDATE tasks SET notificationId = ? WHERE id = ?', notificationId, taskId).then(() => undefined));
+          await refreshData();
+          answer = 'Added task: “' + title + '”, due ' + dateLabel(dueDate) + ', ' + priority.toLowerCase() + ' priority. A local reminder is scheduled if permissions allow.';
+          setScreen('Plan');
+        }
+      } else if (/\b(spending|budget|spent|money|kharch|expense)\b/.test(lower)) {
+        const topCategory = categoryTotals[0];
+        answer = 'Your month-to-date spending is ' + money(spentThisMonth) + (budgetNumber > 0 ? ', ' + money(Math.max(0, remainingBudget)) + ' remains in your ' + money(budgetNumber) + ' monthly guide.' : '. Set a monthly guide in Money to see the remaining target.')
+          + (topCategory ? ' Your largest logged category is ' + topCategory.category + ' at ' + money(topCategory.total) + '.' : ' No spending category is logged yet.')
+          + ' These are only entries you recorded in RozFlow—not bank transactions.';
+        setScreen('Money');
+      } else if (/\b(bill|bills|payment|rent|electricity|reminder)\b/.test(lower)) {
+        answer = nextBill ? 'Your next saved bill is ' + nextBill.title + ' for ' + money(nextBill.amount) + ', due ' + dateLabel(nextBill.dueDate) + '. ' + (billDueSoon ? 'It is due within three days.' : 'Review the due date before it arrives.') : 'No upcoming bill reminders are saved yet. Try “Add reminder electricity bill 1800 tomorrow monthly”.';
+        setScreen('Plan');
+      } else if (/\b(habit|habits|streak|routine)\b/.test(lower)) {
+        const uncompleted = habits.filter((habit) => !habitLogs.some((log) => log.habit_id === habit.id && log.day === today));
+        const longest = habits.map((habit) => ({ title: habit.title, streak: streakFor(habit.id, habitLogs) })).sort((a, b) => b.streak - a.streak)[0];
+        answer = 'You have checked in on ' + habitCompletedToday + ' of ' + habits.length + ' habits today.'
+          + (uncompleted.length ? ' Your easiest next check-in is “' + uncompleted[0].title + '”.' : habits.length ? ' All saved habits are checked in today—nice work.' : ' Start with one small habit, such as drinking water or reading 10 pages.')
+          + (longest && longest.streak ? ' Your longest current streak is ' + longest.streak + ' days for “' + longest.title + '”.' : '');
+        setScreen('Habits');
+      } else if (/\b(plan my day|what should i do|what next|today|plan|priority|priorities|task|tasks|productive)\b/.test(lower)) {
+        answer = smartBriefing.title + '. ' + smartBriefing.body + ' You have ' + openTasks.length + ' open task(s), ' + overdueTasks.length + ' overdue, and ' + bills.filter((bill) => bill.dueDate >= today).length + ' upcoming bill reminder(s).';
+        setScreen(smartBriefing.screen);
+      } else if (/\b(focus|time|productive|pomodoro)\b/.test(lower)) {
+        answer = 'You have completed ' + focusToday + ' focus minutes today. Try “Focus for 25 minutes” to start a session. I save completed sessions locally.';
+        setScreen('Focus');
+      } else {
+        answer = 'I can take action on your saved RozFlow data. Try “Plan my day”, “Add task call the dentist tomorrow”, “I spent 250 on lunch”, “Add habit drink water”, “Add reminder electricity bill 1800 tomorrow”, or “Focus for 25 minutes”. This build uses a private on-device smart engine; a hosted generative AI model is not connected.';
+      }
+    } catch (error) {
+      console.warn('RozFlow Smart Assistant action failed', error);
+      answer = 'I could not confirm that action was saved. Your other entries are unchanged—please try again or use the manual form.';
+    } finally {
+      setAiBusy(false);
+      reply(answer || 'Done. Open the relevant section to review the saved change.');
+    }
+  };
+
+  const renderAI = () => (
+    <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.pageContent}>
+      <View style={styles.topHeader}>
+        <View><Text style={styles.eyebrow}>ROZFLOW INTELLIGENCE</Text><Text style={styles.screenTitle}>Your co-pilot</Text><Text style={styles.screenSub}>Smarter plans. Less busywork.</Text></View>
+        <View style={styles.aiStatusPill}><View style={styles.aiStatusDot} /><Text style={styles.aiStatusText}>ON-DEVICE</Text></View>
+      </View>
+      <LinearGradient colors={['#10182E', '#172B46', '#087B65']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.aiHero}>
+        <View pointerEvents="none" style={styles.aiHeroCircle} /><View pointerEvents="none" style={styles.aiHeroRing} />
+        <View style={styles.aiHeroTop}>
+          <View style={styles.aiOrbWrap}><Animated.View style={[styles.aiOrbGlow, { opacity: splashGlow, transform: [{ translateY: orbTranslate }] }]} /><LinearGradient colors={['#E2FFF4', '#70F2C9', '#159E7B']} style={styles.aiOrb}><MaterialCommunityIcons name="brain" size={27} color="#063A34" /></LinearGradient></View>
+          <View style={{ flex: 1 }}><Text style={styles.aiHeroKicker}>SMART LIFE ENGINE</Text><Text style={styles.aiHeroTitle}>Think less about the admin.</Text><Text style={styles.aiHeroSub}>Let RozFlow organise the next small step.</Text></View>
+        </View>
+        <View style={styles.aiMetricsRow}>
+          <View style={styles.aiMetric}><Text style={styles.aiMetricLabel}>OPEN TASKS</Text><Text style={styles.aiMetricValue}>{openTasks.length}</Text></View>
+          <View style={styles.aiMetricDivider} />
+          <View style={styles.aiMetric}><Text style={styles.aiMetricLabel}>HABITS DONE</Text><Text style={styles.aiMetricValue}>{habitCompletedToday}/{habits.length}</Text></View>
+          <View style={styles.aiMetricDivider} />
+          <View style={styles.aiMetric}><Text style={styles.aiMetricLabel}>FOCUS TODAY</Text><Text style={styles.aiMetricValue}>{focusToday}m</Text></View>
+        </View>
+      </LinearGradient>
+      <View style={styles.aiComposerCard}>
+        <Text style={styles.aiComposerTitle}>Tell RozFlow what you need</Text>
+        <Text style={styles.aiComposerSub}>Use everyday English. It can create entries and open the right screen.</Text>
+        <View style={styles.aiInputRow}>
+          <TextInput value={aiQuery} onChangeText={setAiQuery} onSubmitEditing={() => void sendAiCommand()} returnKeyType="send" placeholder="“Add task call mom tomorrow…”" placeholderTextColor="#8792A7" style={styles.aiInput} multiline maxLength={240} accessibilityLabel="Ask RozFlow co-pilot" />
+          <Pressable accessibilityRole="button" accessibilityLabel="Run smart command" disabled={aiBusy} onPress={() => void sendAiCommand()} style={[styles.aiSend, aiBusy && { opacity: 0.55 }]}>{aiBusy ? <ActivityIndicator size="small" color={C.white} /> : <Feather name="arrow-up" size={20} color={C.white} />}</Pressable>
+        </View>
+        <View style={styles.aiQuickChips}>
+          {['Plan my day', 'I spent 250 on lunch', 'Add habit drink water', 'Focus for 25 minutes'].map((prompt) => <Pressable key={prompt} onPress={() => void sendAiCommand(prompt)} style={styles.aiQuickChip}><Text style={styles.aiQuickText}>{prompt}</Text><Feather name="arrow-up-right" size={12} color={C.greenDark} /></Pressable>)}
+          <Pressable onPress={() => void sendAiCommand('Add reminder electricity bill 1800 tomorrow monthly')} style={styles.aiQuickChip}><Text style={styles.aiQuickText}>Add bill reminder</Text><Feather name="arrow-up-right" size={12} color={C.greenDark} /></Pressable>
+        </View>
+      </View>
+      <View style={styles.smartBriefCard}>
+        <View style={[styles.smartBriefIcon, smartBriefing.tone === 'red' ? { backgroundColor: C.redPale } : smartBriefing.tone === 'amber' ? { backgroundColor: C.amber } : smartBriefing.tone === 'blue' ? { backgroundColor: C.blue } : smartBriefing.tone === 'violet' ? { backgroundColor: C.violet } : { backgroundColor: C.mint }]}><Feather name={smartBriefing.icon} size={20} color={smartBriefing.tone === 'red' ? C.red : C.greenDark} /></View>
+        <View style={{ flex: 1 }}><Text style={styles.smartBriefLabel}>YOUR AUTOMATIC BRIEFING</Text><Text style={styles.smartBriefTitle}>{smartBriefing.title}</Text><Text style={styles.smartBriefBody}>{smartBriefing.body}</Text><Pressable accessibilityRole="button" onPress={() => setScreen(smartBriefing.screen)} style={styles.smartBriefAction}><Text style={styles.smartBriefActionText}>{smartBriefing.action}</Text><Feather name="arrow-right" size={13} color={C.greenDark} /></Pressable></View>
+      </View>
+      <SectionHeader title="Conversation" action="Clear" onAction={() => setAiMessages([{ id: String(Date.now()), role: 'assistant', text: 'Fresh start. Ask me to plan your day, log an expense, create a task, add a habit or set a bill reminder.' }])} />
+      <View style={styles.aiConversation}>
+        {aiMessages.map((message) => <View key={message.id} style={[styles.aiMessageRow, message.role === 'user' && styles.aiMessageUserRow]}>
+          {message.role === 'assistant' ? <View style={styles.aiMessageIcon}><MaterialCommunityIcons name="brain" size={16} color={C.greenDark} /></View> : null}
+          <View style={[styles.aiBubble, message.role === 'user' ? styles.aiBubbleUser : styles.aiBubbleAssistant]}><Text style={[styles.aiBubbleText, message.role === 'user' && styles.aiBubbleTextUser]}>{message.text}</Text></View>
+        </View>)}
+        {aiBusy ? <View style={styles.aiThinking}><ActivityIndicator size="small" color={C.greenDark} /><Text style={styles.aiThinkingText}>Checking your saved data…</Text></View> : null}
+      </View>
+      <SectionHeader title="Always-on helpers" />
+      <View style={styles.automationGrid}>
+        {[
+          { title: 'Daily priorities', body: 'Highlights overdue work and your next best step.', icon: 'check-square', tone: C.mint, screen: 'Plan' as Screen },
+          { title: 'Spend guard', body: 'Tracks progress against your monthly guide.', icon: 'pie-chart', tone: C.amber, screen: 'Money' as Screen },
+          { title: 'Habit streaks', body: 'Finds your next check-in automatically.', icon: 'activity', tone: C.violet, screen: 'Habits' as Screen },
+          { title: 'Bill heads-up', body: 'Shows saved bills that are due soon.', icon: 'bell', tone: C.blue, screen: 'Plan' as Screen },
+        ].map((item) => <Pressable key={item.title} onPress={() => setScreen(item.screen)} style={styles.automationCard}>
+          <View style={[styles.automationGlyph, { backgroundColor: item.tone }]}><Feather name={item.icon as keyof typeof Feather.glyphMap} size={18} color={C.ink} /></View>
+          <Text style={styles.automationTitle}>{item.title}</Text><Text style={styles.automationBody}>{item.body}</Text><View style={styles.automationFooter}><Text style={styles.automationOpen}>Open helper</Text><Feather name="arrow-up-right" size={13} color={C.greenDark} /></View>
+        </Pressable>)}
+      </View>
+      <Text style={styles.privacyHint}>Smart actions use data saved in RozFlow on this phone. No Gmail, bank connection, cloud AI or external account is connected in this build; natural-language support covers the actions listed above.</Text>
+    </ScrollView>
+  );
+
   const renderFocus = () => (
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.pageContent}>
       <View style={styles.screenHead}><Text style={styles.eyebrow}>LESS SCROLLING, MORE LIVING</Text><Text style={styles.screenTitle}>Focus mode</Text><Text style={styles.screenSub}>Protect a little time for what matters.</Text></View>
@@ -590,7 +861,7 @@ function AppContent() {
   const renderSettings = () => (
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.pageContent}>
       <View style={styles.topHeader}><View><Text style={styles.eyebrow}>YOUR SPACE, YOUR RULES</Text><Text style={styles.screenTitle}>Settings</Text></View><Pressable onPress={() => setScreen('Today')} style={styles.avatarButton}><Feather name="x" size={20} color={C.ink} /></Pressable></View>
-      <View style={styles.settingsBrand}><LinearGradient colors={['#0A2532', '#0E9C73']} style={styles.settingsBrandIcon}><MaterialCommunityIcons name="orbit" size={30} color="#CFFFF0" /></LinearGradient><View style={{ flex: 1 }}><Text style={styles.settingsBrandTitle}>RozFlow</Text><Text style={styles.taskSub}>Daily Life OS · Version 1.0.0</Text></View><View style={styles.offlinePill}><View style={styles.offlineDot} /><Text style={styles.offlineText}>OFFLINE READY</Text></View></View>
+      <View style={styles.settingsBrand}><LinearGradient colors={['#10182E', '#087B65']} style={styles.settingsBrandIcon}><MaterialCommunityIcons name="brain" size={30} color="#CFFFF0" /></LinearGradient><View style={{ flex: 1 }}><Text style={styles.settingsBrandTitle}>RozFlow AI</Text><Text style={styles.taskSub}>Daily Life OS · Version 2.0.0</Text></View><View style={styles.offlinePill}><View style={styles.offlineDot} /><Text style={styles.offlineText}>LOCAL SMARTS</Text></View></View>
       <SectionHeader title="Data & privacy" />
       <View style={styles.surfaceCard}>
         <Pressable onPress={() => void exportBackup()} style={styles.settingsRow}><View style={[styles.settingGlyph, { backgroundColor: C.mint }]}><Feather name="download" size={18} color={C.greenDark} /></View><View style={{ flex: 1 }}><Text style={styles.taskTitle}>Export a backup</Text><Text style={styles.taskSub}>Share a JSON copy of tasks, habits, bills and expenses.</Text></View><Feather name="chevron-right" size={18} color={C.muted} /></Pressable>
@@ -612,7 +883,7 @@ function AppContent() {
   const addTitle = addKind === 'task' ? 'Capture a task' : addKind === 'habit' ? 'Start a habit' : addKind === 'bill' ? 'Add bill reminder' : 'Log an expense';
   const saveLabel = saving ? 'Saving...' : addKind === 'task' ? 'Save task' : addKind === 'habit' ? 'Add habit' : addKind === 'bill' ? 'Save reminder' : 'Save expense';
   const shortDateHint = 'Format: YYYY-MM-DD';
-  const screenContent = screen === 'Today' ? renderToday() : screen === 'Plan' ? renderPlan() : screen === 'Habits' ? renderHabits() : screen === 'Focus' ? renderFocus() : screen === 'Money' ? renderMoney() : renderSettings();
+  const screenContent = screen === 'Today' ? renderToday() : screen === 'Plan' ? renderPlan() : screen === 'AI' ? renderAI() : screen === 'Habits' ? renderHabits() : screen === 'Focus' ? renderFocus() : screen === 'Money' ? renderMoney() : renderSettings();
 
   if (!ready || !splashDone) return (
     <SafeAreaView edges={['top', 'bottom']} style={styles.splashSafe}>
@@ -639,7 +910,7 @@ function AppContent() {
       <View style={styles.appContent}>{screenContent}</View>
       {screen !== 'Settings' ? <View style={[styles.bottomNav, { paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 8 : 0), height: 68 + Math.max(insets.bottom, Platform.OS === 'android' ? 8 : 0) }]}>
         {([
-          ['Today', 'sun'], ['Plan', 'check-square'], ['Habits', 'activity'], ['Focus', 'target'], ['Money', 'pie-chart'],
+          ['Today', 'sun'], ['Plan', 'check-square'], ['AI', 'zap'], ['Habits', 'activity'], ['Focus', 'target'], ['Money', 'pie-chart'],
         ] as [Screen, keyof typeof Feather.glyphMap][]).map(([name, icon]) => <Pressable key={name} accessibilityRole="button" accessibilityLabel={name} onPress={() => setScreen(name)} style={styles.navItem}>
           <View style={[styles.navIconWrap, screen === name && styles.navIconActive]}><Feather name={icon} size={19} color={screen === name ? C.greenDark : '#809398'} /></View>
           <Text style={[styles.navLabel, screen === name && styles.navLabelActive]}>{name}</Text>
@@ -710,6 +981,12 @@ const styles = StyleSheet.create({
   greeting: { color: C.ink, fontSize: 27, fontWeight: '900', letterSpacing: -1 },
   dateHeading: { color: C.muted, fontSize: 12, marginTop: 4 },
   avatarButton: { width: 43, height: 43, borderRadius: 16, backgroundColor: C.white, borderWidth: 1, borderColor: C.line, alignItems: 'center', justifyContent: 'center' },
+  aiHomePrompt: { borderRadius: 21, overflow: 'hidden', marginBottom: 18, borderWidth: 1, borderColor: '#1A564F', shadowColor: '#0D342F', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.14, shadowRadius: 13, elevation: 4 },
+  aiHomePromptInner: { flexDirection: 'row', alignItems: 'center', gap: 11, padding: 14, overflow: 'hidden' },
+  aiHomeSpark: { width: 43, height: 43, borderRadius: 15, backgroundColor: '#BDF8E5', alignItems: 'center', justifyContent: 'center' },
+  aiHomeKicker: { color: '#82E9CB', fontSize: 8, fontWeight: '900', letterSpacing: 1.2 },
+  aiHomeTitle: { color: C.white, fontSize: 13, fontWeight: '900', marginTop: 4 },
+  aiHomeSub: { color: '#BEDDD7', fontSize: 9, lineHeight: 14, marginTop: 4 },
   hero: { padding: 19, borderRadius: 27, overflow: 'hidden', marginBottom: 16, shadowColor: C.shadow, shadowOffset: { width: 0, height: 9 }, shadowOpacity: 0.18, shadowRadius: 18, elevation: 7 },
   heroCircleOne: { position: 'absolute', width: 235, height: 235, borderRadius: 118, right: -80, top: -96, borderWidth: 1, borderColor: 'rgba(255,255,255,0.10)', backgroundColor: 'rgba(255,255,255,0.045)' },
   heroCircleTwo: { position: 'absolute', width: 155, height: 155, borderRadius: 78, right: 65, bottom: -108, borderWidth: 1, borderColor: 'rgba(255,255,255,0.09)' },
@@ -767,6 +1044,58 @@ const styles = StyleSheet.create({
   tipTitle: { color: C.ink, fontSize: 11, fontWeight: '900' },
   tipText: { color: '#57776B', fontSize: 10, lineHeight: 16, marginTop: 4 },
   privacyHint: { color: '#89999B', fontSize: 9, lineHeight: 14, textAlign: 'center', marginTop: 17, marginHorizontal: 7 },
+  aiStatusPill: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 11, borderWidth: 1, borderColor: '#CDEDE1', backgroundColor: '#E7FBF2', paddingHorizontal: 9, paddingVertical: 7 },
+  aiStatusDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: C.greenDark },
+  aiStatusText: { color: C.greenDark, fontSize: 8, fontWeight: '900', letterSpacing: 0.55 },
+  aiHero: { borderRadius: 27, padding: 19, overflow: 'hidden', marginBottom: 15, shadowColor: '#132B46', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.17, shadowRadius: 16, elevation: 6 },
+  aiHeroCircle: { position: 'absolute', width: 240, height: 240, borderRadius: 120, right: -85, top: -100, backgroundColor: 'rgba(255,255,255,0.035)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.11)' },
+  aiHeroRing: { position: 'absolute', width: 165, height: 165, borderRadius: 83, right: 32, bottom: -115, borderWidth: 1, borderColor: 'rgba(125,255,217,0.17)' },
+  aiHeroTop: { flexDirection: 'row', alignItems: 'center', gap: 13 },
+  aiOrbWrap: { width: 70, height: 70, alignItems: 'center', justifyContent: 'center' },
+  aiOrbGlow: { position: 'absolute', width: 69, height: 69, borderRadius: 26, backgroundColor: 'rgba(71,243,190,0.23)', borderWidth: 1, borderColor: 'rgba(144,255,224,0.26)' },
+  aiOrb: { width: 49, height: 49, borderRadius: 18, alignItems: 'center', justifyContent: 'center', shadowColor: '#61F7CA', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.36, shadowRadius: 13, elevation: 5 },
+  aiHeroKicker: { color: '#8FEBD2', fontSize: 8, fontWeight: '900', letterSpacing: 1.25 },
+  aiHeroTitle: { color: C.white, fontSize: 19, lineHeight: 24, fontWeight: '900', letterSpacing: -0.45, marginTop: 5 },
+  aiHeroSub: { color: '#CDDFE4', fontSize: 9, lineHeight: 14, marginTop: 5 },
+  aiMetricsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 20, paddingTop: 14, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.17)', gap: 8 },
+  aiMetric: { flex: 1 },
+  aiMetricLabel: { color: '#A9C8D0', fontSize: 7, fontWeight: '900', letterSpacing: 0.6 },
+  aiMetricValue: { color: C.white, fontSize: 17, fontWeight: '900', marginTop: 5 },
+  aiMetricDivider: { width: 1, height: 28, backgroundColor: 'rgba(255,255,255,0.19)' },
+  aiComposerCard: { backgroundColor: C.white, borderRadius: 23, padding: 15, borderWidth: 1, borderColor: C.line, marginBottom: 15, shadowColor: '#17274A', shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.045, shadowRadius: 12, elevation: 2 },
+  aiComposerTitle: { color: C.ink, fontSize: 15, fontWeight: '900', letterSpacing: -0.25 },
+  aiComposerSub: { color: C.muted, fontSize: 10, lineHeight: 15, marginTop: 5, marginBottom: 12 },
+  aiInputRow: { minHeight: 53, flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderColor: '#CFDCD9', backgroundColor: '#F7FAF9', borderRadius: 16, padding: 5, paddingLeft: 13 },
+  aiInput: { flex: 1, minHeight: 42, maxHeight: 96, fontSize: 11, lineHeight: 16, color: C.ink, paddingVertical: 7 },
+  aiSend: { width: 40, height: 40, borderRadius: 13, backgroundColor: C.greenDark, alignItems: 'center', justifyContent: 'center' },
+  aiQuickChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 12 },
+  aiQuickChip: { maxWidth: '100%', flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 11, backgroundColor: '#F0F7F4', borderWidth: 1, borderColor: '#DCEAE4' },
+  aiQuickText: { color: '#45635D', fontSize: 9, fontWeight: '800' },
+  smartBriefCard: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, backgroundColor: C.white, borderRadius: 22, borderWidth: 1, borderColor: C.line, padding: 15, marginBottom: 22 },
+  smartBriefIcon: { width: 43, height: 43, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
+  smartBriefLabel: { color: C.greenDark, fontSize: 8, fontWeight: '900', letterSpacing: 1.1, marginBottom: 5 },
+  smartBriefTitle: { color: C.ink, fontSize: 14, fontWeight: '900', lineHeight: 19 },
+  smartBriefBody: { color: C.muted, fontSize: 10, lineHeight: 16, marginTop: 6 },
+  smartBriefAction: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10 },
+  smartBriefActionText: { color: C.greenDark, fontSize: 10, fontWeight: '900' },
+  aiConversation: { backgroundColor: '#EDF2F8', borderRadius: 21, padding: 11, borderWidth: 1, borderColor: '#E3EAF3', marginBottom: 22, gap: 9 },
+  aiMessageRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 7 },
+  aiMessageUserRow: { justifyContent: 'flex-end' },
+  aiMessageIcon: { width: 27, height: 27, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: '#D4F5E7', marginBottom: 3 },
+  aiBubble: { maxWidth: '87%', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 15 },
+  aiBubbleAssistant: { backgroundColor: C.white, borderBottomLeftRadius: 4 },
+  aiBubbleUser: { backgroundColor: '#143D45', borderBottomRightRadius: 4 },
+  aiBubbleText: { color: C.ink, fontSize: 10, lineHeight: 16 },
+  aiBubbleTextUser: { color: C.white },
+  aiThinking: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 7 },
+  aiThinkingText: { color: C.muted, fontSize: 9 },
+  automationGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 9 },
+  automationCard: { width: '48%', borderRadius: 18, padding: 12, backgroundColor: C.white, borderWidth: 1, borderColor: C.line, minHeight: 150 },
+  automationGlyph: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
+  automationTitle: { color: C.ink, fontSize: 11, fontWeight: '900' },
+  automationBody: { color: C.muted, fontSize: 9, lineHeight: 14, marginTop: 5, flex: 1 },
+  automationFooter: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 10 },
+  automationOpen: { color: C.greenDark, fontSize: 9, fontWeight: '900' },
   screenHead: { marginBottom: 20, marginTop: 9 },
   screenTitle: { color: C.ink, fontSize: 31, fontWeight: '900', letterSpacing: -1 },
   screenSub: { color: C.muted, fontSize: 11, lineHeight: 17, marginTop: 7 },
@@ -850,10 +1179,10 @@ const styles = StyleSheet.create({
   settingGlyph: { width: 39, height: 39, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
   settingsValue: { color: C.greenDark, fontSize: 15, fontWeight: '900' },
   bottomNav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', paddingTop: 7, backgroundColor: C.white, borderTopWidth: 1, borderTopColor: C.line },
-  navItem: { width: '20%', alignItems: 'center', justifyContent: 'center', gap: 3 },
-  navIconWrap: { minWidth: 44, height: 29, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  navItem: { width: '16.666%', alignItems: 'center', justifyContent: 'center', gap: 3 },
+  navIconWrap: { minWidth: 38, height: 29, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   navIconActive: { backgroundColor: C.mint },
-  navLabel: { color: '#859599', fontSize: 9, fontWeight: '700' },
+  navLabel: { color: '#859599', fontSize: 8.5, fontWeight: '700' },
   navLabelActive: { color: C.greenDark, fontWeight: '900' },
   modalSafe: { flex: 1, backgroundColor: C.cream },
   modalHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: C.white, paddingHorizontal: 19, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: C.line },
