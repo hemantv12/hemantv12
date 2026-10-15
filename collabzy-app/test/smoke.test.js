@@ -44,6 +44,18 @@ test('Collabzy API supports registration, campaign publishing and application wo
   assert.equal(apply.status,201);
   const applications=(await (await fetch(base+'/api/applications',{headers:{authorization:'Bearer '+creator.token}})).json()).applications;
   assert.equal(applications.length,1);assert.equal(applications[0].status,'pending');
+  const inbox=await fetch(base+'/api/conversations',{headers:{authorization:'Bearer '+creator.token}});
+  assert.equal(inbox.status,200);
+  const conversations=(await inbox.json()).conversations;
+  assert.equal(conversations.length,1,'applying to a campaign should create a conversation');
+  const conversationId=conversations[0].id;
+  const sent=await fetch(base+'/api/conversations/'+conversationId+'/messages',{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+creator.token},body:JSON.stringify({body:'Hello brand, looking forward to collaborating.'})});
+  assert.equal(sent.status,201,'creator should be able to message the campaign owner');
+  const thread=await fetch(base+'/api/conversations/'+conversationId+'/messages',{headers:{authorization:'Bearer '+creator.token}});
+  assert.equal((await thread.json()).messages.length,1);
+  const creatorDashboard=(await (await fetch(base+'/api/dashboard',{headers:{authorization:'Bearer '+creator.token}})).json()).stats;
+  assert.equal(creatorDashboard.myApplications,1);
+  assert.equal(creatorDashboard.unreadMessages,0);
   const login=await fetch(base+'/api/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email,password:'TestPassword123!'})});
   assert.equal(login.status,200);
   const invalid=await fetch(base+'/api/auth/register',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({name:'No email',email:'bad',password:'TestPassword123!',role:'creator'})});
