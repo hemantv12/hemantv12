@@ -629,7 +629,7 @@ private fun CollabzyNativeApp(activity: MainActivity, oauthResult: String?, bill
     }
 
     val user = me!!
-    if (user.role == "creator" && !igConnected && !user.connected) {
+    if (user.role == "creator" && !igConnected && !user.connected && !billingStatus.flag("beta_access")) {
         InstagramConnectGate(
             loading = loading,
             mode = igMode,
@@ -2149,6 +2149,21 @@ private fun InstagramPane(
                         OutlinedButton(onClick = onRefresh, modifier = Modifier.weight(1f), border = BorderStroke(1.dp, Border), colors = ButtonDefaults.outlinedButtonColors(contentColor = Violet)) { Icon(Icons.Outlined.Refresh, null); Spacer(Modifier.width(5.dp)); Text("Refresh") }
                         OutlinedButton(onClick = onDisconnect, modifier = Modifier.weight(1f), border = BorderStroke(1.dp, Border), colors = ButtonDefaults.outlinedButtonColors(contentColor = Danger)) { Text("Disconnect") }
                     }
+                }
+            }
+        }
+        if (betaAccess && !connected) {
+            Spacer(Modifier.height(12.dp))
+            Surface(
+                color = SoftBlue,
+                shape = RoundedCornerShape(15.dp),
+                border = BorderStroke(1.dp, Violet.copy(alpha = 0.24f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(Modifier.padding(14.dp)) {
+                    Text("PRIVATE BETA PREVIEW", color = VioletStrong, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 0.8.sp)
+                    Spacer(Modifier.height(5.dp))
+                    Text("You can explore the workspace while Instagram setup is pending. Live metrics and personalized AI reports will work after Meta authorization and the AI provider are configured. No sample metrics are being presented as real.", color = White, fontSize = 12.sp, lineHeight = 17.sp)
                 }
             }
         }
