@@ -29,7 +29,11 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
-          packages: 'platforms;android-35,build-tools;35.0.0,platform-tools'
+          packages: 'platform-tools'
+      - name: Accept SDK licences and install Android platform
+        run: |
+          yes | sdkmanager --licenses >/dev/null
+          sdkmanager "platforms;android-35" "build-tools;35.0.0"
       - name: Build native debug APK
         run: gradle assembleDebug --no-daemon
       - name: Upload installable APK
