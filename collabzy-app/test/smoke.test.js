@@ -5,6 +5,7 @@ const net=require('node:net');
 const path=require('node:path');
 const os=require('node:os');
 const fs=require('node:fs');
+const jwt=require('jsonwebtoken');
 test('Collabzy API supports registration, campaign publishing and application workflow',async(t)=>{
   const server=net.createServer();
   await new Promise((resolve,reject)=>server.listen(0,'127.0.0.1',resolve).once('error',reject));
@@ -19,6 +20,14 @@ test('Collabzy API supports registration, campaign publishing and application wo
   let ready=false;
   for(let i=0;i<80;i++){if(child.exitCode!==null)break;try{const r=await fetch(base+'/api/health');if(r.ok){ready=true;break}}catch{}await new Promise(r=>setTimeout(r,250))}
   assert.equal(ready,true,'server should start; logs: '+logs);
+  const oauthSecret='test-secret-with-more-than-32-characters-12345';
+  const nativeState=jwt.sign({sub:'1',purpose:'instagram-oauth',platform:'native',nonce:'native-test'},oauthSecret,{expiresIn:'10m'});
+  const nativeCallback=await fetch(base+'/api/instagram/callback?error=access_denied&state='+encodeURIComponent(nativeState),{redirect:'manual'});
+  assert.equal(nativeCallback.status,302);
+  assert.equal(nativeCallback.headers.get('location'),'collabzy://instagram/callback?instagram=denied','native OAuth cancellation should deep-link back into the installed app');
+  const webState=jwt.sign({sub:'1',purpose:'instagram-oauth',platform:'web',nonce:'web-test'},oauthSecret,{expiresIn:'10m'});
+  const webCallback=await fetch(base+'/api/instagram/callback?error=access_denied&state='+encodeURIComponent(webState),{redirect:'manual'});
+  assert.equal(webCallback.headers.get('location'),'/?instagram=denied','web OAuth cancellation should return to the web app');
   const health=await (await fetch(base+'/api/health')).json();
   assert.equal(health.ok,true);
   const campaigns=(await (await fetch(base+'/api/campaigns')).json()).campaigns;
