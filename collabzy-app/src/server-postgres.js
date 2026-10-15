@@ -79,7 +79,7 @@ async function start(PORT,SECRET){
     if(!r.rows.length)return s.status(401).json({error:'Please sign in to continue.'});
     q.user=r.rows[0];n();
   });
-  app.get('/api/health',asyncRoute(async(q,s)=>{await pool.query('SELECT 1');s.json({ok:true,app:'Collabzy',version:'2.0.0',database:'connected',mode:'postgres-persistent'})}));
+  app.get('/api/health',asyncRoute(async(q,s)=>{await pool.query('SELECT 1');s.json({ok:true,app:'Collabzy',version:'2.1.0',database:'connected',mode:'postgres-persistent',integrations:{instagram:process.env.META_APP_ID&&process.env.META_APP_SECRET?'configured':'setup_required'}})}));
   app.post('/api/auth/register',asyncRoute(async(q,s)=>{
     const name=String(q.body?.name||'').trim(),email=validEmail(q.body?.email),password=String(q.body?.password||''),role=q.body?.role||'creator';
     if(!name||!email||!password)return s.status(400).json({error:'Name, email and password are required.'});
