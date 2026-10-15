@@ -103,7 +103,7 @@ async function start(PORT,SECRET){
     const id=q.user.id,brand=q.user.role==='brand';
     const [profile,campaigns,applications,messages,saved,invitations,notifications]=await Promise.all([
       pool.query('SELECT '+PROFILE_FIELDS+' FROM users WHERE id=$1',[id]),
-      pool.query(brand?'SELECT * FROM campaigns WHERE brand_id=$1 ORDER BY id':'SELECT * FROM campaigns WHERE false',[id]),
+      brand?pool.query('SELECT * FROM campaigns WHERE brand_id=$1 ORDER BY id',[id]):pool.query('SELECT * FROM campaigns WHERE false'),
       pool.query(brand?'SELECT a.*,c.title campaign_title,u.name creator_name FROM applications a JOIN campaigns c ON c.id=a.campaign_id JOIN users u ON u.id=a.creator_id WHERE c.brand_id=$1 ORDER BY a.id':'SELECT a.*,c.title campaign_title,c.brand_name FROM applications a JOIN campaigns c ON c.id=a.campaign_id WHERE a.creator_id=$1 ORDER BY a.id',[id]),
       pool.query('SELECT m.id,m.conversation_id,m.sender_id,m.body,m.created_at,m.read_at FROM messages m JOIN conversations c ON c.id=m.conversation_id WHERE c.creator_id=$1 OR c.brand_id=$1 ORDER BY m.id',[id]),
       pool.query('SELECT campaign_id,created_at FROM saved_campaigns WHERE user_id=$1 ORDER BY created_at',[id]),
