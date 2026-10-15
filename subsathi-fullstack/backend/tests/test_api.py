@@ -528,3 +528,39 @@ def test_gmail_batch_fetch_retries_only_rate_limited_messages(monkeypatch):
     assert result == [{"id": "message-1"}, {"id": "message-2"}]
     assert state["executions"] == 2
     assert state["batches"] == [["message-1", "message-2"], ["message-1"]]
+
+
+
+def test_individual_gmail_reads_back_off_after_rate_limit(monkeypatch):
+    import json
+
+    from googleapiclient.errors import HttpError
+    from httplib2 import Response
+
+    import app.main as main
+
+    state = {"attempts": 0, "delays": []}
+
+    class FakeRequest:
+        def execute(self, num_retries=0):
+            state["attempts"] += 1
+            if state["attempts"] == 1:
+                payload = {
+                    "error": {
+                        "code": 403,
+                        "status": "PERMISSION_DENIED",
+                        "errors": [{"reason": "rateLimitExceeded"}],
+                    }
+                }
+                raise HttpError(
+                    Response({"status": "403", "reason": "Forbidden"}),
+                    json.dumps(payload).encode("utf-8"),
+                )
+            return {"id": "ok"}
+
+    monkeypatch.setattr(main, "sleep", lambda seconds: state["delays"].append(seconds))
+    result = main._execute_gmail_request_with_backoff(FakeRequest())
+
+    assert result == {"id": "ok"}
+    assert state["attempts"] == 2
+    assert state["delays"] == [0.75]
