@@ -90,7 +90,7 @@ async function start(PORT,SECRET){
   app.disable('x-powered-by');
   app.use((req,res,next)=>{res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('X-Frame-Options','DENY');res.setHeader('Referrer-Policy','strict-origin-when-cross-origin');res.setHeader('Permissions-Policy','camera=(), microphone=(), geolocation=()');next()});
   app.use(cors({origin:(origin,cb)=>{if(!origin||origin.startsWith('http://localhost')||origin.startsWith('https://localhost')||origin.startsWith('http://127.0.0.1')||origin==='https://collabzy-api.onrender.com'||origin==='capacitor://localhost')return cb(null,true);return cb(null,false)},credentials:false}));
-  app.use(express.json({limit:'1mb'}));
+  app.use(express.json({limit:'1mb',verify:(req,res,buf)=>{req.rawBody=Buffer.from(buf)}}));
   app.use('/api/auth',rateLimit({windowMs:900000,limit:20,standardHeaders:true,legacyHeaders:false}));
   app.use('/api/support',rateLimit({windowMs:3600000,limit:5,standardHeaders:true,legacyHeaders:false}));
   app.use('/api',rateLimit({windowMs:60000,limit:240,standardHeaders:true,legacyHeaders:false,skip:req=>req.path==='/health'}));
@@ -106,6 +106,36 @@ async function start(PORT,SECRET){
   const razorpayReady=()=>!!(razorpayCheckoutReady()&&process.env.RAZORPAY_WEBHOOK_SECRET);
   const publicLaunchApproved=()=>process.env.PUBLIC_LAUNCH_APPROVED==='true';
   const registrationReady=()=>!requireEmailVerification||(publicLaunchApproved()&&emailReady()&&supportReady()&&legalIdentityReady()&&openAiReady()&&razorpayReady()&&(process.env.REQUIRE_INSTAGRAM_CONFIG!=='true'||metaReady()));
+  const annualPlan={code:'creator_annual_299',amountPaise:29900,currency:'INR',durationDays:365};
+  const razorpayAuthorization=()=>('Basic '+Buffer.from(process.env.RAZORPAY_KEY_ID+':'+process.env.RAZORPAY_KEY_SECRET).toString('base64'));
+  async function recordCapturedPayment({orderId,paymentId,amount,currency}){
+    const client=await pool.connect();
+    try{
+      await client.query('BEGIN');
+      const found=await client.query('SELECT * FROM billing_orders WHERE order_id=$1 FOR UPDATE',[orderId]);
+      if(!found.rows.length)throw Error('Payment order was not created by Collabzy.');
+      const order=found.rows[0];
+      if(Number(order.amount_paise)!==Number(amount)||String(order.currency)!==String(currency)||Number(order.amount_paise)!==annualPlan.amountPaise||String(order.currency)!==annualPlan.currency)throw Error('Payment amount or currency does not match the Collabzy annual plan.');
+      if(order.status==='paid'){
+        if(order.payment_id!==paymentId)throw Error('This order has already been applied to another payment.');
+        const existing=await client.query('SELECT status,expires_at FROM user_subscriptions WHERE user_id=$1',[order.user_id]);
+        await client.query('COMMIT');
+        return {active:existing.rows[0]?.status==='active'&&new Date(existing.rows[0].expires_at)>new Date(),expires_at:existing.rows[0]?.expires_at||null};
+      }
+      const prior=await client.query('SELECT starts_at,expires_at,status FROM user_subscriptions WHERE user_id=$1 FOR UPDATE',[order.user_id]);
+      const now=new Date();
+      let startsAt=now;
+      if(prior.rows[0]?.status==='active'&&new Date(prior.rows[0].expires_at)>now)startsAt=new Date(prior.rows[0].expires_at);
+      const expiresAt=new Date(startsAt.getTime()+annualPlan.durationDays*24*60*60*1000);
+      await client.query("UPDATE billing_orders SET status='paid',payment_id=$2,paid_at=COALESCE(paid_at,CURRENT_TIMESTAMP) WHERE order_id=$1",[orderId,paymentId]);
+      await client.query("INSERT INTO user_subscriptions(user_id,plan_code,status,starts_at,expires_at,provider,provider_payment_id,updated_at) VALUES($1,$2,'active',$3,$4,'razorpay',$5,CURRENT_TIMESTAMP) ON CONFLICT(user_id) DO UPDATE SET plan_code=EXCLUDED.plan_code,status='active',starts_at=EXCLUDED.starts_at,expires_at=EXCLUDED.expires_at,provider='razorpay',provider_payment_id=EXCLUDED.provider_payment_id,updated_at=CURRENT_TIMESTAMP",[order.user_id,annualPlan.code,startsAt.toISOString(),expiresAt.toISOString(),paymentId]);
+      await client.query('COMMIT');
+      return {active:true,expires_at:expiresAt.toISOString()};
+    }catch(error){
+      try{await client.query('ROLLBACK')}catch{}
+      throw error;
+    }finally{client.release()}
+  }
   async function sendEmailMessage({to,subject,html,text}){
     if(!emailReady())throw Error('Email delivery is not configured.');
     const response=await fetch('https://api.resend.com/emails',{method:'POST',headers:{Authorization:'Bearer '+process.env.RESEND_API_KEY,'Content-Type':'application/json'},body:JSON.stringify({from:process.env.EMAIL_FROM,to:[to],subject,html,text})});
@@ -466,6 +496,109 @@ async function start(PORT,SECRET){
     const r=await pool.query('SELECT instagram_user_id,instagram_access_token_enc,instagram_handle,instagram_token_expires_at FROM users WHERE id=$1',[q.user.id]),u=r.rows[0];if(!u?.instagram_access_token_enc)return s.status(400).json({error:'Connect your Instagram professional account first.'});
     try{const access=await accessForInstagram(q.user.id,u),url=new URL('https://graph.instagram.com/'+encodeURIComponent(u.instagram_user_id)+'/insights');url.searchParams.set('metric','views,reach,accounts_engaged,total_interactions');url.searchParams.set('period','day');url.searchParams.set('access_token',access);const apiRes=await fetch(url),data=await apiRes.json();if(!apiRes.ok)return s.status(502).json({error:data.error?.message||'Instagram insights are unavailable for the current account or permissions.'});s.json({handle:u.instagram_handle,insights:data.data||[],connected:true})}
     catch(e){s.status(502).json({error:e.message||'Could not retrieve Instagram insights.'})}
+  }));
+
+  app.get('/api/billing/status',auth,asyncRoute(async(q,s)=>{
+    const r=await pool.query('SELECT plan_code,status,starts_at,expires_at FROM user_subscriptions WHERE user_id=$1',[q.user.id]);
+    const sub=r.rows[0],active=!!sub&&sub.status==='active'&&new Date(sub.expires_at)>new Date();
+    s.json({active,status:active?'active':sub?'expired':'inactive',plan_code:sub?.plan_code||'',starts_at:sub?.starts_at||'',expires_at:sub?.expires_at||'',amount:annualPlan.amountPaise/100,currency:annualPlan.currency,duration_days:annualPlan.durationDays});
+  }));
+  app.post('/api/billing/order',auth,asyncRoute(async(q,s)=>{
+    if(String(q.body?.plan_code||annualPlan.code)!==annualPlan.code)return s.status(400).json({error:'Choose a valid Collabzy plan.'});
+    if(!razorpayCheckoutReady())return s.status(503).json({error:'Secure checkout is not configured yet. The owner must add RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in Render settings.'});
+    const receipt=('cz_'+String(q.user.id)+'_'+Date.now().toString(36)).slice(0,40);
+    const response=await fetch('https://api.razorpay.com/v1/orders',{method:'POST',headers:{Authorization:razorpayAuthorization(),'Content-Type':'application/json'},body:JSON.stringify({amount:annualPlan.amountPaise,currency:annualPlan.currency,receipt,notes:{user_id:String(q.user.id),plan_code:annualPlan.code,term_days:String(annualPlan.durationDays)}}),signal:AbortSignal.timeout(15000)});
+    const order=await response.json().catch(()=>({}));
+    if(!response.ok||!order.id){console.error('Razorpay order creation failed with status',response.status);return s.status(502).json({error:'The payment provider could not create an order. No payment was collected.'})}
+    await pool.query("INSERT INTO billing_orders(order_id,user_id,amount_paise,currency,plan_code,status) VALUES($1,$2,$3,$4,$5,'created') ON CONFLICT(order_id) DO NOTHING",[order.id,q.user.id,annualPlan.amountPaise,annualPlan.currency,annualPlan.code]);
+    s.status(201).json({order_id:order.id,key_id:process.env.RAZORPAY_KEY_ID,amount:annualPlan.amountPaise,currency:annualPlan.currency,plan_code:annualPlan.code,checkout_options:{key_id:process.env.RAZORPAY_KEY_ID,order_id:order.id,amount:annualPlan.amountPaise,currency:annualPlan.currency,name:'Collabzy',description:'Collabzy Pro — 1 year',prefill:{name:q.user.name,email:q.user.email},notes:{plan_code:annualPlan.code},theme:{color:'#6746E8'}}});
+  }));
+  app.post('/api/billing/verify',auth,asyncRoute(async(q,s)=>{
+    const orderId=String(q.body?.order_id||''),paymentId=String(q.body?.payment_id||''),signature=String(q.body?.signature||'');
+    if(!orderId||!paymentId||!/^[a-f0-9]{64}$/i.test(signature))return s.status(400).json({error:'The payment verification response is incomplete.'});
+    if(!razorpayCheckoutReady())return s.status(503).json({error:'Payment verification is not configured.'});
+    const owned=await pool.query('SELECT order_id,amount_paise,currency,status FROM billing_orders WHERE order_id=$1 AND user_id=$2',[orderId,q.user.id]);
+    if(!owned.rows.length)return s.status(404).json({error:'Payment order was not found for this account.'});
+    const expected=crypto.createHmac('sha256',process.env.RAZORPAY_KEY_SECRET).update(orderId+'|'+paymentId).digest('hex');
+    if(!crypto.timingSafeEqual(Buffer.from(expected,'hex'),Buffer.from(signature,'hex')))return s.status(400).json({error:'Payment signature verification failed. Pro was not activated.'});
+    const paymentResponse=await fetch('https://api.razorpay.com/v1/payments/'+encodeURIComponent(paymentId),{headers:{Authorization:razorpayAuthorization()},signal:AbortSignal.timeout(15000)});
+    const payment=await paymentResponse.json().catch(()=>({}));
+    if(!paymentResponse.ok)return s.status(502).json({error:'The payment provider could not verify this payment yet.'});
+    if(payment.order_id!==orderId||Number(payment.amount)!==annualPlan.amountPaise||payment.currency!==annualPlan.currency)return s.status(400).json({error:'The payment details do not match this order.'});
+    if(payment.status!=='captured')return s.status(409).json({error:'The payment is not captured yet. Please refresh the subscription status before retrying.'});
+    const activated=await recordCapturedPayment({orderId,paymentId,amount:payment.amount,currency:payment.currency});
+    s.json({ok:true,active:activated.active,expires_at:activated.expires_at,plan_code:annualPlan.code});
+  }));
+  app.post('/api/billing/webhook',asyncRoute(async(q,s)=>{
+    if(!process.env.RAZORPAY_WEBHOOK_SECRET)return s.status(503).json({error:'Payment webhook verification is not configured.'});
+    const signature=String(q.headers['x-razorpay-signature']||'');
+    if(!/^[a-f0-9]{64}$/i.test(signature)||!q.rawBody)return s.status(400).json({error:'Invalid payment webhook signature.'});
+    const expected=crypto.createHmac('sha256',process.env.RAZORPAY_WEBHOOK_SECRET).update(q.rawBody).digest('hex');
+    if(!crypto.timingSafeEqual(Buffer.from(expected,'hex'),Buffer.from(signature,'hex')))return s.status(400).json({error:'Invalid payment webhook signature.'});
+    const event=String(q.body?.event||'');
+    const payment=q.body?.payload?.payment?.entity;
+    if(event==='payment.failed'&&payment?.order_id){
+      await pool.query("UPDATE billing_orders SET status=CASE WHEN status='paid' THEN status ELSE 'failed' END WHERE order_id=$1",[payment.order_id]);
+      return s.json({ok:true,received:true});
+    }
+    if((event==='payment.captured'||event==='order.paid')&&payment?.order_id&&payment?.id){
+      await recordCapturedPayment({orderId:payment.order_id,paymentId:payment.id,amount:payment.amount,currency:payment.currency});
+    }
+    s.json({ok:true,received:true});
+  }));
+  app.post('/api/instagram/ai-analysis',auth,asyncRoute(async(q,s)=>{
+    if(q.body?.confirmed_ai_disclosure!==true)return s.status(400).json({error:'Please confirm the AI data-use notice before generating a report.'});
+    if(!openAiReady())return s.status(503).json({error:'AI Growth Coach is not configured yet. Add OPENAI_API_KEY in the protected Render environment.'});
+    const entitlement=await pool.query("SELECT 1 FROM user_subscriptions WHERE user_id=$1 AND status='active' AND expires_at>CURRENT_TIMESTAMP",[q.user.id]);
+    if(!entitlement.rows.length)return s.status(402).json({error:'Collabzy Pro is required for AI Growth Coach. Activate the ₹299/year plan to generate a report.'});
+    const usage=await pool.query("SELECT COUNT(*)::int AS n FROM ai_analysis_usage WHERE user_id=$1 AND requested_at>CURRENT_TIMESTAMP-INTERVAL '24 hours'",[q.user.id]);
+    if(Number(usage.rows[0]?.n||0)>=10)return s.status(429).json({error:'You have used 10 AI reports in the last 24 hours. Please try again later.'});
+    const account=(await pool.query('SELECT instagram_user_id,instagram_handle,instagram_access_token_enc,instagram_token_expires_at FROM users WHERE id=$1',[q.user.id])).rows[0];
+    if(!account?.instagram_access_token_enc)return s.status(409).json({error:'Connect your Instagram professional account first.'});
+    const access=await accessForInstagram(q.user.id,account);
+    const insightUrl=new URL('https://graph.instagram.com/'+encodeURIComponent(account.instagram_user_id)+'/insights');
+    insightUrl.searchParams.set('metric','views,reach,accounts_engaged,total_interactions');
+    insightUrl.searchParams.set('period','day');
+    insightUrl.searchParams.set('access_token',access);
+    const mediaUrl=new URL('https://graph.instagram.com/me/media');
+    mediaUrl.searchParams.set('fields','id,caption,media_type,timestamp,like_count,comments_count');
+    mediaUrl.searchParams.set('limit','12');
+    mediaUrl.searchParams.set('access_token',access);
+    const [insightResponse,mediaResponse]=await Promise.all([
+      fetch(insightUrl,{signal:AbortSignal.timeout(15000)}),
+      fetch(mediaUrl,{signal:AbortSignal.timeout(15000)})
+    ]);
+    const [insightData,mediaData]=await Promise.all([insightResponse.json().catch(()=>({})),mediaResponse.json().catch(()=>({}))]);
+    if(!insightResponse.ok)return s.status(502).json({error:insightData.error?.message||'Instagram insights could not be read for this report.'});
+    if(!mediaResponse.ok)return s.status(502).json({error:mediaData.error?.message||'Instagram media could not be read for this report.'});
+    const metrics=(insightData.data||[]).map(m=>({name:m.name,title:m.title||m.name,period:m.period||'day',values:(m.values||[]).slice(-7).map(v=>({value:v.value,end_time:v.end_time||null}))}));
+    const posts=(mediaData.data||[]).slice(0,12).map(p=>({caption:String(p.caption||'').slice(0,500),media_type:p.media_type||'UNKNOWN',timestamp:p.timestamp||'',likes:Number(p.like_count||0),comments:Number(p.comments_count||0)}));
+    await pool.query('INSERT INTO ai_analysis_usage(user_id) VALUES($1)',[q.user.id]);
+    const schema={
+      type:'object',additionalProperties:false,
+      properties:{
+        headline:{type:'string'},summary:{type:'string'},
+        strengths:{type:'array',items:{type:'string'}},
+        opportunities:{type:'array',items:{type:'string'}},
+        next_7_days:{type:'array',items:{type:'string'}}
+      },
+      required:['headline','summary','strengths','opportunities','next_7_days']
+    };
+    const model=process.env.OPENAI_ANALYTICS_MODEL||'gpt-5-mini';
+    const aiResponse=await fetch('https://api.openai.com/v1/responses',{method:'POST',headers:{Authorization:'Bearer '+process.env.OPENAI_API_KEY,'Content-Type':'application/json'},body:JSON.stringify({
+      model,
+      instructions:'You are Collabzy, a careful Instagram creator growth analyst. Analyze only the supplied authorized Instagram metrics and recent post metadata. Never invent followers, reach, rates, growth percentages, trends or results not present in the data. If there is not enough evidence, say so plainly. Give specific, safe, practical recommendations to help improve content and brand-collaboration readiness. Avoid promises of virality or guaranteed earnings. Return the requested structured JSON with concise, evidence-based language.',
+      input:JSON.stringify({handle:account.instagram_handle,profile_niche:q.user.niche||'',metrics,posts}),
+      max_output_tokens:1100,
+      text:{format:{type:'json_schema',name:'collabzy_creator_growth_report',strict:true,schema}}
+    }),signal:AbortSignal.timeout(25000)});
+    const ai=await aiResponse.json().catch(()=>({}));
+    if(!aiResponse.ok){console.error('OpenAI Instagram analysis failed with status',aiResponse.status);return s.status(502).json({error:'The AI provider could not produce the report this time. No additional charge was made by Collabzy.'})}
+    const outputText=(ai.output||[]).flatMap(item=>item.type==='message'?(item.content||[]).filter(part=>part.type==='output_text').map(part=>part.text||[]):[]).join('');
+    let report;
+    try{report=JSON.parse(outputText)}catch{return s.status(502).json({error:'The AI provider returned an unreadable report. Please retry.'})}
+    const cleanList=value=>Array.isArray(value)?value.slice(0,7).map(v=>String(v||'').trim().slice(0,500)).filter(Boolean):[];
+    s.json({handle:account.instagram_handle,headline:String(report.headline||'Your creator growth report').slice(0,180),summary:String(report.summary||'').slice(0,1600),strengths:cleanList(report.strengths),opportunities:cleanList(report.opportunities),next_7_days:cleanList(report.next_7_days),generated_at:new Date().toISOString(),model});
   }));
   app.get('*',(q,s)=>s.sendFile(path.join(__dirname,'..','public','index.html')));
   app.use((e,q,s,n)=>{console.error('Collabzy API error:',e.message);s.status(500).json({error:'Unexpected server error.'})});
