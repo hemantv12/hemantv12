@@ -58,6 +58,13 @@ test('PostgreSQL production backend supports creator-brand collaboration workflo
   const secondCampaignResponse=await fetch(base+'/api/campaigns',{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+brand.token},body:JSON.stringify({title:'Postgres Invitation Test',description:'A second campaign for testing invitations.',category:'Beauty',collaboration_type:'Hybrid',budget_min:2000,budget_max:6000,deliverables:'1 Reel',location:'India'})});
   assert.equal(secondCampaignResponse.status,201);
   const secondCampaign=(await secondCampaignResponse.json()).campaign;
+  const editSecond=await fetch(base+'/api/campaigns/'+secondCampaign.id,{method:'PATCH',headers:{'content-type':'application/json',authorization:'Bearer '+brand.token},body:JSON.stringify({title:'Postgres Invitation Edited',description:'Edited campaign brief.',budget_min:2500,budget_max:6500,deliverables:'Updated Reel deliverable'})});
+  assert.equal(editSecond.status,200,'brand should edit the campaign on PostgreSQL');
+  const editedSecond=(await editSecond.json()).campaign;
+  assert.equal(editedSecond.title,'Postgres Invitation Edited');
+  assert.equal(Number(editedSecond.budget_max),6500);
+  const creatorEdit=await fetch(base+'/api/campaigns/'+secondCampaign.id,{method:'PATCH',headers:{'content-type':'application/json',authorization:'Bearer '+creator.token},body:JSON.stringify({title:'Should be denied'})});
+  assert.equal(creatorEdit.status,403,'creator cannot edit a brand campaign');
   const invitationResponse=await fetch(base+'/api/campaigns/'+secondCampaign.id+'/invite',{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+brand.token},body:JSON.stringify({creator_id:creator.user.id,message:'Would love to work together.'})});
   assert.equal(invitationResponse.status,201,'brand should invite creator: '+await invitationResponse.clone().text());
   const invitation=(await invitationResponse.json()).invitation;
