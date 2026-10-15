@@ -76,7 +76,7 @@ async function start(PORT,SECRET){
   if(process.env.COLLABZY_TEST_ACCOUNT_ENABLED==='true'){
     const testEmail=validEmail(process.env.COLLABZY_TEST_ACCOUNT_EMAIL);
     const testHash=String(process.env.COLLABZY_TEST_ACCOUNT_PASSWORD_HASH||'');
-    if(!testEmail||!/^\\$2[aby]\\$\\d\\d\\$/.test(testHash))throw Error('The gated Collabzy test account requires a valid email and bcrypt password hash.');
+    if(!testEmail||!testHash.startsWith('$2')||testHash.length!==60)throw Error('The gated Collabzy test account requires a valid email and bcrypt password hash.');
     await pool.query("INSERT INTO users(name,email,password_hash,role,niche,bio,location,email_verified_at) VALUES($1,$2,$3,'creator',$4,$5,$6,CURRENT_TIMESTAMP) ON CONFLICT(email) DO UPDATE SET name=EXCLUDED.name,password_hash=EXCLUDED.password_hash,role=EXCLUDED.role,email_verified_at=COALESCE(users.email_verified_at,CURRENT_TIMESTAMP)",["Collabzy Test Creator",testEmail,testHash,"Lifestyle","Dedicated QA account; not a public customer profile.","India"]);
     console.log('Dedicated creator QA account initialized; credentials are not logged.');
   }
