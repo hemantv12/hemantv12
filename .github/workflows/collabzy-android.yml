@@ -53,6 +53,8 @@ jobs:
         run: npx cap add android
       - name: Sync Capacitor
         run: npx cap sync android
+      - name: Configure native OAuth deep link
+        run: node scripts/configure-android.js
       - name: Apply Collabzy Android launcher branding
         shell: bash
         run: |
