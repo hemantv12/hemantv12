@@ -46,27 +46,36 @@ import java.io.IOException
 import java.net.URLEncoder
 import java.util.Locale
 import java.util.concurrent.TimeUnit
+import com.razorpay.Checkout
+import com.razorpay.PaymentData
+import com.razorpay.PaymentResultWithDataListener
 
-private val Ink = Color(0xFF100E1B)
-private val Panel = Color(0xFF1B192B)
-private val Panel2 = Color(0xFF242137)
-private val Violet = Color(0xFFB4A1FF)
-private val VioletStrong = Color(0xFF8E73FF)
-private val Mint = Color(0xFFB4F4D0)
-private val White = Color(0xFFF8F6FF)
-private val Muted = Color(0xFFA8A4BE)
-private val Border = Color(0xFF343149)
-private val Danger = Color(0xFFFFA6B9)
+private val Ink = Color(0xFFF6F7FC)
+private val Panel = Color(0xFFFFFFFF)
+private val Panel2 = Color(0xFFF0EEFF)
+private val Violet = Color(0xFF6746E8)
+private val VioletStrong = Color(0xFF5538CC)
+private val Mint = Color(0xFF087F5B)
+private val White = Color(0xFF1D2033)
+private val Muted = Color(0xFF687087)
+private val Border = Color(0xFFE0E4F0)
+private val Danger = Color(0xFFB4233C)
+private val SoftBlue = Color(0xFFE9F2FF)
+private val SoftGreen = Color(0xFFE7F8EF)
 
-class MainActivity : ComponentActivity() {
+class MainActivity : ComponentActivity(), PaymentResultWithDataListener {
+    var billingResult by mutableStateOf<JSONObject?>(null)
+    var billingError by mutableStateOf<String?>(null)
+    private var pendingBillingOrderId: String = ""
     var oauthResult by mutableStateOf<String?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         handleOAuthIntent(intent)
+        Checkout.preload(applicationContext)
         setContent {
             CollabzyTheme {
-                CollabzyNativeApp(this, oauthResult) { oauthResult = null }
+                CollabzyNativeApp(this, oauthResult, billingResult, billingError, { oauthResult = null }, { billingResult = null; billingError = null })
             }
         }
     }
@@ -75,6 +84,29 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         handleOAuthIntent(intent)
+    }
+
+    fun launchRazorpayCheckout(orderId: String, options: JSONObject) {
+        pendingBillingOrderId = orderId
+        billingResult = null
+        billingError = null
+        val checkout = Checkout()
+        checkout.setKeyID(options.optString("key_id"))
+        options.remove("key_id")
+        checkout.open(this, options)
+    }
+
+    override fun onPaymentSuccess(razorpayPaymentID: String?, paymentData: PaymentData?) {
+        billingError = null
+        billingResult = JSONObject()
+            .put("order_id", paymentData?.orderId ?: pendingBillingOrderId)
+            .put("payment_id", paymentData?.paymentId ?: razorpayPaymentID.orEmpty())
+            .put("signature", paymentData?.signature.orEmpty())
+    }
+
+    override fun onPaymentError(code: Int, response: String?, paymentData: PaymentData?) {
+        billingResult = null
+        billingError = response?.take(500) ?: "Payment was cancelled or could not be completed (code $code)."
     }
 
     private fun handleOAuthIntent(intent: Intent?) {
@@ -87,10 +119,11 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 private fun CollabzyTheme(content: @Composable () -> Unit) {
-    val scheme = darkColorScheme(
+    val scheme = lightColorScheme(
         primary = Violet,
-        onPrimary = Ink,
+        onPrimary = Color.White,
         secondary = Mint,
+        onSecondary = Color.White,
         background = Ink,
         onBackground = White,
         surface = Panel,
@@ -361,7 +394,7 @@ private data class Invitation(
 private fun rupees(value: Long): String = "₹" + String.format(Locale("en", "IN"), "%,d", value)
 
 @Composable
-private fun CollabzyNativeApp(activity: MainActivity, oauthResult: String?, clearOAuth: () -> Unit) {
+private fun CollabzyNativeApp(activity: MainActivity, oauthResult: String?, billingResult: JSONObject?, billingError: String?, clearOAuth: () -> Unit, clearBillingResult: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val prefs = remember { context.getSharedPreferences("collabzy_session", 0) }
@@ -386,6 +419,13 @@ private fun CollabzyNativeApp(activity: MainActivity, oauthResult: String?, clea
     var igHandle by remember { mutableStateOf("") }
     var igInsights by remember { mutableStateOf(emptyList<JSONObject>()) }
     var igMedia by remember { mutableStateOf(emptyList<JSONObject>()) }
+    var igMode by remember { mutableStateOf("setup-required") }
+    var igStatusMessage by remember { mutableStateOf("") }
+    var aiReport by remember { mutableStateOf<JSONObject?>(null) }
+    var aiReportStatus by remember { mutableStateOf("") }
+    var aiLoading by remember { mutableStateOf(false) }
+    var billingStatus by remember { mutableStateOf(JSONObject().put("active", false).put("status", "inactive")) }
+    var billingMessage by remember { mutableStateOf("") }
     var applyTarget by remember { mutableStateOf<Campaign?>(null) }
     var inviteTarget by remember { mutableStateOf<Creator?>(null) }
     var createCampaignOpen by remember { mutableStateOf(false) }
@@ -417,6 +457,8 @@ private fun CollabzyNativeApp(activity: MainActivity, oauthResult: String?, clea
         val result = Api.call("/instagram/status")
         igConnected = result.flag("connected")
         igHandle = result.optString("handle")
+        igMode = result.optString("mode", "setup-required")
+        igStatusMessage = result.optString("message", "")
         igInsights = emptyList()
         igMedia = emptyList()
         if (igConnected) {
@@ -430,6 +472,24 @@ private fun CollabzyNativeApp(activity: MainActivity, oauthResult: String?, clea
             } catch (_: Exception) {
                 // Display a useful connected state even if media permission is unavailable.
             }
+        }
+    }
+
+    suspend fun refreshBilling() {
+        billingStatus = Api.call("/billing/status")
+    }
+
+    suspend fun generateAiReport() {
+        aiLoading = true
+        aiReportStatus = "Analyzing the authorized Instagram metrics and recent captions…"
+        try {
+            aiReport = Api.call("/instagram/ai-analysis", "POST", JSONObject())
+            aiReportStatus = "Fresh report generated from your connected account data."
+        } catch (e: Exception) {
+            aiReport = null
+            aiReportStatus = e.message ?: "AI analysis is not available yet."
+        } finally {
+            aiLoading = false
         }
     }
 
@@ -462,9 +522,11 @@ private fun CollabzyNativeApp(activity: MainActivity, oauthResult: String?, clea
         Api.token = token
         // Re-fetch the authenticated profile so computed fields such as instagram_connected are current.
         me = CreatorUser.from(Api.call("/me").getJSONObject("user"))
-        screen = if (me?.role == "brand") "overview" else "discover"
         refreshAll()
-        toast("Welcome to Collabzy!")
+        refreshBilling()
+        screen = if (me?.role == "brand") "overview" else "instagram"
+        if (me?.role == "creator") refreshInstagram()
+        toast(if (me?.role == "creator") "Welcome! Connect Instagram to unlock your personalized creator workspace." else "Welcome to Collabzy!")
     }
 
     LaunchedEffect(Unit) {
@@ -473,6 +535,12 @@ private fun CollabzyNativeApp(activity: MainActivity, oauthResult: String?, clea
             try {
                 me = CreatorUser.from(Api.call("/me").getJSONObject("user"))
                 refreshAll()
+                refreshBilling()
+                if (me?.role == "creator") {
+                    try { refreshInstagram(); screen = "instagram" } catch (_: Exception) { screen = "instagram" }
+                } else {
+                    screen = "overview"
+                }
             } catch (_: Exception) {
                 token = ""
                 Api.token = ""
@@ -488,8 +556,10 @@ private fun CollabzyNativeApp(activity: MainActivity, oauthResult: String?, clea
             perform {
                 me = CreatorUser.from(Api.call("/me").getJSONObject("user"))
                 refreshInstagram()
+                refreshAll()
+                refreshBilling()
                 screen = "instagram"
-                toast("Instagram connection confirmed.")
+                toast("Instagram connected! Your insights workspace is ready.")
             }
         } else {
             toast(if (result == "denied") "Instagram authorization was cancelled." else "Instagram could not be connected. Check the Meta app setup.")
