@@ -84,6 +84,7 @@ test('Collabzy API supports registration, campaign publishing and application wo
   const brandConversations=(await (await fetch(base+'/api/conversations',{headers:{authorization:'Bearer '+brand.token}})).json()).conversations;
   assert.ok(brandConversations.some(c=>c.campaign_id===brandCampaign.id),'accepted invitations should create a brand-creator conversation');
   const brandApplications=(await (await fetch(base+'/api/applications',{headers:{authorization:'Bearer '+brand.token}})).json()).applications;
+  assert.ok(brandApplications.every(a=>!Object.hasOwn(a,'creator_email')),'brand application list must not reveal creator email addresses');
   const invitedApplication=brandApplications.find(a=>Number(a.campaign_id)===Number(brandCampaign.id));
   assert.ok(invitedApplication,'brand should be able to review applications created by accepted invitations');
   const acceptApp=await fetch(base+'/api/applications/'+invitedApplication.id+'/status',{method:'PATCH',headers:{'content-type':'application/json',authorization:'Bearer '+brand.token},body:JSON.stringify({status:'accepted'})});
