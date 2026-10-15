@@ -3,6 +3,10 @@ const assert=require('node:assert/strict');
 const {spawn}=require('node:child_process');
 const net=require('node:net');
 const path=require('node:path');
+const os=require('node:os');
+const fs=require('node:fs');
+const Database=require('better-sqlite3');
+const bcrypt=require('bcryptjs');
 
 test('PostgreSQL production backend supports creator-brand collaboration workflow',{skip:!process.env.DATABASE_URL},async(t)=>{
   assert.ok(process.env.DATABASE_URL,'PostgreSQL test DATABASE_URL must be configured');
@@ -10,9 +14,16 @@ test('PostgreSQL production backend supports creator-brand collaboration workflo
   await new Promise((resolve,reject)=>probe.listen(0,'127.0.0.1',resolve).once('error',reject));
   const port=probe.address().port;
   await new Promise(resolve=>probe.close(resolve));
+  const sqlitePath=path.join(os.tmpdir(),'collabzy-legacy-'+process.pid+'-'+Date.now()+'.db');
+  const legacy=new Database(sqlitePath);
+  legacy.exec("CREATE TABLE users(id INTEGER PRIMARY KEY AUTOINCREMENT,name TEXT NOT NULL,email TEXT NOT NULL UNIQUE,password_hash TEXT NOT NULL,role TEXT NOT NULL,niche TEXT DEFAULT '',bio TEXT DEFAULT '',location TEXT DEFAULT '',instagram_handle TEXT DEFAULT '',instagram_user_id TEXT DEFAULT '',instagram_access_token_enc TEXT DEFAULT '',instagram_connected_at TEXT DEFAULT '',followers INTEGER DEFAULT 0,engagement REAL DEFAULT 0,created_at TEXT DEFAULT CURRENT_TIMESTAMP)");
+  legacy.exec("CREATE TABLE campaigns(id INTEGER PRIMARY KEY AUTOINCREMENT,brand_id INTEGER NOT NULL,title TEXT NOT NULL,brand_name TEXT NOT NULL,description TEXT NOT NULL,category TEXT NOT NULL,collaboration_type TEXT NOT NULL,budget_min INTEGER DEFAULT 0,budget_max INTEGER DEFAULT 0,deliverables TEXT DEFAULT '',location TEXT DEFAULT 'India',status TEXT DEFAULT 'active',created_at TEXT DEFAULT CURRENT_TIMESTAMP)");
+  legacy.prepare("INSERT INTO users(id,name,email,password_hash,role,niche,bio,location,instagram_handle,followers,engagement) VALUES(?,?,?,?,?,?,?,?,?,?,?)").run(50,'Legacy Brand','legacy-brand@example.com',bcrypt.hashSync('LegacyPassword123!',10),'brand','Lifestyle','Imported from the SQLite version','Mumbai','legacybrand',0,0);
+  legacy.prepare("INSERT INTO campaigns(id,brand_id,title,brand_name,description,category,collaboration_type,budget_min,budget_max,deliverables,location) VALUES(?,?,?,?,?,?,?,?,?,?,?)").run(90,50,'Migrated Legacy Campaign','Legacy Brand','A campaign imported from SQLite.','Lifestyle','Paid',1000,4000,'1 Reel','India');
+  legacy.close();
   let child=spawn(process.execPath,['src/server.js'],{
     cwd:path.join(__dirname,'..'),
-    env:{...process.env,NODE_ENV:'test',PORT:String(port),JWT_SECRET:'postgres-test-secret-at-least-32-characters-long',PGSSLMODE:'disable'},
+    env:{...process.env,NODE_ENV:'test',PORT:String(port),JWT_SECRET:'postgres-test-secret-at-least-32-characters-long',PGSSLMODE:'disable',MIGRATE_SQLITE_ON_START:'true',SQLITE_MIGRATION_PATH:sqlitePath},
     stdio:['ignore','pipe','pipe']
   });
   let logs='';
@@ -21,6 +32,7 @@ test('PostgreSQL production backend supports creator-brand collaboration workflo
   t.after(async()=>{
     child.kill('SIGTERM');
     await new Promise(resolve=>{if(child.exitCode!==null)return resolve();child.once('exit',resolve);setTimeout(resolve,1500)});
+    for(const ext of ['', '-shm','-wal'])try{fs.unlinkSync(sqlitePath+ext)}catch{}
   });
   const base='http://127.0.0.1:'+port;
   let ready=false;
@@ -30,6 +42,10 @@ test('PostgreSQL production backend supports creator-brand collaboration workflo
     await new Promise(r=>setTimeout(r,250));
   }
   assert.equal(ready,true,'PostgreSQL API should start with a persistent DB; logs: '+logs);
+  const migratedCampaigns=(await (await fetch(base+'/api/campaigns')).json()).campaigns;
+  assert.ok(migratedCampaigns.some(c=>c.title==='Migrated Legacy Campaign'),'one-time SQLite import should migrate active campaigns');
+  const migratedLogin=await fetch(base+'/api/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:'legacy-brand@example.com',password:'LegacyPassword123!'})});
+  assert.equal(migratedLogin.status,200,'SQLite import should preserve user password hashes and credentials');
   const create=async(name,email,role)=> {
     const r=await fetch(base+'/api/auth/register',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({name,email,password:'TestPassword123!',role})});
     assert.equal(r.status,201,'registration should succeed: '+await r.clone().text());
