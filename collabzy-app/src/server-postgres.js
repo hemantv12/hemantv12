@@ -23,10 +23,10 @@ function decryptToken(value,secret){
 }
 function publicUser(row){
   if(!row)return row;
-  const {password_hash,instagram_user_id,instagram_access_token_enc,instagram_connected_at,instagram_token_expires_at,...user}=row;
+  const {password_hash,session_version,email_verified_at,instagram_user_id,instagram_access_token_enc,instagram_connected_at,instagram_token_expires_at,...user}=row;
   return user;
 }
-function tokenFor(user,secret){return jwt.sign({id:String(user.id),email:user.email,role:user.role},secret,{expiresIn:'7d'});}
+function tokenFor(user,secret){return jwt.sign({id:String(user.id),email:user.email,role:user.role,ver:Number(user.session_version||0)},secret,{expiresIn:'7d'});}
 function validEmail(value){
   const email=String(value||'').trim().toLowerCase();
   return email.length<=254&&!/\s/.test(email)&&/^[^@]+@[^@]+\.[^@]+$/.test(email)?email:'';
@@ -40,6 +40,10 @@ async function start(PORT,SECRET){
   const app=express();
   await pool.query('SELECT 1');
   await pool.query("CREATE TABLE IF NOT EXISTS users(id BIGSERIAL PRIMARY KEY,name TEXT NOT NULL,email TEXT NOT NULL UNIQUE,password_hash TEXT NOT NULL,role TEXT NOT NULL CHECK(role IN('creator','brand')),niche TEXT NOT NULL DEFAULT '',bio TEXT NOT NULL DEFAULT '',location TEXT NOT NULL DEFAULT '',instagram_handle TEXT NOT NULL DEFAULT '',instagram_user_id TEXT NOT NULL DEFAULT '',instagram_access_token_enc TEXT NOT NULL DEFAULT '',instagram_connected_at TIMESTAMPTZ,instagram_token_expires_at TIMESTAMPTZ,followers BIGINT NOT NULL DEFAULT 0,engagement REAL NOT NULL DEFAULT 0,created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP)");
+  await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified_at TIMESTAMPTZ");
+  await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS session_version INTEGER NOT NULL DEFAULT 0");
+  await pool.query("CREATE TABLE IF NOT EXISTS email_action_tokens(id BIGSERIAL PRIMARY KEY,user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,token_hash TEXT NOT NULL UNIQUE,purpose TEXT NOT NULL CHECK(purpose IN('verify_email','password_reset')),expires_at TIMESTAMPTZ NOT NULL,consumed_at TIMESTAMPTZ,created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP)");
+  await pool.query("CREATE INDEX IF NOT EXISTS email_action_tokens_user_idx ON email_action_tokens(user_id,purpose,created_at DESC)");
   await pool.query("CREATE TABLE IF NOT EXISTS campaigns(id BIGSERIAL PRIMARY KEY,brand_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,title TEXT NOT NULL,brand_name TEXT NOT NULL,description TEXT NOT NULL,category TEXT NOT NULL,collaboration_type TEXT NOT NULL CHECK(collaboration_type IN('Paid','Barter','Hybrid')),budget_min BIGINT NOT NULL DEFAULT 0,budget_max BIGINT NOT NULL DEFAULT 0,deliverables TEXT NOT NULL DEFAULT '',location TEXT NOT NULL DEFAULT 'India',status TEXT NOT NULL DEFAULT 'active',created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP)");
   await pool.query("CREATE TABLE IF NOT EXISTS applications(id BIGSERIAL PRIMARY KEY,campaign_id BIGINT NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,creator_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,pitch TEXT NOT NULL DEFAULT '',proposed_rate BIGINT NOT NULL DEFAULT 0,status TEXT NOT NULL DEFAULT 'pending',created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,UNIQUE(campaign_id,creator_id))");
   await pool.query("CREATE TABLE IF NOT EXISTS saved_campaigns(user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,campaign_id BIGINT NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,PRIMARY KEY(user_id,campaign_id))");
@@ -71,29 +75,124 @@ async function start(PORT,SECRET){
   app.use('/api',rateLimit({windowMs:60000,limit:240,standardHeaders:true,legacyHeaders:false,skip:req=>req.path==='/health'}));
   app.use(express.static(path.join(__dirname,'..','public')));
   const notify=async(userId,title,body,kind='general',entityId=0)=>pool.query('INSERT INTO notifications(user_id,title,body,kind,entity_id) VALUES($1,$2,$3,$4,$5)',[userId,String(title).slice(0,120),String(body).slice(0,500),String(kind).slice(0,40),Number(entityId)||0]);
+  const emailReady=()=>!!(process.env.RESEND_API_KEY&&process.env.EMAIL_FROM);
+  const requireEmailVerification=process.env.NODE_ENV==='production'&&process.env.REQUIRE_EMAIL_VERIFICATION==='true';
+  async function sendEmailMessage({to,subject,html,text}){
+    if(!emailReady())throw Error('Email delivery is not configured.');
+    const response=await fetch('https://api.resend.com/emails',{method:'POST',headers:{Authorization:'Bearer '+process.env.RESEND_API_KEY,'Content-Type':'application/json'},body:JSON.stringify({from:process.env.EMAIL_FROM,to:[to],subject,html,text})});
+    const result=await response.json().catch(()=>({}));
+    if(!response.ok)throw Error('Email delivery failed with provider status '+response.status+'.');
+    return result;
+  }
+  async function createEmailAction(userId,email,purpose){
+    const raw=crypto.randomBytes(32).toString('base64url');
+    const digest=crypto.createHash('sha256').update(raw).digest('hex');
+    const hours=purpose==='verify_email'?24:1;
+    const base=(process.env.PUBLIC_APP_URL||'https://collabzy-api.onrender.com').replace(/\/+$/,'');
+    const page=purpose==='verify_email'?'verify-email.html':'reset-password.html';
+    const link=base+'/'+page+'?token='+encodeURIComponent(raw);
+    await pool.query('UPDATE email_action_tokens SET consumed_at=CURRENT_TIMESTAMP WHERE user_id=$1 AND purpose=$2 AND consumed_at IS NULL',[userId,purpose]);
+    const row=await pool.query("INSERT INTO email_action_tokens(user_id,token_hash,purpose,expires_at) VALUES($1,$2,$3,CURRENT_TIMESTAMP+($4::text||' hours')::interval) RETURNING id",[userId,digest,purpose,hours]);
+    const subject=purpose==='verify_email'?'Verify your Collabzy email address':'Reset your Collabzy password';
+    const headline=purpose==='verify_email'?'Verify your email':'Reset your password';
+    const action=purpose==='verify_email'?'Verify email address':'Choose a new password';
+    const plain=purpose==='verify_email'?'Use this link to verify your Collabzy email address: ':'Use this link to reset your Collabzy password: ';
+    try{
+      await sendEmailMessage({to:email,subject,text:plain+link+'\nThis link expires in '+hours+' hour(s). If you did not request this, ignore this email.',html:'<!doctype html><html><body style="margin:0;background:#f7f6fb;padding:28px;font-family:Arial,sans-serif;color:#211c35"><main style="max-width:520px;margin:auto;background:#fff;padding:28px;border-radius:18px"><p style="font-weight:800;color:#7056e8">COLLABZY</p><h1 style="font-size:25px">'+headline+'</h1><p>Use the secure button below. This single-use link expires in '+hours+' hour(s).</p><p style="margin:28px 0"><a href="'+link+'" style="background:#7056e8;color:white;text-decoration:none;padding:13px 18px;border-radius:10px;font-weight:700">'+action+'</a></p><p style="font-size:12px;color:#77748a">If you did not request this, you can ignore the message.</p></main></body></html>'});
+    }catch(error){
+      await pool.query('UPDATE email_action_tokens SET consumed_at=CURRENT_TIMESTAMP WHERE id=$1',[row.rows[0].id]);
+      throw error;
+    }
+  }
   const auth=asyncRoute(async(q,s,n)=>{
     const raw=String(q.headers.authorization||'').replace(/^Bearer\s+/i,'');
     if(!raw)return s.status(401).json({error:'Please sign in to continue.'});
     let decoded;try{decoded=jwt.verify(raw,SECRET)}catch{return s.status(401).json({error:'Session expired. Please sign in again.'})}
-    const r=await pool.query('SELECT '+PROFILE_FIELDS+', (instagram_access_token_enc<>\'\') AS instagram_connected FROM users WHERE id=$1',[decoded.id]);
+    const r=await pool.query('SELECT '+PROFILE_FIELDS+', (instagram_access_token_enc<>\'\') AS instagram_connected,session_version,email_verified_at FROM users WHERE id=$1',[decoded.id]);
     if(!r.rows.length)return s.status(401).json({error:'Please sign in to continue.'});
-    q.user=r.rows[0];n();
+    if(Number(decoded.ver||0)!==Number(r.rows[0].session_version||0))return s.status(401).json({error:'Your session expired. Please sign in again.'});
+    if(requireEmailVerification&&!r.rows[0].email_verified_at)return s.status(403).json({error:'Please verify your email before using Collabzy.'});
+    q.sessionVersion=Number(r.rows[0].session_version||0);
+    q.user=publicUser(r.rows[0]);n();
   });
-  app.get('/api/health',asyncRoute(async(q,s)=>{await pool.query('SELECT 1');s.json({ok:true,app:'Collabzy',version:'2.1.0',database:'connected',mode:'postgres-persistent',integrations:{instagram:process.env.META_APP_ID&&process.env.META_APP_SECRET?'configured':'setup_required'}})}));
+  app.get('/api/health',asyncRoute(async(q,s)=>{await pool.query('SELECT 1');s.json({ok:true,app:'Collabzy',version:'2.2.0',database:'connected',mode:'postgres-persistent',integrations:{instagram:process.env.META_APP_ID&&process.env.META_APP_SECRET?'configured':'setup_required',email:emailReady()?'configured':'setup_required',emailVerification:requireEmailVerification?'required':'not_enforced',payments:'disabled',support:process.env.SUPPORT_EMAIL?'configured':'setup_required'}})}));
   app.post('/api/auth/register',asyncRoute(async(q,s)=>{
     const name=String(q.body?.name||'').trim(),email=validEmail(q.body?.email),password=String(q.body?.password||''),role=q.body?.role||'creator';
     if(!name||!email||!password)return s.status(400).json({error:'Name, email and password are required.'});
     if(name.length>80)return s.status(400).json({error:'Name must be 80 characters or fewer.'});
     if(password.length<8||password.length>200)return s.status(400).json({error:'Password must contain 8 to 200 characters.'});
     if(!['creator','brand'].includes(role))return s.status(400).json({error:'Choose creator or brand.'});
+    if(process.env.NODE_ENV==='production'&&q.body?.accepted_terms!==true)return s.status(400).json({error:'Please accept the Terms of Use and Privacy Notice.'});
+    if(requireEmailVerification&&!emailReady())return s.status(503).json({error:'Account creation is temporarily disabled until secure email verification is configured.'});
     const hash=await bcrypt.hash(password,12);
-    try{const r=await pool.query('INSERT INTO users(name,email,password_hash,role) VALUES($1,$2,$3,$4) RETURNING '+PROFILE_FIELDS,[name,email,hash,role]);const u=r.rows[0];s.status(201).json({token:tokenFor(u,SECRET),user:publicUser(u)})}
-    catch(e){if(e.code==='23505')return s.status(409).json({error:'Email already registered.'});throw e}
+    try{
+      const r=await pool.query('INSERT INTO users(name,email,password_hash,role,email_verified_at) VALUES($1,$2,$3,$4,$5) RETURNING '+PROFILE_FIELDS,[name,email,hash,role,requireEmailVerification?null:new Date()]);
+      const u=r.rows[0];
+      if(requireEmailVerification){
+        try{await createEmailAction(u.id,email,'verify_email')}
+        catch(error){console.error('Verification email delivery failed:',error.message);return s.status(503).json({error:'Your account was created but verification email delivery failed. Use Resend verification from the sign-in screen after email service is restored.'})}
+        return s.status(201).json({requires_email_verification:true,message:'Check your email for a verification link before signing in.'});
+      }
+      s.status(201).json({token:tokenFor(u,SECRET),user:publicUser(u)});
+    }catch(e){if(e.code==='23505')return s.status(409).json({error:'Email already registered.'});throw e}
   }));
   app.post('/api/auth/login',asyncRoute(async(q,s)=>{
     const email=validEmail(q.body?.email),r=await pool.query('SELECT * FROM users WHERE email=$1',[email]);
     if(!r.rows.length||!(await bcrypt.compare(String(q.body?.password||''),r.rows[0].password_hash)))return s.status(401).json({error:'Email or password is incorrect.'});
-    const u=publicUser(r.rows[0]);s.json({token:tokenFor(u,SECRET),user:u});
+    if(requireEmailVerification&&!r.rows[0].email_verified_at)return s.status(403).json({error:'Please verify your email before signing in. Use Resend verification if you need a new link.'});
+    const u=publicUser(r.rows[0]);s.json({token:tokenFor(r.rows[0],SECRET),user:u});
+  }));
+  app.post('/api/auth/verify-email',asyncRoute(async(q,s)=>{
+    const raw=String(q.body?.token||'').trim();
+    if(!raw||raw.length>200)return s.status(400).json({error:'This verification link is invalid or has expired.'});
+    const digest=crypto.createHash('sha256').update(raw).digest('hex'),client=await pool.connect();
+    try{
+      await client.query('BEGIN');
+      const found=await client.query("SELECT t.id,t.user_id FROM email_action_tokens t WHERE t.token_hash=$1 AND t.purpose='verify_email' AND t.consumed_at IS NULL AND t.expires_at>CURRENT_TIMESTAMP FOR UPDATE",[digest]);
+      if(!found.rows.length){await client.query('ROLLBACK');return s.status(400).json({error:'This verification link is invalid, expired, or already used.'})}
+      await client.query('UPDATE users SET email_verified_at=COALESCE(email_verified_at,CURRENT_TIMESTAMP) WHERE id=$1',[found.rows[0].user_id]);
+      await client.query('UPDATE email_action_tokens SET consumed_at=CURRENT_TIMESTAMP WHERE id=$1',[found.rows[0].id]);
+      await client.query('COMMIT');s.json({ok:true,message:'Email verified. You can now sign in.'});
+    }catch(error){await client.query('ROLLBACK');throw error}finally{client.release()}
+  }));
+  app.post('/api/auth/resend-verification',asyncRoute(async(q,s)=>{
+    const email=validEmail(q.body?.email);
+    if(requireEmailVerification&&!emailReady())return s.status(503).json({error:'Email verification service is not configured yet.'});
+    if(email&&emailReady()){
+      const found=await pool.query('SELECT id,email_verified_at FROM users WHERE email=$1',[email]);
+      if(found.rows.length&&!found.rows[0].email_verified_at){
+        try{await createEmailAction(found.rows[0].id,email,'verify_email')}
+        catch(error){console.error('Resend verification delivery failed:',error.message)}
+      }
+    }
+    s.json({ok:true,message:'If an unverified account exists for that address, a new verification link will be sent.'});
+  }));
+  app.post('/api/auth/forgot-password',asyncRoute(async(q,s)=>{
+    const email=validEmail(q.body?.email);
+    if(!emailReady())return s.status(503).json({error:'Password recovery email is not configured yet.'});
+    if(email){
+      const found=await pool.query('SELECT id,email FROM users WHERE email=$1',[email]);
+      if(found.rows.length){
+        try{await createEmailAction(found.rows[0].id,email,'password_reset')}
+        catch(error){console.error('Password reset delivery failed:',error.message)}
+      }
+    }
+    s.json({ok:true,message:'If that account exists, a password reset link will be sent.'});
+  }));
+  app.post('/api/auth/reset-password',asyncRoute(async(q,s)=>{
+    const raw=String(q.body?.token||'').trim(),password=String(q.body?.password||'');
+    if(password.length<8||password.length>200)return s.status(400).json({error:'Password must contain 8 to 200 characters.'});
+    if(!raw||raw.length>200)return s.status(400).json({error:'This reset link is invalid or has expired.'});
+    const digest=crypto.createHash('sha256').update(raw).digest('hex'),passwordHash=await bcrypt.hash(password,12),client=await pool.connect();
+    try{
+      await client.query('BEGIN');
+      const found=await client.query("SELECT t.id,t.user_id FROM email_action_tokens t WHERE t.token_hash=$1 AND t.purpose='password_reset' AND t.consumed_at IS NULL AND t.expires_at>CURRENT_TIMESTAMP FOR UPDATE",[digest]);
+      if(!found.rows.length){await client.query('ROLLBACK');return s.status(400).json({error:'This reset link is invalid, expired, or already used.'})}
+      await client.query('UPDATE users SET password_hash=$1,session_version=session_version+1 WHERE id=$2',[passwordHash,found.rows[0].user_id]);
+      await client.query('UPDATE email_action_tokens SET consumed_at=CURRENT_TIMESTAMP WHERE id=$1',[found.rows[0].id]);
+      await client.query('UPDATE email_action_tokens SET consumed_at=CURRENT_TIMESTAMP WHERE user_id=$1 AND purpose=$2 AND consumed_at IS NULL',[found.rows[0].user_id,'verify_email']);
+      await client.query('COMMIT');s.json({ok:true,message:'Password reset. Please sign in again.'});
+    }catch(error){await client.query('ROLLBACK');throw error}finally{client.release()}
   }));
   app.get('/api/me',auth,asyncRoute(async(q,s)=>s.json({user:q.user})));
   app.patch('/api/me',auth,asyncRoute(async(q,s)=>{
@@ -112,7 +211,9 @@ async function start(PORT,SECRET){
     if(next.length<8||next.length>200)return s.status(400).json({error:'New password must contain 8 to 200 characters.'});
     const r=await pool.query('SELECT password_hash FROM users WHERE id=$1',[q.user.id]);
     if(!r.rows.length||!(await bcrypt.compare(current,r.rows[0].password_hash)))return s.status(400).json({error:'Current password is incorrect.'});
-    await pool.query('UPDATE users SET password_hash=$1 WHERE id=$2',[await bcrypt.hash(next,12),q.user.id]);s.json({ok:true});
+    const nextVersion=q.sessionVersion+1;
+    await pool.query('UPDATE users SET password_hash=$1,session_version=$2 WHERE id=$3',[await bcrypt.hash(next,12),nextVersion,q.user.id]);
+    s.json({ok:true,token:tokenFor({...q.user,session_version:nextVersion},SECRET)});
   }));
   app.get('/api/me/export',auth,asyncRoute(async(q,s)=>{
     const id=q.user.id,brand=q.user.role==='brand';
