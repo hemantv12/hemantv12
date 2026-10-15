@@ -2,7 +2,7 @@ const crypto = require('node:crypto');
 const assert = require('node:assert/strict');
 
 const base = (process.env.COLLABZY_BASE_URL || 'https://collabzy-api.onrender.com').replace(/\/+$/, '');
-const expectedVersion = process.env.COLLABZY_EXPECTED_VERSION || '2.1.0';
+const expectedVersion = process.env.COLLABZY_EXPECTED_VERSION || '2.2.0';
 
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -60,16 +60,54 @@ async function waitForDeployment() {
   try {
     const health = await waitForDeployment();
     check('live API health + persistent PostgreSQL');
-    assert.ok(['configured', 'setup_required'].includes(health.integrations?.instagram), 'health should expose safe Instagram readiness only');
+    for (const name of ['instagram','email','support','publicRegistration','emailVerification']) {
+      assert.ok(typeof health.integrations?.[name] === 'string', 'health should expose safe ' + name + ' readiness');
+    }
+    const pages = ['/','/privacy.html','/terms.html','/delete-account.html','/support.html','/verify-email.html','/reset-password.html'];
+    for (const path of pages) {
+      const page = await request(path);
+      assert.equal(page.response.status, 200, 'public page should be reachable: ' + path);
+      assert.match(page.response.headers.get('content-type') || '', /text\/html/i, 'page should serve HTML: ' + path);
+    }
+    check('public web pages including privacy, terms, deletion, support and recovery');
 
-    const landing = await request('/');
-    assert.equal(landing.response.status, 200, 'web app landing page should be reachable');
-    assert.match(landing.response.headers.get('content-type') || '', /text\/html/i, 'landing page should serve HTML');
-    check('web app landing page');
+    const launchBlockers = [];
+    if (health.integrations.instagram !== 'configured') launchBlockers.push('Meta Instagram Login credentials / permission review');
+    if (health.integrations.email !== 'configured') launchBlockers.push('Email verification and password-recovery delivery');
+    if (health.integrations.support !== 'configured') launchBlockers.push('Monitored support contact');
+    if (health.integrations.publicRegistration !== 'open') launchBlockers.push('Public registration is safely paused');
+    if (health.integrations.emailVerification === 'required' || health.integrations.publicRegistration !== 'open') {
+      if (health.integrations.publicRegistration !== 'open') {
+        const gated = await expectStatus('/api/auth/register', {
+          method: 'POST',
+          body: { name: 'Collabzy Gate Probe', email: 'collabzy.gate.' + random + '@example.com', password, role: 'creator', accepted_terms: true }
+        }, 503, 'registration gate');
+        assert.match(gated.error || '', /paused|configured/i);
+        check('registration fails closed while launch dependencies are missing');
+      }
+      if (health.integrations.email !== 'configured') {
+        await expectStatus('/api/auth/forgot-password', { method: 'POST', body: { email: creatorEmail } }, 503, 'password recovery gate');
+        check('password recovery fails closed without email delivery');
+      }
+      if (health.integrations.support !== 'configured' || health.integrations.email !== 'configured') {
+        await expectStatus('/api/support', { method: 'POST', body: { name: 'Smoke Test', email: 'smoke@example.com', category: 'general', subject: 'Support gate probe', message: 'This is a production smoke test probe and does not request action.' } }, 503, 'support gate');
+        check('support channel reports setup required rather than discarding requests');
+      }
+      console.log(JSON.stringify({
+        result: 'PASS_WITH_LAUNCH_BLOCKERS',
+        version: health.version,
+        integrations: health.integrations,
+        launchBlockers,
+        checks: run.checks,
+        checkCount: run.checks.length,
+        finishedAt: new Date().toISOString()
+      }, null, 2));
+      return;
+    }
 
     const creatorRegistration = await expectStatus('/api/auth/register', {
       method: 'POST',
-      body: { name: 'Collabzy Smoke Creator', email: creatorEmail, password, role: 'creator' }
+      body: { name: 'Collabzy Smoke Creator', email: creatorEmail, password, role: 'creator', accepted_terms: true }
     }, 201, 'creator registration');
     creator = { token: creatorRegistration.token, id: creatorRegistration.user.id, email: creatorEmail, password };
     assert.ok(creator.token, 'creator JWT should exist');
@@ -79,7 +117,7 @@ async function waitForDeployment() {
 
     const brandRegistration = await expectStatus('/api/auth/register', {
       method: 'POST',
-      body: { name: 'Collabzy Smoke Brand', email: brandEmail, password, role: 'brand' }
+      body: { name: 'Collabzy Smoke Brand', email: brandEmail, password, role: 'brand', accepted_terms: true }
     }, 201, 'brand registration');
     brand = { token: brandRegistration.token, id: brandRegistration.user.id, email: brandEmail, password };
     assert.equal(brandRegistration.user.role, 'brand');
