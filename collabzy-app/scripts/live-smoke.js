@@ -35,7 +35,7 @@ async function waitForDeployment() {
     try {
       const { response, json } = await request('/api/health');
       last = 'HTTP ' + response.status + ', version=' + (json.version || 'unknown');
-      if (response.ok && json.ok === true && json.database === 'connected' && json.version === expectedVersion && ['instagram','email','support','operatorIdentity','publicRegistration','emailVerification','payments'].every(key => typeof json.integrations?.[key] === 'string')) {
+      if (response.ok && json.ok === true && json.database === 'connected' && json.version === expectedVersion && ['instagram','email','support','operatorIdentity','publicLaunchApproval','publicRegistration','emailVerification','payments'].every(key => typeof json.integrations?.[key] === 'string')) {
         assert.equal(json.mode, 'postgres-persistent', 'production API must use persistent PostgreSQL');
         return json;
       }
@@ -76,6 +76,7 @@ async function waitForDeployment() {
     if (health.integrations.email !== 'configured') launchBlockers.push('Email verification and password-recovery delivery');
     if (health.integrations.support !== 'configured') launchBlockers.push('Monitored support contact');
     if (health.integrations.operatorIdentity !== 'configured') launchBlockers.push('Public operator identity and jurisdiction');
+    if (health.integrations.publicLaunchApproval !== 'approved') launchBlockers.push('Explicit operator production sign-off');
     if (health.integrations.publicRegistration !== 'open') launchBlockers.push('Public registration is safely paused');
     if (health.integrations.emailVerification === 'required' || health.integrations.publicRegistration !== 'open') {
       if (health.integrations.publicRegistration !== 'open') {
