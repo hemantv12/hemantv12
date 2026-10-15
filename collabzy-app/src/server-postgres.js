@@ -455,8 +455,8 @@ async function start(PORT,SECRET){
     await pool.query('UPDATE users SET instagram_access_token_enc=$1,instagram_token_expires_at=$2 WHERE id=$3',[encryptToken(access,SECRET),next,userId]);return access;
   }
   app.get('/api/instagram/connect',auth,asyncRoute(async(q,s)=>{
-    if(!process.env.META_APP_ID||!process.env.META_APP_SECRET)return s.status(503).json({error:'Instagram connection is not configured yet. Add META_APP_ID, META_APP_SECRET and META_REDIRECT_URI in hosting settings.'});
-    const redirect=process.env.META_REDIRECT_URI||'https://collabzy-api.onrender.com/api/instagram/callback';
+    if(!metaReady())return s.status(503).json({error:'Instagram connection is not configured yet. Add META_APP_ID, META_APP_SECRET and the exact META_REDIRECT_URI in hosting settings and Meta app configuration.'});
+    const redirect=process.env.META_REDIRECT_URI;
     const state=jwt.sign({sub:String(q.user.id),purpose:'instagram-oauth',platform:q.query.platform==='native'?'native':'web',nonce:crypto.randomBytes(16).toString('hex')},SECRET,{expiresIn:'10m'});
     const u=new URL('https://www.instagram.com/oauth/authorize');u.searchParams.set('client_id',process.env.META_APP_ID);u.searchParams.set('redirect_uri',redirect);u.searchParams.set('response_type','code');u.searchParams.set('scope','instagram_business_basic,instagram_business_manage_insights');u.searchParams.set('state',state);s.json({authorization_url:u.toString()});
   }));
@@ -466,8 +466,8 @@ async function start(PORT,SECRET){
     if(q.query.error)return done('denied');if(!q.query.code||!state)return done('error');
     try{
       if(state.purpose!=='instagram-oauth'||!state.sub)throw Error('Invalid OAuth state');
-      if(!process.env.META_APP_ID||!process.env.META_APP_SECRET)throw Error('Meta credentials missing');
-      const redirect=process.env.META_REDIRECT_URI||'https://collabzy-api.onrender.com/api/instagram/callback';
+      if(!metaReady())throw Error('Meta credentials and exact redirect URI are required');
+      const redirect=process.env.META_REDIRECT_URI;
       const form=new URLSearchParams({client_id:process.env.META_APP_ID,client_secret:process.env.META_APP_SECRET,grant_type:'authorization_code',redirect_uri:redirect,code:String(q.query.code)});
       const exchange=await fetch('https://api.instagram.com/oauth/access_token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:form}),tokenData=await exchange.json();
       if(!exchange.ok||!tokenData.access_token)throw Error(tokenData.error_message||'Instagram token exchange failed');
@@ -485,7 +485,7 @@ async function start(PORT,SECRET){
   }));
   app.get('/api/instagram/status',auth,asyncRoute(async(q,s)=>{
     const r=await pool.query('SELECT instagram_handle,instagram_user_id,instagram_access_token_enc,instagram_connected_at,instagram_token_expires_at FROM users WHERE id=$1',[q.user.id]),u=r.rows[0];
-    s.json({connected:!!u?.instagram_access_token_enc,handle:u?.instagram_handle||'',instagram_user_id:u?.instagram_user_id||'',connected_at:u?.instagram_connected_at||'',token_expires_at:u?.instagram_token_expires_at||'',mode:process.env.META_APP_ID&&process.env.META_APP_SECRET?'oauth-configured':'setup-required',message:u?.instagram_access_token_enc?'Instagram account connected.':process.env.META_APP_ID&&process.env.META_APP_SECRET?'Ready to connect via Meta authorization.':'Add Meta app credentials to enable official Instagram authorization.'});
+    s.json({connected:!!u?.instagram_access_token_enc,handle:u?.instagram_handle||'',instagram_user_id:u?.instagram_user_id||'',connected_at:u?.instagram_connected_at||'',token_expires_at:u?.instagram_token_expires_at||'',mode:metaReady()?'oauth-configured':'setup-required',message:u?.instagram_access_token_enc?'Instagram account connected.':metaReady()?'Ready to connect via Meta authorization.':'Add Meta app credentials and register the exact redirect URI to enable official Instagram authorization.'});
   }));
   app.get('/api/instagram/media',auth,asyncRoute(async(q,s)=>{
     const r=await pool.query('SELECT instagram_access_token_enc,instagram_handle,instagram_token_expires_at FROM users WHERE id=$1',[q.user.id]),u=r.rows[0];if(!u?.instagram_access_token_enc)return s.status(400).json({error:'Connect your Instagram professional account first.'});
