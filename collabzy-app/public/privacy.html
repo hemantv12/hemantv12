@@ -1,1 +1,62 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#211942"><title>Privacy · Collabzy</title><style>body{font:16px/1.7 system-ui,sans-serif;color:#241f38;background:#f7f6fb;margin:0}.wrap{max-width:780px;margin:35px auto;padding:28px;background:white;border:1px solid #eee;border-radius:20px}a{color:#7056e8}h1{line-height:1.1}small{color:#77748a}</style></head><body><main class="wrap"><a href="/">← Collabzy home</a><h1>Privacy Notice</h1><small>Last updated: 15 October 2026</small><p>Collabzy helps creators and brands discover, invite, apply for and manage collaboration opportunities. This notice describes the current early-access version.</p><h2>Information we store</h2><p>Account details include name, email, a password hash and account type. Profile details can include niche, bio, location, Instagram handle, follower count and engagement rate. We store campaigns, invitations, application pitches, proposed rates, statuses, conversations, messages, saved campaigns and notifications.</p><h2>How information is used and shared</h2><p>Information is used to authenticate accounts and operate the marketplace. Creator profiles are visible to signed-in users of the creator directory. Campaign listings are visible in the marketplace; applications and related conversations are shared with the creator and brand participating in that collaboration. Do not include confidential information in public profile fields or campaign listings.</p><h2>Instagram</h2><p>Collabzy has an official Meta Instagram Login integration, but it is not active until the Meta app credentials, redirect URI and required permissions are configured. If you authorize the connection, the app can process the permitted professional-account profile, media and insights returned by Meta. Access tokens are encrypted at rest by the server. Collabzy does not ask for or store your Instagram password and does not scrape private Instagram data. You may disconnect Instagram in the app; this removes the stored token.</p><h2>Security</h2><p>Passwords are hashed. We use authentication tokens and server-side access checks for account data. No internet service is risk-free; avoid sending sensitive contractual, financial or personal information through early-access messaging.</p><h2>Payments</h2><p>Membership checkout is not enabled in this build. Collabzy does not collect membership payments through this version.</p><h2>Storage and early access</h2><p>This deployment still uses SQLite on a free hosting service. Its local filesystem is ephemeral and records may be lost when the service restarts, spins down or redeploys. Persistent production storage and backups have not yet been verified. Do not use this version as the sole record of commercial agreements or sensitive information.</p><h2>Your choices</h2><p>You can update your profile, change your password, download a copy of your account data, disconnect Instagram, or request account deletion from the Profile area. Account deletion removes the account and related marketplace records and may remove associated conversations. For data access and deletion requests, use the Profile controls in Collabzy. A direct privacy contact address must be published before public launch.</p><h2>Changes</h2><p>This notice may be updated as the product changes. Material changes will be reflected on this page.</p><p><a href="/terms.html">Read the Terms of Use</a></p></main></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#211942">
+<title>Privacy Notice · Collabzy</title>
+<style>
+:root{color-scheme:light;--ink:#241f38;--muted:#706b82;--purple:#7056e8;--line:#e9e5f2;--bg:#f7f6fb}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.7 system-ui,-apple-system,sans-serif}
+.wrap{max-width:820px;margin:32px auto;padding:30px;background:#fff;border:1px solid var(--line);border-radius:22px}
+a{color:var(--purple)}h1{font-size:clamp(30px,5vw,42px);line-height:1.15;letter-spacing:-1px;margin-bottom:8px}
+h2{font-size:20px;margin:28px 0 6px}p,li{color:var(--muted)}small{color:var(--muted)}
+.note{padding:13px 15px;border-radius:12px;background:#f5f2ff;color:#514673}
+@media(max-width:600px){.wrap{margin:12px;padding:20px}}
+</style>
+</head>
+<body><main class="wrap">
+<a href="/">← Collabzy home</a>
+<h1>Privacy Notice</h1>
+<small>Last updated: 15 October 2026</small>
+<p>Collabzy is a creator–brand collaboration service for discovering campaigns, managing applications and invitations, and coordinating work. This notice explains the personal information used by the service.</p>
+
+<h2>1. Information we collect</h2>
+<ul>
+<li><b>Account details:</b> name, email address, account role and a password hash. When verification is enabled, we also store the time the email address was verified.</li>
+<li><b>Profile details:</b> niche, biography, location, Instagram handle and self-reported audience or engagement metrics unless a connected platform supplies the metric.</li>
+<li><b>Marketplace activity:</b> campaign briefs and budgets, pitches, proposed rates, applications, invitation status, saved campaigns, conversations, messages and notifications.</li>
+<li><b>Instagram data:</b> only the professional-account profile, media and insights made available after an account holder authorizes the official Meta integration. The app stores an encrypted access token to keep the connection working; it does not request or store an Instagram password.</li>
+<li><b>Support requests:</b> name, email, request category, subject and message submitted through the support form when that channel is configured.</li>
+</ul>
+
+<h2>2. How information is used</h2>
+<p>We use information to sign users in, secure accounts, display creator profiles and campaigns, deliver invitations and notifications, run collaboration conversations, provide authorized Instagram insights, respond to support requests, prevent abuse, and operate and troubleshoot the service.</p>
+
+<h2>3. What other users can see</h2>
+<p>Campaign listings are shown in the marketplace. Creator profile information is available in the creator directory to signed-in marketplace users. An application and its pitch are shared with the brand running that campaign; related messages are available to the participants in that conversation. Do not put private contact details, financial account information or confidential contract material in public profile fields or public campaign briefs.</p>
+
+<h2>4. Instagram and third-party services</h2>
+<p>Instagram access is handled through the official Meta authorization process and depends on account eligibility, granted permissions and Meta's service availability. We do not scrape private Instagram data or display unavailable metrics as verified values. You can disconnect Instagram from the app; doing so removes the stored access token and linked account metrics from the Collabzy profile.</p>
+<p>Collabzy is hosted by Render and its marketplace data is stored in a dedicated Neon PostgreSQL database. When email delivery is configured, Resend is used to send verification, password-reset and support emails. Meta processes authorization and Instagram API requests. These providers process data as needed to deliver their services and are subject to their own terms and privacy practices.</p>
+
+<h2>5. Security</h2>
+<p>Passwords are hashed with bcrypt. API requests use HTTPS, authentication sessions expire, and production PostgreSQL connections verify TLS certificates. Instagram access tokens are encrypted at rest. Rate limits and server-side access checks help reduce abuse. No online service can guarantee absolute security; keep your password private and report suspected account misuse through Support.</p>
+
+<h2>6. Storage, retention and availability</h2>
+<p>We retain account information and marketplace activity while needed to operate the service. Account deletion removes the account and linked records covered by the database's cascade rules. Support requests may be retained long enough to answer and document a request. Some security or operational logs may remain with hosting providers for their standard retention periods.</p>
+<p>The current service runs on free-tier hosting and database plans. It does not yet have a publicly verified backup/restore objective or uptime guarantee. The operator must upgrade and test backups before relying on this service for business-critical records. Users should keep independent copies of important commercial agreements.</p>
+
+<h2>7. Payments</h2>
+<p>Creator membership checkout and payment collection are not enabled. Collabzy does not collect membership payments in this version. If a payment feature is introduced, this notice and the checkout disclosures must be updated before collection begins.</p>
+
+<h2>8. Your choices and account deletion</h2>
+<p>From Profile you can update your information, change your password, export account data, disconnect Instagram and permanently delete your account. A public web path is available on the <a href="/delete-account.html">Delete account page</a>. If you cannot sign in, use the <a href="/support.html">Support page</a> to submit an account or deletion request; support must verify ownership before acting on requests made for an inaccessible account.</p>
+
+<h2>9. Contact and privacy requests</h2>
+<p>Use the <a href="/support.html">Support page</a> for privacy, security or data requests. The service operator must configure a monitored support mailbox and publish its legal/operator identity before public launch; the production readiness check indicates whether that contact channel is configured.</p>
+
+<h2>10. Changes to this notice</h2>
+<p>We may update this notice as the service changes. We will update the date above when a material revision is published.</p>
+<p class="note">This notice describes the current implementation. The operator must confirm it reflects the actual deployment, legal entity and local-law obligations before a public commercial launch.</p>
+<p><a href="/terms.html">Read the Terms of Use</a> · <a href="/delete-account.html">Delete account</a> · <a href="/support.html">Support</a></p>
+</main></body></html>
