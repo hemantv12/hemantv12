@@ -460,7 +460,8 @@ private fun CollabzyNativeApp(activity: MainActivity, oauthResult: String?, clea
         token = result.optString("token")
         prefs.edit().putString("token", token).apply()
         Api.token = token
-        me = CreatorUser.from(result.getJSONObject("user"))
+        // Re-fetch the authenticated profile so computed fields such as instagram_connected are current.
+        me = CreatorUser.from(Api.call("/me").getJSONObject("user"))
         screen = if (me?.role == "brand") "overview" else "discover"
         refreshAll()
         toast("Welcome to Collabzy!")
