@@ -36,7 +36,7 @@ const PROFILE_FIELDS='id,name,email,role,niche,bio,location,instagram_handle,fol
 
 async function start(PORT,SECRET){
   if(!process.env.DATABASE_URL)throw Error('DATABASE_URL is required for the PostgreSQL adapter.');
-  const pool=new Pool({connectionString:process.env.DATABASE_URL,ssl:process.env.PGSSLMODE==='disable'?false:{rejectUnauthorized:false},max:8,idleTimeoutMillis:30000,connectionTimeoutMillis:10000});
+  const pool=new Pool({connectionString:process.env.DATABASE_URL,ssl:process.env.PGSSLMODE==='disable'?false:{rejectUnauthorized:true},max:8,idleTimeoutMillis:30000,connectionTimeoutMillis:10000});
   const app=express();
   await pool.query('SELECT 1');
   await pool.query("CREATE TABLE IF NOT EXISTS users(id BIGSERIAL PRIMARY KEY,name TEXT NOT NULL,email TEXT NOT NULL UNIQUE,password_hash TEXT NOT NULL,role TEXT NOT NULL CHECK(role IN('creator','brand')),niche TEXT NOT NULL DEFAULT '',bio TEXT NOT NULL DEFAULT '',location TEXT NOT NULL DEFAULT '',instagram_handle TEXT NOT NULL DEFAULT '',instagram_user_id TEXT NOT NULL DEFAULT '',instagram_access_token_enc TEXT NOT NULL DEFAULT '',instagram_connected_at TIMESTAMPTZ,instagram_token_expires_at TIMESTAMPTZ,followers BIGINT NOT NULL DEFAULT 0,engagement REAL NOT NULL DEFAULT 0,created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP)");
