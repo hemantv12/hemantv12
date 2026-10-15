@@ -21,12 +21,12 @@ The app already implements the server-side Instagram Login flow, encrypted long-
 
    Save/redeploy the service. Do not place the app secret in Android source, a browser, GitHub commits, screenshots, or chat messages.
 5. After deploy, \`GET /api/health\` reports only \`integrations.instagram = configured\` or \`setup_required\`; it never returns credentials. The authenticated \`GET /api/instagram/status\` also reports setup readiness.
-6. Sign in to Collabzy with a creator account, open Instagram Insights, and select **Continue with Instagram**. Approve the requested access in Meta's authorization page. On success, verify the handle, recent media and any metrics returned by Instagram.
+6. Sign in or create a creator account. Creator onboarding immediately presents the Instagram connection gate; select **Connect Instagram securely**. Approve access in Meta's official authorization page. After callback, the creator workspace unlocks and the Insights screen loads the handle, recent media and whatever metrics Meta returns.
 7. Test token refresh and disconnect, then test with a separate eligible account after required Meta App Review / access-level approvals. Only Instagram Creator and Business accounts are supported by this API; personal consumer accounts are not.
 
 ## Current product boundary
 
-The current integration reads authorized profile/media/insights; it does not yet auto-publish posts, manage DMs/comments, run paid campaigns, or guarantee metric availability. Those require separate scopes, product implementation, Meta approval, and account-level eligibility. Do not show unavailable metrics as zero; a missing metric means Meta did not return it.
+The current integration reads authorized profile/media/insights. The AI Growth Coach can generate a report only when the operator configures `OPENAI_API_KEY`, the user accepts the data-use notice, and the account has a verified active Pro entitlement. The report sends selected metrics and recent captions to the AI provider, never the access token. It does not auto-publish posts, manage DMs/comments, run paid campaigns, or guarantee metric availability. Those require separate scopes, product implementation, Meta approval, and account-level eligibility. Do not show unavailable metrics as zero; a missing metric means Meta did not return it.
 
 ## Release checklist
 
