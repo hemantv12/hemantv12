@@ -2,7 +2,7 @@ const crypto = require('node:crypto');
 const assert = require('node:assert/strict');
 
 const base = (process.env.COLLABZY_BASE_URL || 'https://collabzy-api.onrender.com').replace(/\/+$/, '');
-const expectedVersion = process.env.COLLABZY_EXPECTED_VERSION || '2.2.0';
+const expectedVersion = process.env.COLLABZY_EXPECTED_VERSION || '2.2.1';
 
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -35,7 +35,7 @@ async function waitForDeployment() {
     try {
       const { response, json } = await request('/api/health');
       last = 'HTTP ' + response.status + ', version=' + (json.version || 'unknown');
-      if (response.ok && json.ok === true && json.database === 'connected' && json.version === expectedVersion) {
+      if (response.ok && json.ok === true && json.database === 'connected' && json.version === expectedVersion && ['instagram','email','support','operatorIdentity','publicRegistration','emailVerification','payments'].every(key => typeof json.integrations?.[key] === 'string')) {
         assert.equal(json.mode, 'postgres-persistent', 'production API must use persistent PostgreSQL');
         return json;
       }
