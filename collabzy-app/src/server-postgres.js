@@ -105,6 +105,11 @@ async function start(PORT,SECRET){
   const razorpayCheckoutReady=()=>!!(process.env.RAZORPAY_KEY_ID&&process.env.RAZORPAY_KEY_SECRET);
   const razorpayReady=()=>!!(razorpayCheckoutReady()&&process.env.RAZORPAY_WEBHOOK_SECRET);
   const publicLaunchApproved=()=>process.env.PUBLIC_LAUNCH_APPROVED==='true';
+  // Explicit allowlist for private beta testing only. Empty by default; never grants access to public users.
+  const betaAccessAllowed=(user)=>{
+    const allowed=String(process.env.COLLABZY_BETA_ACCESS_EMAILS||'').split(',').map(x=>x.trim().toLowerCase()).filter(Boolean);
+    return !!user?.email&&allowed.includes(String(user.email).trim().toLowerCase());
+  };
   const registrationReady=()=>!requireEmailVerification||(publicLaunchApproved()&&emailReady()&&supportReady()&&legalIdentityReady()&&openAiReady()&&razorpayReady()&&(process.env.REQUIRE_INSTAGRAM_CONFIG!=='true'||metaReady()));
   const annualPlan={code:'creator_annual_299',amountPaise:29900,currency:'INR',durationDays:365};
   const razorpayAuthorization=()=>('Basic '+Buffer.from(process.env.RAZORPAY_KEY_ID+':'+process.env.RAZORPAY_KEY_SECRET).toString('base64'));
@@ -501,7 +506,8 @@ async function start(PORT,SECRET){
   app.get('/api/billing/status',auth,asyncRoute(async(q,s)=>{
     const r=await pool.query('SELECT plan_code,status,starts_at,expires_at FROM user_subscriptions WHERE user_id=$1',[q.user.id]);
     const sub=r.rows[0],active=!!sub&&sub.status==='active'&&new Date(sub.expires_at)>new Date();
-    s.json({active,status:active?'active':sub?'expired':'inactive',plan_code:sub?.plan_code||'',starts_at:sub?.starts_at||'',expires_at:sub?.expires_at||'',amount:annualPlan.amountPaise/100,currency:annualPlan.currency,duration_days:annualPlan.durationDays});
+    const betaAccess=betaAccessAllowed(q.user),checkoutReady=razorpayReady();
+    s.json({active,status:active?'active':sub?'expired':'inactive',beta_access:betaAccess,checkout_ready:checkoutReady,checkout_setup_required:!checkoutReady,plan_code:sub?.plan_code||'',starts_at:sub?.starts_at||'',expires_at:sub?.expires_at||'',amount:annualPlan.amountPaise/100,currency:annualPlan.currency,duration_days:annualPlan.durationDays});
   }));
   app.post('/api/billing/order',auth,asyncRoute(async(q,s)=>{
     if(String(q.body?.plan_code||annualPlan.code)!==annualPlan.code)return s.status(400).json({error:'Choose a valid Collabzy plan.'});
@@ -558,7 +564,8 @@ async function start(PORT,SECRET){
     if(q.body?.confirmed_ai_disclosure!==true)return s.status(400).json({error:'Please confirm the AI data-use notice before generating a report.'});
     if(!openAiReady())return s.status(503).json({error:'AI Growth Coach is not configured yet. Add OPENAI_API_KEY in the protected Render environment.'});
     const entitlement=await pool.query("SELECT 1 FROM user_subscriptions WHERE user_id=$1 AND status='active' AND expires_at>CURRENT_TIMESTAMP",[q.user.id]);
-    if(!entitlement.rows.length)return s.status(402).json({error:'Collabzy Pro is required for AI Growth Coach. Activate the ₹299/year plan to generate a report.'});
+    // Private beta access never creates a paid subscription or changes payment status.
+    if(!entitlement.rows.length&&!betaAccessAllowed(q.user))return s.status(402).json({error:'Collabzy Pro is required for AI Growth Coach. Activate the ₹299/year plan to generate a report.'});
     const usage=await pool.query("SELECT COUNT(*)::int AS n FROM ai_analysis_usage WHERE user_id=$1 AND requested_at>CURRENT_TIMESTAMP-INTERVAL '24 hours'",[q.user.id]);
     if(Number(usage.rows[0]?.n||0)>=10)return s.status(429).json({error:'You have used 10 AI reports in the last 24 hours. Please try again later.'});
     const account=(await pool.query('SELECT instagram_user_id,instagram_handle,instagram_access_token_enc,instagram_token_expires_at FROM users WHERE id=$1',[q.user.id])).rows[0];
