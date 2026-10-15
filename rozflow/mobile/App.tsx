@@ -641,26 +641,26 @@ function AppContent() {
     setAiQuery('');
     setAiMessages((current) => [...current, { id: String(Date.now()) + '-u', role: 'user', text: query }].slice(-14));
     const lower = query.toLowerCase();
-    const createSignal = /\\b(add|create|make|schedule|remind|track|save|log|record|start|build)\\b/.test(lower);
-    const amountMatch = query.match(/(?:₹|rs\\.?|inr)?\\s*([0-9][0-9,]*(?:\\.[0-9]{1,2})?)/i);
+    const createSignal = /\b(add|create|make|schedule|remind|track|save|log|record|start|build)\b/.test(lower);
+    const amountMatch = query.match(/(?:₹|rs\.?|inr)?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i);
     const parsedAmount = amountMatch ? Number(amountMatch[1].replace(/,/g, '')) : null;
     let answer = '';
     const reply = (text: string) => setAiMessages((current) => [...current, { id: String(Date.now()) + '-a', role: 'assistant', text }].slice(-14));
     try {
-      const dateInText = lower.match(/20\\d{2}-\\d{2}-\\d{2}/)?.[0];
-      const dueDate = /\\b(tomorrow|kal)\\b/.test(lower) ? dayOffset(1)
-        : /\\b(next week|agle hafte)\\b/.test(lower) ? dayOffset(7)
-        : /\\b(today|aaj)\\b/.test(lower) ? today
+      const dateInText = lower.match(/20\d{2}-\d{2}-\d{2}/)?.[0];
+      const dueDate = /\b(tomorrow|kal)\b/.test(lower) ? dayOffset(1)
+        : /\b(next week|agle hafte)\b/.test(lower) ? dayOffset(7)
+        : /\b(today|aaj)\b/.test(lower) ? today
         : dateInText && validDay(dateInText) ? dateInText : today;
-      const repeatEvery: 'Never' | 'Monthly' | 'Yearly' = /\\b(yearly|annual|year)\\b/.test(lower) ? 'Yearly' : /\\b(one.?time|never|once)\\b/.test(lower) ? 'Never' : 'Monthly';
-      const isBillCommand = createSignal && /\\b(bill|rent|electricity|recharge|emi|insurance|payment|utility)\\b/.test(lower) && parsedAmount !== null && Number.isFinite(parsedAmount) && parsedAmount > 0;
+      const repeatEvery: 'Never' | 'Monthly' | 'Yearly' = /\b(yearly|annual|year)\b/.test(lower) ? 'Yearly' : /\b(one.?time|never|once)\b/.test(lower) ? 'Never' : 'Monthly';
+      const isBillCommand = createSignal && /\b(bill|rent|electricity|recharge|emi|insurance|payment|utility)\b/.test(lower) && parsedAmount !== null && Number.isFinite(parsedAmount) && parsedAmount > 0;
       const isExpenseCommand = parsedAmount !== null && Number.isFinite(parsedAmount) && parsedAmount > 0
-        && /\\b(spent|expense|kharch|kharcha|paid|log|record)\\b/.test(lower)
+        && /\b(spent|expense|kharch|kharcha|paid|log|record)\b/.test(lower)
         && !isBillCommand;
-      const isHabitCommand = /^(please\\s+)?(add|create|start|build)\\s+(a\\s+)?habit\\b/.test(lower);
+      const isHabitCommand = /^(please\s+)?(add|create|start|build)\s+(a\s+)?habit\b/.test(lower);
 
-      if (/\\b(focus|pomodoro|deep work|concentrate)\\b/.test(lower) && /\\b(min|mins|minute|minutes|focus|timer|pomodoro|deep work)\\b/.test(lower)) {
-        const match = lower.match(/(\\d{1,3})\\s*(?:min|mins|minute|minutes)/);
+      if (/\b(focus|pomodoro|deep work|concentrate)\b/.test(lower) && /\b(min|mins|minute|minutes|focus|timer|pomodoro|deep work)\b/.test(lower)) {
+        const match = lower.match(/(\d{1,3})\s*(?:min|mins|minute|minutes)/);
         const duration = Math.min(120, Math.max(5, match ? Number(match[1]) : 25));
         const supported = duration === 15 || duration === 25 || duration === 50 ? duration : 25;
         focusFinishHandled.current = false;
@@ -670,9 +670,9 @@ function AppContent() {
         setScreen('Focus');
         answer = 'Focus mode is running for ' + supported + ' minutes. I started the timer and opened Focus mode. Put one meaningful task first; you can pause or reset anytime.';
       } else if (isBillCommand) {
-        const title = query.replace(/^(please\\s+)?(add|create|remind me to|remind me|remind|schedule|track|save)\\s+/i, '')
-          .replace(/\\b(bill|reminder|monthly|yearly|annual|one.?time|never|once|today|tomorrow|kal|aaj|next week|agle hafte|20\\d{2}-\\d{2}-\\d{2})\\b/gi, '')
-          .replace(/(?:₹|rs\\.?|inr)?\\s*[0-9][0-9,]*(?:\\.[0-9]{1,2})?/ig, '')
+        const title = query.replace(/^(please\s+)?(add|create|remind me to|remind me|remind|schedule|track|save)\s+/i, '')
+          .replace(/\b(bill|reminder|monthly|yearly|annual|one.?time|never|once|today|tomorrow|kal|aaj|next week|agle hafte|20\d{2}-\d{2}-\d{2})\b/gi, '')
+          .replace(/(?:₹|rs\.?|inr)?\s*[0-9][0-9,]*(?:\.[0-9]{1,2})?/ig, '')
           .replace(/[,.!?]+$/g, '').trim();
         const billTitle = title || 'Bill payment';
         const data = { title: billTitle, amount: parsedAmount!, dueDate };
@@ -687,14 +687,14 @@ function AppContent() {
         setScreen('Plan');
       } else if (isExpenseCommand) {
         const category = categoryFromText(query);
-        const note = query.replace(/\\b(i\\s+)?(spent|paid|log|record|expense|kharch|kharcha|on|for|rupees?|rs\\.?)\\b/gi, '')
-          .replace(/(?:₹|inr)?\\s*[0-9][0-9,]*(?:\\.[0-9]{1,2})?/ig, '').replace(/[,.!?]+$/g, '').trim() || category;
+        const note = query.replace(/\b(i\s+)?(spent|paid|log|record|expense|kharch|kharcha|on|for|rupees?|rs\.?)\b/gi, '')
+          .replace(/(?:₹|inr)?\s*[0-9][0-9,]*(?:\.[0-9]{1,2})?/ig, '').replace(/[,.!?]+$/g, '').trim() || category;
         await withDb((db) => db.runAsync('INSERT INTO expenses (amount, category, note, day, createdAt) VALUES (?, ?, ?, ?, ?)', parsedAmount!, category, note, today, new Date().toISOString()).then(() => undefined));
         await refreshData();
         answer = 'Logged ' + money(parsedAmount!) + ' under ' + category + (note ? ' for “' + note + '”' : '') + '. Your month-to-date total is now ' + money(monthExpenses.reduce((sum, item) => sum + item.amount, 0) + parsedAmount!) + '.';
         setScreen('Money');
       } else if (isHabitCommand) {
-        const title = query.replace(/^(please\\s+)?(add|create|start|build)\\s+(a\\s+)?habit\\s*/i, '').replace(/^(called|named)\\s+/i, '').trim();
+        const title = query.replace(/^(please\s+)?(add|create|start|build)\s+(a\s+)?habit\s*/i, '').replace(/^(called|named)\s+/i, '').trim();
         if (!title) {
           answer = 'Tell me the habit name, for example “Add habit drink water”. I will create it and you can check in each day.';
         } else if (habits.some((habit) => habit.title.toLowerCase() === title.toLowerCase())) {
@@ -706,14 +706,14 @@ function AppContent() {
           answer = 'Added “' + title + '” to your habits. A tiny daily check-in is ready—RozFlow will keep the streak on this phone.';
           setScreen('Habits');
         }
-      } else if (/^(please\\s+)?(add|create|make|schedule)\\s+(a\\s+)?(task|todo)\\b/.test(lower) || /^remind me to\\b/.test(lower)) {
-        const title = query.replace(/^(please\\s+)?(add|create|make|schedule)\\s+(a\\s+)?(task|todo)\\s*/i, '')
-          .replace(/^remind me to\\s*/i, '').replace(/\\b(today|tomorrow|kal|aaj|next week|agle hafte|urgent|asap|high priority|medium priority|low priority|20\\d{2}-\\d{2}-\\d{2})\\b/gi, '')
+      } else if (/^(please\s+)?(add|create|make|schedule)\s+(a\s+)?(task|todo)\b/.test(lower) || /^remind me to\b/.test(lower)) {
+        const title = query.replace(/^(please\s+)?(add|create|make|schedule)\s+(a\s+)?(task|todo)\s*/i, '')
+          .replace(/^remind me to\s*/i, '').replace(/\b(today|tomorrow|kal|aaj|next week|agle hafte|urgent|asap|high priority|medium priority|low priority|20\d{2}-\d{2}-\d{2})\b/gi, '')
           .replace(/[,.!?]+$/g, '').trim();
         if (!title) {
           answer = 'Try “Add task call the dentist tomorrow” and I will create it with a due date and notification when allowed.';
         } else {
-          const priority: Priority = /\\b(urgent|asap|important|high priority)\\b/.test(lower) ? 'High' : /\\b(low priority|whenever)\\b/.test(lower) ? 'Low' : 'Medium';
+          const priority: Priority = /\b(urgent|asap|important|high priority)\b/.test(lower) ? 'High' : /\b(low priority|whenever)\b/.test(lower) ? 'Low' : 'Medium';
           const taskId = await withDb(async (db) => {
             const result = await db.runAsync('INSERT INTO tasks (title, note, dueDate, priority, done, createdAt) VALUES (?, ?, ?, ?, 0, ?)', title, 'Created by RozFlow Smart Assistant.', dueDate, priority, new Date().toISOString());
             return result.lastInsertRowId;
@@ -724,26 +724,26 @@ function AppContent() {
           answer = 'Added task: “' + title + '”, due ' + dateLabel(dueDate) + ', ' + priority.toLowerCase() + ' priority. A local reminder is scheduled if permissions allow.';
           setScreen('Plan');
         }
-      } else if (/\\b(spending|budget|spent|money|kharch|expense)\\b/.test(lower)) {
+      } else if (/\b(spending|budget|spent|money|kharch|expense)\b/.test(lower)) {
         const topCategory = categoryTotals[0];
         answer = 'Your month-to-date spending is ' + money(spentThisMonth) + (budgetNumber > 0 ? ', ' + money(Math.max(0, remainingBudget)) + ' remains in your ' + money(budgetNumber) + ' monthly guide.' : '. Set a monthly guide in Money to see the remaining target.')
           + (topCategory ? ' Your largest logged category is ' + topCategory.category + ' at ' + money(topCategory.total) + '.' : ' No spending category is logged yet.')
           + ' These are only entries you recorded in RozFlow—not bank transactions.';
         setScreen('Money');
-      } else if (/\\b(bill|bills|payment|rent|electricity|reminder)\\b/.test(lower)) {
+      } else if (/\b(bill|bills|payment|rent|electricity|reminder)\b/.test(lower)) {
         answer = nextBill ? 'Your next saved bill is ' + nextBill.title + ' for ' + money(nextBill.amount) + ', due ' + dateLabel(nextBill.dueDate) + '. ' + (billDueSoon ? 'It is due within three days.' : 'Review the due date before it arrives.') : 'No upcoming bill reminders are saved yet. Try “Add reminder electricity bill 1800 tomorrow monthly”.';
         setScreen('Plan');
-      } else if (/\\b(habit|habits|streak|routine)\\b/.test(lower)) {
+      } else if (/\b(habit|habits|streak|routine)\b/.test(lower)) {
         const uncompleted = habits.filter((habit) => !habitLogs.some((log) => log.habit_id === habit.id && log.day === today));
         const longest = habits.map((habit) => ({ title: habit.title, streak: streakFor(habit.id, habitLogs) })).sort((a, b) => b.streak - a.streak)[0];
         answer = 'You have checked in on ' + habitCompletedToday + ' of ' + habits.length + ' habits today.'
           + (uncompleted.length ? ' Your easiest next check-in is “' + uncompleted[0].title + '”.' : habits.length ? ' All saved habits are checked in today—nice work.' : ' Start with one small habit, such as drinking water or reading 10 pages.')
           + (longest && longest.streak ? ' Your longest current streak is ' + longest.streak + ' days for “' + longest.title + '”.' : '');
         setScreen('Habits');
-      } else if (/\\b(plan my day|what should i do|what next|today|plan|priority|priorities|task|tasks|productive)\\b/.test(lower)) {
+      } else if (/\b(plan my day|what should i do|what next|today|plan|priority|priorities|task|tasks|productive)\b/.test(lower)) {
         answer = smartBriefing.title + '. ' + smartBriefing.body + ' You have ' + openTasks.length + ' open task(s), ' + overdueTasks.length + ' overdue, and ' + bills.filter((bill) => bill.dueDate >= today).length + ' upcoming bill reminder(s).';
         setScreen(smartBriefing.screen);
-      } else if (/\\b(focus|time|productive|pomodoro)\\b/.test(lower)) {
+      } else if (/\b(focus|time|productive|pomodoro)\b/.test(lower)) {
         answer = 'You have completed ' + focusToday + ' focus minutes today. Try “Focus for 25 minutes” to start a session. I save completed sessions locally.';
         setScreen('Focus');
       } else {
