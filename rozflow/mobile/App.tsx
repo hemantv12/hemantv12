@@ -988,7 +988,7 @@ function AppContent() {
         </Pressable>)}
       </View>
       <View style={styles.dailyBriefCard}>
-        <View style={styles.dailyBriefIcon}><Feather name="bell-ring" size={18} color={C.greenDark} /></View>
+        <View style={styles.dailyBriefIcon}><Feather name="bell" size={18} color={C.greenDark} /></View>
         <View style={{ flex: 1 }}><Text style={styles.dailyBriefTitle}>Automatic morning brief</Text><Text style={styles.dailyBriefBody}>A daily 8 AM local notification nudges you to review today’s current priorities. Requires notification permission.</Text></View>
         <Pressable accessibilityRole="switch" accessibilityState={{ checked: dailyDigestEnabled }} onPress={() => void toggleDailyBriefing()} style={[styles.digestToggle, dailyDigestEnabled && styles.digestToggleActive]}><View style={[styles.digestKnob, dailyDigestEnabled && styles.digestKnobActive]} /></Pressable>
       </View>
