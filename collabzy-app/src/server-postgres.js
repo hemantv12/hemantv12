@@ -132,6 +132,14 @@ async function start(PORT,SECRET){
     const r=await pool.query('INSERT INTO campaigns(brand_id,title,brand_name,description,category,collaboration_type,budget_min,budget_max,deliverables,location) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *',[q.user.id,String(b.title).slice(0,120),q.user.name,String(b.description).slice(0,1500),String(b.category).slice(0,60),b.collaboration_type,low,high,String(b.deliverables||'').slice(0,300),String(b.location||'India').slice(0,100)]);
     s.status(201).json({campaign:r.rows[0]});
   }));
+  app.patch('/api/campaigns/:id',auth,asyncRoute(async(q,s)=>{
+    if(q.user.role!=='brand')return s.status(403).json({error:'Only brands can edit campaigns.'});
+    const id=Number(q.params.id),b=q.body||{},found=await pool.query('SELECT * FROM campaigns WHERE id=$1 AND brand_id=$2',[id,q.user.id]);if(!found.rows.length)return s.status(404).json({error:'Campaign not found.'});
+    const c=found.rows[0],title=String(b.title===undefined?c.title:b.title).trim().slice(0,120),description=String(b.description===undefined?c.description:b.description).trim().slice(0,1500),category=String(b.category===undefined?c.category:b.category).trim().slice(0,60),type=String(b.collaboration_type===undefined?c.collaboration_type:b.collaboration_type),low=b.budget_min===undefined?Number(c.budget_min):Math.max(0,Number(b.budget_min)||0),high=b.budget_max===undefined?Number(c.budget_max):Math.max(0,Number(b.budget_max)||0),deliverables=String(b.deliverables===undefined?c.deliverables:b.deliverables).slice(0,300),location=String(b.location===undefined?c.location:b.location).slice(0,100);
+    if(!title||!description||!category||!['Paid','Barter','Hybrid'].includes(type))return s.status(400).json({error:'Enter a title, brief, category and valid collaboration type.'});
+    if(high<low)return s.status(400).json({error:'Maximum budget must be at least the minimum budget.'});
+    const r=await pool.query('UPDATE campaigns SET title=$1,description=$2,category=$3,collaboration_type=$4,budget_min=$5,budget_max=$6,deliverables=$7,location=$8 WHERE id=$9 AND brand_id=$10 RETURNING *',[title,description,category,type,low,high,deliverables,location,id,q.user.id]);s.json({campaign:r.rows[0]});
+  }));
   app.get('/api/saved-campaigns',auth,asyncRoute(async(q,s)=>{
     const r=await pool.query("SELECT c.*,sc.created_at saved_at FROM saved_campaigns sc JOIN campaigns c ON c.id=sc.campaign_id WHERE sc.user_id=$1 AND c.status='active' ORDER BY sc.created_at DESC",[q.user.id]);s.json({campaigns:r.rows.map(c=>({...c,is_sample:false}))});
   }));
