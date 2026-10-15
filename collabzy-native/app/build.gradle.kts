@@ -10,8 +10,24 @@ android {
         applicationId = "com.collabzy.creator"
         minSdk = 24
         targetSdk = 35
-        versionCode = 2
-        versionName = "2.0.0"
+        versionCode = 3
+        versionName = "2.1.0"
+    }
+    val signingStorePath = System.getenv("ANDROID_KEYSTORE_PATH")
+    val hasReleaseSigning = !signingStorePath.isNullOrBlank() &&
+        !System.getenv("ANDROID_KEYSTORE_PASSWORD").isNullOrBlank() &&
+        !System.getenv("ANDROID_KEY_ALIAS").isNullOrBlank() &&
+        !System.getenv("ANDROID_KEY_PASSWORD").isNullOrBlank()
+
+    signingConfigs {
+        create("release") {
+            if (hasReleaseSigning) {
+                storeFile = file(signingStorePath!!)
+                storePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("ANDROID_KEY_ALIAS")
+                keyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+            }
+        }
     }
     buildTypes {
         debug {
@@ -20,6 +36,9 @@ android {
         }
         release {
             isMinifyEnabled = true
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
