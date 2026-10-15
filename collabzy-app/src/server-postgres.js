@@ -98,7 +98,7 @@ async function start(PORT,SECRET){
     if(b.followers!==undefined&&!instagramConnected){setters.push('followers=$'+(values.length+1));values.push(Math.max(0,Math.min(100000000,Number(b.followers)||0)))}
     if(b.engagement!==undefined){setters.push('engagement=$'+(values.length+1));values.push(Math.max(0,Math.min(100,Number(b.engagement)||0)))}
     if(setters.length)await pool.query('UPDATE users SET '+setters.join(',')+' WHERE id=$'+(values.length+1),[...values,q.user.id]);
-    const r=await pool.query('SELECT '+PROFILE_FIELDS+', (instagram_access_token_enc<>'\''\') AS instagram_connected FROM users WHERE id=$1',[q.user.id]);s.json({user:r.rows[0]});
+    const r=await pool.query("SELECT "+PROFILE_FIELDS+", (instagram_access_token_enc <> '') AS instagram_connected FROM users WHERE id=$1",[q.user.id]);s.json({user:r.rows[0]});
   }));
   app.patch('/api/me/password',auth,asyncRoute(async(q,s)=>{
     const current=String(q.body?.current_password||''),next=String(q.body?.new_password||'');
