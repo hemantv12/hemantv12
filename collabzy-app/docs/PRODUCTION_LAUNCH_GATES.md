@@ -30,7 +30,7 @@ Register that exact redirect URI in the Instagram Login settings. Test an actual
 
 ## Opening registration
 
-The \`/api/health\` response exposes \`integrations.email\`, \`integrations.support\`, \`integrations.instagram\`, \`integrations.emailVerification\` and \`integrations.publicRegistration\`. Public registration becomes available only when email delivery, support and (if required) Meta credentials are configured. After saving secrets, redeploy and inspect the health status. The production smoke test checks that registration fails closed when these gates are missing.
+The \`/api/health\` response exposes \`integrations.email\`, \`integrations.support\`, \`integrations.instagram\`, \`integrations.emailVerification\` and \`integrations.publicRegistration\`. Public registration becomes available only when email delivery, support and (if required) Meta credentials are configured. After saving secrets, redeploy and inspect the health status. Do not open registration until the provider readiness flags show `configured`, the `publicLaunchApproval` flag is deliberately approved, and the owner has signed off on every non-code item. The production smoke test checks that registration fails closed when these gates are missing.
 
 ## Still required outside source code
 
