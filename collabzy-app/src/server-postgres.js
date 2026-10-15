@@ -124,7 +124,7 @@ async function start(PORT,SECRET){
     q.sessionVersion=Number(r.rows[0].session_version||0);
     q.user=publicUser(r.rows[0]);n();
   });
-  app.get('/api/health',asyncRoute(async(q,s)=>{await pool.query('SELECT 1');s.json({ok:true,app:'Collabzy',version:'2.2.0',database:'connected',mode:'postgres-persistent',integrations:{instagram:metaReady()?'configured':'setup_required',email:emailReady()?'configured':'setup_required',emailVerification:requireEmailVerification?'required':'not_enforced',payments:'disabled',support:supportReady()&&emailReady()?'configured':'setup_required',operatorIdentity:legalIdentityReady()?'configured':'setup_required',publicRegistration:registrationReady()?'open':'setup_required'}})}));
+  app.get('/api/health',asyncRoute(async(q,s)=>{await pool.query('SELECT 1');s.json({ok:true,app:'Collabzy',version:'2.2.1',database:'connected',mode:'postgres-persistent',integrations:{instagram:metaReady()?'configured':'setup_required',email:emailReady()?'configured':'setup_required',emailVerification:requireEmailVerification?'required':'not_enforced',payments:'disabled',support:supportReady()&&emailReady()?'configured':'setup_required',operatorIdentity:legalIdentityReady()?'configured':'setup_required',publicRegistration:registrationReady()?'open':'setup_required'}})}));
   app.get('/api/public-config',(q,s)=>s.json({operatorName:process.env.OPERATOR_LEGAL_NAME||'',jurisdiction:process.env.OPERATOR_JURISDICTION||'',supportEmail:process.env.SUPPORT_EMAIL||'',supportReady:supportReady()&&emailReady()}));
   app.post('/api/auth/register',asyncRoute(async(q,s)=>{
     const name=String(q.body?.name||'').trim(),email=validEmail(q.body?.email),password=String(q.body?.password||''),role=q.body?.role||'creator';
