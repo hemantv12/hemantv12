@@ -1048,7 +1048,7 @@ function AppContent() {
       <View style={styles.forecastCard}>
         <View style={styles.forecastGlyph}><Feather name="trending-up" size={18} color={C.greenDark} /></View>
         <View style={{ flex: 1 }}><Text style={styles.forecastTitle}>Month-end pace check</Text><Text style={styles.forecastBody}>{forecastReliable ? 'At the current average, your logged spending could reach about ' + money(projectedMonthSpend) + ' by month-end.' : 'Log a few more expenses over several days to unlock a more useful pace estimate.'}</Text></View>
-        {forecastReliable ? <Text style={styles.forecastValue}>{Math.round(projectedMonthSpend / Math.max(1, budgetNumber) * 100)}%</Text> : null}
+        {forecastReliable && budgetNumber > 0 ? <Text style={styles.forecastValue}>{Math.round(projectedMonthSpend / budgetNumber * 100)}%</Text> : null}
       </View>
       <View style={styles.actionRow}><ActionButton title="Log an expense" onPress={() => openAdd('expense')} compact icon="plus" /><ActionButton title="Set a reminder" onPress={() => { setScreen('Plan'); openAdd('bill'); }} tone="light" compact icon="bell" /></View>
       <SectionHeader title="Where it goes" />
@@ -1063,7 +1063,7 @@ function AppContent() {
   const renderSettings = () => (
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.pageContent}>
       <View style={styles.topHeader}><View><Text style={styles.eyebrow}>YOUR SPACE, YOUR RULES</Text><Text style={styles.screenTitle}>Settings</Text></View><Pressable onPress={() => setScreen('Today')} style={styles.avatarButton}><Feather name="x" size={20} color={C.ink} /></Pressable></View>
-      <View style={styles.settingsBrand}><LinearGradient colors={['#10182E', '#087B65']} style={styles.settingsBrandIcon}><MaterialCommunityIcons name="brain" size={30} color="#CFFFF0" /></LinearGradient><View style={{ flex: 1 }}><Text style={styles.settingsBrandTitle}>RozFlow AI</Text><Text style={styles.taskSub}>Daily Life OS · Version 2.0.0</Text></View><View style={styles.offlinePill}><View style={styles.offlineDot} /><Text style={styles.offlineText}>LOCAL SMARTS</Text></View></View>
+      <View style={styles.settingsBrand}><LinearGradient colors={['#10182E', '#087B65']} style={styles.settingsBrandIcon}><MaterialCommunityIcons name="brain" size={30} color="#CFFFF0" /></LinearGradient><View style={{ flex: 1 }}><Text style={styles.settingsBrandTitle}>RozFlow AI</Text><Text style={styles.taskSub}>Daily Life OS · Version 3.0.0</Text></View><View style={styles.offlinePill}><View style={styles.offlineDot} /><Text style={styles.offlineText}>LOCAL SMARTS</Text></View></View>
       <SectionHeader title="Data & privacy" />
       <View style={styles.surfaceCard}>
         <Pressable onPress={() => void exportBackup()} style={styles.settingsRow}><View style={[styles.settingGlyph, { backgroundColor: C.mint }]}><Feather name="download" size={18} color={C.greenDark} /></View><View style={{ flex: 1 }}><Text style={styles.taskTitle}>Export a backup</Text><Text style={styles.taskSub}>Share a JSON copy of tasks, habits, bills and expenses.</Text></View><Feather name="chevron-right" size={18} color={C.muted} /></Pressable>
