@@ -23,9 +23,10 @@ Collabzy is a mobile-first creator–brand collaboration marketplace. The live e
 
 ## Database modes
 
-- **Current deployment:** SQLite on a free web service. Free Render web services have an ephemeral filesystem; do not rely on it for production user records.
-- **Persistent PostgreSQL adapter:** src/server-postgres.js provides a managed PostgreSQL backend with equivalent marketplace endpoints. When a valid DATABASE_URL is configured, src/server.js selects this backend automatically. PostgreSQL schema initialization and existing-application conversation backfill run on startup. A guarded one-time SQLite importer is available via `MIGRATE_SQLITE_ON_START=true` and optional `SQLITE_MIGRATION_PATH`; it refuses to merge into a populated PostgreSQL database and records completion.
-- Database provisioning is blocked until the Render workspace has billing information. See Production database setup (docs/PRODUCTION_DATABASE.md). Do not reuse or point Collabzy at the separate SubSathi database.
+- **Current deployment:** Render's `collabzy-api` service uses a dedicated Neon PostgreSQL project named `collabzy-production` in Singapore, on the Neon Free plan. It is separate from SubSathi. Render's `DATABASE_URL` is configured and the service starts in PostgreSQL mode with TLS certificate verification.
+- **Current database state:** the eight marketplace tables are initialized. The previous Render SQLite file was not present at migration time, so the one-time importer safely skipped it. The new database currently has no legacy users or campaigns; register a fresh test creator and brand before testing the complete workflow.
+- **Persistence and operations:** Neon Free has usage limits and may scale compute to zero; monitor usage and arrange backups/restore testing before growth. Render's current web service is on its free plan, so cold starts and uptime limitations remain. A paid uptime tier may be appropriate before commercial launch.
+- **Migration safety:** `MIGRATE_SQLITE_ON_START` is now disabled. Never connect Collabzy to the separate SubSathi database.
 
 ## Run locally
 
