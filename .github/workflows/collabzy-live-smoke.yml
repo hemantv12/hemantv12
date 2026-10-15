@@ -1,0 +1,34 @@
+name: Collabzy Production Smoke Test
+
+on:
+  push:
+    branches: [collabzy-android]
+    paths:
+      - 'collabzy-app/src/server.js'
+      - 'collabzy-app/src/server-postgres.js'
+      - 'collabzy-app/scripts/live-smoke.js'
+      - '.github/workflows/collabzy-live-smoke.yml'
+  workflow_dispatch:
+  schedule:
+    - cron: '37 4 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  production-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Exercise the live production API
+        working-directory: collabzy-app
+        env:
+          COLLABZY_BASE_URL: https://collabzy-api.onrender.com
+          COLLABZY_EXPECTED_VERSION: '2.1.0'
+        run: node scripts/live-smoke.js
