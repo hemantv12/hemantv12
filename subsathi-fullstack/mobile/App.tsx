@@ -1,2375 +1,375 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  Animated,
-  Easing,
-  KeyboardAvoidingView,
-  Linking,
-  Modal,
-  Platform,
-  Pressable,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Switch,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Alert, Animated, Easing, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import * as SQLite from 'expo-sqlite';
-import * as FileSystem from 'expo-file-system/legacy';
-import * as Sharing from 'expo-sharing';
 import * as Notifications from 'expo-notifications';
-import * as SecureStore from 'expo-secure-store';
-import * as WebBrowser from 'expo-web-browser';
-import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import mobileAds, { AdsConsent, BannerAd, BannerAdSize, TestIds } from 'react-native-google-mobile-ads';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
-import * as Speech from 'expo-speech';
-import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
+import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
-WebBrowser.maybeCompleteAuthSession();
+type Priority = 'High' | 'Medium' | 'Low';
+type Tab = 'Today' | 'Plan' | 'Money' | 'Coach';
+type EditorKind = 'task' | 'expense' | 'goal' | 'habit' | 'contribute' | null;
+type DayTask = { id: number; title: string; details: string; dueDate: string; priority: Priority; completed: number; createdAt: string };
+type Habit = { id: number; title: string; icon: string; tint: string; active: number };
+type HabitLog = { habitId: number; date: string };
+type Expense = { id: number; title: string; amount: number; category: string; spentAt: string };
+type Goal = { id: number; title: string; targetAmount: number; savedAmount: number; targetDate: string; createdAt: string };
+type ChatMessage = { id: string; role: 'coach' | 'you'; text: string };
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: false,
-    shouldSetBadge: false,
-  }),
-});
-
-type Category = 'Entertainment' | 'Software' | 'Storage' | 'Music' | 'Fitness' | 'Utilities' | 'Learning' | 'Other';
-type Cycle = 'Weekly' | 'Monthly' | 'Quarterly' | 'Yearly';
-type BillingSource = 'provider' | 'google_play' | 'apple_app_store' | 'paypal' | 'upi_autopay' | 'bank_mandate';
-type Tab = 'Home' | 'Subscriptions' | 'AI' | 'Insights' | 'Settings';
-type AssistantLanguage = 'en-IN' | 'hi-IN';
-type AssistantMessage = { id: string; role: 'assistant' | 'user'; text: string };
-
-type Subscription = {
-  id: number;
-  name: string;
-  category: Category;
-  amount: number | null;
-  cycle: Cycle | 'Unknown';
-  nextRenewal: string;
-  manageUrl: string;
-  billingSource: BillingSource;
-  notes: string;
-  reminderEnabled: number;
-  createdAt: string;
-};
-
-type SubscriptionInput = Omit<Subscription, 'id' | 'createdAt'>;
-type GmailCandidate = {
-  id: number;
-  name: string;
-  category: Category;
-  amount: number | null;
-  cycle: Cycle | 'Unknown';
-  nextRenewal: string | null;
-  confidence: number;
-  evidenceCount: number;
-  sourceAccounts: string[];
-  needsReview: boolean;
-  manageUrl: string;
-  billingSource: BillingSource;
-  billingSourceLabel: string;
-  alreadyImported: boolean;
-};
-type GmailAccountSummary = { email: string; primary: boolean };
-
-function profileGmailAccounts(profile: any): GmailAccountSummary[] {
-  if (Array.isArray(profile?.gmail_accounts)) {
-    return profile.gmail_accounts
-      .filter((item: any) => item && typeof item.email === 'string' && item.email.includes('@'))
-      .map((item: any) => ({ email: String(item.email), primary: Boolean(item.primary) }));
-  }
-  const email = String(profile?.gmail_email || profile?.email || '');
-  return email.includes('@') ? [{ email, primary: true }] : [];
-}
-type GmailCandidateDraft = {
-  amountText: string;
-  cycle: Cycle | 'Unknown';
-  renewalText: string;
-};
-
-const API_BASE_URL = (process.env.EXPO_PUBLIC_API_BASE_URL || 'https://subsathi-api.onrender.com').replace(/\/$/, '');
-const SESSION_KEY = 'subsathi_api_session_v1';
-const GOOGLE_AUTH_RETURN_URL = 'subsathi://auth';
-
-const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
-
-async function fetchWithNetworkRetry(
-  url: string,
-  init: RequestInit = {},
-  attempts = 3,
-  timeoutMs = 15000,
-): Promise<Response> {
-  let lastError: unknown;
-  for (let attempt = 0; attempt < attempts; attempt += 1) {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), timeoutMs);
-    try {
-      const response = await fetch(url, { ...init, signal: controller.signal });
-      if ([502, 503, 504].includes(response.status) && attempt + 1 < attempts) {
-        await sleep(600 * (attempt + 1));
-        continue;
-      }
-      return response;
-    } catch (error) {
-      lastError = error;
-      if (attempt + 1 >= attempts) throw error;
-      await sleep(700 * (attempt + 1));
-    } finally {
-      clearTimeout(timeout);
-    }
-  }
-  throw lastError instanceof Error ? lastError : new Error('Network request failed. Please retry.');
-}
-
-function isRecoverableSQLiteHandleError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error ?? '');
-  return /NativeDatabase\.prepareAsync|NativeDatabase\.(?:runAsync|getFirstAsync|getAllAsync)|NullPointerException|database.*closed|native database.*null/i.test(message);
-}
-
-function isNetworkConnectivityError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error ?? '');
-  return /network request failed|fetch failed|unknownhostexception|unable to resolve host|network error|aborted|timeout/i.test(message);
-}
-
-
-
-const C = {
-  ink: '#102A35',
-  muted: '#6E8188',
-  green: '#16A879',
-  greenDark: '#087D59',
-  greenPale: '#E6F7F0',
-  cream: '#F6F8F7',
-  white: '#FFFFFF',
-  line: '#E7EDEB',
-  orange: '#F4A340',
-  orangePale: '#FFF3E0',
-  red: '#D95959',
-  redPale: '#FFF0EF',
-  navy: '#0D2330',
-  bluePale: '#EAF2FF',
-};
-
-const CATEGORIES: { name: Category; emoji: string; tint: string }[] = [
-  { name: 'Entertainment', emoji: '🎬', tint: '#FCEBDD' },
-  { name: 'Software', emoji: '💻', tint: '#E8EFFF' },
-  { name: 'Storage', emoji: '☁️', tint: '#E5F5FA' },
-  { name: 'Music', emoji: '🎧', tint: '#F2E9FF' },
-  { name: 'Fitness', emoji: '💪', tint: '#E3F5E9' },
-  { name: 'Utilities', emoji: '📶', tint: '#E7F0FF' },
-  { name: 'Learning', emoji: '📚', tint: '#FFF1D8' },
-  { name: 'Other', emoji: '🔁', tint: '#EDF1F1' },
+const C = { ink:'#142536', navy:'#102637', navy2:'#193C50', green:'#16A879', greenDark:'#087653', mint:'#DDF8EB', paper:'#F5F8F7', white:'#FFFFFF', muted:'#71828B', line:'#E4ECE9', blue:'#447EF7', bluePale:'#EAF1FF', purple:'#8864E8', purplePale:'#F0EAFF', orange:'#E99A39', orangePale:'#FFF2DE', red:'#D95360', redPale:'#FFF0F0', aqua:'#35BFC2', shadow:'#102F35' };
+const EXPENSE_CATEGORIES = ['Food','Transport','Home','Learning','Fun','Health','Other'];
+const HABIT_SEEDS = [
+  { title:'Drink water', icon:'water-outline', tint:'#DDF3FF' },
+  { title:'Move your body', icon:'run', tint:'#E2F8EC' },
+  { title:'Learn 10 minutes', icon:'book-open-variant', tint:'#EFE8FF' },
+  { title:'Plan tomorrow', icon:'calendar-check-outline', tint:'#FFF0DB' },
 ];
-const CYCLES: Cycle[] = ['Weekly', 'Monthly', 'Quarterly', 'Yearly'];
-const BILLING_SOURCE_OPTIONS: { value: BillingSource; label: string }[] = [
-  { value: 'provider', label: 'Service website' },
-  { value: 'google_play', label: 'Google Play' },
-  { value: 'apple_app_store', label: 'Apple App Store' },
-  { value: 'paypal', label: 'PayPal' },
-  { value: 'upi_autopay', label: 'UPI AutoPay' },
-  { value: 'bank_mandate', label: 'Bank / card mandate' },
-];
-const BILLING_SOURCE_LABELS: Record<BillingSource, string> = {
-  provider: 'Service website', google_play: 'Google Play', apple_app_store: 'Apple App Store',
-  paypal: 'PayPal', upi_autopay: 'UPI AutoPay', bank_mandate: 'Bank / card mandate',
-};
-const BILLING_SOURCE_MANAGEMENT_URLS: Partial<Record<BillingSource, string>> = {
-  google_play: 'https://play.google.com/store/account/subscriptions',
-  apple_app_store: 'https://apps.apple.com/account/subscriptions',
-  paypal: 'https://www.paypal.com/myaccount/autopay/',
-  upi_autopay: '', bank_mandate: '',
-};
-function normalizeBillingSource(value: unknown): BillingSource {
-  const valid: BillingSource[] = ['provider', 'google_play', 'apple_app_store', 'paypal', 'upi_autopay', 'bank_mandate'];
-  return valid.includes(value as BillingSource) ? value as BillingSource : 'provider';
+const todayKey = () => dateKey(new Date());
+function dateKey(date: Date) { return date.getFullYear()+'-'+String(date.getMonth()+1).padStart(2,'0')+'-'+String(date.getDate()).padStart(2,'0'); }
+function monthKey() { return todayKey().slice(0,7); }
+function money(value: number) { return new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',maximumFractionDigits:value%1===0?0:2}).format(value); }
+function greeting() { const h=new Date().getHours(); return h<12?'Good morning':h<17?'Good afternoon':'Good evening'; }
+function readableDate() { return new Date().toLocaleDateString('en-IN',{weekday:'long',day:'numeric',month:'long'}); }
+function shortDate(value: string) {
+  if(!value) return 'Any time';
+  const d=new Date(value+'T12:00:00');
+  if(Number.isNaN(d.getTime())) return value;
+  if(value===todayKey()) return 'Today';
+  const t=new Date(); t.setDate(t.getDate()+1);
+  if(value===dateKey(t)) return 'Tomorrow';
+  return d.toLocaleDateString('en-IN',{day:'numeric',month:'short'});
 }
-function billingSourceLabel(value: unknown): string {
-  return BILLING_SOURCE_LABELS[normalizeBillingSource(value)];
+function priorityColor(p: Priority) { return p==='High'?C.red:p==='Medium'?C.orange:C.blue; }
+function streakDays(logs: HabitLog[]) {
+  const days=new Set(logs.map(x=>x.date)); const cursor=new Date();
+  if(!days.has(dateKey(cursor))) cursor.setDate(cursor.getDate()-1);
+  let count=0;
+  while(days.has(dateKey(cursor))&&count<366){count++;cursor.setDate(cursor.getDate()-1);}
+  return count;
 }
-
-const SERVICE_MANAGEMENT_URLS: Record<string, string> = {
-  adobecreativecloud: 'https://account.adobe.com/plans',
-  netflix: 'https://www.netflix.com/YourAccount',
-  spotifypremium: 'https://www.spotify.com/account/overview/',
-  spotify: 'https://www.spotify.com/account/overview/',
-  canvapro: 'https://www.canva.com/settings/billing-and-teams/',
-  canva: 'https://www.canva.com/settings/billing-and-teams/',
-  youtubepremium: 'https://www.youtube.com/paid_memberships',
-  appleicloud: 'https://account.apple.com/',
-  applemusic: 'https://account.apple.com/',
-  amazonprime: 'https://www.amazon.in/gp/primecentral',
-  amazonmusic: 'https://www.amazon.in/music/settings',
-  googleone: 'https://one.google.com/settings',
-  microsoft365: 'https://account.microsoft.com/services',
-  xboxgamepass: 'https://account.microsoft.com/services',
-  jiohotstar: 'https://www.jiohotstar.com/',
-  chatgptplus: 'https://chatgpt.com/#settings/Subscription',
-  chatgpt: 'https://chatgpt.com/#settings/Subscription',
-  dropboxplus: 'https://www.dropbox.com/account/plan',
-  notion: 'https://www.notion.so/settings/plans',
-  linkedinpremium: 'https://www.linkedin.com/mypreferences/d/manage-subscription',
-  zoompro: 'https://zoom.us/billing',
-  duolingosuper: 'https://www.duolingo.com/settings/super',
-  sonyliv: 'https://www.sonyliv.com/',
-  zee5: 'https://www.zee5.com/',
-  figma: 'https://www.figma.com/settings',
-  zomatogold: 'https://www.zomato.com/',
-  swiggyone: 'https://www.swiggy.com/',
-  audible: 'https://www.audible.in/account/overview',
-  grammarlypremium: 'https://account.grammarly.com/',
-  githubcopilot: 'https://github.com/settings/copilot',
-  crunchyrollpremium: 'https://www.crunchyroll.com/account/membership',
-  courseraplus: 'https://www.coursera.org/account/subscriptions',
-};
-
-function normalizedServiceName(value: string) {
-  return value.toLowerCase().replace(/[^a-z0-9]/g, '');
-}
-function knownManagementUrl(serviceName: string, billingSource: BillingSource = 'provider'): string {
-  const sourceUrl = BILLING_SOURCE_MANAGEMENT_URLS[billingSource];
-  if (sourceUrl !== undefined) return sourceUrl;
-  const key = normalizedServiceName(serviceName);
-  if (SERVICE_MANAGEMENT_URLS[key]) return SERVICE_MANAGEMENT_URLS[key];
-  const aliases: Array<[string, string]> = [
-    ['spotify', 'spotify'], ['netflix', 'netflix'], ['adobe', 'adobecreativecloud'],
-    ['youtube', 'youtubepremium'], ['icloud', 'appleicloud'], ['apple', 'appleicloud'],
-    ['amazonprime', 'amazonprime'], ['googleone', 'googleone'], ['microsoft', 'microsoft365'],
-    ['hotstar', 'jiohotstar'], ['chatgpt', 'chatgptplus'], ['dropbox', 'dropboxplus'],
-    ['linkedin', 'linkedinpremium'], ['duolingo', 'duolingosuper'], ['zomato', 'zomatogold'],
-    ['swiggy', 'swiggyone'], ['audible', 'audible'], ['grammarly', 'grammarlypremium'],
-    ['githubcopilot', 'githubcopilot'], ['crunchyroll', 'crunchyrollpremium'], ['coursera', 'courseraplus'],
-  ];
-  for (const [needle, target] of aliases) {
-    if (key.includes(needle) && SERVICE_MANAGEMENT_URLS[target]) return SERVICE_MANAGEMENT_URLS[target];
-  }
-  return '';
-}
-
-function categoryMeta(category: Category) {
-  return CATEGORIES.find((item) => item.name === category) ?? CATEGORIES[CATEGORIES.length - 1];
-}
-function categoryIconName(category: Category): keyof typeof MaterialCommunityIcons.glyphMap {
-  switch (category) {
-    case 'Entertainment': return 'movie-open-outline';
-    case 'Software': return 'laptop';
-    case 'Storage': return 'cloud-outline';
-    case 'Music': return 'music-note-outline';
-    case 'Fitness': return 'dumbbell';
-    case 'Utilities': return 'wifi';
-    case 'Learning': return 'book-open-variant';
-    default: return 'repeat';
-  }
-}
-function localDateString(date: Date) {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-}
-function parseLocalDate(value: string) {
-  const parts = value.split('-').map(Number);
-  if (parts.length !== 3 || parts.some((v) => !Number.isFinite(v))) return new Date(NaN);
-  return new Date(parts[0], parts[1] - 1, parts[2], 12, 0, 0, 0);
-}
-function formatDate(value: string) {
-  const date = parseLocalDate(value);
-  if (Number.isNaN(date.getTime())) return value || 'Date not set';
-  return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
-}
-function money(value: number) {
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency', currency: 'INR', maximumFractionDigits: value % 1 === 0 ? 0 : 2,
-  }).format(value);
-}
-function hasKnownPrice(item: Pick<Subscription, 'amount' | 'cycle'>): boolean {
-  return item.amount !== null && Number.isFinite(item.amount) && item.amount > 0 && item.cycle !== 'Unknown';
-}
-function monthlyEquivalent(item: Pick<Subscription, 'amount' | 'cycle'>): number {
-  if (!hasKnownPrice(item)) return 0;
-  switch (item.cycle) {
-    case 'Weekly': return item.amount! * 52 / 12;
-    case 'Monthly': return item.amount!;
-    case 'Quarterly': return item.amount! / 3;
-    case 'Yearly': return item.amount! / 12;
-    default: return 0;
-  }
-}
-function annualEquivalent(item: Pick<Subscription, 'amount' | 'cycle'>): number {
-  if (!hasKnownPrice(item)) return 0;
-  switch (item.cycle) {
-    case 'Weekly': return item.amount! * 52;
-    case 'Monthly': return item.amount! * 12;
-    case 'Quarterly': return item.amount! * 4;
-    case 'Yearly': return item.amount!;
-    default: return 0;
-  }
-}
-function daysUntil(value: string) {
-  const target = parseLocalDate(value);
-  const today = parseLocalDate(localDateString(new Date()));
-  if (Number.isNaN(target.getTime())) return 9999;
-  return Math.round((target.getTime() - today.getTime()) / 86400000);
-}
-
-function buildAssistantReply(question: string, items: Subscription[], language: AssistantLanguage): string {
-  const q = question.toLowerCase().trim();
-  const hindi = language === 'hi-IN';
-  const pricedItems = items.filter(hasKnownPrice);
-  const unconfirmedCount = items.length - pricedItems.length;
-  const monthly = pricedItems.reduce((sum, item) => sum + monthlyEquivalent(item), 0);
-  const yearly = pricedItems.reduce((sum, item) => sum + annualEquivalent(item), 0);
-  const reviewNote = unconfirmedCount
-    ? (hindi ? ` ${unconfirmedCount} aur plan(s) ka price/cycle confirm nahi hai, isliye totals mein include nahi.` : ` ${unconfirmedCount} other plan(s) have an unconfirmed price/cycle and are excluded from totals.`)
-    : '';
-  const upcoming = [...items].filter((item) => daysUntil(item.nextRenewal) >= -7 && daysUntil(item.nextRenewal) <= 45)
-    .sort((a, b) => daysUntil(a.nextRenewal) - daysUntil(b.nextRenewal));
-  const ranked = [...pricedItems].sort((a, b) => monthlyEquivalent(b) - monthlyEquivalent(a));
-  const nameCounts = new Map<string, { name: string; count: number; monthly: number }>();
-  items.forEach((item) => {
-    const key = item.name.trim().toLowerCase();
-    const previous = nameCounts.get(key);
-    nameCounts.set(key, { name: item.name, count: (previous?.count || 0) + 1, monthly: (previous?.monthly || 0) + monthlyEquivalent(item) });
-  });
-  const duplicates = [...nameCounts.values()].filter((item) => item.count > 1);
-  if (!items.length) {
-    return hindi
-      ? 'Pehle ek ya do subscriptions add karo. Phir main monthly kharcha, next renewals aur possible savings tumhare actual tracker se bata sakta hoon.'
-      : 'Add a subscription or two first. Then I can explain your monthly spend, upcoming renewals and possible savings using your tracker.';
-  }
-  if (!pricedItems.length && /(year|annual|annually|yearly|saal|salana|save|saving|reduce|lower|cut|cheap|unused|bacha|bachat|kam karo|kam kar|sasta|waste|spend|expense|monthly|month|kharch|cost|budget|kitna|how much|category|stream|music|software|storage|entertainment|where|kahan|highest)/.test(q)) {
-    return hindi
-      ? `Abhi kisi plan ka price aur billing cycle dono confirm nahi hain, isliye spend calculate nahi kar sakta. ${unconfirmedCount} tracked plan(s) hain; email ya provider se details milne par total update hoga.`
-      : `I cannot calculate recurring spend yet because no tracked plan has both a confirmed price and billing cycle. ${unconfirmedCount} plan(s) are tracked; totals will update as details are confirmed.`;
-  }
-  if (/(duplicate|same plan|repeat|double charge|do baar|ek hi|same service)/.test(q)) {
-    if (duplicates.length) {
-      return hindi
-        ? 'Mujhe same naam ke possible duplicate entries mili hain: ' + duplicates.map((item) => `${item.name} (${item.count} entries, ${money(item.monthly)}/mo total)`).join('; ') + '. Ye sirf tracker ke naam par based signal hai—provider account check karke hi delete ya cancel karna.'
-        : 'I found possible duplicate tracker entries: ' + duplicates.map((item) => `${item.name} (${item.count} entries, ${money(item.monthly)}/mo combined)`).join('; ') + '. This is a name-based signal, not proof of duplicate billing—verify the provider account before removing or cancelling anything.';
-    }
-    return hindi
-      ? 'Abhi exact same naam wali duplicate entries nahi mili. Similar plans alag naam se ho sakte hain, isliye provider accounts bhi check karna.'
-      : 'I did not find exact same-name duplicates in your tracker. Similar plans can have different names, so check provider accounts too.';
-  }
-  if (/(renew|renewal|upcoming|next|due|kab|aane wale|date|kitne din)/.test(q)) {
-    if (!upcoming.length) {
-      return hindi
-        ? 'Agale 45 din ke aas-paas koi renewal date nahi mili. Har subscription ki date verify karke add karoge to reminders zyada useful honge.'
-        : 'I do not see a renewal within the next 45 days or the recent overdue window. Add verified renewal dates to make reminders more useful.';
-    }
-    return (hindi ? 'Tumhare tracker ke hisaab se closest renewals: ' : 'Your closest tracked renewals are: ') +
-      upcoming.slice(0, 3).map((item) => `${item.name}: ${item.amount === null ? 'price unconfirmed' : money(item.amount)}${item.cycle === 'Unknown' ? '' : ` per ${item.cycle.toLowerCase()}`}, ${dueLabel(item.nextRenewal)}`).join('; ') +
-      (hindi ? '. Dates saved tracker se aati hain—provider par verify kar lena.' : '. These dates come from your saved tracker; verify them with each provider.');
-  }
-  if (/(year|annual|annually|yearly|saal|salana)/.test(q)) {
-    return hindi
-      ? `Tumhara estimated yearly commitment ${money(yearly)} hai, ${pricedItems.length} price/cycle-confirmed plans se. Monthly equivalent ${money(monthly)} hai. Ye estimate hai, final bank statement nahi.${reviewNote}`
-      : `Your estimated yearly commitment is ${money(yearly)} across ${pricedItems.length} price/cycle-confirmed plans, or about ${money(monthly)} per month. This is an estimate based on saved entries, not a bank statement.${reviewNote}`;
-  }
-  if (/(save|saving|reduce|lower|cut|cheap|cancel|unused|bacha|bachat|kam karo|kam kar|sasta|waste)/.test(q)) {
-    const top = ranked.slice(0, 3);
-    return hindi
-      ? `Savings review ke liye pehle ye plans dekho: ${top.map((item) => `${item.name} (${money(monthlyEquivalent(item))}/mo equivalent)`).join(', ')}. Inmein se jo use nahi hote ya overlap karte hain unka official plan check karo. Cancel karne se pehle shared use aur renewal date verify karna—main kisi service ko automatically cancel nahi karta.`
-      : `Start your savings review with: ${top.map((item) => `${item.name} (${money(monthlyEquivalent(item))}/mo equivalent)`).join(', ')}. Check which are unused or overlap, then review the official plan. Verify shared use and renewal terms before cancelling; I never cancel a service for you.`;
-  }
-  if (/(how many|number of|count|kitne plan|kitni subscription|total plan|total subscriptions)/.test(q)) {
-    return hindi
-      ? `Tumne ${items.length} subscription track ki hain. Confirmed price/cycle wale plans ka estimated monthly equivalent ${money(monthly)} aur yearly commitment ${money(yearly)} hai.${reviewNote}`
-      : `You are tracking ${items.length} subscriptions. Price/cycle-confirmed plans have an estimated monthly equivalent of ${money(monthly)} and yearly commitment of ${money(yearly)}.${reviewNote}`;
-  }
-  if (/(category|stream|music|software|storage|entertainment|kis par|kahan|where|spend|expense|monthly|month|kharch|cost|budget|kitna|how much|total)/.test(q)) {
-    const categories = new Map<string, number>();
-    items.forEach((item) => categories.set(item.category, (categories.get(item.category) || 0) + monthlyEquivalent(item)));
-    const biggestCategory = [...categories.entries()].sort((a, b) => b[1] - a[1])[0];
-    const highest = ranked[0];
-    return hindi
-      ? `Abhi ${pricedItems.length} price/cycle-confirmed plans ka monthly equivalent ${money(monthly)} hai (yearly estimate ${money(yearly)}). Sabse bada category spend ${biggestCategory[0]} par ${money(biggestCategory[1])}/mo hai. Highest monthly-equivalent plan ${highest.name} hai (${money(monthlyEquivalent(highest))}/mo). Pehle is plan ko review karna useful rahega.${reviewNote}`
-      : `Your ${pricedItems.length} price/cycle-confirmed plans cost about ${money(monthly)} per month equivalent (${money(yearly)} yearly estimate). Your highest-spend category is ${biggestCategory[0]} at ${money(biggestCategory[1])}/mo. Your highest monthly-equivalent plan is ${highest.name} at ${money(monthlyEquivalent(highest))}/mo, so it is a useful first review.${reviewNote}`;
-  }
-  const top = ranked[0];
-  const next = upcoming[0];
-  return hindi
-    ? `Quick money check: ${items.length} plans, ${money(monthly)}/mo equivalent aur ${money(yearly)}/year estimate. ${top ? `Sabse mehenga monthly-equivalent plan ${top.name} (${money(monthlyEquivalent(top))}/mo) hai. ` : ''}${next ? `Next renewal: ${next.name}, ${dueLabel(next.nextRenewal)}.` : 'Renewal dates check karna next best step hai.'} Tum mujhse monthly spend, next renewal, duplicates ya savings ke baare mein pooch sakte ho.`
-    : `Quick money check: ${items.length} plans, ${money(monthly)}/mo equivalent and ${money(yearly)}/year estimated. ${top ? `Your highest monthly-equivalent plan is ${top.name} at ${money(monthlyEquivalent(top))}/mo. ` : ''}${next ? `Next renewal: ${next.name}, ${dueLabel(next.nextRenewal)}.` : 'Review and confirm renewal dates next.'} Ask me about monthly spend, upcoming renewals, possible duplicates or savings.`;
-}
-
-function dueLabel(value: string) {
-  if (!value) return 'Date not set';
-  const days = daysUntil(value);
-  if (days < 0) return `Overdue by ${Math.abs(days)} day${Math.abs(days) === 1 ? '' : 's'}`;
-  if (days === 0) return 'Due today';
-  if (days === 1) return 'Due tomorrow';
-  if (days <= 7) return `In ${days} days`;
-  return `Due ${formatDate(value)}`;
-}
-function validDate(value: string) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
-  const date = parseLocalDate(value);
-  const [year, month, day] = value.split('-').map(Number);
-  return !Number.isNaN(date.getTime()) && date.getFullYear() === year && date.getMonth() + 1 === month && date.getDate() === day;
-}
-
-async function initializeDatabase() {
-  const db = await SQLite.openDatabaseAsync('subsathi.db');
-  await db.execAsync(`
-    PRAGMA journal_mode = WAL;
-    CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL);
-    CREATE TABLE IF NOT EXISTS subscriptions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      category TEXT NOT NULL,
-      amount REAL,
-      cycle TEXT NOT NULL DEFAULT 'Unknown',
-      nextRenewal TEXT NOT NULL,
-      manageUrl TEXT NOT NULL DEFAULT '',
-      billingSource TEXT NOT NULL DEFAULT 'provider',
-      notes TEXT NOT NULL DEFAULT '',
-      reminderEnabled INTEGER NOT NULL DEFAULT 1,
-      createdAt TEXT NOT NULL
-    );
-  `);
-  // Additive migration keeps entries created by older versions intact.
-  const existingColumns = await db.getAllAsync<{ name: string }>('PRAGMA table_info(subscriptions)');
-  if (!existingColumns.some((column) => column.name === 'billingSource')) {
-    await db.execAsync("ALTER TABLE subscriptions ADD COLUMN billingSource TEXT NOT NULL DEFAULT 'provider'");
-  }
-  // Older installs declared amount NOT NULL. Rebuild transactionally so scanned
-  // subscriptions can be saved with unknown prices instead of fake zero amounts.
-  const columnsAfterAdditions = await db.getAllAsync<{ name: string; notnull: number }>('PRAGMA table_info(subscriptions)');
-  if (columnsAfterAdditions.some((column) => column.name === 'amount' && column.notnull === 1)) {
-    await db.withTransactionAsync(async () => {
-      await db.execAsync(`
-        CREATE TABLE subscriptions_new (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          name TEXT NOT NULL,
-          category TEXT NOT NULL,
-          amount REAL,
-          cycle TEXT NOT NULL DEFAULT 'Unknown',
-          nextRenewal TEXT NOT NULL DEFAULT '',
-          manageUrl TEXT NOT NULL DEFAULT '',
-          billingSource TEXT NOT NULL DEFAULT 'provider',
-          notes TEXT NOT NULL DEFAULT '',
-          reminderEnabled INTEGER NOT NULL DEFAULT 1,
-          createdAt TEXT NOT NULL
-        );
-      `);
-      await db.execAsync(`
-        INSERT INTO subscriptions_new (id, name, category, amount, cycle, nextRenewal, manageUrl, billingSource, notes, reminderEnabled, createdAt)
-        SELECT id, name, category, amount, cycle, nextRenewal, manageUrl, billingSource, notes, reminderEnabled, createdAt FROM subscriptions;
-      `);
-      await db.execAsync('DROP TABLE subscriptions;');
-      await db.execAsync('ALTER TABLE subscriptions_new RENAME TO subscriptions;');
-    });
-  }
+async function openDatabase() {
+  const db=await SQLite.openDatabaseAsync('daypilot-life.db');
+  await db.execAsync(
+    'PRAGMA journal_mode = WAL;'+
+    'CREATE TABLE IF NOT EXISTS tasks (id INTEGER PRIMARY KEY AUTOINCREMENT,title TEXT NOT NULL,details TEXT NOT NULL DEFAULT \'\',dueDate TEXT NOT NULL,priority TEXT NOT NULL DEFAULT \'Medium\',completed INTEGER NOT NULL DEFAULT 0,createdAt TEXT NOT NULL);'+
+    'CREATE TABLE IF NOT EXISTS habits (id INTEGER PRIMARY KEY AUTOINCREMENT,title TEXT NOT NULL,icon TEXT NOT NULL,tint TEXT NOT NULL,active INTEGER NOT NULL DEFAULT 1);'+
+    'CREATE TABLE IF NOT EXISTS habit_logs (habitId INTEGER NOT NULL,date TEXT NOT NULL,PRIMARY KEY(habitId,date));'+
+    'CREATE TABLE IF NOT EXISTS expenses (id INTEGER PRIMARY KEY AUTOINCREMENT,title TEXT NOT NULL,amount REAL NOT NULL,category TEXT NOT NULL,spentAt TEXT NOT NULL);'+
+    'CREATE TABLE IF NOT EXISTS goals (id INTEGER PRIMARY KEY AUTOINCREMENT,title TEXT NOT NULL,targetAmount REAL NOT NULL,savedAmount REAL NOT NULL DEFAULT 0,targetDate TEXT NOT NULL DEFAULT \'\',createdAt TEXT NOT NULL);'+
+    'CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY NOT NULL,value TEXT NOT NULL);'
+  );
+  const count=await db.getFirstAsync<{count:number}>('SELECT COUNT(*) AS count FROM habits');
+  if((count?.count??0)===0) for(const h of HABIT_SEEDS) await db.runAsync('INSERT INTO habits (title,icon,tint,active) VALUES (?,?,?,1)',h.title,h.icon,h.tint);
+  const budget=await db.getFirstAsync<{value:string}>('SELECT value FROM settings WHERE key=?','monthlyBudget');
+  if(!budget) await db.runAsync('INSERT INTO settings (key,value) VALUES (?,?)','monthlyBudget','15000');
   return db;
 }
-
-async function rescheduleRenewalReminders(items: Subscription[], enabled: boolean) {
-  try {
-    await Notifications.cancelAllScheduledNotificationsAsync();
-    if (!enabled || !items.some((item) => Boolean(item.reminderEnabled))) return;
-    if (Platform.OS === 'android') {
-      await Notifications.setNotificationChannelAsync('renewals', {
-        name: 'Subscription renewals',
-        importance: Notifications.AndroidImportance.DEFAULT,
-      });
-    }
-    let permission = await Notifications.getPermissionsAsync();
-    if (permission.status !== 'granted') permission = await Notifications.requestPermissionsAsync();
-    if (permission.status !== 'granted') return;
-    for (const item of items) {
-      if (!item.reminderEnabled) continue;
-      const renewal = parseLocalDate(item.nextRenewal);
-      renewal.setDate(renewal.getDate() - 2);
-      renewal.setHours(9, 0, 0, 0);
-      if (Number.isNaN(renewal.getTime()) || renewal.getTime() <= Date.now()) continue;
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title: `${item.name} renews soon`,
-          body: `${item.name} is scheduled to renew on ${formatDate(item.nextRenewal)}. Check your plan before it renews.`,
-          data: { subscriptionId: item.id, serviceName: item.name, renewalDate: item.nextRenewal },
-        },
-        trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: renewal },
-      });
-    }
-  } catch (error) {
-    // Reminder scheduling must not block saving subscription details.
-    console.warn('Unable to refresh renewal reminders', error);
-  }
-}
-
-function Pill({ children, tone = 'green' }: { children: React.ReactNode; tone?: 'green' | 'orange' | 'grey' | 'red' }) {
-  const styles = tone === 'orange' ? pillOrange : tone === 'grey' ? pillGrey : tone === 'red' ? pillRed : pillGreen;
-  return <View style={[styles.base]}><Text style={styles.text}>{children}</Text></View>;
-}
-function PrimaryButton({ title, onPress, small = false }: { title: string; onPress: () => void; small?: boolean }) {
-  return <Pressable onPress={onPress} style={({ pressed }) => [styles.primaryButton, small && styles.primaryButtonSmall, pressed && { opacity: 0.85 }]}><Text style={styles.primaryButtonText}>{title}</Text></Pressable>;
-}
-function GhostButton({ title, onPress }: { title: string; onPress: () => void }) {
-  return <Pressable onPress={onPress} style={({ pressed }) => [styles.ghostButton, pressed && { opacity: 0.7 }]}><Text style={styles.ghostButtonText}>{title}</Text></Pressable>;
-}
-function SectionTitle({ title, action, onAction }: { title: string; action?: string; onAction?: () => void }) {
-  return <View style={styles.sectionTitleRow}><Text style={styles.sectionTitle}>{title}</Text>{action && onAction ? <Pressable onPress={onAction}><Text style={styles.sectionAction}>{action}</Text></Pressable> : null}</View>;
-}
-function BrandMark({ size = 42 }: { size?: number }) {
-  return <View style={[styles.brandMark, { width: size, height: size, borderRadius: size * 0.32 }]}><MaterialCommunityIcons name="autorenew" size={size * 0.57} color={C.white} /></View>;
-}
-
-function AppContent() {
-  const insets = useSafeAreaInsets();
-  const adUnitFromEnv = (process.env.EXPO_PUBLIC_ADMOB_ANDROID_BANNER_ID || '').trim();
-  const adUnitId = adUnitFromEnv || TestIds.ADAPTIVE_BANNER;
-  const isTestAds = !adUnitFromEnv;
-  const adsInitializedRef = useRef(false);
-  const dbRef = useRef<SQLite.SQLiteDatabase | null>(null);
-  const dbRecoveryRef = useRef<Promise<SQLite.SQLiteDatabase> | null>(null);
-  const dbOperationQueueRef = useRef<Promise<void>>(Promise.resolve());
-  const [ready, setReady] = useState(false);
-  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
-  const [tab, setTab] = useState<Tab>('Home');
-  const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState<'All' | Category>('All');
-  const [editorOpen, setEditorOpen] = useState(false);
-  const [editing, setEditing] = useState<Subscription | null>(null);
-  const [scanInfoOpen, setScanInfoOpen] = useState(false);
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-  const [adsReady, setAdsReady] = useState(false);
-  const [adFailed, setAdFailed] = useState(false);
-  const [privacyOptionsRequired, setPrivacyOptionsRequired] = useState(false);
-  const [apiSession, setApiSession] = useState<string | null>(null);
-  const [gmailEmail, setGmailEmail] = useState<string | null>(null);
-  const [gmailAccounts, setGmailAccounts] = useState<GmailAccountSummary[]>([]);
-  const [scanLoading, setScanLoading] = useState(false);
-  const [scanError, setScanError] = useState('');
-  const [scanCandidates, setScanCandidates] = useState<GmailCandidate[]>([]);
-  const [selectedCandidateIds, setSelectedCandidateIds] = useState<number[]>([]);
-  const [expandedCandidateIds, setExpandedCandidateIds] = useState<number[]>([]);
-  const [candidateEdits, setCandidateEdits] = useState<Record<number, GmailCandidateDraft>>({});
-  const [scanSummary, setScanSummary] = useState<{
-    scannedMessages: number;
-    fullMessagesFetched: number;
-    matchedReceipts: number;
-    searchResultHits: number;
-    queriesUsed: number;
-    scanLimitPerAccount: number;
-    scanLimitReached: boolean;
-    candidateCount: number;
-    durationMs: number;
-    accountsScanned: string[];
-    accountErrors: { email: string; message: string }[];
-    mode: 'full' | 'incremental';
-    aiAssisted: boolean;
-    aiAnalyzedMessages: number;
-    aiWarning: string;
-  } | null>(null);
-  const [apiReachable, setApiReachable] = useState<boolean | null>(null);
-  const [googleOAuthConfigured, setGoogleOAuthConfigured] = useState<boolean | null>(null);
-  const [aiExtractionConfigured, setAiExtractionConfigured] = useState<boolean | null>(null);
-  const [durableDatabaseConfigured, setDurableDatabaseConfigured] = useState<boolean | null>(null);
-  const [serverScanLimit, setServerScanLimit] = useState<number | null>(null);
-  const [gmailNeedsRepair, setGmailNeedsRepair] = useState(false);
-  const [aiAssistedScan, setAiAssistedScan] = useState(false);
-  const [aiPreferenceLoaded, setAiPreferenceLoaded] = useState(false);
-  const autoScanSessionRef = useRef<string | null>(null);
-  const scanInFlightRef = useRef(false);
-  const screenProgress = useRef(new Animated.Value(1)).current;
-  const splashScale = useRef(new Animated.Value(0.78)).current;
-  const splashRotation = useRef(new Animated.Value(0)).current;
-  const splashGlow = useRef(new Animated.Value(0.2)).current;
-  const splashProgress = useRef(new Animated.Value(0.04)).current;
-  const [splashAnimationDone, setSplashAnimationDone] = useState(false);
-  const [assistantLanguage, setAssistantLanguage] = useState<AssistantLanguage>('hi-IN');
-  const [voiceListening, setVoiceListening] = useState(false);
-  const [voiceRepliesEnabled, setVoiceRepliesEnabled] = useState(false);
-  const [voiceError, setVoiceError] = useState('');
-  const [assistantQuery, setAssistantQuery] = useState('');
-  const [pendingVoiceQuery, setPendingVoiceQuery] = useState('');
-  const [assistantMessages, setAssistantMessages] = useState<AssistantMessage[]>([
-    { id: 'welcome', role: 'assistant', text: 'Namaste! Main SmartSathi hoon. Main tumhare saved plans se monthly kharcha, upcoming renewals aur possible savings samjha sakta hoon. Type karo ya mic dabao.' },
+async function readDatabase(db: SQLite.SQLiteDatabase) {
+  const [tasks,habits,logs,expenses,goals,budgetRow,reminderRow]=await Promise.all([
+    db.getAllAsync<DayTask>('SELECT * FROM tasks ORDER BY completed ASC, CASE priority WHEN \'High\' THEN 0 WHEN \'Medium\' THEN 1 ELSE 2 END,dueDate ASC,id DESC'),
+    db.getAllAsync<Habit>('SELECT * FROM habits WHERE active=1 ORDER BY id ASC'),
+    db.getAllAsync<HabitLog>('SELECT habitId,date FROM habit_logs'),
+    db.getAllAsync<Expense>('SELECT * FROM expenses ORDER BY spentAt DESC,id DESC'),
+    db.getAllAsync<Goal>('SELECT * FROM goals ORDER BY id DESC'),
+    db.getFirstAsync<{value:string}>('SELECT value FROM settings WHERE key=?','monthlyBudget'),
+    db.getFirstAsync<{value:string}>('SELECT value FROM settings WHERE key=?','dailyReminder'),
   ]);
-
-  const ensureLocalDatabase = useCallback(async (forceReopen = false): Promise<SQLite.SQLiteDatabase> => {
-    if (dbRecoveryRef.current) return dbRecoveryRef.current;
-    const opening = (async () => {
-      let database = dbRef.current;
-      if (database && !forceReopen) {
-        try {
-          await database.getFirstAsync<{ ok: number }>('SELECT 1 AS ok');
-          return database;
-        } catch (error) {
-          console.warn('Local SQLite handle needs recovery', error);
-          forceReopen = true;
-        }
-      }
-      dbRef.current = null;
-      if (database) {
-        try { await database.closeAsync(); } catch { /* A native stale handle may already be closed. */ }
-      }
-      database = await initializeDatabase();
-      dbRef.current = database;
-      await database.getFirstAsync<{ ok: number }>('SELECT 1 AS ok');
-      return database;
-    })();
-    dbRecoveryRef.current = opening;
-    try {
-      return await opening;
-    } finally {
-      if (dbRecoveryRef.current === opening) dbRecoveryRef.current = null;
-    }
-  }, []);
-
-  const withLocalDatabase = useCallback(async <T,>(
-    operation: (database: SQLite.SQLiteDatabase) => Promise<T>,
-  ): Promise<T> => {
-    const previous = dbOperationQueueRef.current;
-    let release!: () => void;
-    dbOperationQueueRef.current = new Promise<void>((resolve) => { release = resolve; });
-    await previous.catch(() => undefined);
-    try {
-      let database: SQLite.SQLiteDatabase;
-      try {
-        database = await ensureLocalDatabase();
-      } catch (error) {
-        if (!isRecoverableSQLiteHandleError(error)) throw error;
-        console.warn('Recovering SQLite initialization after native database failure');
-        await sleep(250);
-        database = await ensureLocalDatabase(true);
-      }
-      try {
-        return await operation(database);
-      } catch (error) {
-        if (!isRecoverableSQLiteHandleError(error)) throw error;
-        console.warn('Recovering native SQLite handle and retrying one database operation');
-        const recovered = await ensureLocalDatabase(true);
-        return await operation(recovered);
-      }
-    } finally {
-      release();
-    }
-  }, [ensureLocalDatabase]);
-
-  const refreshApiHealth = useCallback(async (): Promise<boolean> => {
-    try {
-      const response = await fetchWithNetworkRetry(`${API_BASE_URL}/health`, {}, 3, 12000);
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error('SubSathi API health check failed.');
-      setApiReachable(true);
-      setGoogleOAuthConfigured(payload.google_oauth_configured === true);
-      setAiExtractionConfigured(payload.ai_extraction_configured === true);
-      setDurableDatabaseConfigured(payload.durable_database_configured === true);
-      setServerScanLimit(Number(payload.scan_max_messages_per_inbox || 500));
-      return true;
-    } catch {
-      setApiReachable(false);
-      setGoogleOAuthConfigured(null);
-      setAiExtractionConfigured(null);
-      setDurableDatabaseConfigured(null);
-      setServerScanLimit(null);
-      return false;
-    }
-  }, []);
-
-  useSpeechRecognitionEvent('start', () => { setVoiceListening(true); setVoiceError(''); });
-  useSpeechRecognitionEvent('end', () => setVoiceListening(false));
-  useSpeechRecognitionEvent('error', (event) => {
-    setVoiceListening(false);
-    const code = String(event.error || '');
-    if (code !== 'aborted' && code !== 'no-speech') {
-      setVoiceError('Voice recognition could not start. Check microphone permission and your device speech-recognition service, then retry.');
-    }
-  });
-  useSpeechRecognitionEvent('result', (event) => {
-    const transcript = event.results?.[0]?.transcript;
-    if (event.isFinal && transcript && transcript.trim()) {
-      setAssistantQuery(transcript.trim());
-      setPendingVoiceQuery(transcript.trim());
-    }
-  });
-
-  useEffect(() => {
-    let active = true;
-    void refreshApiHealth().then(() => {
-      // A single temporary mobile-DNS failure should not permanently mark the API offline.
-      // refreshApiHealth itself makes three bounded attempts before reporting failure.
-    }).finally(() => {
-      if (!active) return;
-    });
-    return () => { active = false; };
-  }, [refreshApiHealth]);
-
-  useEffect(() => {
-    let active = true;
-    const intro = Animated.parallel([
-      Animated.sequence([
-        Animated.timing(splashScale, {
-          toValue: 1.08,
-          duration: 420,
-          easing: Easing.out(Easing.back(1.25)),
-          useNativeDriver: true,
-        }),
-        Animated.spring(splashScale, {
-          toValue: 1,
-          speed: 13,
-          bounciness: 5,
-          useNativeDriver: true,
-        }),
-      ]),
-      Animated.timing(splashRotation, {
-        toValue: 1,
-        duration: 760,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
-      Animated.sequence([
-        Animated.timing(splashGlow, {
-          toValue: 1,
-          duration: 320,
-          easing: Easing.out(Easing.cubic),
-          useNativeDriver: true,
-        }),
-        Animated.timing(splashGlow, {
-          toValue: 0.72,
-          duration: 420,
-          easing: Easing.inOut(Easing.quad),
-          useNativeDriver: true,
-        }),
-      ]),
-      Animated.timing(splashProgress, {
-        toValue: 1,
-        duration: 760,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
-    ], { stopTogether: false });
-    intro.start(({ finished }) => {
-      if (active && finished) setSplashAnimationDone(true);
-    });
-    return () => {
-      active = false;
-      intro.stop();
-    };
-  }, [splashScale, splashRotation, splashGlow, splashProgress]);
-
-  useEffect(() => {
-    screenProgress.setValue(0);
-    Animated.timing(screenProgress, {
-      toValue: 1,
-      duration: 230,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }).start();
-  }, [tab, screenProgress]);
-
-  const loadSubscriptions = useCallback(async () => {
-    const rows = await withLocalDatabase((db) =>
-      db.getAllAsync<Subscription>('SELECT * FROM subscriptions ORDER BY nextRenewal ASC, name COLLATE NOCASE ASC'),
-    );
-    setSubscriptions(rows);
-  }, [withLocalDatabase]);
-
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        const initial = await withLocalDatabase(async (db) => ({
-          rows: await db.getAllAsync<Subscription>('SELECT * FROM subscriptions ORDER BY nextRenewal ASC, name COLLATE NOCASE ASC'),
-          preference: await db.getFirstAsync<{ value: string }>("SELECT value FROM app_settings WHERE key = 'notificationsEnabled'"),
-          aiPreference: await db.getFirstAsync<{ value: string }>("SELECT value FROM app_settings WHERE key = 'aiAssistedScan'"),
-        }));
-        if (mounted) {
-          setSubscriptions(initial.rows);
-          if (initial.preference) setNotificationsEnabled(initial.preference.value === 'true');
-          if (initial.aiPreference) setAiAssistedScan(initial.aiPreference.value === 'true');
-          setAiPreferenceLoaded(true);
-        }
-      } catch (error) {
-        Alert.alert('Local tracker needs repair', 'SubSathi could not open its on-device database. Your saved subscription file was not deliberately deleted. Restart the app and try again; if this persists, contact support before reinstalling.');
-        console.warn('Local database initialization failed', error);
-      } finally {
-        if (mounted) {
-          setReady(true);
-          setAiPreferenceLoaded(true);
-        }
-      }
-    })();
-    return () => { mounted = false; };
-  }, [withLocalDatabase]);
-
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        const token = await SecureStore.getItemAsync(SESSION_KEY);
-        if (!token || !mounted) return;
-        const response = await fetchWithNetworkRetry(`${API_BASE_URL}/api/me`, { headers: { Authorization: `Bearer ${token}` } }, 2, 12000);
-        if (!response.ok) {
-          await SecureStore.deleteItemAsync(SESSION_KEY);
-          return;
-        }
-        const profile = await response.json();
-        if (mounted && profile.gmail_connected) {
-          const accounts = profileGmailAccounts(profile);
-          setApiSession(token);
-          setGmailAccounts(accounts);
-          setGmailEmail(profile.gmail_email || accounts[0]?.email || profile.email || null);
-        } else if (mounted) {
-          await SecureStore.deleteItemAsync(SESSION_KEY);
-        }
-      } catch (error) {
-        // API may be offline during app startup. Local subscription tracking remains usable.
-        console.warn('Could not restore SubSathi cloud session', error);
-      }
-    })();
-    return () => { mounted = false; };
-  }, []);
-
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        let info = await AdsConsent.requestInfoUpdate();
-        if (info.isConsentFormAvailable) {
-          info = await AdsConsent.loadAndShowConsentFormIfRequired();
-        }
-        if (!mounted) return;
-        setPrivacyOptionsRequired(info.privacyOptionsRequirementStatus === 'REQUIRED');
-        if (info.canRequestAds) {
-          await mobileAds().initialize();
-          adsInitializedRef.current = true;
-          if (mounted) setAdsReady(true);
-        }
-      } catch (error) {
-        // Ads must never block the core subscription tracker if consent or ad services are unavailable.
-        console.warn('Ads consent or initialization is not available yet', error);
-      }
-    })();
-    return () => { mounted = false; };
-  }, []);
-
-  const activeMonthly = useMemo(() => subscriptions.reduce((sum, item) => sum + monthlyEquivalent(item), 0), [subscriptions]);
-  const activeAnnual = useMemo(() => subscriptions.reduce((sum, item) => sum + annualEquivalent(item), 0), [subscriptions]);
-  const nextThirtyDays = useMemo(() => subscriptions.filter((item) => daysUntil(item.nextRenewal) >= 0 && daysUntil(item.nextRenewal) <= 30), [subscriptions]);
-  const renewalsThisWeek = useMemo(
-    () => subscriptions
-      .filter((item) => Boolean(item.nextRenewal) && daysUntil(item.nextRenewal) >= 0 && daysUntil(item.nextRenewal) <= 7)
-      .sort((a, b) => a.nextRenewal.localeCompare(b.nextRenewal)),
-    [subscriptions],
-  );
-  const upcoming = useMemo(() => subscriptions.filter((item) => daysUntil(item.nextRenewal) >= -3 && daysUntil(item.nextRenewal) <= 30).sort((a, b) => a.nextRenewal.localeCompare(b.nextRenewal)), [subscriptions]);
-  const currentMonthDue = useMemo(() => subscriptions.filter((item) => {
-    const date = parseLocalDate(item.nextRenewal);
-    const now = new Date();
-    return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth() && daysUntil(item.nextRenewal) >= 0;
-  }).reduce((sum, item) => sum + (item.amount ?? 0), 0), [subscriptions]);
-  const filtered = useMemo(() => subscriptions.filter((item) => {
-    const text = `${item.name} ${item.category}`.toLowerCase();
-    return text.includes(search.trim().toLowerCase()) && (filter === 'All' || item.category === filter);
-  }), [subscriptions, search, filter]);
-  const categorySpend = useMemo(() => CATEGORIES.map((category) => ({
-    ...category,
-    amount: subscriptions.filter((item) => item.category === category.name).reduce((sum, item) => sum + monthlyEquivalent(item), 0),
-  })).filter((item) => item.amount > 0).sort((a, b) => b.amount - a.amount), [subscriptions]);
-
-  // Savings Radar uses only the plans the user has saved on this device. It flags
-  // review opportunities, never labels category overlap as a confirmed duplicate charge.
-  const savingsRadar = useMemo(() => {
-    const byCategory = new Map<Category, Subscription[]>();
-    const byServiceAndSource = new Map<string, Subscription[]>();
-    for (const item of subscriptions) {
-      const categoryItems = byCategory.get(item.category) || [];
-      categoryItems.push(item);
-      byCategory.set(item.category, categoryItems);
-      const serviceKey = normalizedServiceName(item.name) + '|' + normalizeBillingSource(item.billingSource);
-      const serviceItems = byServiceAndSource.get(serviceKey) || [];
-      serviceItems.push(item);
-      byServiceAndSource.set(serviceKey, serviceItems);
-    }
-    const overlaps = [...byCategory.entries()]
-      .filter(([category, items]) => ['Entertainment', 'Music', 'Software', 'Storage'].includes(category) && items.length > 1)
-      .map(([category, items]) => {
-        const priced = items.filter(hasKnownPrice);
-        const monthlySpend = priced.reduce((sum, item) => sum + monthlyEquivalent(item), 0);
-        const reviewOpportunity = priced.length > 1
-          ? Math.min(...priced.map((item) => monthlyEquivalent(item)))
-          : 0;
-        return { category, items, monthlySpend, reviewOpportunity };
-      })
-      .sort((a, b) => b.monthlySpend - a.monthlySpend);
-    const repeatedEntries = [...byServiceAndSource.values()]
-      .filter((items) => items.length > 1)
-      .map((items) => ({
-        name: items[0].name,
-        count: items.length,
-        category: items[0].category,
-        source: normalizeBillingSource(items[0].billingSource),
-        monthlySpend: items.reduce((sum, item) => sum + monthlyEquivalent(item), 0),
-      }));
-    const missingDetails = subscriptions.filter((item) => !hasKnownPrice(item) || !item.nextRenewal).length;
-    return {
-      overlaps,
-      repeatedEntries,
-      missingDetails,
-      potentialMonthly: overlaps.reduce((sum, item) => sum + item.reviewOpportunity, 0),
-    };
-  }, [subscriptions]);
-
-  const answerAssistant = useCallback((rawQuestion: string, speakReply = false) => {
-    const question = rawQuestion.trim();
-    if (!question) return;
-    const answer = buildAssistantReply(question, subscriptions, assistantLanguage);
-    const timestamp = Date.now();
-    setAssistantMessages((current) => [
-      ...current,
-      { id: `user-${timestamp}`, role: 'user' as const, text: question },
-      { id: `assistant-${timestamp + 1}`, role: 'assistant' as const, text: answer },
-    ].slice(-11));
-    setAssistantQuery('');
-    setVoiceError('');
-    if (speakReply || voiceRepliesEnabled) {
-      void Speech.stop();
-      Speech.speak(answer, { language: assistantLanguage, rate: 0.94, pitch: 1.0 });
-    }
-  }, [subscriptions, assistantLanguage, voiceRepliesEnabled]);
-
-  useEffect(() => {
-    if (!pendingVoiceQuery.trim()) return;
-    answerAssistant(pendingVoiceQuery, true);
-    setPendingVoiceQuery('');
-  }, [pendingVoiceQuery, answerAssistant]);
-
-  const startVoiceCapture = async () => {
-    try {
-      const permission = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
-      if (!permission.granted) {
-        setVoiceError('Allow microphone and speech-recognition access in Android settings, then try again.');
-        return;
-      }
-      setVoiceError('');
-      ExpoSpeechRecognitionModule.start({
-        lang: assistantLanguage,
-        interimResults: true,
-        continuous: false,
-        maxAlternatives: 1,
-        addsPunctuation: true,
-        contextualStrings: subscriptions.map((item) => item.name).slice(0, 20),
-      });
-    } catch (error) {
-      setVoiceListening(false);
-      setVoiceError(error instanceof Error ? error.message : 'Voice recognition is not available on this device right now.');
-    }
-  };
-
-  const openNew = () => { setEditing(null); setEditorOpen(true); };
-  const openEdit = (item: Subscription) => { setEditing(item); setEditorOpen(true); };
-
-  const saveSubscription = async (input: SubscriptionInput) => {
-    const rows = await withLocalDatabase(async (db) => {
-      if (editing) {
-        await db.runAsync(
-          'UPDATE subscriptions SET name = ?, category = ?, amount = ?, cycle = ?, nextRenewal = ?, manageUrl = ?, billingSource = ?, notes = ?, reminderEnabled = ? WHERE id = ?',
-          input.name, input.category, input.amount, input.cycle, input.nextRenewal, input.manageUrl, input.billingSource, input.notes, input.reminderEnabled, editing.id,
-        );
-      } else {
-        await db.runAsync(
-          'INSERT INTO subscriptions (name, category, amount, cycle, nextRenewal, manageUrl, billingSource, notes, reminderEnabled, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-          input.name, input.category, input.amount, input.cycle, input.nextRenewal, input.manageUrl, input.billingSource, input.notes, input.reminderEnabled, new Date().toISOString(),
-        );
-      }
-      return db.getAllAsync<Subscription>('SELECT * FROM subscriptions ORDER BY nextRenewal ASC, name COLLATE NOCASE ASC');
-    });
-    setSubscriptions(rows);
-    await rescheduleRenewalReminders(rows, notificationsEnabled);
-    setEditorOpen(false);
-    setEditing(null);
-  };
-
-  const deleteSubscription = (item: Subscription) => {
-    Alert.alert('Delete subscription?', `Remove ${item.name} from SubSathi? This only deletes the tracker entry; it does not cancel your actual subscription.`, [
-      { text: 'Keep it', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: async () => {
-        try {
-          const rows = await withLocalDatabase(async (db) => {
-            await db.runAsync('DELETE FROM subscriptions WHERE id = ?', item.id);
-            return db.getAllAsync<Subscription>('SELECT * FROM subscriptions ORDER BY nextRenewal ASC, name COLLATE NOCASE ASC');
-          });
-          setSubscriptions(rows);
-          await rescheduleRenewalReminders(rows, notificationsEnabled);
-          if (editing?.id === item.id) { setEditing(null); setEditorOpen(false); }
-        } catch (error) {
-          console.warn('Could not delete local tracker entry', error);
-          Alert.alert('Could not delete entry', 'Your existing tracker entries have not been deliberately removed. Retry after restarting SubSathi.');
-        }
-      } },
-    ]);
-  };
-
-  const openManage = async (item: Subscription, intent: 'manage' | 'cancel' = 'manage') => {
-    const source = normalizeBillingSource(item.billingSource);
-    const sourceUrl = BILLING_SOURCE_MANAGEMENT_URLS[source];
-    const directUrl = (sourceUrl && sourceUrl.trim()) || item.manageUrl.trim() || knownManagementUrl(item.name, source);
-    if (source === 'upi_autopay' || source === 'bank_mandate') {
-      const isUpi = source === 'upi_autopay';
-      Alert.alert(
-        isUpi ? 'Manage UPI AutoPay mandate' : 'Manage bank / card mandate',
-        isUpi
-          ? 'Open the UPI app used to approve this mandate, then go to Profile or Payments → AutoPay / Mandates. SubSathi cannot cancel a UPI mandate from inside the app without a supported payment-provider integration.'
-          : 'Open the bank or card issuer app used for this recurring instruction, then find Standing Instructions, e-Mandates or Recurring Payments. SubSathi cannot cancel a bank mandate directly yet.',
-        [
-          { text: 'Got it', style: 'cancel' },
-          { text: 'Open official help', onPress: () => {
-            const helpUrl = isUpi ? 'https://www.npci.org.in/what-we-do/upi/upi-autopay' : 'https://www.rbi.org.in/';
-            void Linking.openURL(helpUrl).catch(() => Alert.alert('Could not open help', 'Please check your internet connection.'));
-          } },
-        ],
-      );
-      return;
-    }
-    if (!directUrl) {
-      Alert.alert(
-        'Management link not verified',
-        'SubSathi could not confirm an official management page for ' + item.name + '. It will not send you to a generic web search. Edit this subscription and save the provider’s official account or billing URL.',
-        [{ text: 'OK' }],
-      );
-      return;
-    }
-    const safeUrl = /^https:\/\//i.test(directUrl) ? directUrl : 'https://' + directUrl.replace(/^https?:\/\//i, '');
-    const launchOfficialPage = async () => {
-      try {
-        await Linking.openURL(safeUrl);
-      } catch {
-        Alert.alert('Could not open billing page', 'Please check your internet connection and try again.');
-      }
-    };
-    if (intent === 'cancel') {
-      Alert.alert(
-        'Continue to cancel renewal?',
-        'SubSathi will open ' + billingSourceLabel(source) + ' for ' + item.name + '. Review the plan there and confirm cancellation with the provider. This step does not cancel it automatically.',
-        [
-          { text: 'Not now', style: 'cancel' },
-          { text: 'Open cancellation page', style: 'destructive', onPress: () => { void launchOfficialPage(); } },
-        ],
-      );
-      return;
-    }
-    await launchOfficialPage();
-  };
-
-    const connectGmail = async () => {
-    setScanError('');
-    setScanLoading(true);
-    try {
-      const healthResponse = await fetchWithNetworkRetry(`${API_BASE_URL}/health`, {}, 3, 12000);
-      const healthPayload = await healthResponse.json().catch(() => ({}));
-      if (!healthResponse.ok) throw new Error('The SubSathi server is not healthy right now. Please retry in a moment.');
-      setApiReachable(true);
-      setGoogleOAuthConfigured(healthPayload.google_oauth_configured === true);
-      setAiExtractionConfigured(healthPayload.ai_extraction_configured === true);
-      setDurableDatabaseConfigured(healthPayload.durable_database_configured === true);
-      setServerScanLimit(Number(healthPayload.scan_max_messages_per_inbox || 500));
-      if (healthPayload.google_oauth_configured !== true) {
-        throw new Error('Gmail connection is blocked by server setup, not by your phone. The hosted API does not have Google OAuth credentials configured. In Google Cloud, enable Gmail API and create a Web OAuth client. In Render, add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET, then set GOOGLE_REDIRECT_URI to https://subsathi-api.onrender.com/api/auth/google/callback. Add your Google account as an OAuth test user while the consent screen is in testing, deploy the changes, and try again. Never put the client secret inside the APK or send it in chat.');
-      }
-      const startResponse = await fetchWithNetworkRetry(`${API_BASE_URL}/api/auth/google/url?redirect_target=mobile`, {}, 2, 12000);
-      const startPayload = await startResponse.json().catch(() => ({}));
-      if (!startResponse.ok || !startPayload.authorization_url) {
-        throw new Error(startPayload.detail || 'The SubSathi API could not start Google authorization. Check the server URL and OAuth configuration.');
-      }
-      const result = await WebBrowser.openAuthSessionAsync(String(startPayload.authorization_url), GOOGLE_AUTH_RETURN_URL);
-      if (result.type !== 'success' || !('url' in result) || !result.url) {
-        setScanError('Google sign-in was cancelled or did not return to SubSathi. You can try again.');
-        return;
-      }
-      const callback = new URL(result.url);
-      const callbackError = callback.searchParams.get('error');
-      if (callbackError) throw new Error(callbackError);
-      const code = callback.searchParams.get('code');
-      if (!code) throw new Error('Google returned to SubSathi without a sign-in code. Check the backend callback URL and app scheme.');
-      const exchangeResponse = await fetch(`${API_BASE_URL}/api/auth/google/exchange`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code }) });
-      const exchangePayload = await exchangeResponse.json().catch(() => ({}));
-      if (!exchangeResponse.ok || !exchangePayload.session) throw new Error(exchangePayload.detail || 'Could not exchange the one-time sign-in code. Please retry.');
-      const token = String(exchangePayload.session);
-      const profileResponse = await fetchWithNetworkRetry(`${API_BASE_URL}/api/me`, { headers: { Authorization: `Bearer ${token}` } }, 2, 12000);
-      const profile = await profileResponse.json().catch(() => ({}));
-      if (!profileResponse.ok || !profile.gmail_connected) throw new Error(profile.detail || 'Gmail connection could not be verified by the SubSathi server.');
-      await SecureStore.setItemAsync(SESSION_KEY, token);
-      const connectedAccounts = profileGmailAccounts(profile);
-      setGmailAccounts(connectedAccounts);
-      setGmailEmail(profile.gmail_email || connectedAccounts[0]?.email || profile.email || callback.searchParams.get('email'));
-      setGmailNeedsRepair(false);
-      setScanCandidates([]);
-      setSelectedCandidateIds([]);
-      setCandidateEdits({});
-
-      const activateConnectedSession = async (enableAI?: boolean) => {
-        try {
-          if (enableAI !== undefined) {
-            await withLocalDatabase(async (localDb) => {
-              await localDb.runAsync(
-                "INSERT INTO app_settings (key, value) VALUES ('aiAssistedScan', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-                enableAI ? 'true' : 'false',
-              );
-              await localDb.runAsync(
-                "INSERT INTO app_settings (key, value) VALUES ('aiConsentResolved', 'true') ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-              );
-            });
-            setAiAssistedScan(enableAI);
-          }
-          setApiSession(token);
-          if (enableAI === true) {
-            Alert.alert('AI-enhanced scan enabled', 'SubSathi will analyse up to 100 likely billing-email excerpts per inbox; uncertain detections are reviewed first using OpenAI, in addition to its local checks. You can turn this off any time in Email scan settings.');
-          } else if (enableAI === false) {
-            Alert.alert('Gmail connected', 'Automatic subscription discovery is starting using local detection. You can enable AI-assisted extraction later in Email scan settings.');
-          } else {
-            Alert.alert('Gmail connected', `Automatic subscription discovery is starting for ${profile.gmail_email || profile.email || 'your Google account'}. Review detections in Email scan before importing any plans.`);
-          }
-        } catch {
-          // Never enable external AI processing if the user's preference could not be saved.
-          setAiAssistedScan(false);
-          setApiSession(token);
-          Alert.alert('Gmail connected', 'Standard subscription detection is starting. The AI preference could not be saved, so no email excerpts will be sent to an AI service.');
-        }
-      };
-
-      const { savedConsent, savedAiPreference } = await withLocalDatabase(async (localDb) => ({
-        savedConsent: await localDb.getFirstAsync<{ value: string }>("SELECT value FROM app_settings WHERE key = 'aiConsentResolved'"),
-        savedAiPreference: await localDb.getFirstAsync<{ value: string }>("SELECT value FROM app_settings WHERE key = 'aiAssistedScan'"),
-      }));
-      if (healthPayload.ai_extraction_configured === true && !savedConsent && !savedAiPreference) {
-        Alert.alert(
-          'Improve subscription detection with AI?',
-          'With your permission, SubSathi sends short excerpts from likely billing emails to OpenAI so it can identify missing service names, prices, billing cycles and explicitly stated renewal dates. SubSathi does not store full email bodies. AI will never invent a price or date, and you can keep standard local detection instead.',
-          [
-            { text: 'Keep AI off', style: 'cancel', onPress: () => { void activateConnectedSession(false); } },
-            { text: 'Enable AI scan', onPress: () => { void activateConnectedSession(true); } },
-          ],
-        );
-        return;
-      }
-      await activateConnectedSession();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Could not connect Gmail. Check your internet connection and API settings.';
-      const oauthSetupIsMissing = message.includes('does not have Google OAuth credentials configured');
-      if (oauthSetupIsMissing) {
-        // Keep the single amber setup notice visible; don't repeat the same issue in a red error box.
-        setGoogleOAuthConfigured(false);
-        setScanError('');
-      } else {
-        const friendlyMessage = isNetworkConnectivityError(error)
-          ? `SubSathi couldn't reach ${API_BASE_URL} after retrying. This is a network/DNS connection failure, not a Gmail detection failure. Your on-device tracker entries are safe; tap Retry server connection when ready.`
-          : message;
-        if (isNetworkConnectivityError(error)) setApiReachable(false);
-        setScanError(friendlyMessage);
-      }
-    } finally {
-      setScanLoading(false);
-    }
-  };
-
-  const refreshGmailProfile = async (session: string) => {
-    const response = await fetchWithNetworkRetry(API_BASE_URL + '/api/me', {
-      headers: { Authorization: 'Bearer ' + session },
-    }, 2, 12000);
-    const profile = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(profile.detail || 'Could not refresh connected Gmail accounts.');
-    const accounts = profileGmailAccounts(profile);
-    setGmailAccounts(accounts);
-    setGmailEmail(profile.gmail_email || accounts[0]?.email || profile.email || null);
-    return accounts;
-  };
-
-  const connectAdditionalGmail = async () => {
-    let activeSession = apiSession;
-    if (!activeSession) {
-      try { activeSession = await SecureStore.getItemAsync(SESSION_KEY); } catch { activeSession = null; }
-    }
-    if (!activeSession) {
-      setGmailNeedsRepair(Boolean(gmailEmail));
-      Alert.alert(
-        gmailEmail ? 'Repair the primary Gmail connection' : 'Connect SubSathi first',
-        gmailEmail
-          ? 'This screen still remembers your Gmail address, but the saved SubSathi session is missing. Tap Repair Gmail connection to restore the primary account, then link another inbox.'
-          : 'Connect your first Gmail account before linking another inbox.',
-      );
-      return;
-    }
-    setScanError('');
-    setScanLoading(true);
-    try {
-      const profileResponse = await fetchWithNetworkRetry(API_BASE_URL + '/api/me', {
-        headers: { Authorization: 'Bearer ' + activeSession },
-      }, 2, 12000);
-      const profile = await profileResponse.json().catch(() => ({}));
-      if (!profileResponse.ok || !profile.gmail_connected) {
-        await SecureStore.deleteItemAsync(SESSION_KEY);
-        setApiSession(null);
-        setGmailEmail(null);
-        setGmailAccounts([]);
-        setGmailNeedsRepair(true);
-        throw new Error('Your saved SubSathi session is no longer valid. Tap Repair Gmail connection to reconnect the primary inbox; local tracker entries remain on this phone.');
-      }
-      setApiSession(activeSession);
-      setGmailAccounts(profileGmailAccounts(profile));
-      setGmailEmail(profile.gmail_email || profile.email || gmailEmail);
-      const startResponse = await fetchWithNetworkRetry(API_BASE_URL + '/api/auth/google/link-url', {
-        headers: { Authorization: 'Bearer ' + activeSession },
-      }, 2, 12000);
-      const startPayload = await startResponse.json().catch(() => ({}));
-      if (!startResponse.ok || !startPayload.authorization_url) {
-        throw new Error(startPayload.detail || 'Could not start Google consent for the additional inbox.');
-      }
-      const result = await WebBrowser.openAuthSessionAsync(String(startPayload.authorization_url), GOOGLE_AUTH_RETURN_URL);
-      if (result.type !== 'success' || !('url' in result) || !result.url) {
-        setScanError('Additional Gmail linking was cancelled. Existing connections are unchanged.');
-        return;
-      }
-      const callback = new URL(result.url);
-      const callbackError = callback.searchParams.get('error');
-      if (callbackError) throw new Error(callbackError);
-      if (callback.searchParams.get('linked') !== '1') {
-        throw new Error('Google did not confirm that the extra Gmail account was linked. Please retry.');
-      }
-      const email = callback.searchParams.get('email') || 'the new inbox';
-      await refreshGmailProfile(activeSession);
-      setScanCandidates([]);
-      setSelectedCandidateIds([]);
-      setCandidateEdits({});
-      setScanSummary(null);
-      Alert.alert('Gmail account added', email + ' is linked. The next scan will search connected inboxes together.');
-    } catch (error) {
-      setScanError(error instanceof Error ? error.message : 'Could not link the additional Gmail account.');
-    } finally {
-      setScanLoading(false);
-    }
-  };
-
-  const disconnectAdditionalGmail = async (email: string) => {
-    if (!apiSession) return;
-    setScanLoading(true);
-    setScanError('');
-    try {
-      const response = await fetch(API_BASE_URL + '/api/auth/gmail/accounts/' + encodeURIComponent(email), {
-        method: 'DELETE',
-        headers: { Authorization: 'Bearer ' + apiSession },
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload.detail || 'Could not disconnect this Gmail inbox.');
-      const accounts = await refreshGmailProfile(apiSession);
-      setScanCandidates([]);
-      setSelectedCandidateIds([]);
-      setCandidateEdits({});
-      setScanSummary(null);
-      Alert.alert('Gmail account disconnected', email + ' removed. ' + accounts.length + ' Gmail account(s) remain connected.');
-    } catch (error) {
-      setScanError(error instanceof Error ? error.message : 'Could not disconnect this Gmail account.');
-    } finally {
-      setScanLoading(false);
-    }
-  };
-
-  const scanGmail = async (sessionOverride?: string, mode: 'quick' | 'full' = 'quick', aiOverride?: boolean) => {
-    const session = sessionOverride || apiSession;
-    if (!session) { setScanError('Connect Gmail first.'); return; }
-    // Connecting Gmail and opening the scanner can both request a scan. Never run
-    // overlapping scans: they waste Gmail quota and can trigger API rate limits.
-    if (scanInFlightRef.current) return;
-    scanInFlightRef.current = true;
-    setScanError('');
-    setScanSummary(null);
-    setScanLoading(true);
-    try {
-      const useAi = (aiOverride ?? aiAssistedScan) && aiExtractionConfigured === true;
-      const scanQuery = '?max_messages=1500' + (mode === 'full' ? '&force_full_scan=true' : '') + (useAi ? '&ai_assisted=true' : '');
-      // A scan is a costly, stateful POST. Do not automatically replay it after a
-      // network timeout: the server may still be scanning the inbox and a duplicate
-      // request can trigger Gmail's per-user rate limits.
-      const response = await fetchWithNetworkRetry(API_BASE_URL + '/api/gmail/scan' + scanQuery, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${session}`, 'Content-Type': 'application/json' },
-      }, 1, 120000);
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        if (response.status === 401) {
-          await SecureStore.deleteItemAsync(SESSION_KEY);
-          setApiSession(null);
-          setGmailEmail(null);
-          setGmailNeedsRepair(true);
-        } else if (response.status === 409) {
-          // Keep the current phone session and local tracker; this status is also used
-          // for Gmail re-consent, and should never force a destructive disconnect flow.
-          setGmailNeedsRepair(true);
-        }
-        if ([502, 503, 504].includes(response.status)) setApiReachable(false);
-        throw new Error(payload.detail || 'Gmail scan failed. Please retry.');
-      }
-      setApiReachable(true);
-      const mapped: GmailCandidate[] = (payload.candidates || []).map((item: any) => {
-        const category = CATEGORIES.some((entry) => entry.name === item.category) ? item.category as Category : 'Other';
-        const cycle = CYCLES.includes(item.cycle as Cycle) ? item.cycle as Cycle : 'Unknown';
-        const billingSource = normalizeBillingSource(item.billingSource);
-        return {
-          id: Number(item.id), name: String(item.name || 'Unknown service'), category,
-          amount: item.amount === null || item.amount === undefined ? null : Number(item.amount),
-          cycle, nextRenewal: item.nextRenewal || null, confidence: Number(item.confidence || 0),
-          evidenceCount: Number(item.evidenceCount || 1),
-          sourceAccounts: Array.isArray(item.sourceAccounts) ? item.sourceAccounts.map((email: unknown) => String(email)) : [],
-          needsReview: Boolean(item.needsReview),
-          manageUrl: String(item.manageUrl || ''),
-          billingSource,
-          billingSourceLabel: String(item.billingSourceLabel || billingSourceLabel(billingSource)),
-          alreadyImported: Boolean(item.alreadyImported),
-        };
-      });
-      const localKey = (name: string, source: unknown) => normalizedServiceName(name) + '|' + normalizeBillingSource(source);
-
-      // AI/full scans can discover a renewal date or official management page after
-      // a plan was imported. Refresh only safe, missing/stale fields in the local
-      // tracker; never replace a user-entered price or billing cycle silently.
-      if (Array.isArray(payload.enriched_imported)) {
-        const localRows = await withLocalDatabase((db) => db.getAllAsync<Subscription>('SELECT * FROM subscriptions'));
-        const updates: {
-          id: number; amount: number | null; cycle: Cycle | 'Unknown'; nextRenewal: string; manageUrl: string; category: Category;
-        }[] = [];
-        for (const remote of payload.enriched_imported) {
-          const match = localRows.find((row) => localKey(row.name, row.billingSource) === localKey(String(remote.name || ''), remote.billingSource));
-          if (!match) continue;
-          const remoteDate = typeof remote.nextRenewal === 'string' ? remote.nextRenewal : '';
-          const nextRenewal = remoteDate && (!match.nextRenewal || remoteDate > match.nextRenewal)
-            ? remoteDate : match.nextRenewal;
-          const remoteAmount = typeof remote.amount === 'number' && Number.isFinite(remote.amount) && remote.amount > 0
-            ? remote.amount : null;
-          const amount = match.amount == null && remoteAmount !== null ? remoteAmount : match.amount;
-          const remoteCycle = CYCLES.includes(remote.cycle as Cycle) ? remote.cycle as Cycle : 'Unknown';
-          const cycle = match.cycle === 'Unknown' && remoteCycle !== 'Unknown' ? remoteCycle : match.cycle;
-          const remoteUrl = typeof remote.manageUrl === 'string' ? remote.manageUrl : '';
-          const manageUrl = !match.manageUrl && remoteUrl.startsWith('https://') && !/\s/.test(remoteUrl)
-            ? remoteUrl : match.manageUrl;
-          const remoteCategory = CATEGORIES.some((entry) => entry.name === remote.category && entry.name !== 'Other')
-            ? remote.category as Category : 'Other';
-          const category = match.category === 'Other' && remoteCategory !== 'Other' ? remoteCategory : match.category;
-          if (amount !== match.amount || cycle !== match.cycle || nextRenewal !== match.nextRenewal || manageUrl !== match.manageUrl || category !== match.category) {
-            updates.push({ id: match.id, amount, cycle, nextRenewal, manageUrl, category });
-            match.amount = amount;
-            match.cycle = cycle;
-            match.nextRenewal = nextRenewal;
-            match.manageUrl = manageUrl;
-            match.category = category;
-          }
-        }
-        if (updates.length) {
-          await withLocalDatabase(async (db) => {
-            for (const update of updates) {
-              await db.runAsync(
-                'UPDATE subscriptions SET amount = ?, cycle = ?, nextRenewal = ?, manageUrl = ?, category = ? WHERE id = ?',
-                update.amount, update.cycle, update.nextRenewal, update.manageUrl, update.category, update.id,
-              );
-            }
-          });
-          await loadSubscriptions();
-        }
-      }
-
-      const locallyTrackedNames = new Set(subscriptions.map((item) => localKey(item.name, item.billingSource)));
-      const adjusted = mapped.map((item) => ({
-        ...item,
-        alreadyImported: item.alreadyImported || locallyTrackedNames.has(localKey(item.name, item.billingSource)),
-      }));
-      setScanCandidates(adjusted);
-      setCandidateEdits(Object.fromEntries(adjusted.map((item) => [item.id, {
-        amountText: item.amount === null ? '' : String(item.amount),
-        cycle: item.cycle,
-        renewalText: item.nextRenewal || '',
-      }])));
-      setSelectedCandidateIds(adjusted.filter((item) => !item.alreadyImported).map((item) => item.id));
-      setExpandedCandidateIds([]);
-      const accountErrors: { email: string; message: string }[] = Array.isArray(payload.account_errors)
-        ? payload.account_errors.map((item: any) => ({ email: String(item.email || ''), message: String(item.message || 'This inbox could not be scanned.') }))
-        : [];
-      setGmailNeedsRepair(accountErrors.some((item) => /permission|refresh token|reconnect this gmail|authorization expired/i.test(item.message)));
-      setScanSummary({
-        scannedMessages: Number(payload.scanned_messages || 0),
-        fullMessagesFetched: Number(payload.full_messages_fetched || 0),
-        matchedReceipts: Number(payload.matched_receipts || 0),
-        searchResultHits: Number(payload.search_result_hits || 0),
-        queriesUsed: Number(payload.queries_used || 0),
-        scanLimitPerAccount: Number(payload.scan_limit_per_account || 500),
-        scanLimitReached: Boolean(payload.scan_limit_reached),
-        candidateCount: Number(payload.candidate_count ?? adjusted.length),
-        durationMs: Number(payload.scan_duration_ms || 0),
-        accountsScanned: Array.isArray(payload.scanned_accounts) ? payload.scanned_accounts.map((email: unknown) => String(email)) : [],
-        accountErrors,
-        mode: payload.scan_mode === 'full' ? 'full' : 'incremental',
-        aiAssisted: Boolean(payload.ai_assisted_scan),
-        aiAnalyzedMessages: Number(payload.ai_analyzed_messages || 0),
-        aiWarning: String(payload.ai_warning || ''),
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Could not scan Gmail. Please retry.';
-      if (isNetworkConnectivityError(error)) {
-        setApiReachable(false);
-        setScanError(`SubSathi couldn't resolve or reach its server after retrying. Your tracker entries on this phone are safe. Check your connection and tap Retry server connection; no new scan result was confirmed.`);
-      } else {
-        if (/permission|refresh token|gmail authorization|reconnect this gmail|re-authori[sz]/i.test(message)) {
-          setGmailNeedsRepair(true);
-        }
-        setScanError(message);
-      }
-    } finally {
-      scanInFlightRef.current = false;
-      setScanLoading(false);
-    }
-  };
-
-  // Automatically scan once when a valid Gmail session is restored or newly connected.
-  // Entering the Email scan screen still refreshes results on demand.
-  useEffect(() => {
-    if (!apiSession) {
-      autoScanSessionRef.current = null;
-      return;
-    }
-    if (!ready || !aiPreferenceLoaded || apiReachable !== true || !gmailEmail || autoScanSessionRef.current === apiSession) return;
-    autoScanSessionRef.current = apiSession;
-    void scanGmail(apiSession);
-  }, [ready, aiPreferenceLoaded, apiReachable, apiSession, gmailEmail]);
-
-  const importGmailCandidates = async () => {
-    if (!apiSession || !selectedCandidateIds.length) return;
-    setScanError('');
-    setScanLoading(true);
-    let localSavedCount = 0;
-    try {
-      const selectedCandidates = selectedCandidateIds
-        .map((id) => scanCandidates.find((candidate) => candidate.id === id))
-        .filter((candidate): candidate is GmailCandidate => Boolean(candidate && !candidate.alreadyImported));
-      if (!selectedCandidates.length) {
-        setSelectedCandidateIds([]);
-        return;
-      }
-
-      const overrides: { candidate_id: number; amount?: number | null; cycle?: Cycle | 'Unknown'; next_renewal?: string }[] = [];
-      const reviewed: {
-        candidate: GmailCandidate;
-        amount: number | null;
-        cycle: Cycle | 'Unknown';
-        nextRenewal: string;
-      }[] = [];
-
-      for (const candidate of selectedCandidates) {
-        const draft = candidateEdits[candidate.id] || {
-          amountText: candidate.amount === null ? '' : String(candidate.amount),
-          cycle: candidate.cycle,
-          renewalText: candidate.nextRenewal || '',
-        };
-        const hasPriceText = draft.amountText.trim().length > 0;
-        const parsedAmount = hasPriceText ? Number(draft.amountText.replace(/,/g, '').trim()) : null;
-        if (hasPriceText && (!Number.isFinite(parsedAmount) || (parsedAmount ?? 0) <= 0 || (parsedAmount ?? 0) > 10000000)) {
-          Alert.alert('Check the price', `Enter a valid INR amount for ${candidate.name}, or leave it blank until confirmed.`);
-          return;
-        }
-        if (draft.renewalText.trim() && !validDate(draft.renewalText.trim())) {
-          Alert.alert('Check the renewal date', `Enter ${candidate.name}'s date as YYYY-MM-DD, or leave it blank if the email did not contain a date.`);
-          return;
-        }
-        const override: { candidate_id: number; amount?: number | null; cycle?: Cycle | 'Unknown'; next_renewal?: string } = { candidate_id: candidate.id };
-        if (hasPriceText && parsedAmount !== null && parsedAmount !== candidate.amount) override.amount = parsedAmount;
-        else if (!hasPriceText && candidate.amount !== null) override.amount = null;
-        if (draft.cycle !== candidate.cycle) override.cycle = draft.cycle;
-        const editedRenewal = draft.renewalText.trim();
-        if (editedRenewal !== (candidate.nextRenewal || '')) override.next_renewal = editedRenewal;
-        if (Object.keys(override).length > 1) overrides.push(override);
-        reviewed.push({
-          candidate,
-          amount: hasPriceText ? parsedAmount : null,
-          cycle: draft.cycle,
-          nextRenewal: editedRenewal,
-        });
-      }
-
-      // Save the user's reviewed entries on-device FIRST. The phone's tracker must
-      // never depend on a later Gmail API response; otherwise a remote import can
-      // succeed while SQLite fails and the item disappears from the import queue.
-      localSavedCount = await withLocalDatabase(async (db) => {
-        const existingRows = await db.getAllAsync<Subscription>('SELECT * FROM subscriptions');
-        const knownKeys = new Set(existingRows.map((item) =>
-          normalizedServiceName(item.name) + '|' + normalizeBillingSource(item.billingSource),
-        ));
-        let inserted = 0;
-        await db.withTransactionAsync(async () => {
-          for (const item of reviewed) {
-            const billingSource = normalizeBillingSource(item.candidate.billingSource);
-            const key = normalizedServiceName(item.candidate.name) + '|' + billingSource;
-            if (knownKeys.has(key)) continue;
-            await db.runAsync(
-              'INSERT INTO subscriptions (name, category, amount, cycle, nextRenewal, manageUrl, billingSource, notes, reminderEnabled, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-              item.candidate.name,
-              item.candidate.category,
-              item.amount,
-              item.cycle,
-              item.nextRenewal,
-              item.candidate.manageUrl || '',
-              billingSource,
-              'Imported from Gmail billing evidence; verify unconfirmed price/cycle/date before relying on forecasts.',
-              1,
-              new Date().toISOString(),
-            );
-            knownKeys.add(key);
-            inserted += 1;
-          }
-        });
-        return inserted;
-      });
-      await loadSubscriptions();
-      const localRows = await withLocalDatabase((db) =>
-        db.getAllAsync<Subscription>('SELECT * FROM subscriptions ORDER BY nextRenewal ASC, name COLLATE NOCASE ASC'),
-      );
-      await rescheduleRenewalReminders(localRows, notificationsEnabled);
-      const importedKeys = new Set(reviewed.map((item) =>
-        normalizedServiceName(item.candidate.name) + '|' + normalizeBillingSource(item.candidate.billingSource),
-      ));
-      setScanCandidates((current) => current.map((item) =>
-        importedKeys.has(normalizedServiceName(item.name) + '|' + normalizeBillingSource(item.billingSource))
-          ? { ...item, alreadyImported: true }
-          : item,
-      ));
-      setSelectedCandidateIds([]);
-
-      // Cloud confirmation is best-effort after the phone has safely saved the tracker.
-      // If Render/Gmail is offline, these locally saved entries remain usable and can
-      // be reconciled on a later scan without requiring the user to re-enter them.
-      let cloudSyncWarning = '';
-      try {
-        const response = await fetchWithNetworkRetry(`${API_BASE_URL}/api/gmail/import`, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${apiSession}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ candidate_ids: selectedCandidates.map((candidate) => candidate.id), overrides }),
-        }, 1, 20000);
-        const payload = await response.json().catch(() => ({}));
-        if (!response.ok) {
-          cloudSyncWarning = ' Your plans are safely saved on this phone, but Gmail sync could not be confirmed. You can retry the scan later.';
-          console.warn('Gmail import confirmation failed after local save', response.status, payload.detail || '');
-        }
-      } catch (error) {
-        cloudSyncWarning = ' Your plans are safely saved on this phone, but the server could not confirm the import. Retry Gmail sync when the connection is back.';
-        console.warn('Gmail import confirmation unavailable after local save', error);
-      }
-      Alert.alert(
-        'Import complete',
-        `${localSavedCount} subscription${localSavedCount === 1 ? '' : 's'} saved on this phone. Missing prices, cycles and dates remain unconfirmed; spend totals exclude unknown price/cycle values.${cloudSyncWarning}`,
-      );
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Import failed. Please retry.';
-      setScanError(isNetworkConnectivityError(error)
-        ? 'The server could not be reached, but no import was marked complete. Your current on-device tracker entries are safe. Retry when the connection returns.'
-        : message);
-      if (localSavedCount > 0) {
-        Alert.alert('Tracker entries saved', `${localSavedCount} subscription(s) were saved on this phone. Some follow-up work did not finish; you do not need to enter them again.`);
-      }
-    } finally {
-      setScanLoading(false);
-    }
-  };
-
-  const exportSubscriptions = async () => {
-    if (!subscriptions.length) {
-      Alert.alert('Nothing to export', 'Add or import a subscription before exporting your list.');
-      return;
-    }
-    try {
-      // Escape CSV cells and neutralise spreadsheet formulas in user-controlled text.
-      const csvCell = (value: unknown) => {
-        let text = String(value ?? '');
-        if (/^[\s]*[=+\-@]/.test(text)) text = "'" + text;
-        return '"' + text.replace(/"/g, '""') + '"';
-      };
-      const header = [
-        'Service name', 'Category', 'Price (INR)', 'Billing cycle',
-        'Next renewal date', 'Management URL', 'Notes', 'Reminder enabled', 'Created at',
-      ];
-      const rows = subscriptions.map((item) => [
-        item.name, item.category, item.amount, item.cycle, item.nextRenewal,
-        item.manageUrl, item.notes, item.reminderEnabled ? 'Yes' : 'No', item.createdAt,
-      ]);
-      const csv = '\uFEFF' + [header, ...rows]
-        .map((row) => row.map(csvCell).join(','))
-        .join('\r\n');
-      const directory = FileSystem.cacheDirectory;
-      if (!directory) throw new Error('The app cache folder is unavailable.');
-      const fileUri = directory + 'subsathi-subscriptions-' + localDateString(new Date()) + '.csv';
-      await FileSystem.writeAsStringAsync(fileUri, csv, { encoding: FileSystem.EncodingType.UTF8 });
-      if (!(await Sharing.isAvailableAsync())) {
-        Alert.alert('Sharing is unavailable', 'This device cannot open the share sheet right now. Try again after restarting the app.');
-        return;
-      }
-      await Sharing.shareAsync(fileUri, {
-        mimeType: 'text/csv',
-        dialogTitle: 'Export SubSathi subscriptions',
-        UTI: 'public.comma-separated-values-text',
-      });
-    } catch (error) {
-      console.warn('Could not export subscriptions', error);
-      Alert.alert('Export failed', 'SubSathi could not create the CSV file. Your saved subscriptions have not been changed.');
-    }
-  };
-
-  const deleteServerAccount = async () => {
-    if (!apiSession) return;
-    setScanLoading(true);
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/me`, { method: 'DELETE', headers: { Authorization: `Bearer ${apiSession}` } });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload.detail || 'Could not delete the server account.');
-      await SecureStore.deleteItemAsync(SESSION_KEY);
-      setApiSession(null); setGmailEmail(null); setGmailAccounts([]); setScanCandidates([]); setSelectedCandidateIds([]);
-      Alert.alert('Server account deleted', 'The Gmail connection and server-side scan data have been deleted. Your locally saved subscription entries remain on this phone; clear them separately in Settings if you want.');
-    } catch (error) {
-      setScanError(error instanceof Error ? error.message : 'Account deletion failed.');
-      Alert.alert('Could not delete account', error instanceof Error ? error.message : 'Please try again.');
-    } finally { setScanLoading(false); }
-  };
-
-  const disconnectGmail = async () => {
-    if (!apiSession) return;
-    setScanLoading(true);
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/auth/gmail/connection`, { method: 'DELETE', headers: { Authorization: `Bearer ${apiSession}` } });
-      if (!response.ok) {
-        const payload = await response.json().catch(() => ({}));
-        throw new Error(payload.detail || 'Could not disconnect Gmail on the server.');
-      }
-      await SecureStore.deleteItemAsync(SESSION_KEY);
-      await withLocalDatabase((localDb) => localDb.runAsync("INSERT INTO app_settings (key, value) VALUES ('aiAssistedScan', 'false') ON CONFLICT(key) DO UPDATE SET value = excluded.value").then(() => undefined));
-      setApiSession(null); setGmailEmail(null); setGmailAccounts([]); setScanCandidates([]); setSelectedCandidateIds([]); setAiAssistedScan(false);
-      toastLocal('All Gmail accounts disconnected. Locally imported plans remain on this device.');
-    } catch (error) {
-      setScanError(error instanceof Error ? error.message : 'Disconnect failed.');
-    } finally { setScanLoading(false); }
-  };
-
-  const toastLocal = (message: string) => Alert.alert('SubSathi', message);
-
-  const openAdPrivacyOptions = async () => {
-    try {
-      const info = await AdsConsent.showPrivacyOptionsForm();
-      setPrivacyOptionsRequired(info.privacyOptionsRequirementStatus === 'REQUIRED');
-      if (info.canRequestAds) {
-        if (!adsInitializedRef.current) {
-          await mobileAds().initialize();
-          adsInitializedRef.current = true;
-        }
-        setAdsReady(true);
-      } else {
-        setAdsReady(false);
-      }
-      toastLocal('Advertising privacy choices updated.');
-    } catch (error) {
-      console.warn('Could not open advertising privacy options', error);
-      toastLocal('Privacy options are not available on this device right now.');
-    }
-  };
-
-  const openScanner = () => {
-    setScanError('');
-    setScanInfoOpen(true);
-    if (apiSession && gmailEmail) setTimeout(() => { void scanGmail(); }, 250);
-  };
-
-  const renderSubscriptionCard = (item: Subscription, compact = false) => {
-    const meta = categoryMeta(item.category);
-    const days = daysUntil(item.nextRenewal);
-    const tone = days < 0 ? 'red' : days <= 7 ? 'orange' : 'grey';
-    return (
-      <Pressable key={item.id} onPress={() => openEdit(item)} style={({ pressed }) => [styles.subscriptionCard, compact && styles.compactCard, pressed && { opacity: 0.88 }]}>
-        <View style={[styles.serviceIcon, { backgroundColor: meta.tint }]}><MaterialCommunityIcons name={categoryIconName(item.category)} size={23} color={C.ink} /></View>
-        <View style={styles.subscriptionMain}>
-          <Text style={styles.serviceName} numberOfLines={1}>{item.name}</Text>
-          <Text style={styles.serviceSub}>{item.category} · {item.cycle === 'Unknown' ? 'Cycle not confirmed' : item.cycle}</Text>
-          <Text style={styles.serviceSub}>Billed via {billingSourceLabel(item.billingSource)}</Text>
-          <View style={styles.duePillRow}><Pill tone={tone}>{dueLabel(item.nextRenewal)}</Pill></View>
-        </View>
-        <View style={styles.subscriptionRight}>
-          <Text style={styles.serviceAmount}>{item.amount === null ? 'Price unknown' : money(item.amount)}</Text>
-          <Text style={styles.serviceSub}>{item.cycle === 'Unknown' ? 'Cycle not confirmed' : item.cycle === 'Yearly' ? '/ year' : item.cycle === 'Monthly' ? '/ month' : item.cycle === 'Quarterly' ? '/ quarter' : '/ week'}</Text>
-          {!compact ? <Pressable onPress={(event) => { event.stopPropagation(); void openManage(item, 'manage'); }} style={styles.manageMini}><Text style={styles.manageMiniText}>Manage / renew ↗</Text></Pressable> : null}
-        </View>
-      </Pressable>
-    );
-  };
-
-  const renderHome = () => (
-    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-      <View style={styles.homeTopRow}>
-        <View style={styles.brandLockup}><BrandMark size={43} /><View><Text style={styles.brandName}>SubSathi</Text><Text style={styles.brandTagline}>Your money, under control.</Text></View></View>
-        <Pressable onPress={() => setTab('Settings')} style={styles.profileCircle}><Text style={styles.profileText}>H</Text></Pressable>
-      </View>
-      <LinearGradient colors={['#0B2230', '#124F4A', '#16A879']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.heroCard}>
-        <View pointerEvents="none" style={styles.heroDecorLarge} />
-        <View pointerEvents="none" style={styles.heroDecorSmall} />
-        <View pointerEvents="none" style={styles.heroArtwork}><MaterialCommunityIcons name="wallet-membership" size={54} color="rgba(255,255,255,0.17)" /><Feather name="trending-up" size={19} color="rgba(255,255,255,0.62)" style={styles.heroArtworkTrend} /></View>
-        <View style={styles.heroTop}><View><Text style={styles.heroEyebrow}>YOUR RECURRING SPEND</Text><Text style={styles.heroAmount}>{money(activeMonthly)}<Text style={styles.heroPer}> / mo</Text></Text></View><View style={styles.heroIconBubble}><MaterialCommunityIcons name="chart-donut" size={26} color={C.white} /></View></View>
-        <View style={styles.heroDivider} />
-        <View style={styles.heroStatsRow}>
-          <View><Text style={styles.heroStatLabel}>Yearly estimate</Text><Text style={styles.heroStatValue}>{money(activeAnnual)}</Text></View>
-          <View style={styles.heroStatsSeparator} />
-          <View><Text style={styles.heroStatLabel}>Tracked plans</Text><Text style={styles.heroStatValue}>{subscriptions.length}</Text></View>
-          <View style={styles.heroStatsSeparator} />
-          <View><Text style={styles.heroStatLabel}>Due in 30 days</Text><Text style={styles.heroStatValue}>{nextThirtyDays.length}</Text></View>
-        </View>
-        {subscriptions.some((item) => !hasKnownPrice(item)) ? <Text style={{ color: '#D7EEE7', fontSize: 10, lineHeight: 14, marginTop: 10 }}>{subscriptions.filter((item) => !hasKnownPrice(item)).length} plan(s) with unconfirmed price/cycle are excluded from spend totals.</Text> : null}
-      </LinearGradient>
-      <Pressable accessibilityRole="button" onPress={openScanner} style={({ pressed }) => [styles.gmailBannerPressable, pressed && { opacity: 0.9, transform: [{ scale: 0.99 }] }]}>
-        <LinearGradient colors={gmailEmail ? ['#E8F8F0', '#D8F3E8'] : googleOAuthConfigured === false ? ['#EAF2FF', '#DCE8FF'] : ['#E9F8F1', '#D9F2E7']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.gmailBanner}>
-          <View style={[styles.gmailBannerIcon, { backgroundColor: gmailEmail ? C.greenDark : C.navy }]}><Feather name={gmailEmail ? 'check-circle' : 'mail'} size={23} color={C.white} /></View>
-          <View style={styles.gmailBannerCopy}>
-            <Text style={styles.gmailBannerTitle}>{gmailEmail ? 'Gmail is connected' : googleOAuthConfigured === false ? 'Finish Gmail setup' : 'Find subscriptions automatically'}</Text>
-            <Text style={styles.gmailBannerBody}>{gmailEmail ? `Connected to ${gmailEmail}. Scan receipts to refresh detections.` : googleOAuthConfigured === false ? 'Google OAuth is not configured on the server yet. Tap to view the exact setup needed.' : apiReachable === false ? 'The server is not responding. Your on-device tracker still works.' : 'Connect securely with Google and review billing-email matches before importing.'}</Text>
-          </View>
-          <Feather name={gmailEmail ? 'check' : 'arrow-up-right'} size={21} color={C.greenDark} />
-        </LinearGradient>
-      </Pressable>
-      <View style={styles.quickActionRow}>
-        <Pressable style={styles.quickAction} onPress={openNew}><View style={[styles.quickActionIcon, { backgroundColor: C.greenPale }]}><Feather name="plus" size={23} color={C.greenDark} /></View><Text style={styles.quickActionLabel}>Add plan</Text></Pressable>
-        <Pressable style={styles.quickAction} onPress={openScanner}><View style={[styles.quickActionIcon, { backgroundColor: C.bluePale }]}><Feather name="mail" size={21} color="#3568A8" /></View><Text style={styles.quickActionLabel}>Email scan</Text></Pressable>
-        <Pressable style={styles.quickAction} onPress={() => setTab('Insights')}><View style={[styles.quickActionIcon, { backgroundColor: C.orangePale }]}><Feather name="trending-up" size={21} color="#9C5E0C" /></View><Text style={styles.quickActionLabel}>Find savings</Text></Pressable>
-        <Pressable style={styles.quickAction} onPress={() => setTab('AI')}><View style={[styles.quickActionIcon, { backgroundColor: '#F1EAFE' }]}><Feather name="cpu" size={21} color="#7651A6" /></View><Text style={styles.quickActionLabel}>AI coach</Text></Pressable>
-        <Pressable style={styles.quickAction} onPress={() => setTab('Subscriptions')}><View style={[styles.quickActionIcon, { backgroundColor: '#EAF2FF' }]}><Feather name="grid" size={21} color="#3568A8" /></View><Text style={styles.quickActionLabel}>All plans</Text></Pressable>
-      </View>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Open today's money check"
-        onPress={() => {
-          if (!subscriptions.length) {
-            openNew();
-            return;
-          }
-          setSearch('');
-          setFilter('All');
-          setTab(renewalsThisWeek.length || savingsRadar.missingDetails ? 'Subscriptions' : 'Insights');
-        }}
-        style={({ pressed }) => [styles.dailyCheckCard, pressed && { opacity: 0.92, transform: [{ scale: 0.99 }] }]}
-      >
-        <LinearGradient colors={['#EAF9F1', '#F0F6FF']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.dailyCheckGradient}>
-          <View style={styles.dailyCheckIcon}>
-            <Feather
-              name={!subscriptions.length ? 'plus-circle' : renewalsThisWeek.length ? 'calendar' : savingsRadar.missingDetails ? 'clipboard' : savingsRadar.potentialMonthly > 0 ? 'trending-up' : 'check-circle'}
-              size={25}
-              color={C.greenDark}
-            />
-          </View>
-          <View style={styles.dailyCheckCopy}>
-            <Text style={styles.dailyCheckEyebrow}>TODAY'S MONEY CHECK</Text>
-            <Text style={styles.dailyCheckTitle}>
-              {!subscriptions.length ? 'Start your money routine'
-                : renewalsThisWeek.length ? `${renewalsThisWeek.length} renewal${renewalsThisWeek.length === 1 ? '' : 's'} coming up`
-                : savingsRadar.missingDetails ? 'Complete your plan details'
-                : savingsRadar.potentialMonthly > 0 ? 'A savings review is ready'
-                : 'Your money routine is on track'}
-            </Text>
-            <Text style={styles.dailyCheckBody}>
-              {!subscriptions.length ? 'Add your subscriptions to keep prices, renewal dates and reminders together.'
-                : renewalsThisWeek.length ? 'Review the upcoming dates and prices before your next charges.'
-                : savingsRadar.missingDetails ? `${savingsRadar.missingDetails} plan(s) need a confirmed price, billing cycle or renewal date for more reliable alerts.`
-                : savingsRadar.potentialMonthly > 0 ? `Review plans that overlap. ${money(savingsRadar.potentialMonthly)} per month is a potential review opportunity, not guaranteed savings.`
-                : 'Your tracked details look complete. Check Insights again whenever a plan changes.'}
-            </Text>
-            <View style={styles.dailyCheckFooter}>
-              <Text style={styles.dailyCheckCTAText}>{!subscriptions.length ? 'Add first plan' : renewalsThisWeek.length || savingsRadar.missingDetails ? 'Review my plans' : 'Open insights'} <Feather name="arrow-right" size={12} color={C.greenDark} /></Text>
-              <View style={styles.dailyCheckBadge}>
-                <Text style={styles.dailyCheckBadgeText}>
-                  {!subscriptions.length ? 'START' : renewalsThisWeek.length ? `${renewalsThisWeek.length} DUE` : savingsRadar.missingDetails ? `${savingsRadar.missingDetails} TO FIX` : savingsRadar.potentialMonthly > 0 ? 'SAVINGS' : 'ON TRACK'}
-                </Text>
-              </View>
-            </View>
-          </View>
-        </LinearGradient>
-      </Pressable>
-      <View style={styles.sectionTitleRow}><Text style={styles.sectionTitle}>Coming up</Text><Pressable onPress={() => setTab('Subscriptions')}><Text style={styles.sectionAction}>View all</Text></Pressable></View>
-      {upcoming.length ? <View style={styles.listCard}>{upcoming.slice(0, 4).map((item, index) => <View key={item.id}>{renderSubscriptionCard(item, true)}{index < Math.min(upcoming.length, 4) - 1 ? <View style={styles.innerDivider} /> : null}</View>)}</View> : <View style={styles.emptyCard}><View style={styles.emptyIcon}><Text style={{ fontSize: 26 }}>🗓️</Text></View><Text style={styles.emptyTitle}>No renewals coming up</Text><Text style={styles.emptyBody}>Add a subscription and SubSathi will help you keep an eye on its renewal date.</Text><PrimaryButton title="Add your first plan" onPress={openNew} /></View>}
-      <View style={styles.tipCard}><View style={styles.tipIcon}><Text style={{ fontSize: 20 }}>💡</Text></View><View style={styles.tipCopy}><Text style={styles.tipTitle}>Small charges add up</Text><Text style={styles.tipBody}>Review your recurring plans once a month. Cancel unused plans directly with the provider.</Text></View></View>
-      <Text style={styles.footerNote}>{gmailEmail ? `Gmail connected: ${gmailEmail}. Scan billing emails to discover plans automatically.` : 'Your tracker is stored on this device. Connect Gmail to start automatic subscription discovery.'}</Text>
-    </ScrollView>
-  );
-
-  const renderSubscriptions = () => (
-    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-      <View style={styles.pageHeader}><Text style={styles.pageEyebrow}>YOUR SERVICES</Text><Text style={styles.pageTitle}>Subscriptions</Text><Text style={styles.pageSub}>{subscriptions.length} plan{subscriptions.length === 1 ? '' : 's'} tracked · {money(activeMonthly)} estimated monthly spend from confirmed prices</Text>
-       {subscriptions.some((item) => !hasKnownPrice(item)) ? <Text style={styles.fieldHint}>{subscriptions.filter((item) => !hasKnownPrice(item)).length} plan(s) excluded from spend totals until price and billing cycle are confirmed.</Text> : null}</View>
-      <View style={styles.searchBox}><Text style={styles.searchIcon}>⌕</Text><TextInput value={search} onChangeText={setSearch} placeholder="Search subscriptions..." placeholderTextColor="#91A0A4" style={styles.searchInput} returnKeyType="search" /><Pressable onPress={openNew} style={styles.searchAdd}><Text style={styles.searchAddText}>＋</Text></Pressable></View>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
-        {(['All', ...CATEGORIES.map((category) => category.name)] as ('All' | Category)[]).map((name) => <Pressable key={name} onPress={() => setFilter(name)} style={[styles.filterChip, filter === name && styles.filterChipActive]}><Text style={[styles.filterText, filter === name && styles.filterTextActive]}>{name}</Text></Pressable>)}
-      </ScrollView>
-      {filtered.length ? <View style={styles.listCard}>{filtered.map((item, index) => <View key={item.id}>{renderSubscriptionCard(item)}<View style={styles.cardActionsRow}><Pressable onPress={() => openEdit(item)}><Text style={styles.cardAction}>Edit details</Text></Pressable><Text style={styles.actionDot}>·</Text><Pressable onPress={() => { void openManage(item, 'cancel'); }}><Text style={[styles.cardAction, { color: C.red }]}>Cancel renewal</Text></Pressable><Text style={styles.actionDot}>·</Text><Pressable onPress={() => deleteSubscription(item)}><Text style={[styles.cardAction, { color: C.muted }]}>Remove tracker</Text></Pressable></View>{index < filtered.length - 1 ? <View style={styles.listDivider} /> : null}</View>)}</View> : <View style={styles.emptyCard}><View style={styles.emptyIcon}><Text style={{ fontSize: 26 }}>🔎</Text></View><Text style={styles.emptyTitle}>{subscriptions.length ? 'No matches found' : 'Your list starts here'}</Text><Text style={styles.emptyBody}>{subscriptions.length ? 'Try another search or category.' : 'Add recurring plans like OTT, software, storage, gym, broadband and memberships.'}</Text>{!subscriptions.length ? <PrimaryButton title="Add subscription" onPress={openNew} /> : <GhostButton title="Clear filters" onPress={() => { setSearch(''); setFilter('All'); }} />}</View>}
-      <View style={styles.noteBanner}><Text style={styles.noteBannerIcon}>ⓘ</Text><Text style={styles.noteBannerText}>Manage / renew opens the official billing page. Cancel renewal takes you to the service or payment platform to confirm cancellation; removing a tracker entry never cancels a real subscription.</Text></View>
-    </ScrollView>
-  );
-
-  const renderInsights = () => (
-    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-      <View style={styles.pageHeader}><Text style={styles.pageEyebrow}>YOUR MONEY SNAPSHOT</Text><Text style={styles.pageTitle}>Insights</Text><Text style={styles.pageSub}>Know where your recurring money goes.</Text></View>
-      <View style={styles.insightHero}><Text style={styles.insightHeroLabel}>ESTIMATED YEARLY COMMITMENT</Text><Text style={styles.insightHeroAmount}>{money(activeAnnual)}</Text><Text style={styles.insightHeroNote}>Totals include only plans with a confirmed price and billing cycle. Actual charges may vary.</Text><View style={styles.insightMetricRow}><View style={styles.insightMetric}><Text style={styles.insightMetricLabel}>Monthly equivalent</Text><Text style={styles.insightMetricValue}>{money(activeMonthly)}</Text></View><View style={styles.insightMetric}><Text style={styles.insightMetricLabel}>Due this month</Text><Text style={styles.insightMetricValue}>{money(currentMonthDue)}</Text></View></View></View>
-      <SectionTitle title="Spend by category" />
-      {categorySpend.length ? <View style={styles.panel}>{categorySpend.map((cat) => <View key={cat.name} style={styles.categorySpendRow}><View style={[styles.categorySpendIcon, { backgroundColor: cat.tint }]}><MaterialCommunityIcons name={categoryIconName(cat.name)} size={21} color={C.ink} /></View><View style={styles.categorySpendMain}><View style={styles.categorySpendNameRow}><Text style={styles.categorySpendName}>{cat.name}</Text><Text style={styles.categorySpendAmount}>{money(cat.amount)}<Text style={styles.categoryMonthly}> / mo</Text></Text></View><View style={styles.barTrack}><View style={[styles.barFill, { width: `${Math.max(4, (cat.amount / (categorySpend[0]?.amount || 1)) * 100)}%` }]} /></View></View></View>)}</View> : <View style={styles.emptyCard}><Text style={styles.emptyTitle}>Insights will appear here</Text><Text style={styles.emptyBody}>Add a few subscriptions to see your spending breakdown.</Text><PrimaryButton title="Add a plan" onPress={openNew} /></View>}
-      <SectionTitle title="Things to review" />
-      <View style={styles.panel}>
-        {nextThirtyDays.length ? <View style={styles.reviewRow}><View style={[styles.reviewIcon, { backgroundColor: C.orangePale }]}><Text>⏰</Text></View><View style={styles.reviewCopy}><Text style={styles.reviewTitle}>{nextThirtyDays.length} upcoming renewal{nextThirtyDays.length === 1 ? '' : 's'}</Text><Text style={styles.reviewBody}>Review the plan and price before the charge date.</Text></View><Text style={styles.reviewArrow}>›</Text></View> : <View style={styles.reviewRow}><View style={[styles.reviewIcon, { backgroundColor: C.greenPale }]}><Text>✓</Text></View><View style={styles.reviewCopy}><Text style={styles.reviewTitle}>No renewals due in 30 days</Text><Text style={styles.reviewBody}>Add renewal dates to get a more useful view.</Text></View></View>}
-        <View style={styles.innerDivider} />
-        <View style={styles.reviewRow}><View style={[styles.reviewIcon, { backgroundColor: C.bluePale }]}><Text>🔍</Text></View><View style={styles.reviewCopy}><Text style={styles.reviewTitle}>Smart Savings Radar</Text><Text style={styles.reviewBody}>A live review of repeated tracker entries, category overlap, upcoming renewals and missing billing details is shown below.</Text></View></View>
-      </View>
-      <SectionTitle title="Smart Savings Radar" />
-      <View style={styles.panel}>
-        <View style={{ backgroundColor: C.navy, borderRadius: 15, padding: 15, marginTop: 8, marginBottom: 10 }}>
-          <Text style={{ color: '#B7CDD2', fontSize: 9, fontWeight: '800', letterSpacing: 1 }}>POTENTIAL MONTHLY SAVINGS TO INVESTIGATE</Text>
-          <Text style={{ color: C.white, fontSize: 26, fontWeight: '800', marginTop: 5 }}>{money(savingsRadar.potentialMonthly)}<Text style={{ color: '#B7CDD2', fontSize: 11, fontWeight: '600' }}> / month</Text></Text>
-          <Text style={{ color: '#B7CDD2', fontSize: 10, lineHeight: 15, marginTop: 5 }}>Estimated conservatively from the lowest-priced plan in each overlapping category. This is only a review opportunity—not confirmed savings or proof that plans are duplicates.</Text>
-        </View>
-        {savingsRadar.overlaps.length ? savingsRadar.overlaps.slice(0, 4).map((group) => (
-          <View key={group.category} style={{ borderTopWidth: 1, borderTopColor: '#EEF2F1', paddingVertical: 12 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-              <View style={{ width: 36, height: 36, borderRadius: 12, backgroundColor: categoryMeta(group.category).tint, alignItems: 'center', justifyContent: 'center' }}><Text>{categoryMeta(group.category).emoji}</Text></View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.reviewTitle}>{group.category} · {group.items.length} plans</Text>
-                <Text style={styles.reviewBody}>{group.items.map((item) => item.name).join(' · ')}</Text>
-                <Text style={styles.reviewBody}>{money(group.monthlySpend)}/mo tracked{group.reviewOpportunity > 0 ? ' · ' + money(group.reviewOpportunity) + '/mo to review' : ' · confirm prices to estimate'}</Text>
-              </View>
-              <Pressable accessibilityRole="button" onPress={() => { setSearch(''); setFilter(group.category); setTab('Subscriptions'); }} style={{ borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, backgroundColor: C.greenPale }}><Text style={{ color: C.greenDark, fontSize: 10, fontWeight: '800' }}>Review</Text></Pressable>
-            </View>
-          </View>
-        )) : <Text style={styles.reviewBody}>No multi-plan overlap found in entertainment, music, software or storage yet. Add or import plans and this review updates automatically.</Text>}
-        {savingsRadar.repeatedEntries.map((item) => (
-          <View key={item.name + item.category + item.source + item.count} style={{ borderTopWidth: 1, borderTopColor: '#EEF2F1', paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-            <View style={[styles.reviewIcon, { backgroundColor: C.orangePale }]}><Text>↻</Text></View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.reviewTitle}>Repeated tracker entry · {item.name}</Text>
-              <Text style={styles.reviewBody}>{item.count} entries · {BILLING_SOURCE_LABELS[item.source]} · {money(item.monthlySpend)}/mo equivalent in the tracker. This does not prove the provider charged you twice.</Text>
-            </View>
-            <Pressable accessibilityRole="button" onPress={() => { setSearch(item.name); setFilter('All'); setTab('Subscriptions'); }} style={{ borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, backgroundColor: C.greenPale }}><Text style={{ color: C.greenDark, fontSize: 10, fontWeight: '800' }}>Check</Text></Pressable>
-          </View>
-        ))}
-        <View style={{ borderTopWidth: 1, borderTopColor: '#EEF2F1', paddingTop: 12, marginTop: 4, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-          <View style={[styles.reviewIcon, { backgroundColor: C.bluePale }]}><Text>🧾</Text></View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.reviewTitle}>{savingsRadar.missingDetails} plan(s) need a details check</Text>
-            <Text style={styles.reviewBody}>Missing price, billing cycle or renewal date means a plan may be absent from forecasts or alerts.</Text>
-          </View>
-          <Pressable accessibilityRole="button" onPress={() => { setSearch(''); setFilter('All'); setTab('Subscriptions'); }} style={{ borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, backgroundColor: C.greenPale }}><Text style={{ color: C.greenDark, fontSize: 10, fontWeight: '800' }}>Fix</Text></Pressable>
-        </View>
-        {nextThirtyDays.length ? <View style={{ borderTopWidth: 1, borderTopColor: '#EEF2F1', paddingTop: 12, marginTop: 4, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-          <View style={[styles.reviewIcon, { backgroundColor: C.orangePale }]}><Text>⏰</Text></View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.reviewTitle}>{nextThirtyDays.length} renewal(s) in the next 30 days</Text>
-            <Text style={styles.reviewBody}>Review upcoming charges before they happen. SubSathi cannot cancel a provider plan automatically.</Text>
-          </View>
-          <Pressable accessibilityRole="button" onPress={() => { setSearch(''); setFilter('All'); setTab('Subscriptions'); }} style={{ borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, backgroundColor: C.greenPale }}><Text style={{ color: C.greenDark, fontSize: 10, fontWeight: '800' }}>Review</Text></Pressable>
-        </View> : null}
-      </View>
-      <Text style={styles.footerNote}>SubSathi calculates estimates from plans you saved on this device. It does not read bank statements or confirm which services you actively use.</Text>
-    </ScrollView>
-  );
-
-
-  const renderAI = () => {
-    const mostExpensive = [...subscriptions].filter(hasKnownPrice).sort((a, b) => monthlyEquivalent(b) - monthlyEquivalent(a))[0];
-    const nextTracked = [...subscriptions].filter((item) => Boolean(item.nextRenewal) && daysUntil(item.nextRenewal) >= -7)
-      .sort((a, b) => daysUntil(a.nextRenewal) - daysUntil(b.nextRenewal))[0];
-    const duplicateNameCount = new Set(subscriptions.filter((item, index, all) =>
-      all.findIndex((other) => other.name.trim().toLowerCase() === item.name.trim().toLowerCase()) !== index
-    ).map((item) => item.name.trim().toLowerCase())).size;
-    return (
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-        <View style={styles.pageHeader}>
-          <Text style={styles.pageEyebrow}>YOUR PRIVATE MONEY COACH</Text>
-          <Text style={styles.pageTitle}>SmartSathi AI</Text>
-          <Text style={styles.pageSub}>Hindi or English. Ask about spend, renewals, duplicates and ways to review costs.</Text>
-        </View>
-        <LinearGradient colors={['#0D2330', '#164F58', '#16A879']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.aiHero}>
-          <View pointerEvents="none" style={styles.heroDecorLarge} />
-          <View style={styles.aiHeroTop}>
-            <View style={styles.aiOrb}><MaterialCommunityIcons name="robot-happy-outline" size={27} color={C.white} /></View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.aiHeroTitle}>Your subscription co-pilot</Text>
-              <Text style={styles.aiHeroSub}>Live insights from your saved plans · Voice enabled</Text>
-            </View>
-            <Pill tone={voiceListening ? 'orange' : 'green'}>{voiceListening ? 'Listening' : 'Ready'}</Pill>
-          </View>
-          {subscriptions.some((item) => !hasKnownPrice(item)) ? <Text style={[styles.aiHeroSub, { marginTop: 8 }]}>{subscriptions.filter((item) => !hasKnownPrice(item)).length} plan(s) with unconfirmed price/cycle are excluded from spend totals.</Text> : null}
-          <View style={styles.aiHeroStatsRow}>
-            <View style={styles.aiHeroStat}><Text style={styles.aiHeroStatLabel}>Monthly equivalent</Text><Text style={styles.aiHeroStatValue}>{money(activeMonthly)}</Text></View>
-            <View style={styles.aiHeroStat}><Text style={styles.aiHeroStatLabel}>Tracked plans</Text><Text style={styles.aiHeroStatValue}>{subscriptions.length}</Text></View>
-            <View style={styles.aiHeroStat}><Text style={styles.aiHeroStatLabel}>Next 30 days</Text><Text style={styles.aiHeroStatValue}>{nextThirtyDays.length} due</Text></View>
-          </View>
-        </LinearGradient>
-
-        <SectionTitle title="Smart highlights" />
-        <View style={styles.panel}>
-          {subscriptions.length === 0 ? (
-            <View style={styles.aiHighlightRow}>
-              <View style={styles.aiHighlightIcon}><Feather name="plus-circle" size={20} color={C.greenDark} /></View>
-              <View style={styles.aiHighlightCopy}><Text style={styles.aiHighlightTitle}>Start with your first plan</Text><Text style={styles.aiHighlightBody}>Add a subscription and SmartSathi will start analysing its recurring cost and renewal dates.</Text></View>
-            </View>
-          ) : (
-            <>
-              <View style={styles.aiHighlightRow}>
-                <View style={styles.aiHighlightIcon}><Feather name="trending-up" size={20} color={C.greenDark} /></View>
-                <View style={styles.aiHighlightCopy}><Text style={styles.aiHighlightTitle}>Highest monthly-equivalent cost</Text><Text style={styles.aiHighlightBody}>{mostExpensive ? `${mostExpensive.name}: ${money(monthlyEquivalent(mostExpensive))} per month equivalent. Review whether the plan still fits your needs.` : 'No confirmed price and billing cycle yet. Review a detected plan to add details when you have them.'}</Text></View>
-              </View>
-              <View style={styles.innerDivider} />
-              <View style={styles.aiHighlightRow}>
-                <View style={[styles.aiHighlightIcon, { backgroundColor: C.orangePale }]}><Feather name="calendar" size={20} color="#9C5E0C" /></View>
-                <View style={styles.aiHighlightCopy}><Text style={styles.aiHighlightTitle}>{nextTracked ? 'Renewal to keep an eye on' : 'Add verified renewal dates'}</Text><Text style={styles.aiHighlightBody}>{nextTracked ? `${nextTracked.name} · ${dueLabel(nextTracked.nextRenewal)}` : 'A renewal date is needed before this can be forecast accurately.'}</Text></View>
-              </View>
-              <View style={styles.innerDivider} />
-              <View style={styles.aiHighlightRow}>
-                <View style={[styles.aiHighlightIcon, { backgroundColor: C.bluePale }]}><Feather name="copy" size={20} color="#3568A8" /></View>
-                <View style={styles.aiHighlightCopy}><Text style={styles.aiHighlightTitle}>{duplicateNameCount ? 'Possible duplicate names found' : 'Duplicate check'}</Text><Text style={styles.aiHighlightBody}>{duplicateNameCount ? `${duplicateNameCount} service name(s) appear more than once. Ask SmartSathi to review possible duplicates, then verify directly with the provider.` : 'No exact duplicate names found. Similar plans may still exist under different names.'}</Text></View>
-              </View>
-            </>
-          )}
-        </View>
-
-        <SectionTitle title="Ask SmartSathi" />
-        <View style={styles.aiChatPanel}>
-          {assistantMessages.map((message) => (
-            <View key={message.id} style={[styles.aiMessage, message.role === 'user' ? styles.aiUserBubble : styles.aiAssistantBubble]}>
-              <Text style={styles.aiMessageText}>{message.text}</Text>
-            </View>
-          ))}
-          {voiceError ? <View style={styles.aiWarning}><Text style={styles.aiWarningText}>{voiceError}</Text></View> : null}
-          <View style={styles.aiInputRow}>
-            <TextInput
-              value={assistantQuery}
-              onChangeText={setAssistantQuery}
-              placeholder={assistantLanguage === 'hi-IN' ? 'Apna sawaal yahan likho…' : 'Ask about spend, renewals or savings…'}
-              placeholderTextColor="#91A0A4"
-              style={styles.aiInput}
-              returnKeyType="send"
-              onSubmitEditing={() => answerAssistant(assistantQuery)}
-              accessibilityLabel="Ask SmartSathi a question"
-            />
-            <Pressable accessibilityRole="button" accessibilityLabel="Send question" onPress={() => answerAssistant(assistantQuery)} style={styles.aiSendButton}>
-              <Feather name="arrow-up" size={20} color={C.white} />
-            </Pressable>
-          </View>
-          <View style={styles.aiControls}>
-            <Pressable onPress={() => setAssistantLanguage((value) => value === 'hi-IN' ? 'en-IN' : 'hi-IN')} style={[styles.aiToggle, assistantLanguage === 'hi-IN' && styles.aiToggleActive]}>
-              <Text style={[styles.aiToggleText, assistantLanguage === 'hi-IN' && styles.aiToggleTextActive]}>{assistantLanguage === 'hi-IN' ? 'हिंदी' : 'English'} · Switch</Text>
-            </Pressable>
-            <Pressable onPress={() => setVoiceRepliesEnabled((value) => !value)} style={[styles.aiToggle, voiceRepliesEnabled && styles.aiToggleActive]}>
-              <Text style={[styles.aiToggleText, voiceRepliesEnabled && styles.aiToggleTextActive]}>{voiceRepliesEnabled ? 'Voice reply on' : 'Voice reply off'}</Text>
-            </Pressable>
-            <Pressable accessibilityRole="button" onPress={() => { if (voiceListening) ExpoSpeechRecognitionModule.stop(); else void startVoiceCapture(); }} style={[styles.aiVoiceButton, voiceListening && styles.aiVoiceButtonActive]}>
-              <Feather name={voiceListening ? 'mic-off' : 'mic'} size={16} color={C.white} />
-              <Text style={styles.aiVoiceText}>{voiceListening ? 'Stop listening' : 'Ask by voice'}</Text>
-            </Pressable>
-          </View>
-        </View>
-
-        <SectionTitle title="Try asking" />
-        <View style={styles.aiQuickRow}>
-          {['Mera monthly kharcha kitna hai?', 'Agla renewal kab hai?', 'How can I save money?', 'Show my yearly spend'].map((prompt) => (
-            <Pressable key={prompt} onPress={() => answerAssistant(prompt)} style={styles.aiQuickChip}>
-              <Text style={styles.aiQuickText}>{prompt}</Text>
-            </Pressable>
-          ))}
-        </View>
-        <Text style={styles.footerNote}>SmartSathi analyses only the subscription entries saved in this app; your chat is processed on this phone and is not sent to a cloud AI service. Voice recognition is provided by your device's speech service, whose network and privacy behaviour may depend on Android settings. Amounts and duplicate matches are estimates—verify details before acting.</Text>
-      </ScrollView>
-    );
-  };
-
-  const renderSettings = () => (
-    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-      <View style={styles.pageHeader}><Text style={styles.pageEyebrow}>YOUR APP</Text><Text style={styles.pageTitle}>Settings</Text><Text style={styles.pageSub}>Privacy, alerts and connected services.</Text></View>
-      <View style={styles.profilePanel}><BrandMark size={52} /><View style={{ flex: 1 }}><Text style={styles.profilePanelTitle}>SubSathi</Text><Text style={styles.profilePanelSub}>Local-first · Version 0.5.13 · SmartSathi AI</Text></View><Pill tone="green">On device</Pill></View>
-      <View style={styles.panel}>
-        <Text style={styles.settingsSectionLabel}>REMINDERS</Text>
-        <View style={styles.settingRow}><View style={styles.settingIcon}><Text>🔔</Text></View><View style={styles.settingCopy}><Text style={styles.settingTitle}>Renewal notifications</Text><Text style={styles.settingBody}>Remind two days before, at 9:00 AM when permitted.</Text></View><Switch value={notificationsEnabled} onValueChange={(value) => { setNotificationsEnabled(value); void withLocalDatabase((db) => db.runAsync("INSERT INTO app_settings (key, value) VALUES ('notificationsEnabled', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", value ? 'true' : 'false').then(() => undefined)).catch((error) => { console.warn('Could not save notification preference', error); Alert.alert('Preference not saved', 'Renewal notifications changed for this session. Restart SubSathi and retry if the setting does not persist.'); }); void rescheduleRenewalReminders(subscriptions, value); }} trackColor={{ false: '#CBD5D4', true: '#A7E4CD' }} thumbColor={notificationsEnabled ? C.green : '#F6F7F7'} /></View>
-        <View style={styles.innerDivider} />
-        <Text style={styles.settingsSectionLabel}>CONNECTED SERVICES</Text>
-        <Pressable onPress={openScanner} style={styles.settingRow}><View style={[styles.settingIcon, { backgroundColor: C.bluePale }]}><Text>✉</Text></View><View style={styles.settingCopy}><Text style={styles.settingTitle}>Gmail auto-detection</Text><Text style={styles.settingBody}>{gmailEmail ? (gmailAccounts.length || 1) + ' Gmail account(s) connected · scan inboxes together.' : 'Not connected · secure Google OAuth setup required.'}</Text></View><Text style={styles.settingArrow}>›</Text></Pressable>
-        <View style={styles.innerDivider} />
-         {privacyOptionsRequired ? <><View style={styles.innerDivider} /><Pressable onPress={() => { void openAdPrivacyOptions(); }} style={styles.settingRow}><View style={[styles.settingIcon, { backgroundColor: C.greenPale }]}><Text>◈</Text></View><View style={styles.settingCopy}><Text style={styles.settingTitle}>Advertising privacy choices</Text><Text style={styles.settingBody}>Review or change the choices shown by Google's consent form.</Text></View><Text style={styles.settingArrow}>›</Text></Pressable></> : null}
-        <View style={styles.settingRow}><View style={styles.settingIcon}><Text>🔐</Text></View><View style={styles.settingCopy}><Text style={styles.settingTitle}>Local-first data</Text><Text style={styles.settingBody}>{gmailEmail ? 'Tracker entries remain on this device. Each linked Gmail inbox is scanned only after its owner grants Google consent; full receipt bodies are processed but not saved.' : 'This MVP stores tracker entries in local SQLite. Gmail, SMS, bank and UPI access are separate sources and are not silently accessible.'}</Text></View></View>
-      </View>
-      <View style={styles.panel}>
-        <Text style={styles.settingsSectionLabel}>DATA MANAGEMENT</Text>
-        <Pressable style={styles.settingsActionRow} onPress={() => { void exportSubscriptions(); }}><Text style={styles.settingsAction}>Export my subscription list (CSV)</Text><Text style={styles.settingArrow}>›</Text></Pressable>
-        <View style={styles.innerDivider} />
-        <Pressable style={styles.settingsActionRow} onPress={() => Alert.alert('Clear all tracker data?', 'This permanently removes all subscriptions stored in this app. It will not cancel any real subscription.', [{ text: 'Keep data', style: 'cancel' }, { text: 'Clear all', style: 'destructive', onPress: async () => { try { await withLocalDatabase((db) => db.runAsync('DELETE FROM subscriptions').then(() => undefined)); await Notifications.cancelAllScheduledNotificationsAsync(); await loadSubscriptions(); setTab('Home'); } catch (error) { console.warn('Could not clear local tracker', error); Alert.alert('Could not clear data', 'Your tracker was not deliberately cleared. Restart SubSathi and retry.'); } } }])}><Text style={[styles.settingsAction, { color: C.red }]}>Clear all tracker data</Text><Text style={styles.settingArrow}>›</Text></Pressable>
-        {apiSession ? <><View style={styles.innerDivider} /><Pressable style={styles.settingsActionRow} onPress={() => Alert.alert('Delete server account?', 'This removes the SubSathi server account, encrypted Gmail credentials and cached scan candidates. Tracker entries saved locally on this phone will remain.', [{ text: 'Keep account', style: 'cancel' }, { text: 'Delete account', style: 'destructive', onPress: () => { void deleteServerAccount(); } }])}><Text style={[styles.settingsAction, { color: C.red }]}>Delete SubSathi server account</Text><Text style={styles.settingArrow}>›</Text></Pressable></> : null}
-      </View>
-      <Text style={styles.footerNote}>Gmail only finds subscriptions evidenced in connected inboxes. Phone-number-only sign-ups, SMS and UPI/card mandates need separate, explicit integrations.</Text>
-    </ScrollView>
-  );
-
-  if (!ready || !splashAnimationDone) return (
-    <SafeAreaView edges={['top', 'bottom']} style={styles.loadingScreen}>
-      <StatusBar barStyle="light-content" backgroundColor="#081F2B" />
-      <LinearGradient colors={['#071923', '#0B3940', '#087756']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.splashBackground}>
-        <View pointerEvents="none" style={styles.splashOrbTop} />
-        <View pointerEvents="none" style={styles.splashOrbBottom} />
-        <Animated.View pointerEvents="none" style={[
-          styles.splashGlow,
-          {
-            opacity: splashGlow,
-            transform: [{ scale: splashGlow.interpolate({ inputRange: [0, 1], outputRange: [0.76, 1.16] }) }],
-          },
-        ]} />
-        <Animated.View style={[
-          styles.splashLogoFrame,
-          {
-            transform: [
-              { scale: splashScale },
-              { rotate: splashRotation.interpolate({ inputRange: [0, 1], outputRange: ['-16deg', '0deg'] }) },
-            ],
-          },
-        ]}>
-          <BrandMark size={76} />
-        </Animated.View>
-        <Animated.Text style={[styles.splashTitle, { opacity: splashGlow }]}>SubSathi</Animated.Text>
-        <Text style={styles.splashTagline}>Your subscriptions. One smarter place.</Text>
-        {!ready ? <ActivityIndicator color="#49E8B0" size="small" style={{ marginTop: 22 }} /> : <View style={{ height: 22 }} />}
-        <View style={styles.splashDotsRow}>
-          <View style={styles.splashDot} />
-          <Animated.View style={[styles.splashDot, styles.splashDotActive, { opacity: splashGlow }]} />
-          <View style={styles.splashDot} />
-        </View>
-        <Text style={styles.splashLoading}>GETTING YOUR MONEY LIFE READY</Text>
-        <View style={styles.splashProgressTrack}>
-          <Animated.View style={[styles.splashProgressFill, { transform: [{ scaleX: splashProgress }] }]} />
-        </View>
-      </LinearGradient>
-    </SafeAreaView>
-  );
-
-  return (
-    <SafeAreaView edges={['top']} style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor={C.cream} />
-      <Animated.View style={[styles.appContent, { opacity: screenProgress, transform: [{ translateY: screenProgress.interpolate({ inputRange: [0, 1], outputRange: [9, 0] }) }] }]}>
-        {tab === 'Home' ? renderHome() : tab === 'Subscriptions' ? renderSubscriptions() : tab === 'AI' ? renderAI() : tab === 'Insights' ? renderInsights() : renderSettings()}
-      </Animated.View>
-      {adsReady && !adFailed ? <View style={styles.adContainer}>
-        {isTestAds ? <Text style={styles.adTestLabel}>TEST AD · NOT PAID</Text> : null}
-        <BannerAd
-          key={adUnitId}
-          unitId={adUnitId}
-          size={BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
-          requestOptions={{ requestNonPersonalizedAdsOnly: true }}
-          onAdLoaded={() => setAdFailed(false)}
-          onAdFailedToLoad={(error) => {
-            console.warn('SubSathi banner ad failed to load', error);
-            setAdFailed(true);
-          }}
-        />
-      </View> : null}
-      <View style={[styles.bottomNav, { height: 72 + insets.bottom, paddingBottom: Math.max(insets.bottom, Platform.OS === 'android' ? 8 : 0) }]}>
-        {([['Home', 'home'], ['Subscriptions', 'layers'], ['AI', 'cpu'], ['Insights', 'pie-chart'], ['Settings', 'settings']] as [Tab, keyof typeof Feather.glyphMap][]).map(([name, icon]) => <Pressable key={name} accessibilityRole="button" accessibilityLabel={name} onPress={() => setTab(name)} style={styles.navItem}><View style={[styles.navIconWrap, tab === name && styles.navIconActive]}><Feather name={icon} size={20} style={[styles.navIcon, tab === name && styles.navIconSelected]} /></View><Text style={[styles.navLabel, tab === name && styles.navLabelSelected]}>{name}</Text></Pressable>)}
-      </View>
-      <SubscriptionEditor visible={editorOpen} initial={editing} onClose={() => { setEditorOpen(false); setEditing(null); }} onSave={saveSubscription} onDelete={editing ? () => deleteSubscription(editing) : undefined} />
-      <Modal visible={scanInfoOpen} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setScanInfoOpen(false)}>
-        <SafeAreaView style={styles.editorSafeArea}>
-          <View style={styles.editorHeader}><Pressable onPress={() => setScanInfoOpen(false)} style={styles.editorClose}><Text style={styles.editorCloseText}>✕</Text></Pressable><View style={{ flex: 1 }}><Text style={styles.editorTitle}>Automatic discovery</Text><Text style={styles.editorSubtitle}>Find subscriptions from billing emails</Text></View><Pill tone={gmailEmail && apiReachable === true && !gmailNeedsRepair ? 'green' : 'orange'}>{!gmailEmail ? 'Not connected' : apiReachable === false ? 'Offline' : gmailNeedsRepair ? 'Repair access' : apiReachable === null ? 'Checking' : 'Connected'}</Pill></View>
-          <ScrollView contentContainerStyle={styles.editorScroll} keyboardShouldPersistTaps="handled">
-            <View style={{ backgroundColor: C.white, borderColor: C.line, borderWidth: 1, borderRadius: 20, padding: 18, marginBottom: 16 }}>
-              <LinearGradient colors={['#DFF6EB', '#E7F0FF']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.infoModalIcon, { marginBottom: 12 }]}><Feather name="mail" size={26} color={C.greenDark} /></LinearGradient>
-              <Text style={styles.modalTitle}>{gmailEmail ? gmailNeedsRepair ? 'Gmail access needs repair' : apiReachable === false ? 'Gmail linked · server offline' : 'Gmail is connected' : 'Stop adding every plan manually'}</Text>
-              <Text style={styles.modalIntro}>{gmailEmail ? `Connected account: ${gmailEmail}. Scan relevant billing emails, then review the detected subscriptions before importing them to this phone.` : 'Connect through Google’s official secure consent screen. SubSathi will search for billing receipts, renewal notices and recurring payment emails. It never asks for your Gmail password.'}</Text>
-              {googleOAuthConfigured === false ? <View style={styles.oauthSetupNotice}>
-                <View style={styles.oauthNoticeTitleRow}><Feather name="alert-circle" size={17} color="#9B5A08" /><Text style={styles.oauthSetupTitle}>Server setup required</Text></View>
-                <Text style={styles.oauthSetupBody}>Google sign-in cannot start until the app owner configures Google OAuth on the hosted server. Enable Gmail API in that same project. Never paste a client secret into the APK or chat.</Text>
-              </View> : apiReachable === false ? <View style={styles.oauthSetupNotice}><View style={styles.oauthNoticeTitleRow}><Feather name="wifi-off" size={17} color="#9B5A08" /><Text style={styles.oauthSetupTitle}>Server temporarily unreachable</Text></View><Text style={styles.oauthSetupBody}>Gmail was linked previously, but SubSathi could not reach its server after retrying. This is a network/DNS or server-connectivity problem—not evidence that your subscriptions disappeared. Your phone's saved tracker remains available offline.</Text></View> : null}
-              {apiReachable === false ? <GhostButton title={scanLoading ? 'Retrying server…' : 'Retry server connection'} onPress={() => {
-                if (scanLoading) return;
-                void (async () => {
-                  setScanError('');
-                  const reachable = await refreshApiHealth();
-                  if (reachable && apiSession && gmailEmail) await scanGmail(undefined, 'quick');
-                  else if (!reachable) setScanError('SubSathi server is still unreachable after three checks. Your local tracker remains safe; retry once the network/server is available.');
-                })();
-              }} /> : null}
-              {durableDatabaseConfigured === false ? <View style={[styles.oauthSetupNotice, { marginTop: 10 }]}>
-                <View style={styles.oauthNoticeTitleRow}><Feather name="database" size={17} color="#9B5A08" /><Text style={styles.oauthSetupTitle}>Cloud storage needs a permanent database</Text></View>
-                <Text style={styles.oauthSetupBody}>The live API is reporting temporary storage. Gmail login details may need repair after a server restart, though your on-device subscription tracker is separate. The app owner must connect the managed PostgreSQL database before relying on persistent cloud connections.</Text>
-              </View> : null}
-              {gmailNeedsRepair && gmailEmail ? <View style={[styles.oauthSetupNotice, { marginTop: 10 }]}>
-                <View style={styles.oauthNoticeTitleRow}><Feather name="shield" size={17} color="#9B5A08" /><Text style={styles.oauthSetupTitle}>Gmail permission needs repair</Text></View>
-                <Text style={styles.oauthSetupBody}>Google rejected the saved Gmail access token. Use the repair button below to approve the permission again. Do not disconnect the whole SubSathi account, and do not uninstall the app.</Text>
-              </View> : null}
-              <View style={styles.infoChecklist}>
-                <Text style={styles.infoChecklistLine}>✓ Read billing-related emails only using Gmail search</Text>
-                <Text style={styles.infoChecklistLine}>✓ Detect supported services, amounts and cycle hints</Text>
-                <Text style={styles.infoChecklistLine}>✓ Never invent a missing renewal date</Text>
-                <Text style={styles.infoChecklistLine}>✓ Review detections before importing</Text>
-              </View>
-              {scanError && googleOAuthConfigured !== false ? <View style={{ borderRadius: 12, backgroundColor: C.redPale, padding: 12, marginBottom: 12 }}><Text style={{ color: C.red, fontSize: 11, lineHeight: 16 }}>{scanError}</Text></View> : null}
-              {scanLoading ? <View style={{ paddingVertical: 18, alignItems: 'center' }}><ActivityIndicator color={C.green} size="large" /><Text style={styles.settingBody}>{gmailEmail ? 'Checking recent receipts and renewals in parallel…' : 'Opening Google authorization…'}</Text><Text style={[styles.fieldHint, { textAlign: 'center', marginTop: 5 }]}>Only likely billing emails are analysed. This should be much quicker than checking every message one by one.</Text></View> : null}
-              {!gmailEmail ? <PrimaryButton title={googleOAuthConfigured === false ? 'Check Gmail setup again' : 'Connect Gmail securely'} onPress={() => { void connectGmail(); }} /> : <View style={{ gap: 9 }}>
-                <PrimaryButton title={scanLoading ? 'Syncing new emails…' : 'Quick sync new billing emails'} onPress={() => { if (!scanLoading) void scanGmail(undefined, 'quick'); }} />
-                <GhostButton title={scanLoading ? 'Rescanning…' : 'Deep rescan' + (serverScanLimit ? ' · up to ' + serverScanLimit.toLocaleString() + ' emails' : '')} onPress={() => { if (!scanLoading) void scanGmail(undefined, 'full'); }} />
-                <Text style={styles.fieldHint}>Quick sync checks new email only. Deep rescan searches provider, billing, trial and renewal wording. {serverScanLimit ? 'The server limit is ' + serverScanLimit.toLocaleString() + ' selected messages per inbox.' : 'The server scan limit is being checked.'} Gmail search remains bounded, so no scan can promise every historic message was covered.</Text>
-                <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10, backgroundColor: '#F7FAF8', borderColor: C.line, borderWidth: 1, borderRadius: 13, padding: 12, marginTop: 10, marginBottom: 12 }}>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.fieldLabel}>OPTIONAL AI-ASSISTED EXTRACTION</Text>
-                    <Text style={styles.fieldHint}>{aiExtractionConfigured === true
-                      ? 'When enabled, AI reviews up to 100 billing-email excerpts per inbox (3,500 body characters each), prioritising uncertain or incomplete detections before checking complete local matches. Enabling it runs a full rescan. Selected excerpts are sent to OpenAI only with this setting enabled; verified evidence can correct parser results, but AI never invents prices or dates. This preference is saved on this phone.'
-                      : aiExtractionConfigured === false
-                        ? 'AI extraction is not configured on the server yet. Standard email detection remains available; the app will not send email text to an AI service.'
-                        : 'Checking whether optional AI extraction is configured on the server…'}</Text>
-                  </View>
-                  <Switch
-                    value={aiAssistedScan}
-                    disabled={aiExtractionConfigured !== true || scanLoading}
-                    onValueChange={(value) => {
-                      void withLocalDatabase(async (db) => {
-                        await db.runAsync("INSERT INTO app_settings (key, value) VALUES ('aiAssistedScan', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", value ? 'true' : 'false');
-                        await db.runAsync("INSERT INTO app_settings (key, value) VALUES ('aiConsentResolved', 'true') ON CONFLICT(key) DO UPDATE SET value = excluded.value");
-                      }).then(() => {
-                        setAiAssistedScan(value);
-                        if (value && apiSession && gmailEmail && !scanLoading) void scanGmail(undefined, 'full', true);
-                      }).catch(() => Alert.alert('Could not save AI preference', 'SubSathi has not changed the AI setting. Restart the app and retry.'));
-                    }}
-                    trackColor={{ false: '#CBD5D4', true: '#A7E4CD' }}
-                    thumbColor={aiAssistedScan ? C.green : '#F6F7F7'}
-                    accessibilityLabel="Allow AI-assisted billing email extraction"
-                  />
-                </View>
-                <GhostButton title={scanLoading ? 'Checking access…' : gmailNeedsRepair ? 'Repair Gmail connection' : 'Refresh / repair Gmail access'} onPress={() => { if (!scanLoading) void connectGmail(); }} />
-                <GhostButton title="Connect another Gmail account" onPress={() => { if (!scanLoading) void connectAdditionalGmail(); }} />
-                <GhostButton title="Disconnect all Gmail accounts" onPress={() => { Alert.alert('Disconnect all Gmail accounts?', 'All linked Gmail credentials and cached detections will be removed from the server. Subscription entries already imported on this phone will remain.', [{ text: 'Keep connected', style: 'cancel' }, { text: 'Disconnect all', style: 'destructive', onPress: () => { void disconnectGmail(); } }]); }} />
-                {gmailAccounts.filter((account) => !account.primary).map((account) => <Pressable key={account.email} disabled={scanLoading} onPress={() => Alert.alert('Remove Gmail account?', 'Remove ' + account.email + ' from this SubSathi profile?', [{ text: 'Cancel', style: 'cancel' }, { text: 'Remove account', style: 'destructive', onPress: () => { void disconnectAdditionalGmail(account.email); } }])} style={{ paddingVertical: 7 }}><Text style={{ fontSize: 10, color: C.muted }}>Secondary inbox · {account.email} · tap to remove</Text></Pressable>)}
-              </View>}
-            </View>
-            {gmailEmail && scanSummary ? <View style={{ backgroundColor: C.greenPale, borderRadius: 13, padding: 12, marginBottom: 14 }}>
-              <Text style={{ color: C.greenDark, fontSize: 11, fontWeight: '800' }}>{scanSummary.mode === 'full' ? 'Deep rescan' : 'Quick sync'} · Searched {scanSummary.scannedMessages} messages across {scanSummary.accountsScanned.length} Gmail account(s){scanSummary.durationMs > 0 ? ` in ${(scanSummary.durationMs / 1000).toFixed(1)}s` : ''}</Text>
-              <Text style={{ color: '#42695E', fontSize: 10, lineHeight: 15, marginTop: 4 }}>Ran {scanSummary.queriesUsed} search paths across the inbox(es); opened {scanSummary.fullMessagesFetched} likely billing email(s), detected {scanSummary.matchedReceipts} matching message(s), and found {scanSummary.candidateCount} subscription candidate(s).</Text>
-              <Text style={{ color: '#42695E', fontSize: 10, lineHeight: 15, marginTop: 4 }}>Server cap: up to {scanSummary.scanLimitPerAccount.toLocaleString()} selected messages per inbox per scan. Combined search hits can include the same email more than once.</Text>
-              {scanSummary.scanLimitReached ? <Text style={{ color: '#8B5108', fontSize: 10, lineHeight: 15, marginTop: 7, fontWeight: '700' }}>Coverage note: this server allowed up to {scanSummary.scanLimitPerAccount.toLocaleString()} messages per inbox for this pass and the search hit its cap. These results are not proof that your inbox contains only this many subscriptions; older or unusually worded billing emails may still be missed.</Text> : null}
-              {scanSummary.aiAssisted ? <Text style={{ color: '#42695E', fontSize: 10, lineHeight: 15, marginTop: 5 }}>{scanSummary.aiWarning || (scanSummary.aiAnalyzedMessages > 0 ? `AI-assisted extraction reviewed ${scanSummary.aiAnalyzedMessages} incomplete/uncertain email(s) and only added fields supported by quoted email evidence.` : 'AI-assisted mode was enabled, but no incomplete or uncertain emails needed extra analysis in this scan.')}</Text> : null}
-              {scanSummary.accountErrors.map((item) => <Text key={item.email} style={{ color: C.red, fontSize: 10, lineHeight: 15, marginTop: 5 }}>{item.email}: {item.message}</Text>)}
-            </View> : null}
-            {gmailEmail && scanCandidates.length > 0 ? <View style={{ marginBottom: 18 }}>
-              <SectionTitle
-                title="Detected subscriptions"
-                action={selectedCandidateIds.length ? 'Clear selection' : 'Select all new'}
-                onAction={() => setSelectedCandidateIds((current) => current.length
-                  ? []
-                  : scanCandidates.filter((item) => !item.alreadyImported).map((item) => item.id))}
-              />
-              <Text style={styles.fieldHint}>New detections are selected automatically. AI checks available billing evidence, and you can correct any price, cycle or renewal date before importing. Unconfirmed values stay blank.</Text>
-              {scanCandidates.map((candidate) => {
-                const selected = selectedCandidateIds.includes(candidate.id);
-                const categoryMetaItem = categoryMeta(candidate.category);
-                const canReviewDetails = !candidate.alreadyImported;
-                const draft = candidateEdits[candidate.id] || {
-                  amountText: candidate.amount === null ? '' : String(candidate.amount),
-                  cycle: candidate.cycle,
-                  renewalText: candidate.nextRenewal || '',
-                };
-                return <View key={candidate.id} style={{ backgroundColor: C.white, borderColor: selected ? C.green : C.line, borderWidth: selected ? 1.5 : 1, borderRadius: 15, marginTop: 9, overflow: 'hidden', opacity: candidate.alreadyImported ? 0.7 : 1 }}>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={`${selected ? 'Deselect' : 'Select'} ${candidate.name}`}
-                    disabled={candidate.alreadyImported}
-                    onPress={() => setSelectedCandidateIds((current) => selected ? current.filter((id) => id !== candidate.id) : [...current, candidate.id])}
-                    style={{ flexDirection: 'row', gap: 10, alignItems: 'center', padding: 12, minHeight: 80 }}
-                  >
-                    <View style={{ width: 25, height: 25, borderRadius: 8, borderWidth: 1.5, borderColor: selected ? C.green : '#CBD7D2', backgroundColor: selected ? C.green : C.white, alignItems: 'center', justifyContent: 'center' }}>
-                      <Text style={{ color: C.white, fontSize: 14, fontWeight: '900' }}>{selected ? '✓' : ''}</Text>
-                    </View>
-                    <View style={[styles.serviceIcon, { backgroundColor: categoryMetaItem.tint }]}><Text style={styles.serviceEmoji}>{categoryMetaItem.emoji}</Text></View>
-                    <View style={{ flex: 1, minWidth: 0 }}>
-                      <Text style={styles.serviceName}>{candidate.name}</Text>
-                      <Text style={styles.serviceSub}>{candidate.evidenceCount} billing email(s) · Confidence {candidate.confidence}%</Text>
-                      <Text style={styles.serviceSub}>Billed via {candidate.billingSourceLabel}</Text>
-                      {candidate.sourceAccounts.length ? <Text style={styles.serviceSub}>Inbox: {candidate.sourceAccounts.join(', ')}</Text> : null}
-                      <Text style={styles.serviceSub}>{candidate.nextRenewal ? `Renewal: ${formatDate(candidate.nextRenewal)}` : 'Renewal date not in email — optional'}{candidate.cycle === 'Unknown' ? ' · Cycle needs review' : ` · ${candidate.cycle}`}</Text>
-                      {candidate.alreadyImported ? <Pill tone="grey">Already tracked</Pill> : candidate.needsReview ? <Pill tone="orange">Review details</Pill> : <Pill tone="green">Detected</Pill>}
-                    </View>
-                    <View style={{ alignItems: 'flex-end', maxWidth: 100 }}>
-                      <Text style={styles.serviceAmount}>{candidate.amount !== null ? money(candidate.amount) : 'Price needed'}</Text>
-                      <Text style={[styles.serviceSub, { textAlign: 'right' }]}>{candidate.amount === null ? 'Price needed' : candidate.cycle === 'Unknown' ? 'Billing cycle needed' : `per ${candidate.cycle.toLowerCase()}`}</Text>
-                    </View>
-                  </Pressable>
-                  {canReviewDetails ? <Pressable onPress={() => setExpandedCandidateIds((current) => current.includes(candidate.id) ? current.filter((id) => id !== candidate.id) : [...current, candidate.id])} style={{ paddingHorizontal: 14, paddingVertical: 10, borderTopWidth: 1, borderTopColor: C.line }}><Text style={{ color: C.greenDark, fontSize: 11, fontWeight: '800' }}>{expandedCandidateIds.includes(candidate.id) ? 'Hide details' : 'Review / correct details'}</Text></Pressable> : null}
-                  {expandedCandidateIds.includes(candidate.id) && canReviewDetails ? <View style={{ borderTopWidth: 1, borderTopColor: C.line, backgroundColor: '#F8FBF9', padding: 13 }}>
-                    <Text style={styles.fieldLabel}>PRICE (INR)</Text>
-                    <Text style={styles.fieldHint}>Check this against the recurring plan charge. Clear it if the amount is not confirmed.</Text>
-                    <TextInput
-                      value={draft.amountText}
-                      onChangeText={(value) => setCandidateEdits((current) => ({ ...current, [candidate.id]: { ...draft, amountText: value } }))}
-                      placeholder="e.g. 199"
-                      placeholderTextColor="#97A5A8"
-                      style={styles.input}
-                      keyboardType="decimal-pad"
-                      accessibilityLabel={`Price for ${candidate.name}`}
-                    />
-                    <Text style={[styles.fieldLabel, { marginTop: 12 }]}>BILLING CYCLE</Text>
-                    <View style={styles.cycleRow}>{(['Unknown', ...CYCLES] as (Cycle | 'Unknown')[]).map((cycle) => <Pressable key={cycle} onPress={() => setCandidateEdits((current) => ({ ...current, [candidate.id]: { ...draft, cycle } }))} style={[styles.cycleChip, draft.cycle === cycle && styles.cycleChipActive]}><Text style={[styles.cycleChipText, draft.cycle === cycle && styles.cycleChipTextActive]}>{cycle === 'Unknown' ? 'Not confirmed' : cycle}</Text></Pressable>)}</View>
-                    <Text style={[styles.fieldLabel, { marginTop: 12 }]}>NEXT RENEWAL DATE</Text>
-                    <Text style={styles.fieldHint}>Confirm or correct the date as YYYY-MM-DD. Clear it if there is no verified date.</Text>
-                    <TextInput
-                      value={draft.renewalText}
-                      onChangeText={(value) => setCandidateEdits((current) => ({ ...current, [candidate.id]: { ...draft, renewalText: value } }))}
-                      placeholder="YYYY-MM-DD"
-                      placeholderTextColor="#97A5A8"
-                      style={styles.input}
-                      keyboardType="numbers-and-punctuation"
-                      accessibilityLabel={`Renewal date for ${candidate.name}`}
-                      maxLength={10}
-                    />
-                  </View> : null}
-                </View>;
-              })}
-              <View style={{ marginTop: 14 }}>
-                <PrimaryButton title={scanLoading ? 'Importing…' : selectedCandidateIds.length ? `Import ${selectedCandidateIds.length} selected` : 'Select a subscription to import'} onPress={() => { if (!scanLoading && selectedCandidateIds.length) void importGmailCandidates(); }} />
-              </View>
-            </View> : null}
-            {gmailEmail && !scanCandidates.length && !scanLoading ? <View style={styles.emptyCard}><View style={styles.emptyIcon}><Text style={{ fontSize: 26 }}>🔎</Text></View><Text style={styles.emptyTitle}>{scanError || (scanSummary?.accountErrors.length ? 'Scan incomplete — some emails failed' : scanSummary?.scanLimitReached ? 'Scan reached its coverage limit' : scanSummary ? 'No subscriptions confidently identified' : 'Ready to find your subscriptions')}</Text><Text style={styles.emptyBody}>{scanError ? 'The latest scan did not complete successfully. Read the error above, wait until any Gmail rate limit clears, then retry. This does not mean your inbox has no subscriptions.' : scanSummary?.accountErrors.length ? 'At least one Gmail operation failed. Results are incomplete; use the account error above to decide whether to repair access or wait for quota reset. Do not treat zero candidates as proof that there are no subscriptions.' : scanSummary?.scanLimitReached ? `SubSathi searched ${scanSummary.scannedMessages} messages but hit the server coverage limit of ${scanSummary.scanLimitPerAccount.toLocaleString()} messages per inbox. This is a partial scan, not proof that every subscription was found.` : scanSummary ? `SubSathi opened ${scanSummary.fullMessagesFetched} likely billing emails but found no message with enough recurring-subscription evidence to create a candidate. Some services send receipts with different wording; results remain incomplete until the relevant service email is recognized.` : 'Scan billing emails to discover supported plans. Some providers omit their price or renewal date, so review any incomplete detections before importing them.'}</Text></View> : null}
-            <Text style={styles.formPrivacyNote}>Only the supported metadata from billing-related email results is retained by the server. Full email bodies are processed for extraction and are not stored by the scanner. Disconnect access if you no longer want SubSathi to scan Gmail.</Text>
-          </ScrollView>
-        </SafeAreaView>
-      </Modal>
-    </SafeAreaView>
-  );
+  return { tasks,habits,logs,expenses,goals,budget:Math.max(0,Number(budgetRow?.value||15000)),reminderEnabled:reminderRow?.value==='true' };
+}
+function BrandMark({size=44}:{size?:number}) {
+  return <View style={[s.brandMark,{width:size,height:size,borderRadius:size*.34}]}><View style={[s.brandOrbit,{width:size*.66,height:size*.66,borderRadius:size*.34}]}/><Feather name="compass" size={size*.46} color="#FFFFFF"/><View style={[s.brandSpark,{width:size*.12,height:size*.12,borderRadius:size*.06}]}/></View>;
+}
+function SectionTitle({title,action,onAction}:{title:string;action?:string;onAction?:()=>void}) {
+  return <View style={s.sectionRow}><Text style={s.sectionTitle}>{title}</Text>{action&&onAction?<Pressable onPress={onAction}><Text style={s.actionText}>{action}</Text></Pressable>:null}</View>;
+}
+function Tag({label,color=C.greenDark,bg=C.mint}:{label:string;color?:string;bg?:string}) {
+  return <View style={[s.tag,{backgroundColor:bg}]}><Text style={[s.tagText,{color}]}>{label}</Text></View>;
+}
+function ProgressBar({value,color=C.green,track='#E8F0ED'}:{value:number;color?:string;track?:string}) {
+  return <View style={[s.progressTrack,{backgroundColor:track}]}><View style={[s.progressFill,{width:Math.max(0,Math.min(100,value))+'%',backgroundColor:color}]}/></View>;
+}
+function PrimaryButton({title,onPress}:{title:string;onPress:()=>void}) {
+  return <Pressable onPress={onPress} style={({pressed})=>[s.primaryButton,pressed&&s.pressed]}><Text style={s.primaryButtonText}>{title}</Text></Pressable>;
+}
+function SecondaryButton({title,onPress}:{title:string;onPress:()=>void}) {
+  return <Pressable onPress={onPress} style={({pressed})=>[s.secondaryButton,pressed&&s.pressed]}><Text style={s.secondaryButtonText}>{title}</Text></Pressable>;
 }
 
-function SubscriptionEditor({ visible, initial, onClose, onSave, onDelete }: {
-  visible: boolean;
-  initial: Subscription | null;
-  onClose: () => void;
-  onSave: (input: SubscriptionInput) => Promise<void>;
-  onDelete?: () => void;
-}) {
-  const [name, setName] = useState('');
-  const [category, setCategory] = useState<Category>('Entertainment');
-  const [amount, setAmount] = useState('');
-  const [cycle, setCycle] = useState<Cycle | 'Unknown'>('Monthly');
-  const [nextRenewal, setNextRenewal] = useState('');
-  const [manageUrl, setManageUrl] = useState('');
-  const [billingSource, setBillingSource] = useState<BillingSource>('provider');
-  const [notes, setNotes] = useState('');
-  const [reminderEnabled, setReminderEnabled] = useState(true);
-  const [saving, setSaving] = useState(false);
+function DayPilotApp() {
+  const insets=useSafeAreaInsets();
+  const dbRef=useRef<SQLite.SQLiteDatabase|null>(null);
+  const [ready,setReady]=useState(false),[bootError,setBootError]=useState('');
+  const [tab,setTab]=useState<Tab>('Today');
+  const [tasks,setTasks]=useState<DayTask[]>([]),[habits,setHabits]=useState<Habit[]>([]),[logs,setLogs]=useState<HabitLog[]>([]),[expenses,setExpenses]=useState<Expense[]>([]),[goals,setGoals]=useState<Goal[]>([]);
+  const [budget,setBudget]=useState(15000),[budgetDraft,setBudgetDraft]=useState('15000'),[reminderEnabled,setReminderEnabled]=useState(false);
+  const [editorKind,setEditorKind]=useState<EditorKind>(null),[editorTitle,setEditorTitle]=useState(''),[editorDetails,setEditorDetails]=useState(''),[editorAmount,setEditorAmount]=useState(''),[editorCategory,setEditorCategory]=useState('Food'),[editorPriority,setEditorPriority]=useState<Priority>('Medium'),[editorDate,setEditorDate]=useState(todayKey()),[goalId,setGoalId]=useState<number|null>(null);
+  const [focusVisible,setFocusVisible]=useState(false),[focusRunning,setFocusRunning]=useState(false),[focusSeconds,setFocusSeconds]=useState(25*60),[focusSessions,setFocusSessions]=useState(0);
+  const [chatInput,setChatInput]=useState(''),[chat,setChat]=useState<ChatMessage[]>([{id:'hello',role:'coach',text:'Hey, I’m your DayPilot coach. I work offline with the tasks, habits and spending you save here. Tell me what feels messy today, or try one of the quick prompts below.'}]);
+  const [searchTasks,setSearchTasks]=useState(''),[taskFilter,setTaskFilter]=useState<'All'|'Open'|'Done'>('All');
+  const splashScale=useRef(new Animated.Value(.72)).current,splashRotation=useRef(new Animated.Value(0)).current,splashGlow=useRef(new Animated.Value(.25)).current,screenFade=useRef(new Animated.Value(1)).current;
+  const [bootAnimDone,setBootAnimDone]=useState(false);
+  const refresh=useCallback(async(db?:SQLite.SQLiteDatabase)=>{
+    const live=db||dbRef.current;if(!live)return;
+    const v=await readDatabase(live);
+    setTasks(v.tasks);setHabits(v.habits);setLogs(v.logs);setExpenses(v.expenses);setGoals(v.goals);setBudget(v.budget);setBudgetDraft(String(v.budget));setReminderEnabled(v.reminderEnabled);
+  },[]);
+  useEffect(()=>{
+    let mounted=true;
+    const intro=Animated.parallel([
+      Animated.sequence([Animated.timing(splashScale,{toValue:1.08,duration:460,easing:Easing.out(Easing.back(1.2)),useNativeDriver:true}),Animated.spring(splashScale,{toValue:1,speed:12,bounciness:4,useNativeDriver:true})]),
+      Animated.timing(splashRotation,{toValue:1,duration:820,easing:Easing.out(Easing.cubic),useNativeDriver:true}),
+      Animated.sequence([Animated.timing(splashGlow,{toValue:1,duration:380,easing:Easing.out(Easing.cubic),useNativeDriver:true}),Animated.timing(splashGlow,{toValue:.65,duration:440,easing:Easing.inOut(Easing.quad),useNativeDriver:true})]),
+    ],{stopTogether:false});
+    intro.start(({finished})=>{if(mounted&&finished)setBootAnimDone(true);});
+    (async()=>{try{const db=await openDatabase();dbRef.current=db;await refresh(db);if(mounted)setReady(true);}catch(error){console.warn('DayPilot database failed',error);if(mounted){setBootError('DayPilot could not open local storage. Your data has not been deleted. Close the app and try again.');setReady(true);setBootAnimDone(true);}}})();
+    return()=>{mounted=false;intro.stop();};
+  },[refresh,splashScale,splashRotation,splashGlow]);
+  useEffect(()=>{screenFade.setValue(0);Animated.timing(screenFade,{toValue:1,duration:250,easing:Easing.out(Easing.cubic),useNativeDriver:true}).start();},[tab,screenFade]);
+  useEffect(()=>{
+    if(!focusRunning)return;
+    const timer=setInterval(()=>setFocusSeconds(v=>v<=1?0:v-1),1000);
+    return()=>clearInterval(timer);
+  },[focusRunning]);
+  useEffect(()=>{
+    if(!focusRunning||focusSeconds!==0)return;
+    setFocusRunning(false);setFocusSessions(v=>v+1);
+    Alert.alert('Focus session complete ✨','Nice work. Take a little break, stretch, and celebrate the progress.');
+  },[focusRunning,focusSeconds]);
 
-  useEffect(() => {
-    if (!visible) return;
-    setName(initial?.name ?? '');
-    setCategory(initial?.category ?? 'Entertainment');
-    setAmount(initial?.amount == null ? '' : String(initial.amount));
-    setCycle(initial?.cycle ?? 'Monthly');
-    setNextRenewal(initial?.nextRenewal ?? '');
-    setManageUrl(initial?.manageUrl ?? '');
-    setBillingSource(normalizeBillingSource(initial?.billingSource));
-    setNotes(initial?.notes ?? '');
-    setReminderEnabled(initial ? Boolean(initial.reminderEnabled) : true);
-    setSaving(false);
-  }, [visible, initial]);
+  const todayTasks=useMemo(()=>tasks.filter(x=>x.dueDate===todayKey()),[tasks]);
+  const openToday=todayTasks.filter(x=>!x.completed),completedToday=todayTasks.filter(x=>!!x.completed);
+  const doneHabits=habits.filter(h=>logs.some(l=>l.habitId===h.id&&l.date===todayKey()));
+  const scoreBase=todayTasks.length*3+habits.length*2;
+  const dayScore=scoreBase?Math.round((completedToday.length*3+doneHabits.length*2)/scoreBase*100):0;
+  const streak=streakDays(logs);
+  const monthSpend=expenses.filter(x=>x.spentAt.slice(0,7)===monthKey()).reduce((n,x)=>n+x.amount,0);
+  const budgetUsed=budget>0?Math.min(100,monthSpend/budget*100):(monthSpend>0?100:0),remainingBudget=Math.max(0,budget-monthSpend);
+  const dueOpen=tasks.filter(x=>!x.completed&&x.dueDate&&x.dueDate<=todayKey()).length;
+  const filteredTasks=tasks.filter(x=>(x.title+' '+x.details).toLowerCase().includes(searchTasks.trim().toLowerCase())&&(taskFilter==='All'||(taskFilter==='Open'?!x.completed:!!x.completed)));
+  const categoryTotals=EXPENSE_CATEGORIES.map(category=>({category,total:expenses.filter(x=>x.spentAt.slice(0,7)===monthKey()&&x.category===category).reduce((n,x)=>n+x.amount,0)})).filter(x=>x.total>0).sort((a,b)=>b.total-a.total);
+  const goalAverage=goals.length?Math.round(goals.reduce((sum,g)=>sum+(g.targetAmount>0?Math.min(100,g.savedAmount/g.targetAmount*100):0),0)/goals.length):0;
 
-  const submit = async () => {
-    const hasAmount = amount.trim().length > 0;
-    const numericAmount = hasAmount ? Number(amount.replace(/,/g, '').trim()) : null;
-    if (!name.trim()) { Alert.alert('Add a service name', 'For example, Adobe, Netflix, Hotstar or Gym.'); return; }
-    if (hasAmount && (!Number.isFinite(numericAmount) || (numericAmount ?? 0) <= 0 || (numericAmount ?? 0) > 10000000)) { Alert.alert('Check the amount', 'Enter a valid amount greater than ₹0, or leave it blank until confirmed.'); return; }
-    if (nextRenewal.trim() && !validDate(nextRenewal.trim())) { Alert.alert('Check the renewal date', 'Use YYYY-MM-DD, or leave the field blank until you confirm the date with the provider.'); return; }
-    if (manageUrl.trim() && !/^(https?:\/\/)?[a-z0-9.-]+\.[a-z]{2,}([/:?#].*)?$/i.test(manageUrl.trim())) { Alert.alert('Check the management link', 'Enter a website address such as https://example.com/account.'); return; }
-    setSaving(true);
+  const openEditor=(kind:Exclude<EditorKind,null>,id?:number)=>{
+    setEditorKind(kind);setEditorTitle('');setEditorDetails('');setEditorAmount('');setEditorCategory('Food');setEditorPriority('Medium');setEditorDate(kind==='goal'?'':todayKey());setGoalId(id??null);
+  };
+  const closeEditor=()=>{setEditorKind(null);setGoalId(null);};
+  const saveEditor=async()=>{
+    const db=dbRef.current;if(!db){Alert.alert('Storage unavailable','Restart DayPilot and try again.');return;}
     try {
-      await onSave({
-        name: name.trim(), category, amount: numericAmount, cycle, nextRenewal: nextRenewal.trim(),
-        manageUrl: manageUrl.trim(), billingSource, notes: notes.trim(), reminderEnabled: reminderEnabled ? 1 : 0,
+      if(editorKind==='task'){
+        if(!editorTitle.trim()){Alert.alert('Give your task a name','A short, clear action works best.');return;}
+        if(editorDate&&!/^\d{4}-\d{2}-\d{2}$/.test(editorDate)){Alert.alert('Check the date','Use YYYY-MM-DD.');return;}
+        await db.runAsync('INSERT INTO tasks (title,details,dueDate,priority,completed,createdAt) VALUES (?,?,?,?,0,?)',editorTitle.trim(),editorDetails.trim(),editorDate||todayKey(),editorPriority,new Date().toISOString());
+      }else if(editorKind==='expense'){
+        const amount=Number(editorAmount.replace(/,/g,'').trim());
+        if(!editorTitle.trim()||!Number.isFinite(amount)||amount<=0){Alert.alert('Check your expense','Enter a name and an amount greater than zero.');return;}
+        await db.runAsync('INSERT INTO expenses (title,amount,category,spentAt) VALUES (?,?,?,?)',editorTitle.trim(),amount,editorCategory,editorDate||todayKey());
+      }else if(editorKind==='goal'){
+        const target=Number(editorAmount.replace(/,/g,'').trim());
+        if(!editorTitle.trim()||!Number.isFinite(target)||target<=0){Alert.alert('Check your goal','Enter a goal name and a target amount.');return;}
+        if(editorDate&&!/^\d{4}-\d{2}-\d{2}$/.test(editorDate)){Alert.alert('Check the date','Use YYYY-MM-DD, or leave blank.');return;}
+        await db.runAsync('INSERT INTO goals (title,targetAmount,savedAmount,targetDate,createdAt) VALUES (?,?,0,?,?)',editorTitle.trim(),target,editorDate,new Date().toISOString());
+      }else if(editorKind==='habit'){
+        if(!editorTitle.trim()){Alert.alert('Name your habit','Try “Stretch for five minutes” or “Practise a skill”.');return;}
+        await db.runAsync('INSERT INTO habits (title,icon,tint,active) VALUES (?,?,?,1)',editorTitle.trim(),'star-four-points-outline','#E8E8FF');
+      }else if(editorKind==='contribute'){
+        const amount=Number(editorAmount.replace(/,/g,'').trim());
+        if(!goalId||!Number.isFinite(amount)||amount<=0){Alert.alert('Check your contribution','Enter an amount greater than zero.');return;}
+        await db.runAsync('UPDATE goals SET savedAmount=savedAmount+? WHERE id=?',amount,goalId);
+      }
+      closeEditor();await refresh(db);
+    }catch(error){console.warn('Could not save DayPilot entry',error);Alert.alert('Could not save','Your existing entries are unchanged. Please try again.');}
+  };
+  const toggleTask=async(task:DayTask)=>{
+    const db=dbRef.current;if(!db)return;
+    try{await db.runAsync('UPDATE tasks SET completed=? WHERE id=?',task.completed?0:1,task.id);await refresh(db);}
+    catch(error){console.warn(error);Alert.alert('Could not update task','Please try again.');}
+  };
+  const deleteTask=(task:DayTask)=>Alert.alert('Delete this task?',task.title,[{text:'Keep it',style:'cancel'},{text:'Delete',style:'destructive',onPress:async()=>{const db=dbRef.current;if(db){await db.runAsync('DELETE FROM tasks WHERE id=?',task.id);await refresh(db);}}}]);
+  const toggleHabit=async(habit:Habit)=>{
+    const db=dbRef.current;if(!db)return;const did=logs.some(x=>x.habitId===habit.id&&x.date===todayKey());
+    try{if(did)await db.runAsync('DELETE FROM habit_logs WHERE habitId=? AND date=?',habit.id,todayKey());else await db.runAsync('INSERT OR IGNORE INTO habit_logs (habitId,date) VALUES (?,?)',habit.id,todayKey());await refresh(db);}
+    catch(error){console.warn(error);Alert.alert('Could not update habit','Please try again.');}
+  };
+  const deleteExpense=(item:Expense)=>Alert.alert('Remove this expense?',item.title+' · '+money(item.amount),[{text:'Keep',style:'cancel'},{text:'Remove',style:'destructive',onPress:async()=>{const db=dbRef.current;if(db){await db.runAsync('DELETE FROM expenses WHERE id=?',item.id);await refresh(db);}}}]);
+  const deleteGoal=(goal:Goal)=>Alert.alert('Remove this goal?',goal.title,[{text:'Keep goal',style:'cancel'},{text:'Remove',style:'destructive',onPress:async()=>{const db=dbRef.current;if(db){await db.runAsync('DELETE FROM goals WHERE id=?',goal.id);await refresh(db);}}}]);
+  const saveBudget=async()=>{
+    const value=Number(budgetDraft.replace(/,/g,'').trim());
+    if(!Number.isFinite(value)||value<0){Alert.alert('Check your budget','Enter zero or a positive amount.');return;}
+    const db=dbRef.current;if(!db)return;
+    await db.runAsync('INSERT INTO settings (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value','monthlyBudget',String(value));
+    await refresh(db);Alert.alert('Budget updated','Your monthly spending plan is saved on this device.');
+  };
+  const toggleReminder=async()=>{
+    const db=dbRef.current;if(!db)return;
+    try{
+      if(reminderEnabled){
+        const scheduled=await Notifications.getAllScheduledNotificationsAsync();
+        for(const item of scheduled)if(item.content.data?.dayPilotReminder===true)await Notifications.cancelScheduledNotificationAsync(item.identifier);
+        await db.runAsync('INSERT INTO settings (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value','dailyReminder','false');setReminderEnabled(false);return;
+      }
+      const permission=await Notifications.requestPermissionsAsync();
+      if(!permission.granted){Alert.alert('Notifications are off','Enable notifications in Android Settings to receive the daily planning nudge.');return;}
+      await Notifications.scheduleNotificationAsync({
+        content:{title:'A small plan for a better day ✨',body:'Take two minutes to review your tasks, habits and spending in DayPilot.',data:{dayPilotReminder:true}},
+        trigger:{type:Notifications.SchedulableTriggerInputTypes.DAILY,hour:20,minute:0},
       });
-    } catch (error) {
-      Alert.alert('Could not save', 'Please try again. Your existing entries have not been changed.');
-      console.warn(error);
-    } finally { setSaving(false); }
+      await db.runAsync('INSERT INTO settings (key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value','dailyReminder','true');setReminderEnabled(true);
+    }catch(error){console.warn('Reminder setup failed',error);Alert.alert('Reminder not updated','Check notification permissions in Android Settings and retry.');}
+  };
+  const coachReply=(raw:string)=>{
+    const q=raw.toLowerCase().trim();if(!q)return;
+    let answer='';
+    if(/spend|spent|money|kharch|expense|budget|paise/.test(q))
+      answer='This month you have logged '+money(monthSpend)+' from '+expenses.filter(x=>x.spentAt.slice(0,7)===monthKey()).length+' entries. Your budget is '+money(budget)+', leaving '+money(remainingBudget)+'. A practical next step: check the biggest category and choose one small limit for the rest of the week.';
+    else if(/habit|streak|routine|water|walk|read/.test(q))
+      answer='Today you have completed '+doneHabits.length+' of '+habits.length+' active habits, and your current activity streak is '+streak+' day'+(streak===1?'':'s')+'. Keep it easy: choose the smallest version of one habit and finish it before adding more.';
+    else if(/goal|save|saving|target|bacha/.test(q))
+      answer=goals.length?'You have '+goals.length+' active savings goal(s), with '+money(goals.reduce((sum,g)=>sum+g.savedAmount,0))+' saved so far. Average progress is '+goalAverage+'%. Try dividing the remaining target into a weekly amount that fits your budget.':'No savings goals yet. Add one clear target—an emergency buffer, course, trip, or useful purchase—and give it a realistic target amount.';
+    else if(/task|todo|work|priority|plan|overwhelm|busy/.test(q)){
+      const urgent=tasks.filter(x=>!x.completed&&(x.priority==='High'||x.dueDate<=todayKey())).slice(0,3);
+      answer=urgent.length?'Start with one of these, not all of them: '+urgent.map(x=>x.title+' ('+x.priority.toLowerCase()+')').join('; ')+'. Pick the first action, work on it for 25 minutes, then decide the next step.':openToday.length?'You have '+openToday.length+' open task(s) for today. Choose the one that matters most and give it one uninterrupted 25-minute focus session.':'Your task list is clear for now. Use the space intentionally: rest, plan tomorrow, or move one meaningful goal forward.';
+    }else if(/focus|concentrat|procrastinat|distract/.test(q))
+      answer='Try a gentle focus sprint: choose just one task, put the phone on silent, and work for 25 minutes. DayPilot has a built-in focus timer. The aim is progress, not perfection.';
+    else
+      answer='Here is your current snapshot: '+openToday.length+' task(s) still open today, '+doneHabits.length+'/'+habits.length+' habits completed, and '+money(monthSpend)+' spent this month against a '+money(budget)+' budget. Pick the area that would make tomorrow easier, and I’ll help you break it into a small next step. I use only data saved in this app; no account or inbox connection is needed.';
+    const stamp=Date.now();setChat(items=>[...items,{id:'you-'+stamp,role:'you',text:raw.trim()},{id:'coach-'+(stamp+1),role:'coach',text:answer}].slice(-12));setChatInput('');
+  };
+  const renderTaskRow=(task:DayTask)=><View key={task.id} style={[s.taskRow,!!task.completed&&s.taskRowDone]}>
+    <Pressable accessibilityRole="checkbox" accessibilityState={{checked:!!task.completed}} onPress={()=>{void toggleTask(task);}} style={[s.checkCircle,!!task.completed&&s.checkCircleDone]}>{task.completed?<Feather name="check" size={15} color="#FFFFFF"/>:null}</Pressable>
+    <Pressable style={s.taskCopy} onPress={()=>Alert.alert(task.title,(task.details?task.details+'\n\n':'')+'Due: '+shortDate(task.dueDate)+'\nPriority: '+task.priority,[{text:'Close',style:'cancel'},{text:'Delete task',style:'destructive',onPress:()=>deleteTask(task)}])}>
+      <Text style={[s.taskTitle,!!task.completed&&s.taskTitleDone}>{task.title}</Text><Text style={s.taskMeta}>{shortDate(task.dueDate)} · {task.priority} priority</Text>
+    </Pressable><View style={[s.priorityDot,{backgroundColor:priorityColor(task.priority)}]}/>
+  </View>;
+
+  const renderToday=()=> <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scrollContent}>
+    <View style={s.topBar}><View style={s.brandLockup}><BrandMark size={43}/><View><Text style={s.brandName}>DayPilot</Text><Text style={s.brandTag}>Your day, with direction.</Text></View></View><Pressable onPress={()=>setTab('Coach')} style={s.coachOrb}><Feather name="message-circle" size={20} color={C.greenDark}/></Pressable></View>
+    <Text style={s.greeting}>{greeting()} 👋</Text><Text style={s.todayDate}>{readableDate()}</Text>
+    <LinearGradient colors={['#102637','#174D57','#117C62']} start={{x:0,y:0}} end={{x:1,y:1}} style={s.hero}>
+      <View pointerEvents="none" style={s.heroOrb1}/><View pointerEvents="none" style={s.heroOrb2}/>
+      <View style={s.heroHeader}><View><Text style={s.heroEyebrow}>YOUR DAILY MOMENTUM</Text><Text style={s.heroTitle}>{dayScore>=80?'You are in your flow.':dayScore>=40?'Look at you, moving.':'Small steps count.'}</Text></View><Animated.View style={[s.heroBadge,{transform:[{rotate:splashRotation.interpolate({inputRange:[0,1],outputRange:['-12deg','0deg']})}]}]}><Feather name="compass" size={27} color="#D9FFF0"/></Animated.View></View>
+      <View style={s.scoreRow}><View style={s.scoreRingOuter}><View style={s.scoreRingInner}><Text style={s.scoreNumber}>{dayScore}</Text><Text style={s.scorePct}>/ 100</Text></View></View>
+        <View style={s.scoreCopy}><Text style={s.scoreHeadline}>Day score</Text><Text style={s.scoreBody}>{completedToday.length} of {todayTasks.length} tasks and {doneHabits.length} of {habits.length} habits complete.</Text><View style={s.heroMiniRow}><View style={s.heroMini}><Feather name="zap" size={13} color="#8DF4CA"/><Text style={s.heroMiniText}>{streak} day streak</Text></View><View style={s.heroMini}><Feather name="clock" size={13} color="#8DF4CA"/><Text style={s.heroMiniText}>{focusSessions} focus sprints</Text></View></View></View>
+      </View><Text style={s.heroFooter}>You don’t need a perfect day. Just a next step.</Text>
+    </LinearGradient>
+    <View style={s.quickActions}>
+      <Pressable onPress={()=>openEditor('task')} style={({pressed})=>[s.quickAction,pressed&&s.pressed]}><View style={[s.quickIcon,{backgroundColor:C.mint}]}><Feather name="plus" size={21} color={C.greenDark}/></View><Text style={s.quickLabel}>Add task</Text></Pressable>
+      <Pressable onPress={()=>setFocusVisible(true)} style={({pressed})=>[s.quickAction,pressed&&s.pressed]}><View style={[s.quickIcon,{backgroundColor:C.purplePale}]}><Feather name="target" size={20} color={C.purple}/></View><Text style={s.quickLabel}>Focus</Text></Pressable>
+      <Pressable onPress={()=>{setTab('Money');openEditor('expense');}} style={({pressed})=>[s.quickAction,pressed&&s.pressed]}><View style={[s.quickIcon,{backgroundColor:C.orangePale}]}><Feather name="credit-card" size={20} color="#A96513"/></View><Text style={s.quickLabel}>Log spend</Text></Pressable>
+      <Pressable onPress={()=>setTab('Coach')} style={({pressed})=>[s.quickAction,pressed&&s.pressed]}><View style={[s.quickIcon,{backgroundColor:C.bluePale}]}><Feather name="sparkles" size={20} color={C.blue}/></View><Text style={s.quickLabel}>Coach</Text></Pressable>
+    </View>
+    <View style={s.dailyCheckCard}><View style={s.dailyCheckTop}><View style={s.dailyCheckIcon}><Feather name={dueOpen?'alert-circle':'sunrise'} size={20} color={dueOpen?C.orange:C.greenDark}/></View><View style={{flex:1}}><Text style={s.dailyCheckEyebrow}>YOUR NEXT BEST STEP</Text><Text style={s.dailyCheckTitle}>{dueOpen?dueOpen+' task(s) need your attention':openToday.length?'Choose your first small win':'Make room for something meaningful'}</Text></View><Tag label={dueOpen?'Review':'Today'} color={dueOpen?'#9A5C10':C.greenDark} bg={dueOpen?C.orangePale:C.mint}/></View>
+      <Text style={s.dailyCheckBody}>{dueOpen?'Start with one overdue or high-priority task. Finish one thing before opening ten more.':openToday.length?'Pick one task, work on it for 25 minutes, then take a real break. You can change the plan as your day changes.':'Your open list is clear. Review a goal, practise a habit, or take a guilt-free break.'}</Text><Pressable onPress={()=>setTab('Plan')} style={s.inlineCTA}><Text style={s.inlineCTAText}>Open my plan <Feather name="arrow-up-right" size={14} color={C.greenDark}/></Text></Pressable>
+    </View>
+    <SectionTitle title="Today's habits" action="Manage" onAction={()=>setTab('Plan')}/>
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.habitScroll}>
+      {habits.map(h=>{const done=logs.some(x=>x.habitId===h.id&&x.date===todayKey());return <Pressable key={h.id} onPress={()=>{void toggleHabit(h);}} style={({pressed})=>[s.habitCard,done&&s.habitCardDone,pressed&&s.pressed]}><View style={[s.habitIcon,{backgroundColor:h.tint}]}><MaterialCommunityIcons name={h.icon as keyof typeof MaterialCommunityIcons.glyphMap} size={23} color={C.ink}/></View><Text style={s.habitTitle} numberOfLines={2}>{h.title}</Text><View style={[s.habitStatus,done&&s.habitStatusDone]}><Feather name={done?'check':'plus'} size={12} color={done?'#FFFFFF':C.greenDark}/><Text style={[s.habitStatusText,done&&{color:'#FFFFFF'}]}>{done?'Done':'Check in'}</Text></View></Pressable>;})}
+      <Pressable onPress={()=>openEditor('habit')} style={[s.habitCard,s.addHabitCard]}><View style={s.addHabitCircle}><Feather name="plus" size={21} color={C.greenDark}/></View><Text style={s.habitTitle}>New habit</Text><Text style={s.habitMeta}>Build your routine</Text></Pressable>
+    </ScrollView>
+    <SectionTitle title="Up next" action="View all" onAction={()=>setTab('Plan')}/>
+    {openToday.length?<View style={s.panel}>{openToday.slice(0,4).map(renderTaskRow)}{openToday.length>4?<Pressable onPress={()=>setTab('Plan')} style={s.showAll}><Text style={s.actionText}>+ {openToday.length-4} more tasks</Text></Pressable>:null}</View>:<View style={s.emptyCard}><View style={s.emptyIcon}><Feather name="check-circle" size={25} color={C.greenDark}/></View><Text style={s.emptyTitle}>Your list has breathing room</Text><Text style={s.emptyBody}>Add one thing worth finishing today. Keep it small and specific.</Text><PrimaryButton title="Add a task" onPress={()=>openEditor('task')}/></View>}
+    <Pressable onPress={()=>{void toggleReminder();}} style={s.reminderRow}><View style={s.reminderIcon}><Feather name="bell" size={18} color={C.greenDark}/></View><View style={{flex:1}}><Text style={s.reminderTitle}>Daily evening reset</Text><Text style={s.reminderBody}>A gentle 8 PM nudge to plan tomorrow. {reminderEnabled?'On':'Optional'}</Text></View><Switch value={reminderEnabled} onValueChange={()=>{void toggleReminder();}} trackColor={{false:'#D6E0DD',true:'#A6E9CC'}} thumbColor={reminderEnabled?C.green:'#FFFFFF'}/></Pressable>
+    <Text style={s.footerNote}>Made to help you focus on your life, not manage another inbox. Your tasks, habits and expenses stay on this device.</Text>
+  </ScrollView>;
+
+  const renderPlan=()=> <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scrollContent}>
+    <View style={s.pageHeader}><Text style={s.pageEyebrow}>MAKE SPACE FOR WHAT MATTERS</Text><Text style={s.pageTitle}>Your plan</Text><Text style={s.pageSub}>{openToday.length} open today · {tasks.filter(x=>!!x.completed).length} completed overall. Plan lightly, adjust often.</Text></View>
+    <LinearGradient colors={['#E5F8EE','#EEF1FF']} start={{x:0,y:0}} end={{x:1,y:1}} style={s.planSummary}><View style={s.planSummaryIcon}><Feather name="calendar" size={23} color={C.greenDark}/></View><View style={{flex:1}}><Text style={s.planSummaryTitle}>A good plan leaves room</Text><Text style={s.planSummaryBody}>Choose one important task first. Everything else is a bonus, not a failure.</Text></View></LinearGradient>
+    <View style={s.planButtons}><View style={{flex:1}}><PrimaryButton title="+ New task" onPress={()=>openEditor('task')}/></View><View style={{flex:1}}><SecondaryButton title="+ New habit" onPress={()=>openEditor('habit')}/></View></View>
+    <View style={s.searchBox}><Feather name="search" size={18} color={C.muted}/><TextInput value={searchTasks} onChangeText={setSearchTasks} placeholder="Find a task..." placeholderTextColor="#91A0A4" style={s.searchInput}/></View>
+    <View style={s.filterRow}>{(['All','Open','Done'] as const).map(x=><Pressable key={x} onPress={()=>setTaskFilter(x)} style={[s.filterChip,taskFilter===x&&s.filterChipActive]}><Text style={[s.filterText,taskFilter===x&&s.filterTextActive]}>{x}</Text></Pressable>)}</View>
+    <SectionTitle title="Tasks"/>
+    {filteredTasks.length?<View style={s.panel}>{filteredTasks.map(renderTaskRow)}</View>:<View style={s.emptyCard}><View style={s.emptyIcon}><Feather name="check-square" size={24} color={C.greenDark}/></View><Text style={s.emptyTitle}>Nothing in this view yet</Text><Text style={s.emptyBody}>Add a small, clear action and let DayPilot keep it in sight.</Text><PrimaryButton title="Create a task" onPress={()=>openEditor('task')}/></View>}
+    <SectionTitle title="Habit garden" action="Add habit" onAction={()=>openEditor('habit')}/>
+    <View style={s.panel}>{habits.map(h=>{const done=logs.some(x=>x.habitId===h.id&&x.date===todayKey()),total=logs.filter(x=>x.habitId===h.id).length;return <View key={h.id} style={s.planHabitRow}><View style={[s.habitIcon,{backgroundColor:h.tint}]}><MaterialCommunityIcons name={h.icon as keyof typeof MaterialCommunityIcons.glyphMap} size={21} color={C.ink}/></View><View style={{flex:1}}><Text style={s.taskTitle}>{h.title}</Text><Text style={s.taskMeta}>{total} lifetime check-in{total===1?'':'s'} · {done?'completed today':'not done today'}</Text></View><Pressable onPress={()=>{void toggleHabit(h);}} style={[s.miniCheck,done&&s.miniCheckDone]}><Feather name={done?'check':'plus'} size={15} color={done?'#FFFFFF':C.greenDark}/></Pressable></View>;})}</View>
+    <Text style={s.footerNote}>A streak is a reminder of consistency, not a score of your worth. Missing a day does not erase your progress.</Text>
+  </ScrollView>;
+
+  const renderMoney=()=> <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scrollContent}>
+    <View style={s.pageHeader}><Text style={s.pageEyebrow}>GENTLE MONEY CLARITY</Text><Text style={s.pageTitle}>My money</Text><Text style={s.pageSub}>Know what leaves, what stays and what you're working toward.</Text></View>
+    <LinearGradient colors={['#102637','#17465A','#3D6CD7']} start={{x:0,y:0}} end={{x:1,y:1}} style={s.moneyHero}><View style={s.moneyHeroTop}><View><Text style={s.moneyHeroEyebrow}>LOGGED THIS MONTH</Text><Text style={s.moneyHeroTotal}>{money(monthSpend)}</Text></View><View style={s.moneyHeroIcon}><Feather name="pie-chart" size={26} color="#FFFFFF"/></View></View>
+      <View style={s.budgetTextRow}><Text style={s.budgetLabel}>Budget: {money(budget)}</Text><Text style={[s.budgetLabel,{color:budget>0&&monthSpend>budget?'#FFD0D4':'#BFECDD'}]}>{budget>0?Math.round(monthSpend/budget*100)+'%':'No limit'}</Text></View><ProgressBar value={budgetUsed} color={monthSpend>budget&&budget>0?'#FF8A95':'#77F0C3'} track="rgba(255,255,255,0.16)"/><Text style={s.moneyHeroFoot}>{budget>0?money(remainingBudget)+' left in your monthly plan':'Set a budget to see your remaining amount.'}</Text>
+    </LinearGradient>
+    <View style={s.planButtons}><View style={{flex:1}}><PrimaryButton title="+ Log expense" onPress={()=>openEditor('expense')}/></View><View style={{flex:1}}><SecondaryButton title="+ Savings goal" onPress={()=>openEditor('goal')}/></View></View>
+    <View style={s.budgetEditor}><View style={s.budgetEditorCopy}><Text style={s.cardTitle}>Monthly spending plan</Text><Text style={s.cardSub}>Choose a limit that fits real life.</Text></View><View style={s.budgetInputRow}><Text style={s.rupee}>₹</Text><TextInput value={budgetDraft} onChangeText={setBudgetDraft} keyboardType="decimal-pad" style={s.budgetInput} accessibilityLabel="Monthly spending budget"/><Pressable onPress={()=>{void saveBudget();}} style={s.budgetSave}><Feather name="check" size={17} color="#FFFFFF"/></Pressable></View></View>
+    <SectionTitle title="Where it goes"/>
+    {categoryTotals.length?<View style={s.panel}>{categoryTotals.map((item,i)=>{const colors=[C.green,C.blue,C.purple,C.orange,C.aqua,C.red,'#7B8D98'],color=colors[i%colors.length];return <View key={item.category} style={s.categoryRow}><View style={[s.categoryDot,{backgroundColor:color}]}/><View style={{flex:1}}><View style={s.categoryTop}><Text style={s.categoryName}>{item.category}</Text><Text style={s.categoryAmount}>{money(item.total)}</Text></View><ProgressBar value={monthSpend?item.total/monthSpend*100:0} color={color}/></View></View>;})}<Text style={s.cardSub}>Only expenses you enter are counted. This isn't connected to your bank.</Text></View>:<View style={s.emptyCard}><View style={s.emptyIcon}><Feather name="coffee" size={24} color={C.greenDark}/></View><Text style={s.emptyTitle}>Your money picture starts here</Text><Text style={s.emptyBody}>Log a coffee, commute or bill in a few seconds. Patterns become clearer without bank access.</Text><PrimaryButton title="Log first expense" onPress={()=>openEditor('expense')}/></View>}
+    <SectionTitle title="Recent expenses" action="Add" onAction={()=>openEditor('expense')}/>
+    {expenses.filter(x=>x.spentAt.slice(0,7)===monthKey()).slice(0,6).map(x=><Pressable key={x.id} onPress={()=>deleteExpense(x)} style={s.expenseRow}><View style={s.expenseIcon}><Feather name={x.category==='Food'?'coffee':x.category==='Transport'?'truck':x.category==='Home'?'home':x.category==='Health'?'heart':'shopping-bag'} size={18} color={C.greenDark}/></View><View style={{flex:1}}><Text style={s.taskTitle}>{x.title}</Text><Text style={s.taskMeta}>{x.category} · {shortDate(x.spentAt)}</Text></View><View style={{alignItems:'flex-end'}}><Text style={s.expenseAmount}>{money(x.amount)}</Text><Text style={s.deleteHint}>Tap to remove</Text></View></Pressable>)}
+    <SectionTitle title="Goals worth saving for" action="Add goal" onAction={()=>openEditor('goal')}/>
+    {goals.length?goals.map(g=>{const percent=g.targetAmount>0?Math.min(100,g.savedAmount/g.targetAmount*100):0;return <View key={g.id} style={s.goalCard}><View style={s.goalHeader}><View style={s.goalIcon}><Feather name="flag" size={20} color={C.purple}/></View><View style={{flex:1}}><Text style={s.goalTitle}>{g.title}</Text><Text style={s.goalMeta}>{money(g.savedAmount)} of {money(g.targetAmount)} saved</Text></View><Text style={s.goalPercent}>{Math.round(percent)}%</Text></View><ProgressBar value={percent} color={C.purple}/><View style={s.goalActions}><Pressable onPress={()=>openEditor('contribute',g.id)}><Text style={s.actionText}>+ Add savings</Text></Pressable><Pressable onPress={()=>deleteGoal(g)}><Text style={s.deleteGoalText}>Remove</Text></Pressable></View></View>; }):<View style={s.goalEmpty}><Text style={s.cardTitle}>Give your money a destination</Text><Text style={s.cardSub}>Emergency buffer, learning, a trip, or anything that matters to you.</Text><Pressable onPress={()=>openEditor('goal')} style={s.inlineCTA}><Text style={s.inlineCTAText}>Create a savings goal <Feather name="arrow-right" size={14} color={C.greenDark}/></Text></Pressable></View>}
+    <Text style={s.footerNote}>All figures use the expenses and savings you enter. DayPilot never connects to a bank or moves money automatically.</Text>
+  </ScrollView>;
+
+  const renderCoach=()=> <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={s.scrollContent} keyboardShouldPersistTaps="handled">
+    <View style={s.pageHeader}><Text style={s.pageEyebrow}>YOUR EVERYDAY THINKING PARTNER</Text><Text style={s.pageTitle}>Smart Coach</Text><Text style={s.pageSub}>Practical next steps, using the information already on this phone.</Text></View>
+    <LinearGradient colors={['#14283C','#334E81','#6F57A9']} start={{x:0,y:0}} end={{x:1,y:1}} style={s.coachHero}><View style={s.coachHeroTop}><View style={s.coachAvatar}><Feather name="compass" size={25} color="#FFFFFF"/></View><View style={{flex:1}}><Text style={s.coachHeroTitle}>Your next-step coach</Text><Text style={s.coachHeroSub}>Offline · Private · Built around your day</Text></View><Tag label="READY" color="#E5FFF5" bg="rgba(255,255,255,0.14)"/></View><View style={s.coachMetrics}><View style={s.coachMetric}><Text style={s.coachMetricValue}>{openToday.length}</Text><Text style={s.coachMetricLabel}>Tasks open</Text></View><View style={s.coachMetric}><Text style={s.coachMetricValue}>{doneHabits.length}/{habits.length}</Text><Text style={s.coachMetricLabel}>Habits done</Text></View><View style={s.coachMetric}><Text style={s.coachMetricValue}>{money(monthSpend)}</Text><Text style={s.coachMetricLabel}>Logged this month</Text></View></View></LinearGradient>
+    <View style={s.chatPanel}>{chat.map(m=><View key={m.id} style={[s.chatBubble,m.role==='you'?s.chatYou:s.chatCoach]}><Text style={s.chatRole}>{m.role==='you'?'YOU':'DAYPILOT COACH'}</Text><Text style={s.chatText}>{m.text}</Text></View>)}<View style={s.chatInputRow}><TextInput value={chatInput} onChangeText={setChatInput} style={s.chatInput} placeholder="What would make today easier?" placeholderTextColor="#95A2A5" multiline maxLength={500} onSubmitEditing={()=>coachReply(chatInput)} returnKeyType="send" accessibilityLabel="Ask the DayPilot coach"/><Pressable style={s.sendButton} onPress={()=>coachReply(chatInput)}><Feather name="arrow-up" size={20} color="#FFFFFF"/></Pressable></View></View>
+    <SectionTitle title="Try a quick check-in"/>
+    <View style={s.promptGrid}>{[
+      {label:'Plan my day',icon:'calendar',prompt:'Help me plan my day and choose my priority.'},{label:'Review spending',icon:'credit-card',prompt:'Review my spending and budget.'},{label:'Build consistency',icon:'repeat',prompt:'How can I keep my habits consistent?'},{label:'Reach my goal',icon:'target',prompt:'Help me make progress on my savings goal.'},{label:'Beat procrastination',icon:'zap',prompt:'I feel distracted and keep procrastinating.'},{label:'Weekly reset',icon:'refresh-cw',prompt:'Give me a practical reset using my current tasks and habits.'},
+    ].map(x=><Pressable key={x.label} onPress={()=>coachReply(x.prompt)} style={({pressed})=>[s.promptCard,pressed&&s.pressed]}><View style={s.promptIcon}><Feather name={x.icon as keyof typeof Feather.glyphMap} size={18} color={C.greenDark}/></View><Text style={s.promptLabel}>{x.label}</Text><Feather name="arrow-up-right" size={14} color={C.muted}/></Pressable>)}</View>
+    <Pressable onPress={()=>setFocusVisible(true)} style={s.focusPrompt}><View style={s.focusPromptIcon}><Feather name="target" size={21} color={C.purple}/></View><View style={{flex:1}}><Text style={s.cardTitle}>Need to get started?</Text><Text style={s.cardSub}>Start a 25-minute focus sprint. One task, one timer, no guilt.</Text></View><Feather name="chevron-right" size={18} color={C.muted}/></Pressable>
+    <Text style={s.footerNote}>Coach replies are generated on this device from simple rules and your saved entries. They are not a cloud AI or professional financial advice.</Text>
+  </ScrollView>;
+
+  const renderEditor=()=> {
+    const title=editorKind==='task'?'New task':editorKind==='expense'?'Log an expense':editorKind==='goal'?'Create a savings goal':editorKind==='habit'?'Add a habit':'Add to savings';
+    return <Modal visible={editorKind!==null} transparent animationType="slide" onRequestClose={closeEditor}><View style={s.modalOverlay}><KeyboardAvoidingView behavior={Platform.OS==='ios'?'padding':undefined} style={s.modalKeyboard}><View style={s.modalSheet}><View style={s.modalHandle}/><View style={s.modalHeader}><View style={{flex:1}}><Text style={s.modalTitle}>{title}</Text><Text style={s.modalSubtitle}>A small step, saved for later.</Text></View><Pressable onPress={closeEditor} style={s.modalClose}><Feather name="x" size={20} color={C.ink}/></Pressable></View>
+      <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={{paddingBottom:18}}>
+        {editorKind!=='contribute'?<><Text style={s.fieldLabel}>{editorKind==='expense'?'WHAT DID YOU SPEND ON?':editorKind==='goal'?'WHAT ARE YOU SAVING FOR?':editorKind==='habit'?'WHAT HABIT WILL YOU BUILD?':'WHAT NEEDS TO GET DONE?'}</Text><TextInput value={editorTitle} onChangeText={setEditorTitle} placeholder={editorKind==='expense'?'e.g. Lunch with a friend':editorKind==='goal'?'e.g. Emergency fund':editorKind==='habit'?'e.g. Stretch for five minutes':'e.g. Finish project outline'} placeholderTextColor="#97A5A8" style={s.formInput} maxLength={100} autoFocus/></>:<Text style={s.fieldLabel}>HOW MUCH DID YOU PUT ASIDE?</Text>}
+        {editorKind==='task'?<><Text style={s.fieldLabel}>A LITTLE MORE CONTEXT (OPTIONAL)</Text><TextInput value={editorDetails} onChangeText={setEditorDetails} placeholder="What does done look like?" placeholderTextColor="#97A5A8" style={[s.formInput,{minHeight:74,textAlignVertical:'top'}]} multiline maxLength={300}/><Text style={s.fieldLabel}>PRIORITY</Text><View style={s.choiceRow}>{(['High','Medium','Low'] as Priority[]).map(x=><Pressable key={x} onPress={()=>setEditorPriority(x)} style={[s.choiceChip,editorPriority===x&&{backgroundColor:priorityColor(x),borderColor:priorityColor(x)}]}><Text style={[s.choiceText,editorPriority===x&&{color:'#FFFFFF'}]}>{x}</Text></Pressable>)}</View><Text style={s.fieldLabel}>DUE DATE (YYYY-MM-DD)</Text><TextInput value={editorDate} onChangeText={setEditorDate} placeholder={todayKey()} placeholderTextColor="#97A5A8" style={s.formInput} maxLength={10}/></>:null}
+        {editorKind==='expense'?<><Text style={s.fieldLabel}>AMOUNT (INR)</Text><View style={s.amountInputBox}><Text style={s.rupee}>₹</Text><TextInput value={editorAmount} onChangeText={setEditorAmount} keyboardType="decimal-pad" placeholder="0.00" placeholderTextColor="#97A5A8" style={s.amountField}/></View><Text style={s.fieldLabel}>CATEGORY</Text><View style={s.categoryChoices}>{EXPENSE_CATEGORIES.map(x=><Pressable key={x} onPress={()=>setEditorCategory(x)} style={[s.choiceChip,editorCategory===x&&s.choiceChipActive]}><Text style={[s.choiceText,editorCategory===x&&s.choiceTextActive]}>{x}</Text></Pressable>)}</View><Text style={s.fieldLabel}>SPENDING DATE (YYYY-MM-DD)</Text><TextInput value={editorDate} onChangeText={setEditorDate} style={s.formInput} maxLength={10}/></>:null}
+        {editorKind==='goal'?<><Text style={s.fieldLabel}>TARGET AMOUNT (INR)</Text><View style={s.amountInputBox}><Text style={s.rupee}>₹</Text><TextInput value={editorAmount} onChangeText={setEditorAmount} keyboardType="decimal-pad" placeholder="e.g. 25000" placeholderTextColor="#97A5A8" style={s.amountField}/></View><Text style={s.fieldLabel}>TARGET DATE (OPTIONAL)</Text><TextInput value={editorDate} onChangeText={setEditorDate} style={s.formInput} maxLength={10} placeholder="YYYY-MM-DD"/></>:null}
+        {editorKind==='contribute'?<><Text style={s.fieldHint}>DayPilot records your progress; it does not move money.</Text><View style={s.amountInputBox}><Text style={s.rupee}>₹</Text><TextInput value={editorAmount} onChangeText={setEditorAmount} keyboardType="decimal-pad" placeholder="e.g. 500" placeholderTextColor="#97A5A8" style={s.amountField} autoFocus/></View></>:null}
+        {editorKind==='habit'?<Text style={s.fieldHint}>Keep it tiny and repeatable. Check in once per day and look back on your streak.</Text>:null}
+        <View style={{marginTop:22}}><PrimaryButton title={editorKind==='task'?'Save task':editorKind==='expense'?'Save expense':editorKind==='goal'?'Create goal':editorKind==='habit'?'Create habit':'Save contribution'} onPress={()=>{void saveEditor();}}/></View>
+      </ScrollView></View></KeyboardAvoidingView></View></Modal>;
   };
 
-  return <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-    <SafeAreaView style={styles.editorSafeArea}>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <View style={styles.editorHeader}><Pressable onPress={onClose} style={styles.editorClose}><Text style={styles.editorCloseText}>✕</Text></Pressable><View style={{ flex: 1 }}><Text style={styles.editorTitle}>{initial ? 'Edit subscription' : 'Add subscription'}</Text><Text style={styles.editorSubtitle}>Keep the details handy. You can change them anytime.</Text></View></View>
-        <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} contentContainerStyle={styles.editorScroll}>
-          <Text style={styles.fieldLabel}>SERVICE NAME *</Text><TextInput value={name} onChangeText={setName} placeholder="e.g. Adobe Creative Cloud" placeholderTextColor="#97A5A8" style={styles.input} maxLength={70} autoCapitalize="words" />
-          <Text style={styles.fieldLabel}>CATEGORY</Text><View style={styles.categoryGrid}>{CATEGORIES.map((cat) => <Pressable key={cat.name} onPress={() => setCategory(cat.name)} style={[styles.categoryOption, category === cat.name && styles.categoryOptionActive]}><MaterialCommunityIcons name={categoryIconName(cat.name)} size={19} color={category === cat.name ? C.greenDark : C.muted} /><Text style={[styles.categoryOptionText, category === cat.name && styles.categoryOptionTextActive]}>{cat.name}</Text></Pressable>)}</View>
-          <Text style={styles.fieldLabel}>PRICE (INR, OPTIONAL UNTIL CONFIRMED)</Text><View style={styles.amountInputWrap}><Text style={styles.rupeeSign}>₹</Text><TextInput value={amount} onChangeText={setAmount} placeholder="Leave blank if unknown" placeholderTextColor="#97A5A8" style={styles.amountInput} keyboardType="decimal-pad" /></View>
-          <Text style={styles.fieldLabel}>BILLING CYCLE</Text><View style={styles.cycleRow}>{(['Unknown', ...CYCLES] as (Cycle | 'Unknown')[]).map((item) => <Pressable key={item} onPress={() => setCycle(item)} style={[styles.cycleChip, item === cycle && styles.cycleChipActive]}><Text style={[styles.cycleChipText, item === cycle && styles.cycleChipTextActive]}>{item === 'Unknown' ? 'Not confirmed' : item}</Text></Pressable>)}</View>
-          <Text style={styles.fieldLabel}>NEXT RENEWAL DATE (OPTIONAL)</Text><TextInput value={nextRenewal} onChangeText={setNextRenewal} placeholder="Leave blank if not confirmed" placeholderTextColor="#97A5A8" style={styles.input} autoCapitalize="none" maxLength={10} />
-          <Text style={styles.fieldHint}>Only enter a date confirmed by the provider. Format: YYYY-MM-DD. Leave blank if unknown; reminders need a verified date.</Text>
-          <Text style={styles.fieldLabel}>BILLED THROUGH</Text>
-          <View style={styles.categoryGrid}>{BILLING_SOURCE_OPTIONS.map((option) => <Pressable key={option.value} onPress={() => setBillingSource(option.value)} style={[styles.categoryOption, billingSource === option.value && styles.categoryOptionActive]}><Text style={[styles.categoryOptionText, billingSource === option.value && styles.categoryOptionTextActive]}>{option.label}</Text></Pressable>)}</View>
-          <Text style={styles.fieldHint}>Choose where this subscription is charged so SubSathi can open the correct official management page.</Text>
-          <Text style={styles.fieldLabel}>OFFICIAL MANAGEMENT LINK (OPTIONAL)</Text><TextInput value={manageUrl} onChangeText={setManageUrl} placeholder="https://provider.com/account" placeholderTextColor="#97A5A8" style={styles.input} autoCapitalize="none" keyboardType="url" autoCorrect={false} />
-          <Text style={styles.fieldHint}>Only use the service’s official account page. Renewal and cancellation confirmation happen with that provider.</Text>
-          <Text style={styles.fieldLabel}>NOTES (OPTIONAL)</Text><TextInput value={notes} onChangeText={setNotes} placeholder="Plan name, billing account, cancellation notes..." placeholderTextColor="#97A5A8" style={[styles.input, styles.notesInput]} multiline maxLength={400} />
-          <View style={styles.reminderRow}><View style={{ flex: 1 }}><Text style={styles.settingTitle}>Renewal reminder</Text><Text style={styles.settingBody}>Notify me two days before, if permissions allow.</Text></View><Switch value={reminderEnabled} onValueChange={setReminderEnabled} trackColor={{ false: '#CBD5D4', true: '#A7E4CD' }} thumbColor={reminderEnabled ? C.green : '#F6F7F7'} /></View>
-          <PrimaryButton title={saving ? 'Saving...' : initial ? 'Save changes' : 'Save subscription'} onPress={() => { if (!saving) void submit(); }} />
-          {initial && onDelete ? <Pressable onPress={onDelete} style={styles.deleteFromEditor}><Text style={styles.deleteFromEditorText}>Remove from tracker</Text></Pressable> : null}
-          <Text style={styles.formPrivacyNote}>Details stay in local app storage in this MVP. Unknown prices are excluded from spend estimates. This does not cancel, renew or change your real provider plan.</Text>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
-  </Modal>;
+  const renderFocus=()=> <Modal visible={focusVisible} transparent animationType="fade" onRequestClose={()=>{setFocusVisible(false);setFocusRunning(false);}}><View style={s.focusOverlay}><LinearGradient colors={['#101D37','#2F3C77','#674F9F']} start={{x:0,y:0}} end={{x:1,y:1}} style={s.focusSheet}><View pointerEvents="none" style={s.focusOrb}/><Pressable style={s.focusClose} onPress={()=>{setFocusVisible(false);setFocusRunning(false);}}><Feather name="x" size={22} color="#FFFFFF"/></Pressable><View style={s.focusIcon}><Feather name="target" size={25} color="#E5DBFF"/></View><Text style={s.focusEyebrow}>ONE THING AT A TIME</Text><Text style={s.focusTitle}>Focus sprint</Text><Text style={s.focusSub}>Twenty-five minutes for one meaningful thing.</Text><View style={s.timerRing}><View style={s.timerInner}><Text style={s.timerText}>{String(Math.floor(focusSeconds/60)).padStart(2,'0')}:{String(focusSeconds%60).padStart(2,'0')}</Text><Text style={s.timerLabel}>{focusRunning?'YOU ARE IN IT':'READY WHEN YOU ARE'}</Text></View></View><Text style={s.focusTip}>Put away distractions. Breathe. Start with the next tiny action.</Text><View style={s.focusButtons}><Pressable onPress={()=>{if(focusSeconds===0)setFocusSeconds(25*60);setFocusRunning(v=>!v);}} style={s.focusPrimary}><Feather name={focusRunning?'pause':'play'} size={17} color={C.navy}/><Text style={s.focusPrimaryText}>{focusRunning?'Pause sprint':focusSeconds===0?'Start again':'Start focus'}</Text></Pressable><Pressable onPress={()=>{setFocusRunning(false);setFocusSeconds(25*60);}} style={s.focusSecondary}><Feather name="rotate-ccw" size={16} color="#FFFFFF"/><Text style={s.focusSecondaryText}>Reset</Text></Pressable></View><Text style={s.focusSessions}>{focusSessions} focus sprint{focusSessions===1?'':'s'} completed this session</Text></LinearGradient></View></Modal>;
+
+  if(!ready||!bootAnimDone)return <SafeAreaView style={s.splashSafe}><StatusBar barStyle="light-content" backgroundColor="#091A28"/><LinearGradient colors={['#091A28','#123C4C','#08785F']} start={{x:0,y:0}} end={{x:1,y:1}} style={s.splash}><View pointerEvents="none" style={s.splashPlanet1}/><View pointerEvents="none" style={s.splashPlanet2}/><Animated.View style={[s.splashHalo,{opacity:splashGlow,transform:[{scale:splashGlow.interpolate({inputRange:[0,1],outputRange:[.78,1.18]})}]}]}/><Animated.View style={[s.splashLogo,{transform:[{scale:splashScale},{rotate:splashRotation.interpolate({inputRange:[0,1],outputRange:['-18deg','0deg']})}]}]}><BrandMark size={82}/></Animated.View><Animated.Text style={[s.splashTitle,{opacity:splashGlow}]}>DayPilot</Animated.Text><Text style={s.splashTagline}>Find your rhythm. Make your days count.</Text><ActivityIndicator color="#75F5C8" size="small" style={{marginTop:26}}/><Text style={s.splashFoot}>YOUR LIFE, IN A BETTER ORBIT</Text></LinearGradient></SafeAreaView>;
+  if(bootError)return <SafeAreaView style={s.splashSafe}><Text style={s.bootError}>{bootError}</Text><Text style={s.bootErrorSmall}>Close and reopen DayPilot. Your previous SubSathi data is stored separately.</Text></SafeAreaView>;
+
+  return <SafeAreaView edges={['top']} style={s.safeArea}><StatusBar barStyle="dark-content" backgroundColor={C.paper}/><Animated.View style={[s.appContent,{opacity:screenFade}]}>{tab==='Today'?renderToday():tab==='Plan'?renderPlan():tab==='Money'?renderMoney():renderCoach()}</Animated.View>
+    <View style={[s.bottomNav,{paddingBottom:Math.max(insets.bottom,Platform.OS==='android'?8:0),height:66+Math.max(insets.bottom,8)}]}>{([['Today','sun'],['Plan','check-square'],['Money','pie-chart'],['Coach','compass']] as [Tab,keyof typeof Feather.glyphMap][]).map(([name,icon])=><Pressable key={name} accessibilityRole="button" accessibilityLabel={name} onPress={()=>setTab(name)} style={s.navItem}><View style={[s.navIconWrap,tab===name&&s.navIconActive]}><Feather name={icon} size={19} color={tab===name?C.greenDark:'#87979C'}/></View><Text style={[s.navLabel,tab===name&&s.navLabelActive]}>{name}</Text></Pressable>)}</View>
+    {renderEditor()}{renderFocus()}
+  </SafeAreaView>;
 }
 
-const pillGreen = StyleSheet.create({ base: { alignSelf: 'flex-start', backgroundColor: C.greenPale, borderRadius: 20, paddingHorizontal: 9, paddingVertical: 5 }, text: { fontSize: 10, fontWeight: '700', color: C.greenDark } });
-const pillOrange = StyleSheet.create({ base: { alignSelf: 'flex-start', backgroundColor: C.orangePale, borderRadius: 20, paddingHorizontal: 9, paddingVertical: 5 }, text: { fontSize: 10, fontWeight: '700', color: '#9C5E0C' } });
-const pillGrey = StyleSheet.create({ base: { alignSelf: 'flex-start', backgroundColor: '#EEF2F1', borderRadius: 20, paddingHorizontal: 9, paddingVertical: 5 }, text: { fontSize: 10, fontWeight: '700', color: '#687B81' } });
-const pillRed = StyleSheet.create({ base: { alignSelf: 'flex-start', backgroundColor: C.redPale, borderRadius: 20, paddingHorizontal: 9, paddingVertical: 5 }, text: { fontSize: 10, fontWeight: '700', color: C.red } });
-
-const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: C.cream }, appContent: { flex: 1, minHeight: 0 }, adContainer: { minHeight: 58, alignItems: 'center', justifyContent: 'center', backgroundColor: C.white, borderTopWidth: 1, borderTopColor: C.line, paddingTop: 2, paddingBottom: 2 }, adTestLabel: { color: '#829398', fontSize: 8, fontWeight: '800', letterSpacing: 1, marginBottom: 1 }, scrollContent: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 24 },
-  loadingScreen: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#081F2B' },
-  splashBackground: { flex: 1, width: '100%', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28, overflow: 'hidden' },
-  splashOrbTop: { position: 'absolute', width: 310, height: 310, borderRadius: 155, top: -130, right: -100, borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)', backgroundColor: 'rgba(255,255,255,0.025)' },
-  splashOrbBottom: { position: 'absolute', width: 360, height: 360, borderRadius: 180, bottom: -190, left: -130, borderWidth: 1, borderColor: 'rgba(156,255,210,0.10)', backgroundColor: 'rgba(18,168,121,0.07)' },
-  splashGlow: { position: 'absolute', width: 160, height: 160, borderRadius: 80, backgroundColor: 'rgba(42,230,165,0.16)', borderWidth: 1, borderColor: 'rgba(145,255,214,0.22)' },
-  splashLogoFrame: { width: 122, height: 122, borderRadius: 40, borderWidth: 1, borderColor: 'rgba(195,255,229,0.34)', backgroundColor: 'rgba(255,255,255,0.07)', alignItems: 'center', justifyContent: 'center', marginBottom: 24, shadowColor: '#21D6A0', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.28, shadowRadius: 28, elevation: 10 },
-  splashTitle: { color: '#F4FFF9', fontSize: 42, fontWeight: '900', letterSpacing: -1.6 },
-  splashTagline: { marginTop: 8, color: '#B9DDD2', fontSize: 13, fontWeight: '500', letterSpacing: 0.2, textAlign: 'center' },
-  splashDotsRow: { position: 'absolute', bottom: 106, flexDirection: 'row', alignItems: 'center', gap: 7 },
-  splashDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.30)' },
-  splashDotActive: { width: 19, backgroundColor: '#49E8B0' },
-  splashLoading: { position: 'absolute', bottom: 74, letterSpacing: 1.7, fontSize: 9, color: '#A3CFC0', fontWeight: '800' },
-  splashProgressTrack: { position: 'absolute', bottom: 56, height: 3, width: 150, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.13)', overflow: 'hidden' },
-  splashProgressFill: { width: '100%', height: 3, borderRadius: 4, backgroundColor: '#49E8B0' },
-  loadingTitle: { marginTop: 12, color: C.ink, fontSize: 24, fontWeight: '800' }, loadingSub: { marginTop: 10, fontSize: 13, color: C.muted },
-  brandMark: { alignItems: 'center', justifyContent: 'center', backgroundColor: C.green, overflow: 'hidden' }, brandName: { fontSize: 20, color: C.ink, fontWeight: '800', letterSpacing: -0.6 }, brandTagline: { marginTop: 2, fontSize: 11, color: C.muted }, brandLockup: { flexDirection: 'row', alignItems: 'center', gap: 10 }, homeTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 19 }, profileCircle: { height: 40, width: 40, borderRadius: 20, backgroundColor: '#E1ECE8', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#D2E1DB' }, profileText: { color: C.greenDark, fontWeight: '800', fontSize: 16 },
-  heroCard: { borderRadius: 26, padding: 21, overflow: 'hidden', minHeight: 175 }, heroDecorLarge: { position: 'absolute', width: 205, height: 205, borderRadius: 103, right: -66, top: -60, backgroundColor: 'rgba(255,255,255,0.055)' }, heroDecorSmall: { position: 'absolute', width: 125, height: 125, borderRadius: 63, right: 44, bottom: -88, backgroundColor: 'rgba(255,255,255,0.07)' }, heroArtwork: { position: 'absolute', right: 60, top: 54, opacity: 1, transform: [{ rotate: '-12deg' }] }, heroArtworkTrend: { position: 'absolute', right: -5, top: -2 }, heroTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }, heroEyebrow: { fontSize: 10, letterSpacing: 1.2, color: '#B7CDD2', fontWeight: '700' }, heroAmount: { marginTop: 7, fontSize: 31, fontWeight: '800', color: C.white, letterSpacing: -1 }, heroPer: { fontSize: 13, fontWeight: '500', color: '#B7CDD2', letterSpacing: 0 }, heroIconBubble: { width: 52, height: 52, borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.14)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center' }, heroDivider: { height: 1, backgroundColor: '#2C4650', marginVertical: 18 }, heroStatsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, heroStatLabel: { color: '#B7CDD2', fontSize: 10, marginBottom: 6 }, heroStatValue: { color: C.white, fontSize: 13, fontWeight: '700' }, heroStatsSeparator: { width: 1, height: 30, backgroundColor: '#2C4650', marginHorizontal: 3 },
-  dailyCheckCard: { marginBottom: 22, borderRadius: 20, borderWidth: 1, borderColor: '#D8EEE4', overflow: 'hidden', backgroundColor: C.white, shadowColor: '#0A5038', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.06, shadowRadius: 10, elevation: 2 },
-  dailyCheckGradient: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 15 },
-  dailyCheckIcon: { width: 48, height: 48, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.76)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.92)', alignItems: 'center', justifyContent: 'center' },
-  dailyCheckCopy: { flex: 1, minWidth: 0 },
-  dailyCheckEyebrow: { color: C.greenDark, fontSize: 9, fontWeight: '900', letterSpacing: 1.1, marginBottom: 5 },
-  dailyCheckTitle: { color: C.ink, fontSize: 15, fontWeight: '900', letterSpacing: -0.3 },
-  dailyCheckBody: { color: '#58716B', fontSize: 11, lineHeight: 16, marginTop: 5 },
-  dailyCheckFooter: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 9 },
-  dailyCheckCTAText: { color: C.greenDark, fontSize: 10, fontWeight: '900' },
-  dailyCheckBadge: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.72)', alignItems: 'center' },
-  dailyCheckBadgeText: { fontSize: 10, fontWeight: '900', color: C.greenDark },
-  gmailBannerPressable: { marginTop: 13, marginBottom: 5, borderRadius: 20, overflow: 'hidden', shadowColor: '#0A5038', shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 2 }, gmailBanner: { flexDirection: 'row', alignItems: 'center', padding: 13, gap: 11, borderRadius: 20, minHeight: 86 }, gmailBannerIcon: { width: 44, height: 44, borderRadius: 15, alignItems: 'center', justifyContent: 'center' }, gmailBannerCopy: { flex: 1, minWidth: 0 }, gmailBannerTitle: { color: C.ink, fontSize: 12, fontWeight: '800', letterSpacing: -0.15 }, gmailBannerBody: { color: '#58716B', fontSize: 10, lineHeight: 15, marginTop: 5 },
-  quickActionRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 16, marginBottom: 24 }, quickAction: { alignItems: 'center', width: '19%' }, quickActionIcon: { height: 52, width: 52, borderRadius: 18, alignItems: 'center', justifyContent: 'center' }, quickActionLabel: { color: C.ink, fontSize: 11, fontWeight: '600', marginTop: 8 }, sectionTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, marginTop: 1 }, sectionTitle: { color: C.ink, fontSize: 17, fontWeight: '800', letterSpacing: -0.4 }, sectionAction: { color: C.greenDark, fontSize: 12, fontWeight: '700' },
-  listCard: { backgroundColor: C.white, borderRadius: 18, borderWidth: 1, borderColor: C.line, paddingHorizontal: 14, paddingVertical: 4 }, subscriptionCard: { flexDirection: 'row', alignItems: 'center', paddingVertical: 13, gap: 11 }, compactCard: { paddingVertical: 11 }, serviceIcon: { width: 46, height: 46, borderRadius: 15, alignItems: 'center', justifyContent: 'center' }, serviceEmoji: { fontSize: 20 }, subscriptionMain: { flex: 1, minWidth: 0 }, serviceName: { color: C.ink, fontSize: 13, fontWeight: '800' }, serviceSub: { color: C.muted, fontSize: 10, marginTop: 4 }, duePillRow: { marginTop: 7 }, subscriptionRight: { alignItems: 'flex-end', minWidth: 75 }, serviceAmount: { color: C.ink, fontSize: 13, fontWeight: '800' }, manageMini: { paddingTop: 8, paddingBottom: 2 }, manageMiniText: { color: C.greenDark, fontSize: 10, fontWeight: '700' }, innerDivider: { height: 1, backgroundColor: '#EEF2F1', marginLeft: 0 }, listDivider: { height: 1, backgroundColor: C.line }, cardActionsRow: { flexDirection: 'row', alignItems: 'center', paddingBottom: 11, gap: 8 }, cardAction: { fontSize: 11, color: C.greenDark, fontWeight: '700' }, actionDot: { color: '#ADB9BA' },
-  emptyCard: { paddingHorizontal: 24, paddingVertical: 28, borderRadius: 20, borderWidth: 1, borderColor: C.line, borderStyle: 'dashed', backgroundColor: C.white, alignItems: 'center' }, emptyIcon: { width: 56, height: 56, borderRadius: 20, backgroundColor: C.greenPale, alignItems: 'center', justifyContent: 'center', marginBottom: 12 }, emptyTitle: { textAlign: 'center', color: C.ink, fontSize: 16, fontWeight: '800' }, emptyBody: { textAlign: 'center', color: C.muted, fontSize: 12, lineHeight: 18, marginTop: 7, marginBottom: 17 }, primaryButton: { backgroundColor: C.green, borderRadius: 14, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 18, paddingVertical: 14, minHeight: 47 }, primaryButtonSmall: { minHeight: 38, paddingVertical: 9 }, primaryButtonText: { color: C.white, fontSize: 13, fontWeight: '800' }, ghostButton: { borderWidth: 1, borderColor: C.line, paddingHorizontal: 14, paddingVertical: 11, borderRadius: 12 }, ghostButtonText: { color: C.ink, fontSize: 12, fontWeight: '700' }, tipCard: { flexDirection: 'row', alignItems: 'flex-start', marginTop: 15, padding: 14, backgroundColor: '#EAF4F0', borderRadius: 16, gap: 10 }, tipIcon: { width: 36, height: 36, backgroundColor: C.white, borderRadius: 12, alignItems: 'center', justifyContent: 'center' }, tipCopy: { flex: 1 }, tipTitle: { color: C.ink, fontSize: 12, fontWeight: '800' }, tipBody: { marginTop: 5, color: '#56716C', fontSize: 11, lineHeight: 17 }, footerNote: { color: '#8B999C', fontSize: 10, lineHeight: 16, textAlign: 'center', marginTop: 16, marginHorizontal: 8 },
-  bottomNav: { height: 72, flexDirection: 'row', backgroundColor: C.white, borderTopWidth: 1, borderTopColor: C.line, paddingHorizontal: 8, justifyContent: 'space-around', alignItems: 'center' }, navItem: { alignItems: 'center', justifyContent: 'center', width: '20%', gap: 3 }, navIconWrap: { height: 30, minWidth: 48, borderRadius: 13, justifyContent: 'center', alignItems: 'center' }, navIconActive: { backgroundColor: C.greenPale }, navIcon: { color: '#829297' }, navIconSelected: { color: C.greenDark }, navLabel: { color: '#89999D', fontSize: 9, fontWeight: '600' }, navLabelSelected: { color: C.greenDark, fontWeight: '800' },
-  pageHeader: { marginTop: 9, marginBottom: 20 }, pageEyebrow: { color: C.greenDark, fontSize: 10, fontWeight: '800', letterSpacing: 1.4, marginBottom: 7 }, pageTitle: { color: C.ink, fontSize: 29, fontWeight: '800', letterSpacing: -1 }, pageSub: { color: C.muted, fontSize: 12, marginTop: 6, lineHeight: 18 }, searchBox: { height: 52, flexDirection: 'row', alignItems: 'center', backgroundColor: C.white, borderRadius: 15, borderWidth: 1, borderColor: C.line, paddingLeft: 13, paddingRight: 7, marginBottom: 13 }, searchIcon: { fontSize: 26, color: '#8B9A9E', marginRight: 9 }, searchInput: { flex: 1, fontSize: 13, color: C.ink, paddingVertical: 7 }, searchAdd: { width: 37, height: 37, borderRadius: 12, backgroundColor: C.green, alignItems: 'center', justifyContent: 'center' }, searchAddText: { color: C.white, fontSize: 24, fontWeight: '500', marginTop: -2 }, filterRow: { gap: 7, paddingBottom: 14 }, filterChip: { paddingHorizontal: 14, paddingVertical: 9, borderRadius: 20, backgroundColor: C.white, borderWidth: 1, borderColor: C.line }, filterChipActive: { backgroundColor: C.navy, borderColor: C.navy }, filterText: { fontSize: 11, color: C.muted, fontWeight: '700' }, filterTextActive: { color: C.white }, noteBanner: { marginTop: 14, padding: 13, backgroundColor: C.bluePale, borderRadius: 12, flexDirection: 'row', alignItems: 'flex-start', gap: 8 }, noteBannerIcon: { color: '#3865A8', fontWeight: '800' }, noteBannerText: { color: '#496B91', fontSize: 10, lineHeight: 16, flex: 1 },
-  insightHero: { backgroundColor: C.navy, borderRadius: 22, padding: 20, marginBottom: 23 }, insightHeroLabel: { color: '#B7CDD2', fontSize: 10, fontWeight: '800', letterSpacing: 1 }, insightHeroAmount: { color: C.white, fontSize: 31, fontWeight: '800', marginTop: 7, letterSpacing: -1 }, insightHeroNote: { color: '#B7CDD2', fontSize: 10, marginTop: 6, lineHeight: 15 }, insightMetricRow: { flexDirection: 'row', gap: 12, borderTopColor: '#2C4650', borderTopWidth: 1, marginTop: 17, paddingTop: 15 }, insightMetric: { flex: 1 }, insightMetricLabel: { color: '#B7CDD2', fontSize: 10 }, insightMetricValue: { color: C.white, fontSize: 14, fontWeight: '800', marginTop: 5 }, panel: { backgroundColor: C.white, borderRadius: 18, borderWidth: 1, borderColor: C.line, paddingHorizontal: 15, paddingVertical: 7, marginBottom: 21 }, categorySpendRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, gap: 11 }, categorySpendIcon: { width: 38, height: 38, borderRadius: 13, alignItems: 'center', justifyContent: 'center' }, categorySpendMain: { flex: 1 }, categorySpendNameRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, categorySpendName: { color: C.ink, fontSize: 12, fontWeight: '700' }, categorySpendAmount: { color: C.ink, fontSize: 11, fontWeight: '800' }, categoryMonthly: { color: C.muted, fontWeight: '500', fontSize: 9 }, barTrack: { height: 5, backgroundColor: '#EEF2F1', borderRadius: 5, overflow: 'hidden', marginTop: 9 }, barFill: { height: 5, borderRadius: 5, backgroundColor: C.green }, reviewRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 13, gap: 10 }, reviewIcon: { height: 38, width: 38, borderRadius: 13, alignItems: 'center', justifyContent: 'center' }, reviewCopy: { flex: 1 }, reviewTitle: { color: C.ink, fontSize: 12, fontWeight: '800' }, reviewBody: { color: C.muted, fontSize: 10, lineHeight: 16, marginTop: 4 }, reviewArrow: { color: C.muted, fontSize: 24 },
-  aiHero: { borderRadius: 24, padding: 18, marginBottom: 20, overflow: 'hidden' }, aiHeroTop: { flexDirection: 'row', alignItems: 'center', gap: 12 }, aiOrb: { height: 48, width: 48, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.16)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center' }, aiHeroTitle: { color: C.white, fontSize: 17, fontWeight: '800' }, aiHeroSub: { color: '#C7E2DD', fontSize: 10, lineHeight: 15, marginTop: 4 }, aiHeroStatsRow: { flexDirection: 'row', gap: 10, borderTopColor: 'rgba(255,255,255,0.15)', borderTopWidth: 1, marginTop: 17, paddingTop: 15 }, aiHeroStat: { flex: 1 }, aiHeroStatLabel: { color: '#C7E2DD', fontSize: 9, marginBottom: 5 }, aiHeroStatValue: { color: C.white, fontSize: 13, fontWeight: '800' },
-  aiChatPanel: { backgroundColor: C.white, borderRadius: 20, borderWidth: 1, borderColor: C.line, padding: 12, marginBottom: 18 }, aiMessage: { maxWidth: '92%', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 15, marginBottom: 9 }, aiUserBubble: { alignSelf: 'flex-end', backgroundColor: C.greenPale, borderBottomRightRadius: 4 }, aiAssistantBubble: { alignSelf: 'flex-start', backgroundColor: '#F2F6F5', borderBottomLeftRadius: 4 }, aiMessageText: { color: C.ink, fontSize: 12, lineHeight: 18 }, aiInputRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 }, aiInput: { flex: 1, minHeight: 45, maxHeight: 100, backgroundColor: C.cream, borderRadius: 13, borderWidth: 1, borderColor: C.line, paddingHorizontal: 12, paddingVertical: 10, fontSize: 12, color: C.ink }, aiSendButton: { width: 44, height: 44, borderRadius: 14, backgroundColor: C.green, alignItems: 'center', justifyContent: 'center' }, aiControls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 6, marginTop: 10, flexWrap: 'wrap' }, aiToggle: { paddingHorizontal: 9, paddingVertical: 8, borderRadius: 11, borderWidth: 1, borderColor: C.line, backgroundColor: C.white }, aiToggleActive: { backgroundColor: C.greenPale, borderColor: C.green }, aiToggleText: { fontSize: 10, fontWeight: '700', color: C.muted }, aiToggleTextActive: { color: C.greenDark }, aiVoiceButton: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 12, backgroundColor: C.navy }, aiVoiceButtonActive: { backgroundColor: '#A73737' }, aiVoiceText: { color: C.white, fontSize: 10, fontWeight: '800' }, aiQuickRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 }, aiQuickChip: { borderRadius: 20, borderWidth: 1, borderColor: C.line, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: C.white }, aiQuickText: { color: C.ink, fontSize: 10, fontWeight: '700' }, aiHighlightRow: { flexDirection: 'row', alignItems: 'center', gap: 11, paddingVertical: 12 }, aiHighlightIcon: { width: 38, height: 38, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: C.greenPale }, aiHighlightCopy: { flex: 1 }, aiHighlightTitle: { color: C.ink, fontSize: 12, fontWeight: '800' }, aiHighlightBody: { color: C.muted, fontSize: 10, lineHeight: 15, marginTop: 4 }, aiWarning: { padding: 12, borderRadius: 12, backgroundColor: C.orangePale, marginBottom: 12 }, aiWarningText: { color: '#8B5108', fontSize: 10, lineHeight: 15 },
-  profilePanel: { flexDirection: 'row', alignItems: 'center', padding: 15, gap: 12, backgroundColor: C.white, borderRadius: 18, borderWidth: 1, borderColor: C.line, marginBottom: 16 }, profilePanelTitle: { color: C.ink, fontSize: 15, fontWeight: '800' }, profilePanelSub: { color: C.muted, fontSize: 11, marginTop: 4 }, settingsSectionLabel: { color: '#829398', fontSize: 9, fontWeight: '800', letterSpacing: 1.2, marginTop: 13, marginBottom: 5 }, settingRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 13, gap: 10 }, settingIcon: { width: 37, height: 37, borderRadius: 13, backgroundColor: '#EFF4F2', alignItems: 'center', justifyContent: 'center' }, settingCopy: { flex: 1 }, settingTitle: { color: C.ink, fontSize: 12, fontWeight: '800' }, settingBody: { color: C.muted, fontSize: 10, lineHeight: 15, marginTop: 4 }, settingArrow: { color: '#8DA0A4', fontSize: 23, paddingLeft: 4 }, settingsActionRow: { paddingVertical: 15, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, settingsAction: { color: C.ink, fontSize: 12, fontWeight: '700' },
-  modalBackdrop: { flex: 1, backgroundColor: 'rgba(9, 28, 36, 0.48)', justifyContent: 'center', alignItems: 'center', padding: 22 }, infoModal: { backgroundColor: C.white, borderRadius: 25, padding: 23, width: '100%', maxWidth: 430 }, infoModalIcon: { width: 58, height: 58, backgroundColor: C.bluePale, borderRadius: 19, justifyContent: 'center', alignItems: 'center', marginBottom: 15 }, modalTitle: { color: C.ink, fontSize: 21, fontWeight: '800', letterSpacing: -0.6 }, modalIntro: { color: C.muted, fontSize: 12, lineHeight: 19, marginTop: 10 }, infoChecklist: { gap: 11, backgroundColor: C.cream, borderRadius: 15, padding: 14, marginTop: 16, marginBottom: 18 }, infoChecklistLine: { color: C.ink, fontSize: 11, fontWeight: '600' }, oauthSetupNotice: { borderRadius: 15, backgroundColor: '#FFF6E7', borderWidth: 1, borderColor: '#F4D9A9', padding: 13, marginBottom: 13 }, oauthNoticeTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 7 }, oauthSetupTitle: { color: '#8B5108', fontSize: 12, fontWeight: '800' }, oauthSetupBody: { color: '#785B34', fontSize: 10, lineHeight: 16, marginTop: 7 },
-  editorSafeArea: { flex: 1, backgroundColor: C.cream }, editorHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, paddingTop: 12, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: C.line, backgroundColor: C.white }, editorClose: { width: 38, height: 38, borderRadius: 13, backgroundColor: '#F0F4F3', alignItems: 'center', justifyContent: 'center' }, editorCloseText: { color: C.ink, fontSize: 17 }, editorTitle: { color: C.ink, fontSize: 18, fontWeight: '800' }, editorSubtitle: { color: C.muted, fontSize: 10, marginTop: 3 }, editorScroll: { padding: 20, paddingBottom: 35 }, fieldLabel: { color: '#62777D', fontWeight: '800', fontSize: 10, letterSpacing: 1, marginTop: 18, marginBottom: 9 }, input: { backgroundColor: C.white, borderWidth: 1, borderColor: C.line, borderRadius: 13, color: C.ink, fontSize: 13, minHeight: 49, paddingHorizontal: 14, paddingVertical: 12 }, categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }, categoryOption: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 10, borderRadius: 12, backgroundColor: C.white, borderWidth: 1, borderColor: C.line }, categoryOptionActive: { backgroundColor: C.greenPale, borderColor: C.green }, categoryOptionText: { color: C.muted, fontSize: 10, fontWeight: '700' }, categoryOptionTextActive: { color: C.greenDark }, amountInputWrap: { flexDirection: 'row', alignItems: 'center', backgroundColor: C.white, borderWidth: 1, borderColor: C.line, borderRadius: 13, paddingLeft: 15 }, rupeeSign: { color: C.ink, fontSize: 20, fontWeight: '700' }, amountInput: { flex: 1, minHeight: 49, paddingHorizontal: 10, color: C.ink, fontSize: 18, fontWeight: '700' }, cycleRow: { flexDirection: 'row', gap: 7 }, cycleChip: { flex: 1, alignItems: 'center', paddingVertical: 11, borderRadius: 12, borderWidth: 1, borderColor: C.line, backgroundColor: C.white }, cycleChipActive: { backgroundColor: C.navy, borderColor: C.navy }, cycleChipText: { color: C.muted, fontSize: 10, fontWeight: '700' }, cycleChipTextActive: { color: C.white }, fieldHint: { fontSize: 10, lineHeight: 15, color: C.muted, marginTop: 6 }, notesInput: { minHeight: 78, textAlignVertical: 'top' }, reminderRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginVertical: 20, borderRadius: 15, backgroundColor: C.white, borderWidth: 1, borderColor: C.line, padding: 14 }, deleteFromEditor: { alignItems: 'center', paddingVertical: 14 }, deleteFromEditorText: { color: C.red, fontSize: 12, fontWeight: '800' }, formPrivacyNote: { color: '#8B999C', fontSize: 10, lineHeight: 16, textAlign: 'center', marginTop: 14, marginBottom: 10 },
+const s=StyleSheet.create({
+  safeArea:{flex:1,backgroundColor:C.paper},appContent:{flex:1,minHeight:0},
+  splashSafe:{flex:1,backgroundColor:'#091A28'},splash:{flex:1,alignItems:'center',justifyContent:'center',paddingHorizontal:28,overflow:'hidden'},
+  splashPlanet1:{position:'absolute',width:320,height:320,borderRadius:160,top:-128,right:-125,borderWidth:1,borderColor:'rgba(210,255,239,0.09)',backgroundColor:'rgba(255,255,255,0.025)'},
+  splashPlanet2:{position:'absolute',width:380,height:380,borderRadius:190,bottom:-210,left:-148,borderWidth:1,borderColor:'rgba(210,255,239,0.09)',backgroundColor:'rgba(18,168,121,0.08)'},
+  splashHalo:{position:'absolute',width:180,height:180,borderRadius:90,backgroundColor:'rgba(59,239,176,0.11)',borderWidth:1,borderColor:'rgba(160,255,217,0.22)'},
+  splashLogo:{width:132,height:132,borderRadius:42,alignItems:'center',justifyContent:'center',backgroundColor:'rgba(255,255,255,0.08)',borderWidth:1,borderColor:'rgba(197,255,229,0.34)',marginBottom:25,shadowColor:'#34E3AD',shadowOffset:{width:0,height:8},shadowOpacity:.36,shadowRadius:26,elevation:12},
+  splashTitle:{fontSize:44,fontWeight:'900',letterSpacing:-1.8,color:'#F5FFF9'},splashTagline:{marginTop:9,fontSize:13,color:'#B7DED1',textAlign:'center',lineHeight:20},splashFoot:{position:'absolute',bottom:48,fontSize:9,letterSpacing:1.8,color:'#AEDCCB',fontWeight:'800'},
+  bootError:{margin:24,marginTop:60,color:'#FFFFFF',fontSize:19,fontWeight:'700',textAlign:'center'},bootErrorSmall:{marginHorizontal:25,color:'#B7DED1',textAlign:'center',lineHeight:21},
+  brandMark:{backgroundColor:C.greenDark,alignItems:'center',justifyContent:'center',overflow:'hidden',shadowColor:C.green,shadowOffset:{width:0,height:4},shadowOpacity:.19,shadowRadius:7,elevation:4},brandOrbit:{position:'absolute',borderWidth:1.6,borderColor:'rgba(255,255,255,0.50)',transform:[{rotate:'34deg'}]},brandSpark:{position:'absolute',right:'19%',top:'19%',backgroundColor:'#9CFFDD'},
+  scrollContent:{paddingHorizontal:19,paddingTop:12,paddingBottom:24},topBar:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',marginBottom:23},brandLockup:{flexDirection:'row',alignItems:'center',gap:10},brandName:{fontSize:21,fontWeight:'900',letterSpacing:-.7,color:C.ink},brandTag:{fontSize:10,color:C.muted,marginTop:2},coachOrb:{width:42,height:42,borderRadius:15,alignItems:'center',justifyContent:'center',backgroundColor:C.mint,borderWidth:1,borderColor:'#C4EEDC'},
+  greeting:{fontSize:25,color:C.ink,fontWeight:'900',letterSpacing:-.8},todayDate:{marginTop:4,fontSize:12,color:C.muted,marginBottom:16},
+  hero:{borderRadius:28,padding:20,minHeight:222,overflow:'hidden',shadowColor:'#103940',shadowOffset:{width:0,height:12},shadowOpacity:.16,shadowRadius:18,elevation:6},heroOrb1:{position:'absolute',width:190,height:190,borderRadius:95,right:-73,top:-77,borderWidth:1,borderColor:'rgba(255,255,255,0.12)',backgroundColor:'rgba(255,255,255,0.045)'},heroOrb2:{position:'absolute',width:135,height:135,borderRadius:68,right:44,bottom:-89,borderWidth:1,borderColor:'rgba(190,255,220,0.13)',backgroundColor:'rgba(190,255,220,0.07)'},
+  heroHeader:{flexDirection:'row',justifyContent:'space-between',alignItems:'center'},heroEyebrow:{color:'#B6DAD1',fontSize:9,letterSpacing:1.35,fontWeight:'800'},heroTitle:{color:'#FFFFFF',fontSize:19,fontWeight:'900',marginTop:7,letterSpacing:-.4},heroBadge:{width:47,height:47,borderRadius:17,backgroundColor:'rgba(255,255,255,0.14)',alignItems:'center',justifyContent:'center',borderWidth:1,borderColor:'rgba(255,255,255,0.14)'},
+  scoreRow:{flexDirection:'row',alignItems:'center',gap:15,marginTop:21},scoreRingOuter:{width:88,height:88,borderRadius:44,borderWidth:5,borderColor:'rgba(139,245,202,0.70)',alignItems:'center',justifyContent:'center',backgroundColor:'rgba(255,255,255,0.08)'},scoreRingInner:{width:72,height:72,borderRadius:36,alignItems:'center',justifyContent:'center',backgroundColor:'rgba(8,38,49,0.32)'},scoreNumber:{fontSize:25,fontWeight:'900',color:'#FFFFFF'},scorePct:{color:'#B6DAD1',fontSize:9,marginTop:-2},scoreCopy:{flex:1},scoreHeadline:{color:'#FFFFFF',fontSize:14,fontWeight:'800'},scoreBody:{color:'#C2E0D9',fontSize:10,lineHeight:15,marginTop:5},heroMiniRow:{flexDirection:'row',flexWrap:'wrap',gap:11,marginTop:10},heroMini:{flexDirection:'row',alignItems:'center',gap:4},heroMiniText:{color:'#D4F7EB',fontSize:9,fontWeight:'700'},heroFooter:{color:'#AED7CC',fontSize:10,marginTop:17,borderTopWidth:1,borderTopColor:'rgba(255,255,255,0.13)',paddingTop:12},
+  quickActions:{flexDirection:'row',justifyContent:'space-between',marginTop:19,marginBottom:21},quickAction:{alignItems:'center',width:'23%'},quickIcon:{width:51,height:51,borderRadius:18,alignItems:'center',justifyContent:'center'},quickLabel:{color:C.ink,fontSize:10,fontWeight:'700',marginTop:8},pressed:{opacity:.84,transform:[{scale:.98}]},
+  dailyCheckCard:{padding:15,backgroundColor:C.white,borderWidth:1,borderColor:C.line,borderRadius:22,marginBottom:23},dailyCheckTop:{flexDirection:'row',alignItems:'center',gap:10},dailyCheckIcon:{width:42,height:42,borderRadius:15,backgroundColor:C.mint,alignItems:'center',justifyContent:'center'},dailyCheckEyebrow:{color:C.greenDark,fontSize:8,fontWeight:'900',letterSpacing:1.05},dailyCheckTitle:{color:C.ink,fontSize:13,fontWeight:'900',marginTop:4},dailyCheckBody:{color:C.muted,fontSize:11,lineHeight:17,marginTop:11},inlineCTA:{flexDirection:'row',alignItems:'center',gap:4,marginTop:11,alignSelf:'flex-start'},inlineCTAText:{color:C.greenDark,fontSize:11,fontWeight:'900'},
+  sectionRow:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',marginBottom:12,marginTop:1},sectionTitle:{fontSize:16,color:C.ink,fontWeight:'900',letterSpacing:-.35},actionText:{color:C.greenDark,fontSize:11,fontWeight:'800'},tag:{alignSelf:'flex-start,borderRadius:20,paddingHorizontal:9,paddingVertical:6},tagText:{fontSize:9,fontWeight:'900'},
+  habitScroll:{gap:10,paddingBottom:22},habitCard:{width:142,minHeight:145,backgroundColor:C.white,borderWidth:1,borderColor:C.line,borderRadius:21,padding:13},habitCardDone:{borderColor:'#AFE4CD',backgroundColor:'#F4FFF9'},habitIcon:{width:42,height:42,borderRadius:15,alignItems:'center',justifyContent:'center'},habitTitle:{color:C.ink,fontSize:12,fontWeight:'800',lineHeight:16,marginTop:10,minHeight:32},habitMeta:{color:C.muted,fontSize:9,lineHeight:14,marginTop:3},habitStatus:{alignSelf:'flex-start',marginTop:10,flexDirection:'row',alignItems:'center',gap:4,paddingHorizontal:8,paddingVertical:6,borderRadius:10,backgroundColor:C.mint},habitStatusDone:{backgroundColor:C.green},habitStatusText:{fontSize:9,color:C.greenDark,fontWeight:'900'},addHabitCard:{borderStyle:'dashed',backgroundColor:'#FBFDFC',alignItems:'center',justifyContent:'center'},addHabitCircle:{width:40,height:40,borderRadius:14,backgroundColor:C.mint,alignItems:'center',justifyContent:'center'},
+  panel:{paddingHorizontal:14,paddingVertical:5,backgroundColor:C.white,borderWidth:1,borderColor:C.line,borderRadius:20,marginBottom:21},taskRow:{flexDirection:'row',alignItems:'center',gap:11,paddingVertical:13,borderBottomWidth:1,borderBottomColor:'#F0F4F2'},taskRowDone:{opacity:.72},checkCircle:{width:24,height:24,borderRadius:9,borderWidth:1.6,borderColor:'#C6D7D0',alignItems:'center',justifyContent:'center',backgroundColor:C.white},checkCircleDone:{backgroundColor:C.green,borderColor:C.green},taskCopy:{flex:1,minWidth:0},taskTitle:{fontSize:12,fontWeight:'800',color:C.ink},taskTitleDone:{textDecorationLine:'line-through',color:C.muted},taskMeta:{fontSize:9,color:C.muted,marginTop:4},priorityDot:{width:7,height:7,borderRadius:4,marginHorizontal:4},showAll:{padding:12,alignItems:'center'},
+  emptyCard:{backgroundColor:C.white,borderWidth:1,borderColor:C.line,borderStyle:'dashed',padding:22,borderRadius:22,alignItems:'center',marginBottom:22},emptyIcon:{width:54,height:54,borderRadius:19,backgroundColor:C.mint,alignItems:'center',justifyContent:'center'},emptyTitle:{marginTop:12,fontSize:15,color:C.ink,fontWeight:'900',textAlign:'center'},emptyBody:{marginTop:7,marginBottom:14,fontSize:11,color:C.muted,lineHeight:17,textAlign:'center'},
+  primaryButton:{borderRadius:14,backgroundColor:C.green,paddingHorizontal:16,paddingVertical:13,minHeight:45,alignItems:'center',justifyContent:'center'},primaryButtonText:{color:'#FFFFFF',fontSize:12,fontWeight:'900'},secondaryButton:{borderRadius:14,borderWidth:1,borderColor:C.line,backgroundColor:C.white,paddingHorizontal:16,paddingVertical:13,minHeight:45,alignItems:'center',justifyContent:'center'},secondaryButtonText:{color:C.ink,fontSize:12,fontWeight:'800'},
+  reminderRow:{flexDirection:'row',alignItems:'center',gap:11,padding:13,borderRadius:18,borderWidth:1,borderColor:C.line,backgroundColor:C.white,marginTop:2},reminderIcon:{width:39,height:39,borderRadius:13,backgroundColor:C.mint,alignItems:'center',justifyContent:'center'},reminderTitle:{color:C.ink,fontSize:11,fontWeight:'900'},reminderBody:{color:C.muted,fontSize:9,lineHeight:14,marginTop:4},footerNote:{textAlign:'center',color:'#8A9A9F',fontSize:9,lineHeight:15,marginTop:15,marginHorizontal:8},
+  bottomNav:{flexDirection:'row',alignItems:'center',justifyContent:'space-around',backgroundColor:C.white,borderTopWidth:1,borderTopColor:C.line,paddingHorizontal:10},navItem:{width:'24%',alignItems:'center',justifyContent:'center',gap:3},navIconWrap:{width:45,height:30,borderRadius:11,justifyContent:'center',alignItems:'center'},navIconActive:{backgroundColor:C.mint},navLabel:{color:'#89999D',fontSize:9,fontWeight:'700'},navLabelActive:{color:C.greenDark,fontWeight:'900'},
+  pageHeader:{marginTop:9,marginBottom:20},pageEyebrow:{color:C.greenDark,fontSize:9,fontWeight:'900',letterSpacing:1.4,marginBottom:8},pageTitle:{color:C.ink,fontSize:30,fontWeight:'900',letterSpacing:-1.2},pageSub:{color:C.muted,fontSize:12,marginTop:7,lineHeight:18},
+  planSummary:{padding:15,borderRadius:20,flexDirection:'row',alignItems:'center',gap:12,marginBottom:17},planSummaryIcon:{width:45,height:45,borderRadius:15,backgroundColor:'rgba(255,255,255,0.8)',alignItems:'center',justifyContent:'center'},planSummaryTitle:{color:C.ink,fontSize:13,fontWeight:'900'},planSummaryBody:{color:'#5C7774',fontSize:10,lineHeight:15,marginTop:5},planButtons:{flexDirection:'row',gap:9,marginBottom:18},searchBox:{height:48,borderRadius:14,borderWidth:1,borderColor:C.line,backgroundColor:C.white,paddingHorizontal:13,flexDirection:'row',alignItems:'center',gap:9,marginBottom:12},searchInput:{flex:1,color:C.ink,fontSize:12,paddingVertical:7},filterRow:{flexDirection:'row',gap:8,marginBottom:18},filterChip:{borderRadius:16,borderWidth:1,borderColor:C.line,backgroundColor:C.white,paddingHorizontal:17,paddingVertical:8},filterChipActive:{backgroundColor:C.navy,borderColor:C.navy},filterText:{fontSize:10,color:C.muted,fontWeight:'800'},filterTextActive:{color:'#FFFFFF'},planHabitRow:{flexDirection:'row',alignItems:'center',gap:11,paddingVertical:11,borderBottomWidth:1,borderBottomColor:'#EEF3F1'},miniCheck:{width:32,height:32,borderRadius:11,backgroundColor:C.mint,alignItems:'center',justifyContent:'center'},miniCheckDone:{backgroundColor:C.green},
+  moneyHero:{borderRadius:25,padding:20,marginBottom:17,shadowColor:C.shadow,shadowOffset:{width:0,height:10},shadowOpacity:.16,shadowRadius:16,elevation:5},moneyHeroTop:{flexDirection:'row',alignItems:'center',justifyContent:'space-between'},moneyHeroEyebrow:{color:'#B8D6E6',fontSize:9,fontWeight:'800',letterSpacing:1.2},moneyHeroTotal:{color:'#FFFFFF',fontSize:34,fontWeight:'900',letterSpacing:-1,marginTop:8},moneyHeroIcon:{width:49,height:49,borderRadius:17,backgroundColor:'rgba(255,255,255,0.14)',alignItems:'center',justifyContent:'center'},budgetTextRow:{flexDirection:'row',justifyContent:'space-between',marginTop:18,marginBottom:8},budgetLabel:{color:'#D4E7F1',fontSize:10,fontWeight:'800'},progressTrack:{width:'100%',height:7,borderRadius:5,overflow:'hidden'},progressFill:{height:'100%',borderRadius:5},moneyHeroFoot:{color:'#C3E6E6',fontSize:10,marginTop:10},
+  budgetEditor:{padding:14,borderRadius:18,backgroundColor:C.white,borderWidth:1,borderColor:C.line,marginBottom:21},budgetEditorCopy:{marginBottom:11},cardTitle:{color:C.ink,fontSize:12,fontWeight:'900'},cardSub:{color:C.muted,fontSize:10,lineHeight:15,marginTop:5},budgetInputRow:{flexDirection:'row',alignItems:'center',borderWidth:1,borderColor:C.line,borderRadius:13,paddingLeft:13,backgroundColor:'#FBFDFC'},rupee:{color:C.ink,fontSize:19,fontWeight:'800'},budgetInput:{flex:1,paddingHorizontal:10,paddingVertical:12,fontSize:17,color:C.ink,fontWeight:'800'},budgetSave:{width:39,height:39,borderRadius:11,backgroundColor:C.green,alignItems:'center',justifyContent:'center',marginRight:5},categoryRow:{flexDirection:'row',alignItems:'center',gap:11,paddingVertical:13,borderBottomWidth:1,borderBottomColor:'#F0F4F2'},categoryDot:{width:10,height:10,borderRadius:5},categoryTop:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',marginBottom:8},categoryName:{color:C.ink,fontSize:11,fontWeight:'800'},categoryAmount:{color:C.ink,fontSize:11,fontWeight:'900'},
+  expenseRow:{flexDirection:'row',alignItems:'center',gap:11,paddingVertical:12,borderBottomWidth:1,borderBottomColor:'#EEF3F1'},expenseIcon:{width:40,height:40,borderRadius:14,backgroundColor:C.mint,alignItems:'center',justifyContent:'center'},expenseAmount:{color:C.ink,fontSize:12,fontWeight:'900'},deleteHint:{color:'#93A2A5',fontSize:8,marginTop:3},goalCard:{padding:15,backgroundColor:C.white,borderWidth:1,borderColor:C.line,borderRadius:19,marginBottom:11},goalHeader:{flexDirection:'row',alignItems:'center',gap:10,marginBottom:13},goalIcon:{width:40,height:40,borderRadius:14,backgroundColor:C.purplePale,alignItems:'center',justifyContent:'center'},goalTitle:{color:C.ink,fontSize:12,fontWeight:'900'},goalMeta:{color:C.muted,fontSize:10,marginTop:4},goalPercent:{color:C.purple,fontSize:13,fontWeight:'900'},goalActions:{flexDirection:'row',justifyContent:'space-between',marginTop:13},deleteGoalText:{color:C.red,fontSize:10,fontWeight:'800'},goalEmpty:{backgroundColor:C.white,borderWidth:1,borderColor:C.line,borderRadius:19,padding:16,marginBottom:17},
+  coachHero:{borderRadius:25,padding:18,marginBottom:17,overflow:'hidden'},coachHeroTop:{flexDirection:'row',alignItems:'center',gap:10},coachAvatar:{width:47,height:47,borderRadius:17,backgroundColor:'rgba(255,255,255,0.17)',alignItems:'center',justifyContent:'center',borderWidth:1,borderColor:'rgba(255,255,255,0.2)'},coachHeroTitle:{color:'#FFFFFF',fontSize:14,fontWeight:'900'},coachHeroSub:{color:'#D7E3FA',fontSize:9,lineHeight:14,marginTop:4},coachMetrics:{flexDirection:'row',gap:10,marginTop:18,borderTopWidth:1,borderTopColor:'rgba(255,255,255,0.16)',paddingTop:13},coachMetric:{flex:1},coachMetricValue:{color:'#FFFFFF',fontSize:14,fontWeight:'900'},coachMetricLabel:{color:'#C8D7F0',fontSize:8,marginTop:5},
+  chatPanel:{backgroundColor:C.white,borderRadius:20,borderWidth:1,borderColor:C.line,padding:11,marginBottom:21},chatBubble:{borderRadius:16,padding:12,marginBottom:9,maxWidth:'96%'},chatYou:{alignSelf:'flex-end',backgroundColor:C.mint,borderBottomRightRadius:5},chatCoach:{alignSelf:'flex-start',backgroundColor:'#F3F6FA',borderBottomLeftRadius:5},chatRole:{color:C.greenDark,fontSize:8,fontWeight:'900',letterSpacing:1,marginBottom:5},chatText:{color:C.ink,fontSize:11,lineHeight:17},chatInputRow:{flexDirection:'row',alignItems:'flex-end',gap:8,marginTop:5},chatInput:{flex:1,minHeight:45,maxHeight:100,borderRadius:13,borderWidth:1,borderColor:C.line,backgroundColor:C.paper,paddingHorizontal:12,paddingVertical:10,color:C.ink,fontSize:11},sendButton:{width:44,height:44,borderRadius:14,alignItems:'center',justifyContent:'center',backgroundColor:C.green},promptGrid:{flexDirection:'row',flexWrap:'wrap',gap:9,marginBottom:20},promptCard:{width:'48%',minHeight:86,flexGrow:1,flexBasis:'44%',backgroundColor:C.white,borderRadius:16,borderWidth:1,borderColor:C.line,padding:12,justifyContent:'space-between},promptIcon:{width:31,height:31,borderRadius:11,backgroundColor:C.mint,alignItems:'center',justifyContent:'center'},promptLabel:{marginTop:8,flex:1,color:C.ink,fontSize:10,fontWeight:'900'},focusPrompt:{padding:14,borderRadius:18,borderWidth:1,borderColor:'#E1D8FD',backgroundColor:'#F7F3FF',flexDirection:'row',gap:11,alignItems:'center'},focusPromptIcon:{width:42,height:42,borderRadius:14,backgroundColor:'#EBE3FF',alignItems:'center',justifyContent:'center'},
+  modalOverlay:{flex:1,justifyContent:'flex-end',backgroundColor:'rgba(8,25,34,0.50)'},modalKeyboard:{width:'100%'},modalSheet:{maxHeight:'92%',backgroundColor:C.paper,borderTopLeftRadius:28,borderTopRightRadius:28,paddingHorizontal:20,paddingTop:10,paddingBottom:20},modalHandle:{alignSelf:'center',width:42,height:4,borderRadius:3,backgroundColor:'#CBD8D2',marginBottom:15},modalHeader:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',marginBottom:12},modalTitle:{color:C.ink,fontSize:22,fontWeight:'900',letterSpacing:-.5},modalSubtitle:{color:C.muted,fontSize:11,marginTop:4},modalClose:{width:38,height:38,borderRadius:13,backgroundColor:C.white,borderWidth:1,borderColor:C.line,alignItems:'center',justifyContent:'center'},fieldLabel:{color:'#63777D',fontSize:9,fontWeight:'900',letterSpacing:1.1,marginTop:16,marginBottom:8},formInput:{minHeight:48,borderRadius:13,borderWidth:1,borderColor:C.line,backgroundColor:C.white,paddingHorizontal:13,paddingVertical:11,color:C.ink,fontSize:12},fieldHint:{fontSize:10,color:C.muted,lineHeight:16,marginTop:8},choiceRow:{flexDirection:'row',gap:8},categoryChoices:{flexDirection:'row',flexWrap:'wrap',gap:7},choiceChip:{borderRadius:12,borderWidth:1,borderColor:C.line,backgroundColor:C.white,paddingHorizontal:14,paddingVertical:10},choiceChipActive:{backgroundColor:C.mint,borderColor:C.green},choiceText:{fontSize:10,color:C.muted,fontWeight:'800'},choiceTextActive:{color:C.greenDark},amountInputBox:{flexDirection:'row',alignItems:'center',borderWidth:1,borderColor:C.line,borderRadius:13,backgroundColor:C.white,paddingLeft:14},amountField:{flex:1,minHeight:49,color:C.ink,fontSize:18,fontWeight:'800',paddingHorizontal:10},
+  focusOverlay:{flex:1,alignItems:'center',justifyContent:'center',backgroundColor:'rgba(6,14,29,0.76)',padding:18},focusSheet:{width:'100%',maxWidth:480,borderRadius:29,padding:22,alignItems:'center',overflow:'hidden'},focusOrb:{position:'absolute',width:240,height:240,borderRadius:120,top:-135,right:-60,backgroundColor:'rgba(255,255,255,0.06)'},focusClose:{alignSelf:'flex-end',width:36,height:36,borderRadius:12,backgroundColor:'rgba(255,255,255,0.13)',alignItems:'center',justifyContent:'center'},focusIcon:{width:54,height:54,borderRadius:19,backgroundColor:'rgba(255,255,255,0.12)',alignItems:'center',justifyContent:'center',marginTop:3},focusEyebrow:{color:'#CFC5FF',fontSize:9,letterSpacing:1.8,fontWeight:'900',marginTop:15},focusTitle:{color:'#FFFFFF',fontSize:29,fontWeight:'900',marginTop:7},focusSub:{color:'#D8DAF3',fontSize:11,lineHeight:17,textAlign:'center',marginTop:6},timerRing:{width:208,height:208,borderRadius:104,borderWidth:5,borderColor:'rgba(193,176,255,0.78)',alignItems:'center',justifyContent:'center',marginTop:25,backgroundColor:'rgba(255,255,255,0.045)'},timerInner:{width:185,height:185,borderRadius:93,alignItems:'center',justifyContent:'center',backgroundColor:'rgba(255,255,255,0.055)'},timerText:{color:'#FFFFFF',fontSize:44,fontWeight:'900',letterSpacing:-1.5},timerLabel:{color:'#CAC8F2',fontSize:8,letterSpacing:1.4,marginTop:6,fontWeight:'900'},focusTip:{color:'#DFE0F6',fontSize:10,textAlign:'center',lineHeight:16,marginTop:17,maxWidth:290},focusButtons:{flexDirection:'row',gap:9,marginTop:20},focusPrimary:{flexDirection:'row',alignItems:'center',justifyContent:'center',gap:8,backgroundColor:'#A8F7D8',paddingHorizontal:18,paddingVertical:13,borderRadius:14},focusPrimaryText:{color:C.navy,fontSize:11,fontWeight:'900'},focusSecondary:{flexDirection:'row',alignItems:'center',gap:7,borderRadius:14,borderWidth:1,borderColor:'rgba(255,255,255,0.30)',paddingHorizontal:14,paddingVertical:13},focusSecondaryText:{color:'#FFFFFF',fontSize:11,fontWeight:'800'},focusSessions:{color:'#BBBFE5',fontSize:9,marginTop:19},
 });
-
-export default function App() {
-  return (
-    <SafeAreaProvider>
-      <AppContent />
-    </SafeAreaProvider>
-  );
-}
+export default function App(){return <SafeAreaProvider><DayPilotApp/></SafeAreaProvider>;}
