@@ -68,7 +68,7 @@ async function start(PORT,SECRET){
     const raw=String(q.headers.authorization||'').replace(/^Bearer\s+/i,'');
     if(!raw)return s.status(401).json({error:'Please sign in to continue.'});
     let decoded;try{decoded=jwt.verify(raw,SECRET)}catch{return s.status(401).json({error:'Session expired. Please sign in again.'})}
-    const r=await pool.query('SELECT '+PROFILE_FIELDS+' FROM users WHERE id=$1',[decoded.id]);
+    const r=await pool.query('SELECT '+PROFILE_FIELDS+', (instagram_access_token_enc<>\'\') AS instagram_connected FROM users WHERE id=$1',[decoded.id]);
     if(!r.rows.length)return s.status(401).json({error:'Please sign in to continue.'});
     q.user=r.rows[0];n();
   });
@@ -90,12 +90,15 @@ async function start(PORT,SECRET){
   }));
   app.get('/api/me',auth,asyncRoute(async(q,s)=>s.json({user:q.user})));
   app.patch('/api/me',auth,asyncRoute(async(q,s)=>{
-    const b=q.body||{},setters=[],values=[];const allowed={name:80,niche:100,bio:500,location:100,instagram_handle:100};
-    for(const[k,max]of Object.entries(allowed))if(b[k]!==undefined){const value=String(b[k]||'').trim();if(k==='name'&&!value)return s.status(400).json({error:'Name cannot be empty.'});setters.push(k+'=$'+(values.length+1));values.push(value.slice(0,max))}
-    if(b.followers!==undefined){setters.push('followers=$'+(values.length+1));values.push(Math.max(0,Math.min(100000000,Number(b.followers)||0)))}
+    const b=q.body||{},setters=[],values=[];
+    const stored=await pool.query("SELECT (instagram_access_token_enc<>'') AS instagram_connected FROM users WHERE id=$1",[q.user.id]);
+    const instagramConnected=!!stored.rows[0]?.instagram_connected;
+    const allowed={name:80,niche:100,bio:500,location:100,instagram_handle:100};
+    for(const[k,max]of Object.entries(allowed))if(b[k]!==undefined){if(instagramConnected&&k==='instagram_handle')continue;const value=String(b[k]||'').trim();if(k==='name'&&!value)return s.status(400).json({error:'Name cannot be empty.'});setters.push(k+'=$'+(values.length+1));values.push(value.slice(0,max))}
+    if(b.followers!==undefined&&!instagramConnected){setters.push('followers=$'+(values.length+1));values.push(Math.max(0,Math.min(100000000,Number(b.followers)||0)))}
     if(b.engagement!==undefined){setters.push('engagement=$'+(values.length+1));values.push(Math.max(0,Math.min(100,Number(b.engagement)||0)))}
     if(setters.length)await pool.query('UPDATE users SET '+setters.join(',')+' WHERE id=$'+(values.length+1),[...values,q.user.id]);
-    const r=await pool.query('SELECT '+PROFILE_FIELDS+' FROM users WHERE id=$1',[q.user.id]);s.json({user:r.rows[0]});
+    const r=await pool.query('SELECT '+PROFILE_FIELDS+', (instagram_access_token_enc<>'\''\') AS instagram_connected FROM users WHERE id=$1',[q.user.id]);s.json({user:r.rows[0]});
   }));
   app.patch('/api/me/password',auth,asyncRoute(async(q,s)=>{
     const current=String(q.body?.current_password||''),next=String(q.body?.new_password||'');
