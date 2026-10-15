@@ -93,5 +93,8 @@ test('Collabzy API supports registration, campaign publishing and application wo
   assert.equal(oldPasswordLogin.status,401);
   const newPasswordLogin=await fetch(base+'/api/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email,password:'NextPassword123!'})});
   assert.equal(newPasswordLogin.status,200);
+  const loginPayload=await newPasswordLogin.json();
+  assert.equal(Object.hasOwn(loginPayload.user,'password_hash'),false);
+  assert.equal(Object.hasOwn(loginPayload.user,'instagram_access_token_enc'),false,'encrypted Instagram credentials must never be returned to clients');
 
 });
