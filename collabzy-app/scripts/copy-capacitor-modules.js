@@ -1,16 +1,26 @@
 const fs=require('node:fs');
 const path=require('node:path');
+const esbuild=require('esbuild');
 const root=path.join(__dirname,'..');
-const copies=[
-  {from:'node_modules/@capacitor/core/dist/esm',to:'public/vendor/capacitor-core'},
-  {from:'node_modules/@capacitor/app/dist/esm',to:'public/vendor/capacitor-app'},
-  {from:'node_modules/@capacitor/browser/dist/esm',to:'public/vendor/capacitor-browser'}
-];
-for(const item of copies){
-  const from=path.join(root,item.from),to=path.join(root,item.to);
-  if(!fs.existsSync(from))throw new Error('Capacitor plugin module directory missing: '+item.from);
-  fs.rmSync(to,{recursive:true,force:true});
-  fs.mkdirSync(path.dirname(to),{recursive:true});
-  fs.cpSync(from,to,{recursive:true});
+const outfile=path.join(root,'public','vendor','capacitor-bridge.js');
+fs.mkdirSync(path.dirname(outfile),{recursive:true});
+const source=`
+import { App } from '@capacitor/app';
+import { Browser } from '@capacitor/browser';
+import { Capacitor } from '@capacitor/core';
+window.CollabzyNative = { App, Browser, Capacitor };
+if (Capacitor.isNativePlatform()) {
+  App.addListener('appUrlOpen', async ({ url }) => {
+    if (typeof url === 'string' && url.startsWith('collabzy://instagram/callback')) {
+      try { await Browser.close(); } catch (_) {}
+      window.dispatchEvent(new CustomEvent('collabzy:oauth-return', { detail: { url } }));
+    }
+  });
 }
-console.log('Copied local Capacitor ESM modules for offline APK OAuth support.');
+`;
+esbuild.buildSync({
+  stdin:{contents:source,resolveDir:root,sourcefile:'collabzy-capacitor-bridge.js',loader:'js'},
+  bundle:true,platform:'browser',format:'iife',target:['es2020'],outfile,
+  legalComments:'none',minify:true
+});
+console.log('Bundled Capacitor App/Browser bridge:',path.relative(root,outfile));
