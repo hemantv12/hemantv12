@@ -47,7 +47,16 @@ h2{font-size:20px;margin:28px 0 6px}p,li{color:var(--muted)}small{color:var(--mu
 <p>You can delete your account from Profile or follow the public <a href="/delete-account.html">Delete account instructions</a>. If you cannot sign in, submit a request through <a href="/support.html">Support</a>; ownership must be verified before an inaccessible account is deleted.</p>
 
 <h2>10. Operator details and legal review</h2>
-<p>The service operator must publish its legal identity, jurisdiction, a monitored support contact and any required local consumer disclosures before public commercial launch. These terms are a technical product draft and should be reviewed by a qualified legal professional for the operator's jurisdiction.</p>
+<p><b>Service operator:</b> <span id="operatorName">Not yet configured.</span></p>
+<p><b>Jurisdiction:</b> <span id="jurisdiction">Not yet configured.</span></p>
+<p><b>Support email:</b> <span id="supportEmail">Not yet configured.</span></p>
+<p>These terms are a technical product draft and should be reviewed by a qualified legal professional for the operator's jurisdiction before public commercial launch.</p>
 
 <p><a href="/privacy.html">Read the Privacy Notice</a> · <a href="/support.html">Support</a> · <a href="/delete-account.html">Delete account</a></p>
-</main></body></html>
+</main><script>
+fetch('/api/public-config').then(r=>r.ok?r.json():Promise.reject()).then(c=>{
+document.getElementById('operatorName').textContent=c.operatorName||'Not configured by the service operator';
+document.getElementById('jurisdiction').textContent=c.jurisdiction||'Not configured by the service operator';
+document.getElementById('supportEmail').textContent=c.supportEmail||'Not configured by the service operator';
+}).catch(()=>{});
+</script></body></html>
