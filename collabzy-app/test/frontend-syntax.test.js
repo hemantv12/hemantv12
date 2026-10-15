@@ -9,3 +9,10 @@ test('public frontend JavaScript parses without syntax errors',()=>{
  assert.ok(match,'main frontend script should exist');
  assert.doesNotThrow(()=>new vm.Script(match[1]),'frontend script must parse');
 });
+
+test('SQLite and PostgreSQL backend scripts parse without syntax errors',()=>{
+ for(const file of ['server.js','server-postgres.js']){
+  const source=fs.readFileSync(path.join(__dirname,'..','src',file),'utf8');
+  assert.doesNotThrow(()=>new vm.Script(source),file+' must parse');
+ }
+});
