@@ -9,7 +9,8 @@
     "dev": "node --watch src/server.js",
     "test": "node --test test/*.test.js",
     "test:postgres": "node --test test/postgres-smoke.test.js",
-    "postinstall": "node scripts/copy-capacitor-modules.js"
+    "postinstall": "npm run build:capacitor",
+    "build:capacitor": "node scripts/copy-capacitor-modules.js"
   },
   "engines": {
     "node": "22.x"
@@ -26,7 +27,8 @@
     "jsonwebtoken": "^9.0.2",
     "pg": "^8.16.3",
     "@capacitor/app": "^7.1.0",
-    "@capacitor/browser": "^7.0.1"
+    "@capacitor/browser": "^7.0.1",
+    "esbuild": "^0.25.11"
   },
   "devDependencies": {
     "@capacitor/cli": "^7.4.3"
