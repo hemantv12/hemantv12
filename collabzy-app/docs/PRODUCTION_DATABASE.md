@@ -22,7 +22,18 @@ The Render API refused provisioning because payment information is required in t
 7. Verify '/api/health' returns 'database: "connected"' and 'mode: "postgres-persistent"'.
 8. Create one test creator and brand, post a campaign, apply, send a message, verify the rows persist through a deployment/restart, and then delete test records/accounts.
 
-PostgreSQL schema initialization runs on server startup. The tables are scoped to this new database; existing SQLite test data is not automatically migrated. If there are real accounts or campaign agreements in the SQLite deployment, export/backup them before switching and perform a one-time migration rather than silently losing data.
+## Optional one-time SQLite migration
+
+A guarded importer is available for the SQLite file that belongs to this Collabzy service:
+
+1. Before switching, take a backup and confirm the source file is the Collabzy database. Do not use the SubSathi database or a path to another app's data.
+2. Configure the new, separate Collabzy PostgreSQL database as DATABASE_URL while preserving the current JWT_SECRET.
+3. Set MIGRATE_SQLITE_ON_START=true before first PostgreSQL startup. If the SQLite file is not at the default collabzy-app/collabzy.db path, set SQLITE_MIGRATION_PATH to the exact path of the backed-up Collabzy SQLite file.
+4. The importer copies accounts, campaigns, applications, saved campaigns, conversations, messages, notifications and invitations into an empty PostgreSQL target. It preserves existing IDs/password hashes and adjusts identity sequences. The source file is opened read-only.
+5. The migration is recorded in collabzy_migrations, so subsequent restarts do not import the same source again. After successful verification, set MIGRATE_SQLITE_ON_START=false and remove SQLITE_MIGRATION_PATH if it was set.
+6. The importer refuses to merge when PostgreSQL already has users, campaigns or applications. Do not try to force a second import into a live database. Use a deliberate backup/merge process if the target is no longer empty.
+
+PostgreSQL schema initialization and application-to-conversation backfill run on startup. Migration runs only with the explicit flag, and actual migration will only occur if the existing SQLite source file is accessible on the service at startup. If Render's ephemeral filesystem has already reset or removed that source file, import from an available backup instead.
 
 ## CI checks
 
