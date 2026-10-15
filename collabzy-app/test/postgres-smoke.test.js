@@ -87,6 +87,7 @@ test('PostgreSQL production backend supports creator-brand collaboration workflo
   const response=await fetch(base+'/api/invitations/'+invitation.id+'/respond',{method:'PATCH',headers:{'content-type':'application/json',authorization:'Bearer '+creator.token},body:JSON.stringify({status:'accepted'})});
   assert.equal(response.status,200,'creator should accept invitation: '+await response.clone().text());
   const brandApps=(await (await fetch(base+'/api/applications',{headers:{authorization:'Bearer '+brand.token}})).json()).applications;
+  assert.ok(brandApps.every(a=>!Object.hasOwn(a,'creator_email')),'PostgreSQL brand application list must not reveal creator email addresses');
   const invitationApp=brandApps.find(a=>String(a.campaign_id)===String(secondCampaign.id));
   assert.ok(invitationApp,'accepted invitation should create an application owned by the campaign brand');
   const acceptApplication=await fetch(base+'/api/applications/'+invitationApp.id+'/status',{method:'PATCH',headers:{'content-type':'application/json',authorization:'Bearer '+brand.token},body:JSON.stringify({status:'accepted'})});
