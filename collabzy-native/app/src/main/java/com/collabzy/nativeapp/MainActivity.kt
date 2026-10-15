@@ -373,6 +373,7 @@ private fun CollabzyNativeApp(activity: MainActivity, oauthResult: String?, clea
     var myCampaigns by remember { mutableStateOf(emptyList<Campaign>()) }
     var applications by remember { mutableStateOf(emptyList<ApplicationRow>()) }
     var saved by remember { mutableStateOf(emptySet<Long>()) }
+    var savedCampaigns by remember { mutableStateOf(emptyList<Campaign>()) }
     var creators by remember { mutableStateOf(emptyList<Creator>()) }
     var invitations by remember { mutableStateOf(emptyList<Invitation>()) }
     var conversations by remember { mutableStateOf(emptyList<Conversation>()) }
@@ -397,7 +398,8 @@ private fun CollabzyNativeApp(activity: MainActivity, oauthResult: String?, clea
         val campaignData = Api.call("/campaigns").optJSONArray("campaigns").objects()
         campaigns = campaignData.map { Campaign.from(it) }
         applications = Api.call("/applications").optJSONArray("applications").objects().map { ApplicationRow.from(it) }
-        saved = Api.call("/saved-campaigns").optJSONArray("campaigns").objects().map { it.optLong("id") }.toSet()
+        savedCampaigns = Api.call("/saved-campaigns").optJSONArray("campaigns").objects().map { Campaign.from(it) }
+        saved = savedCampaigns.map { it.id }.toSet()
         stats = Api.call("/dashboard").optJSONObject("stats") ?: JSONObject()
         conversations = Api.call("/conversations").optJSONArray("conversations").objects().map { Conversation.from(it) }
         invitations = Api.call("/invitations").optJSONArray("invitations").objects().map { Invitation.from(it, user.role == "creator") }
@@ -584,6 +586,8 @@ private fun CollabzyNativeApp(activity: MainActivity, oauthResult: String?, clea
                     user = user,
                     campaigns = campaigns,
                     saved = saved,
+                    savedCount = savedCampaigns.size,
+                    onOpenSaved = { screen = "saved" },
                     onSearch = { query, category ->
                         perform {
                             var path = "/campaigns"
@@ -599,11 +603,27 @@ private fun CollabzyNativeApp(activity: MainActivity, oauthResult: String?, clea
                             val isSaved = saved.contains(campaign.id)
                             Api.call("/campaigns/" + campaign.id + "/save", if (isSaved) "DELETE" else "POST")
                             saved = if (isSaved) saved - campaign.id else saved + campaign.id
+                            savedCampaigns = if (isSaved) savedCampaigns.filterNot { it.id == campaign.id } else (savedCampaigns + campaign).distinctBy { it.id }
                             toast(if (isSaved) "Removed from saved campaigns." else "Campaign saved.")
                         }
                     },
                     onApply = { applyTarget = it },
+                    onOpenSaved = { screen = "saved" },
                     onOpenInstagram = { screen = "instagram" }
+                )
+                "saved" -> SavedPane(
+                    user = user,
+                    campaigns = savedCampaigns,
+                    saved = saved,
+                    onSave = { campaign ->
+                        perform {
+                            Api.call("/campaigns/" + campaign.id + "/save", "DELETE")
+                            saved = saved - campaign.id
+                            savedCampaigns = savedCampaigns.filterNot { it.id == campaign.id }
+                            toast("Removed from saved campaigns.")
+                        }
+                    },
+                    onApply = { applyTarget = it }
                 )
                 "overview" -> OverviewPane(
                     user = user,
@@ -614,12 +634,6 @@ private fun CollabzyNativeApp(activity: MainActivity, oauthResult: String?, clea
                     onManage = { campaign, status ->
                         perform {
                             Api.call("/campaigns/" + campaign.id + "/manage", "PATCH", JSONObject().put("status", status))
-                            refreshAll()
-                        }
-                    },
-                    onStatus = { invitation, status ->
-                        perform {
-                            Api.call("/invitations/" + invitation.id + "/respond", "PATCH", JSONObject().put("status", status))
                             refreshAll()
                         }
                     },
@@ -639,6 +653,14 @@ private fun CollabzyNativeApp(activity: MainActivity, oauthResult: String?, clea
                 "applications" -> ApplicationsPane(
                     user = user,
                     applications = applications,
+                    invitations = invitations,
+                    onInvitationStatus = { invitation, status ->
+                        perform {
+                            Api.call("/invitations/" + invitation.id + "/respond", "PATCH", JSONObject().put("status", status))
+                            refreshAll()
+                            toast("Invitation " + status + ".")
+                        }
+                    },
                     onStatus = { app, status ->
                         perform {
                             Api.call("/applications/" + app.id + "/status", "PATCH", JSONObject().put("status", status))
@@ -771,9 +793,9 @@ private fun CollabzyNativeApp(activity: MainActivity, oauthResult: String?, clea
                     }
                 )
                 else -> DiscoverPane(
-                    user = user, campaigns = campaigns, saved = saved,
+                    user = user, campaigns = campaigns, saved = saved, savedCount = savedCampaigns.size,
                     onSearch = { _, _ -> perform { refreshAll() } },
-                    onSave = {}, onApply = { applyTarget = it }, onOpenInstagram = { screen = "instagram" }
+                    onSave = {}, onApply = { applyTarget = it }, onOpenSaved = { screen = "saved" }, onOpenInstagram = { screen = "instagram" }
                 )
             }
         }
@@ -846,6 +868,7 @@ private fun AppHeader(
 ) {
     val title = when (screen) {
         "discover" -> "Discover collaborations"
+        "saved" -> "Saved campaigns"
         "overview" -> "Your workspace"
         "campaigns" -> "Campaign manager"
         "applications" -> "Applications"
@@ -1017,9 +1040,11 @@ private fun DiscoverPane(
     user: CreatorUser,
     campaigns: List<Campaign>,
     saved: Set<Long>,
+    savedCount: Int,
     onSearch: (String, String) -> Unit,
     onSave: (Campaign) -> Unit,
     onApply: (Campaign) -> Unit,
+    onOpenSaved: () -> Unit,
     onOpenInstagram: () -> Unit
 ) {
     var query by remember { mutableStateOf("") }
@@ -1069,9 +1094,12 @@ private fun DiscoverPane(
             }
             Spacer(Modifier.height(10.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(campaigns.size.toString() + " opportunities", color = White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                Spacer(Modifier.weight(1f))
-                Text("Paid · Barter · Hybrid", color = Muted, fontSize = 11.sp)
+                Text(campaigns.size.toString() + " opportunities", color = White, fontWeight = FontWeight.Bold, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                TextButton(onClick = onOpenSaved) {
+                    Icon(Icons.Outlined.BookmarkBorder, contentDescription = null, tint = Violet)
+                    Spacer(Modifier.width(4.dp))
+                    Text("Saved " + savedCount, color = Violet, fontSize = 11.sp)
+                }
             }
         }
         if (campaigns.isEmpty()) {
@@ -1101,6 +1129,7 @@ private fun CampaignCard(
     campaign: Campaign,
     saved: Boolean,
     showApply: Boolean,
+    showSave: Boolean = true,
     onSave: () -> Unit,
     onApply: () -> Unit
 ) {
@@ -1120,8 +1149,10 @@ private fun CampaignCard(
                     Text(campaign.brandName, color = White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                     Text(campaign.category + " · " + campaign.location, color = Muted, fontSize = 11.sp)
                 }
-                IconButton(onClick = onSave) {
-                    Icon(if (saved) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder, contentDescription = "Save campaign", tint = if (saved) Violet else Muted)
+                if (showSave) {
+                    IconButton(onClick = onSave) {
+                        Icon(if (saved) Icons.Filled.Bookmark else Icons.Outlined.BookmarkBorder, contentDescription = "Save campaign", tint = if (saved) Violet else Muted)
+                    }
                 }
             }
             Spacer(Modifier.height(12.dp))
@@ -1180,7 +1211,6 @@ private fun OverviewPane(
     invitations: List<Invitation>,
     onCreate: () -> Unit,
     onManage: (Campaign, String) -> Unit,
-    onStatus: (Invitation, String) -> Unit,
     onViewApps: () -> Unit,
     onMessages: () -> Unit
 ) {
@@ -1220,19 +1250,17 @@ private fun OverviewPane(
         Spacer(Modifier.height(18.dp))
         Text("Creator invitations", color = White, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
         Spacer(Modifier.height(8.dp))
-        val pending = invitations.filter { it.status == "pending" }
-        if (pending.isEmpty()) {
+        if (invitations.isEmpty()) {
             InfoPanel("Your next partnership starts with an invite", "Explore creators and invite profiles that fit your campaign.", Icons.Outlined.PeopleAlt)
         } else {
-            pending.take(5).forEach { invitation ->
+            invitations.take(5).forEach { invitation ->
                 Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(16.dp), border = BorderStroke(1.dp, Border), modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(13.dp)) {
-                        Text(invitation.counterpart + " · " + invitation.campaignTitle, color = White, fontWeight = FontWeight.Bold)
-                        if (invitation.message.isNotBlank()) Text(invitation.message, color = Muted, fontSize = 12.sp)
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            TextButton(onClick = { onStatus(invitation, "accepted") }) { Text("Mark accepted", color = Mint) }
-                            TextButton(onClick = { onStatus(invitation, "declined") }) { Text("Declined", color = Danger) }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(invitation.counterpart + " · " + invitation.campaignTitle, color = White, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                            StatusPill(invitation.status)
                         }
+                        if (invitation.message.isNotBlank()) Text(invitation.message, color = Muted, fontSize = 12.sp)
                     }
                 }
                 Spacer(Modifier.height(8.dp))
@@ -1243,6 +1271,41 @@ private fun OverviewPane(
             Icon(Icons.Outlined.ChatBubbleOutline, null); Spacer(Modifier.width(8.dp)); Text("Open collaboration inbox")
         }
         Spacer(Modifier.height(20.dp))
+    }
+}
+
+@Composable
+private fun SavedPane(
+    user: CreatorUser,
+    campaigns: List<Campaign>,
+    saved: Set<Long>,
+    onSave: (Campaign) -> Unit,
+    onApply: (Campaign) -> Unit
+) {
+    Column(Modifier.fillMaxSize()) {
+        Column(Modifier.padding(horizontal = 18.dp, vertical = 8.dp)) {
+            Text("Your saved campaigns", color = White, fontSize = 23.sp, fontWeight = FontWeight.ExtraBold)
+            Text("Keep good-fit opportunities close while you prepare a pitch.", color = Muted, fontSize = 12.sp)
+        }
+        if (campaigns.isEmpty()) {
+            EmptyState("No saved campaigns yet", "Tap the bookmark on a campaign to save it here.", Icons.Outlined.BookmarkBorder, Modifier.weight(1f))
+        } else {
+            LazyColumn(
+                Modifier.weight(1f),
+                contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(campaigns, key = { it.id }) { campaign ->
+                    CampaignCard(
+                        campaign = campaign,
+                        saved = saved.contains(campaign.id),
+                        showApply = user.role == "creator",
+                        onSave = { onSave(campaign) },
+                        onApply = { onApply(campaign) }
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -1270,7 +1333,7 @@ private fun BrandCampaignsPane(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             items(campaigns, key = { it.id }) { campaign ->
-                CampaignCard(campaign, saved = false, showApply = false, onSave = {}, onApply = {})
+                CampaignCard(campaign, saved = false, showApply = false, showSave = false, onSave = {}, onApply = {})
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text(campaign.applications.toString() + " applications", color = Muted, fontSize = 11.sp, modifier = Modifier.weight(1f))
                     TextButton(onClick = { onManage(campaign, if (campaign.status == "active") "closed" else "active") }) {
@@ -1286,6 +1349,8 @@ private fun BrandCampaignsPane(
 private fun ApplicationsPane(
     user: CreatorUser,
     applications: List<ApplicationRow>,
+    invitations: List<Invitation>,
+    onInvitationStatus: (Invitation, String) -> Unit,
     onStatus: (ApplicationRow, String) -> Unit
 ) {
     Column(Modifier.fillMaxSize()) {
@@ -1293,6 +1358,37 @@ private fun ApplicationsPane(
             Text(if (user.role == "brand") "Creator applications" else "Your applications", color = White, fontSize = 23.sp, fontWeight = FontWeight.ExtraBold)
             Text(if (user.role == "brand") "Choose collaborators and keep expectations clear." else "Follow every pitch from pending to completed.", color = Muted, fontSize = 12.sp)
             Spacer(Modifier.height(12.dp))
+        }
+        if (user.role == "creator" && invitations.isNotEmpty()) {
+            Column(Modifier.padding(horizontal = 18.dp).heightIn(max = 240.dp).verticalScroll(rememberScrollState())) {
+                Text("Brand invitations", color = White, fontSize = 16.sp, fontWeight = FontWeight.ExtraBold)
+                Spacer(Modifier.height(7.dp))
+                invitations.take(5).forEach { invitation ->
+                    Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(16.dp), border = BorderStroke(1.dp, Border), modifier = Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(12.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(invitation.campaignTitle, color = White, fontWeight = FontWeight.Bold)
+                                    Text("Invited by " + invitation.counterpart, color = Muted, fontSize = 11.sp)
+                                }
+                                StatusPill(invitation.status)
+                            }
+                            if (invitation.message.isNotBlank()) {
+                                Spacer(Modifier.height(5.dp))
+                                Text(invitation.message, color = Muted, fontSize = 12.sp)
+                            }
+                            if (invitation.status == "pending") {
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    SmallAction("Accept invite", Mint, Modifier.weight(1f)) { onInvitationStatus(invitation, "accepted") }
+                                    SmallAction("Decline", Danger, Modifier.weight(1f)) { onInvitationStatus(invitation, "declined") }
+                                }
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(7.dp))
+                }
+            }
+            Spacer(Modifier.height(8.dp))
         }
         if (applications.isEmpty()) {
             EmptyState("Nothing here yet", if (user.role == "brand") "Your campaign applications will appear here." else "Apply to a campaign to start tracking your collaborations.", Icons.Outlined.WorkOutline, Modifier.weight(1f))
