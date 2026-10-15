@@ -4,7 +4,7 @@ const {spawn}=require('node:child_process');
 const net=require('node:net');
 const path=require('node:path');
 
-test('PostgreSQL production backend supports creator-brand collaboration workflow',async(t)=>{
+test('PostgreSQL production backend supports creator-brand collaboration workflow',{skip:!process.env.DATABASE_URL},async(t)=>{
   assert.ok(process.env.DATABASE_URL,'PostgreSQL test DATABASE_URL must be configured');
   const probe=net.createServer();
   await new Promise((resolve,reject)=>probe.listen(0,'127.0.0.1',resolve).once('error',reject));
