@@ -80,4 +80,18 @@ test('Collabzy API supports registration, campaign publishing and application wo
   assert.equal(login.status,200);
   const invalid=await fetch(base+'/api/auth/register',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({name:'No email',email:'bad',password:'TestPassword123!',role:'creator'})});
   assert.equal(invalid.status,400);
+  const exportResponse=await fetch(base+'/api/me/export',{headers:{authorization:'Bearer '+creator.token}});
+  assert.equal(exportResponse.status,200);
+  const accountExport=await exportResponse.json();
+  assert.equal(accountExport.profile.email,email);
+  assert.ok(Array.isArray(accountExport.messages),'account export should include conversation messages');
+  const badPassword=await fetch(base+'/api/me/password',{method:'PATCH',headers:{'content-type':'application/json',authorization:'Bearer '+creator.token},body:JSON.stringify({current_password:'wrong-password',new_password:'NextPassword123!'})});
+  assert.equal(badPassword.status,400,'password changes require the correct current password');
+  const changePassword=await fetch(base+'/api/me/password',{method:'PATCH',headers:{'content-type':'application/json',authorization:'Bearer '+creator.token},body:JSON.stringify({current_password:'TestPassword123!',new_password:'NextPassword123!'})});
+  assert.equal(changePassword.status,200);
+  const oldPasswordLogin=await fetch(base+'/api/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email,password:'TestPassword123!'})});
+  assert.equal(oldPasswordLogin.status,401);
+  const newPasswordLogin=await fetch(base+'/api/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email,password:'NextPassword123!'})});
+  assert.equal(newPasswordLogin.status,200);
+
 });
