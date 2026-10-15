@@ -588,7 +588,6 @@ private fun CollabzyNativeApp(activity: MainActivity, oauthResult: String?, clea
                     campaigns = campaigns,
                     saved = saved,
                     savedCount = savedCampaigns.size,
-                    onOpenSaved = { screen = "saved" },
                     onSearch = { query, category ->
                         perform {
                             var path = "/campaigns"
