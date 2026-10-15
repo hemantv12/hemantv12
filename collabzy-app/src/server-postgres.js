@@ -71,6 +71,15 @@ async function start(PORT,SECRET){
   }
   await pool.query("INSERT INTO conversations(application_id,creator_id,brand_id) SELECT a.id,a.creator_id,c.brand_id FROM applications a JOIN campaigns c ON c.id=a.campaign_id ON CONFLICT(application_id) DO NOTHING");
   if(process.env.NODE_ENV==='production'&&process.env.SEED_DEMO_DATA!=='true')await pool.query('DELETE FROM users WHERE email=$1',['hello@collabzy.demo']);
+  // Optional owner-controlled QA identity. Disabled unless all three protected settings are supplied.
+  // This creates only a low-privilege creator account; it does not open public registration.
+  if(process.env.COLLABZY_TEST_ACCOUNT_ENABLED==='true'){
+    const testEmail=validEmail(process.env.COLLABZY_TEST_ACCOUNT_EMAIL);
+    const testHash=String(process.env.COLLABZY_TEST_ACCOUNT_PASSWORD_HASH||'');
+    if(!testEmail||!/^\\$2[aby]\\$\\d\\d\\$/.test(testHash))throw Error('The gated Collabzy test account requires a valid email and bcrypt password hash.');
+    await pool.query("INSERT INTO users(name,email,password_hash,role,niche,bio,location,email_verified_at) VALUES($1,$2,$3,'creator',$4,$5,$6,CURRENT_TIMESTAMP) ON CONFLICT(email) DO UPDATE SET name=EXCLUDED.name,password_hash=EXCLUDED.password_hash,role=EXCLUDED.role,email_verified_at=COALESCE(users.email_verified_at,CURRENT_TIMESTAMP)",["Collabzy Test Creator",testEmail,testHash,"Lifestyle","Dedicated QA account; not a public customer profile.","India"]);
+    console.log('Dedicated creator QA account initialized; credentials are not logged.');
+  }
   app.disable('x-powered-by');
   app.use((req,res,next)=>{res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('X-Frame-Options','DENY');res.setHeader('Referrer-Policy','strict-origin-when-cross-origin');res.setHeader('Permissions-Policy','camera=(), microphone=(), geolocation=()');next()});
   app.use(cors({origin:(origin,cb)=>{if(!origin||origin.startsWith('http://localhost')||origin.startsWith('https://localhost')||origin.startsWith('http://127.0.0.1')||origin==='https://collabzy-api.onrender.com'||origin==='capacitor://localhost')return cb(null,true);return cb(null,false)},credentials:false}));
