@@ -50,6 +50,11 @@ async function start(PORT,SECRET){
   await pool.query("CREATE INDEX IF NOT EXISTS notifications_user_idx ON notifications(user_id,read_at,id)");
   await pool.query("CREATE TABLE IF NOT EXISTS campaign_invitations(id BIGSERIAL PRIMARY KEY,campaign_id BIGINT NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,brand_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,creator_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,message TEXT NOT NULL DEFAULT '',status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN('pending','accepted','declined')),created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,UNIQUE(campaign_id,creator_id))");
   await pool.query("CREATE INDEX IF NOT EXISTS invitations_creator_idx ON campaign_invitations(creator_id,status,id)");
+  await pool.query('CREATE INDEX IF NOT EXISTS campaigns_status_created_idx ON campaigns(status,created_at DESC,id DESC)');
+  await pool.query('CREATE INDEX IF NOT EXISTS campaigns_brand_status_idx ON campaigns(brand_id,status,created_at DESC)');
+  await pool.query('CREATE INDEX IF NOT EXISTS applications_creator_created_idx ON applications(creator_id,created_at DESC)');
+  await pool.query('CREATE INDEX IF NOT EXISTS applications_campaign_status_idx ON applications(campaign_id,status,created_at DESC)');
+  await pool.query('CREATE INDEX IF NOT EXISTS saved_campaigns_user_created_idx ON saved_campaigns(user_id,created_at DESC)');
   await pool.query("INSERT INTO conversations(application_id,creator_id,brand_id) SELECT a.id,a.creator_id,c.brand_id FROM applications a JOIN campaigns c ON c.id=a.campaign_id ON CONFLICT(application_id) DO NOTHING");
   app.disable('x-powered-by');
   app.use((req,res,next)=>{res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('X-Frame-Options','DENY');res.setHeader('Referrer-Policy','strict-origin-when-cross-origin');res.setHeader('Permissions-Policy','camera=(), microphone=(), geolocation=()');next()});
