@@ -11,6 +11,20 @@ permissions:
 jobs:
   build-apk:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: collabzy_test
+          POSTGRES_PASSWORD: collabzy_test_password
+          POSTGRES_DB: collabzy_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U collabzy_test -d collabzy_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     defaults:
       run:
         working-directory: collabzy-app
@@ -30,6 +44,11 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Test backend API
         run: npm test
+      - name: Test PostgreSQL production backend
+        env:
+          DATABASE_URL: postgresql://collabzy_test:collabzy_test_password@localhost:5432/collabzy_test
+          PGSSLMODE: disable
+        run: npm run test:postgres
       - name: Generate Android project
         run: npx cap add android
       - name: Sync Capacitor
