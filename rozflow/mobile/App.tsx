@@ -25,7 +25,9 @@ type AddKind = 'task' | 'habit' | 'bill' | 'expense' | null;
 type Priority = 'High' | 'Medium' | 'Low';
 type ChatMessage = { id: string; role: 'assistant' | 'user'; text: string };
 type SmartBriefing = { title: string; body: string; action: string; screen: Screen; icon: keyof typeof Feather.glyphMap; tone: string };
-type Task = { id: number; title: string; note: string; dueDate: string; priority: Priority; done: number; createdAt: string; notificationId?: string | null };
+type Task = { id: number; title: string; note: string; dueDate: string; priority: Priority; done: number; createdAt: string; completedAt?: string | null; notificationId?: string | null };
+type EnergyLevel = 'Low' | 'Balanced' | 'High';
+type RoutineKind = 'morning' | 'evening' | 'weekly';
 type Habit = { id: number; title: string; icon: string; tint: string; createdAt: string };
 type HabitLog = { habit_id: number; day: string };
 type Bill = { id: number; title: string; amount: number; dueDate: string; repeatEvery: 'Never' | 'Monthly' | 'Yearly'; notificationId: string | null; createdAt: string };
@@ -160,6 +162,10 @@ function AppContent() {
   const [focusEndAt, setFocusEndAt] = useState<number | null>(null);
   const [secondsLeft, setSecondsLeft] = useState(25 * 60);
   const [focusToday, setFocusToday] = useState(0);
+  const [focusWeek, setFocusWeek] = useState(0);
+  const [dailyEnergy, setDailyEnergy] = useState<EnergyLevel>('Balanced');
+  const [dailyDigestEnabled, setDailyDigestEnabled] = useState(false);
+  const [dailyDigestId, setDailyDigestId] = useState<string | null>(null);
   const [expenseFilter, setExpenseFilter] = useState<'Month' | 'Today'>('Month');
   const [budgetDraft, setBudgetDraft] = useState('15000');
   const [search, setSearch] = useState('');
@@ -177,7 +183,7 @@ function AppContent() {
       dbRef.current = db;
       await db.execAsync(`
         PRAGMA journal_mode = WAL;
-        CREATE TABLE IF NOT EXISTS tasks (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, note TEXT NOT NULL DEFAULT '', dueDate TEXT NOT NULL, priority TEXT NOT NULL DEFAULT 'Medium', done INTEGER NOT NULL DEFAULT 0, createdAt TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS tasks (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, note TEXT NOT NULL DEFAULT '', dueDate TEXT NOT NULL, priority TEXT NOT NULL DEFAULT 'Medium', done INTEGER NOT NULL DEFAULT 0, createdAt TEXT NOT NULL, completedAt TEXT, notificationId TEXT);
         CREATE TABLE IF NOT EXISTS habits (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, icon TEXT NOT NULL, tint TEXT NOT NULL, createdAt TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS habit_logs (habit_id INTEGER NOT NULL, day TEXT NOT NULL, PRIMARY KEY (habit_id, day));
         CREATE TABLE IF NOT EXISTS bills (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, amount REAL NOT NULL, dueDate TEXT NOT NULL, repeatEvery TEXT NOT NULL DEFAULT 'Monthly', notificationId TEXT, createdAt TEXT NOT NULL);
@@ -185,28 +191,44 @@ function AppContent() {
         CREATE TABLE IF NOT EXISTS focus_sessions (id INTEGER PRIMARY KEY AUTOINCREMENT, minutes INTEGER NOT NULL, day TEXT NOT NULL, completedAt TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL);
       `);
-      // Safe migration: older RozFlow installs did not store local task notification IDs.
-      try { await db.execAsync('ALTER TABLE tasks ADD COLUMN notificationId TEXT'); } catch { /* Column already exists on newer installs. */ }
+      // Safe migrations: preserve user-created tasks from the earlier RozFlow releases.
+      try { await db.execAsync('ALTER TABLE tasks ADD COLUMN notificationId TEXT'); } catch { /* Already present. */ }
+      try { await db.execAsync('ALTER TABLE tasks ADD COLUMN completedAt TEXT'); } catch { /* Already present. */ }
     }
     return fn(db);
   }, []);
 
   const refreshData = useCallback(async () => {
     const data = await withDb(async (db) => {
-      const [nextTasks, nextHabits, nextLogs, nextBills, nextExpenses, focus, savedBudget] = await Promise.all([
+      const currentDay = localDay();
+      const weekStart = dayOffset(-6);
+      const [nextTasks, nextHabits, nextLogs, nextBills, nextExpenses, focus, weekFocus, savedBudget, energySetting, digestSetting, digestIdSetting] = await Promise.all([
         db.getAllAsync<Task>('SELECT * FROM tasks ORDER BY done ASC, dueDate ASC, CASE priority WHEN "High" THEN 0 WHEN "Medium" THEN 1 ELSE 2 END, id DESC'),
         db.getAllAsync<Habit>('SELECT * FROM habits ORDER BY id ASC'),
         db.getAllAsync<HabitLog>('SELECT * FROM habit_logs'),
         db.getAllAsync<Bill>('SELECT * FROM bills ORDER BY dueDate ASC, id DESC'),
         db.getAllAsync<Expense>('SELECT * FROM expenses ORDER BY day DESC, id DESC'),
-        db.getFirstAsync<{ total: number | null }>('SELECT SUM(minutes) AS total FROM focus_sessions WHERE day = ?', localDay()),
+        db.getFirstAsync<{ total: number | null }>('SELECT SUM(minutes) AS total FROM focus_sessions WHERE day = ?', currentDay),
+        db.getFirstAsync<{ total: number | null }>('SELECT SUM(minutes) AS total FROM focus_sessions WHERE day >= ? AND day <= ?', weekStart, currentDay),
         db.getFirstAsync<{ value: string }>('SELECT value FROM settings WHERE key = "monthlyBudget"'),
+        db.getFirstAsync<{ value: string }>('SELECT value FROM settings WHERE key = ?', 'dailyEnergy-' + currentDay),
+        db.getFirstAsync<{ value: string }>('SELECT value FROM settings WHERE key = "dailyDigestEnabled"'),
+        db.getFirstAsync<{ value: string }>('SELECT value FROM settings WHERE key = "dailyDigestNotificationId"'),
       ]);
-      return { nextTasks, nextHabits, nextLogs, nextBills, nextExpenses, focus: focus?.total ?? 0, budget: savedBudget?.value ?? '15000' };
+      return {
+        nextTasks, nextHabits, nextLogs, nextBills, nextExpenses,
+        focus: focus?.total ?? 0, weekFocus: weekFocus?.total ?? 0,
+        budget: savedBudget?.value ?? '15000',
+        energy: (energySetting?.value as EnergyLevel | undefined) ?? 'Balanced',
+        digestEnabled: digestSetting?.value === 'true',
+        digestId: digestIdSetting?.value ?? null,
+      };
     });
     setTasks(data.nextTasks); setHabits(data.nextHabits); setHabitLogs(data.nextLogs);
-    setBills(data.nextBills); setExpenses(data.nextExpenses); setFocusToday(data.focus);
+    setBills(data.nextBills); setExpenses(data.nextExpenses); setFocusToday(data.focus); setFocusWeek(data.weekFocus);
     setBudget(data.budget); setBudgetDraft(data.budget);
+    setDailyEnergy(data.energy === 'Low' || data.energy === 'High' ? data.energy : 'Balanced');
+    setDailyDigestEnabled(data.digestEnabled); setDailyDigestId(data.digestId);
   }, [withDb]);
 
   useEffect(() => {
@@ -287,16 +309,25 @@ function AppContent() {
   const nextBill = bills.filter((bill) => bill.dueDate >= today).sort((a, b) => a.dueDate.localeCompare(b.dueDate))[0];
   const billDueSoon = nextBill && daysFromToday(nextBill.dueDate) <= 3;
   const budgetUsedPercent = budgetNumber > 0 ? Math.round(spentThisMonth / budgetNumber * 100) : 0;
+  const weekStart = dayOffset(-6);
+  const weeklyTasksCompleted = tasks.filter((task) => task.completedAt && task.completedAt.slice(0, 10) >= weekStart && task.completedAt.slice(0, 10) <= today).length;
+  const weeklyHabitsChecked = habitLogs.filter((log) => log.day >= weekStart && log.day <= today).length;
+  const weeklySpending = expenses.filter((item) => item.day >= weekStart && item.day <= today).reduce((sum, item) => sum + item.amount, 0);
+  const daysElapsed = new Date().getDate();
+  const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
+  const projectedMonthSpend = spentThisMonth / Math.max(1, daysElapsed) * daysInMonth;
+  const forecastReliable = monthExpenses.length >= 3 && daysElapsed >= 5;
   const smartBriefing: SmartBriefing = useMemo(() => {
     if (overdueTasks.length) return { title: 'Clear one overdue task', body: overdueTasks[0].title + ' is past its due date. Spend 10–15 minutes on the next step, or update its date if plans changed.', action: 'Open planner', screen: 'Plan', icon: 'alert-circle', tone: 'amber' };
     if (budgetNumber > 0 && spentThisMonth >= budgetNumber) return { title: 'Your monthly guide has been reached', body: 'You have logged ' + money(spentThisMonth) + ' against ' + money(budgetNumber) + '. Review the biggest categories before the next purchase.', action: 'Review spending', screen: 'Money', icon: 'trending-up', tone: 'red' };
     if (budgetNumber > 0 && budgetUsedPercent >= 80) return { title: 'Keep an eye on spending', body: budgetUsedPercent + '% of your monthly guide is used. ' + money(Math.max(0, remainingBudget)) + ' remains in your personal target.', action: 'Open money', screen: 'Money', icon: 'pie-chart', tone: 'amber' };
     if (billDueSoon && nextBill) return { title: 'A bill is coming up', body: nextBill.title + ' · ' + money(nextBill.amount) + ' due ' + (daysFromToday(nextBill.dueDate) === 0 ? 'today' : dateLabel(nextBill.dueDate) + ' (' + daysFromToday(nextBill.dueDate) + ' days)') + '. Review it before the date.', action: 'Review bills', screen: 'Plan', icon: 'bell', tone: 'blue' };
+    if (dailyEnergy === 'Low' && nextTask) return { title: 'Keep today intentionally light', body: 'You marked your energy as low. Start with one small step: ' + nextTask.title + '. A 15-minute focus session is enough to build momentum.', action: 'Start a short focus', screen: 'Focus', icon: 'coffee', tone: 'violet' };
     if (nextTask) return { title: 'Your next best move', body: nextTask.title + ' is your nearest open task. A short focused session is usually easier than waiting for a perfect moment.', action: 'Start focus', screen: 'Focus', icon: 'target', tone: 'green' };
     const habitToCheck = habits.find((habit) => !habitLogs.some((log) => log.habit_id === habit.id && log.day === today));
     if (habitToCheck) return { title: 'Make your habit easy to finish', body: 'A quick check-in for “' + habitToCheck.title + '” will keep your streak moving.', action: 'Check habits', screen: 'Habits', icon: 'activity', tone: 'violet' };
     return { title: 'You have room to plan ahead', body: 'Your saved details look calm right now. Capture tomorrow’s top priority or take a short focus session while your schedule is clear.', action: 'Plan next step', screen: 'AI', icon: 'zap', tone: 'green' };
-  }, [overdueTasks, budgetNumber, spentThisMonth, budgetUsedPercent, remainingBudget, billDueSoon, nextBill, nextTask, habits, habitLogs, today]);
+  }, [overdueTasks, budgetNumber, spentThisMonth, budgetUsedPercent, remainingBudget, billDueSoon, nextBill, nextTask, habits, habitLogs, today, dailyEnergy]);
 
   const filteredTasks = tasks.filter((task) => (search.trim() === '' || (task.title + ' ' + task.note).toLowerCase().includes(search.toLowerCase())));
   const visibleExpenses = expenseFilter === 'Today' ? todayExpenses : monthExpenses;
@@ -334,10 +365,10 @@ function AppContent() {
     try {
       if (task.done === 0) {
         if (task.notificationId) await Notifications.cancelScheduledNotificationAsync(task.notificationId).catch(() => undefined);
-        await withDb((db) => db.runAsync('UPDATE tasks SET done = 1, notificationId = NULL WHERE id = ?', task.id).then(() => undefined));
+        await withDb((db) => db.runAsync('UPDATE tasks SET done = 1, completedAt = ?, notificationId = NULL WHERE id = ?', new Date().toISOString(), task.id).then(() => undefined));
       } else {
         const notificationId = await scheduleTaskReminder(task);
-        await withDb((db) => db.runAsync('UPDATE tasks SET done = 0, notificationId = ? WHERE id = ?', notificationId, task.id).then(() => undefined));
+        await withDb((db) => db.runAsync('UPDATE tasks SET done = 0, completedAt = NULL, notificationId = ? WHERE id = ?', notificationId, task.id).then(() => undefined));
       }
       await refreshData();
     } catch { Alert.alert('Could not update task', 'Your saved tasks are unchanged. Please try again.'); }
