@@ -102,6 +102,26 @@ test('PostgreSQL production backend supports creator-brand collaboration workflo
   assert.equal((await exportResponse.json()).profile.email,creator.user.email);
   const badTokenFields=await (await fetch(base+'/api/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:creator.user.email,password:'TestPassword123!'})})).json();
   assert.equal(Object.hasOwn(badTokenFields.user,'instagram_access_token_enc'),false);
+  const billingStatusResponse=await fetch(base+'/api/billing/status',{headers:{authorization:'Bearer '+creator.token}});
+  assert.equal(billingStatusResponse.status,200,'subscription status is available after sign-in');
+  const billingStatus=await billingStatusResponse.json();
+  assert.equal(billingStatus.active,false,'new test accounts must not receive a paid subscription by default');
+  assert.equal(billingStatus.plan_code,'','no subscription should be claimed before verified payment');
+  const publicConfig=await (await fetch(base+'/api/public-config')).json();
+  assert.equal(publicConfig.annualPlan?.code,'creator_annual_299');
+  assert.equal(publicConfig.annualPlan?.amount,299);
+  assert.equal(publicConfig.annualPlan?.durationDays,365);
+  if(!process.env.RAZORPAY_KEY_ID||!process.env.RAZORPAY_KEY_SECRET){
+    const noCheckout=await fetch(base+'/api/billing/order',{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+creator.token},body:JSON.stringify({plan_code:'creator_annual_299'})});
+    assert.equal(noCheckout.status,503,'checkout must be fail-closed without merchant credentials');
+  }
+  if(!process.env.OPENAI_API_KEY){
+    const noAI=await fetch(base+'/api/instagram/ai-analysis',{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+creator.token},body:JSON.stringify({confirmed_ai_disclosure:true})});
+    assert.equal(noAI.status,503,'AI analysis must be fail-closed without the provider key');
+  } else {
+    const noProAI=await fetch(base+'/api/instagram/ai-analysis',{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+creator.token},body:JSON.stringify({confirmed_ai_disclosure:true})});
+    assert.equal(noProAI.status,402,'an unpaid account must not access AI analysis');
+  }
   const health2=await (await fetch(base+'/api/health')).json();
   assert.equal(health2.mode,'postgres-persistent');
 
