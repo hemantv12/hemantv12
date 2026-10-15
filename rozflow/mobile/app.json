@@ -1,0 +1,22 @@
+{
+  "expo": {
+    "name": "RozFlow",
+    "slug": "rozflow",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "android": {
+      "package": "app.rozflow.daily",
+      "versionCode": 1,
+      "edgeToEdgeEnabled": true
+    },
+    "plugins": [
+      "expo-sqlite",
+      ["expo-notifications", { "color": "#13A879" }]
+    ],
+    "extra": {
+      "product": "Daily Life OS",
+      "privacy": "local-first-no-account-no-gmail"
+    }
+  }
+}
