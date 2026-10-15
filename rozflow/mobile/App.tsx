@@ -80,8 +80,17 @@ function streakFor(habitId: number, logs: HabitLog[]) {
 }
 function nextDate(day: string, repeat: 'Monthly' | 'Yearly') {
   const date = dayDate(day);
-  if (repeat === 'Monthly') date.setMonth(date.getMonth() + 1);
-  else date.setFullYear(date.getFullYear() + 1);
+  const originalDay = date.getDate();
+  if (repeat === 'Monthly') {
+    date.setDate(1);
+    date.setMonth(date.getMonth() + 1);
+    const lastDay = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+    date.setDate(Math.min(originalDay, lastDay));
+  } else {
+    const month = date.getMonth();
+    date.setFullYear(date.getFullYear() + 1);
+    if (date.getMonth() !== month) date.setDate(0);
+  }
   return localDay(date);
 }
 function friendlyHour() {
@@ -162,7 +171,7 @@ function AppContent() {
         db.getAllAsync<Habit>('SELECT * FROM habits ORDER BY id ASC'),
         db.getAllAsync<HabitLog>('SELECT * FROM habit_logs'),
         db.getAllAsync<Bill>('SELECT * FROM bills ORDER BY dueDate ASC, id DESC'),
-        db.getAllAsync<Expense>('SELECT * FROM expenses ORDER BY day DESC, id DESC LIMIT 100'),
+        db.getAllAsync<Expense>('SELECT * FROM expenses ORDER BY day DESC, id DESC'),
         db.getFirstAsync<{ total: number | null }>('SELECT SUM(minutes) AS total FROM focus_sessions WHERE day = ?', localDay()),
         db.getFirstAsync<{ value: string }>('SELECT value FROM settings WHERE key = "monthlyBudget"'),
       ]);
@@ -175,6 +184,11 @@ function AppContent() {
 
   useEffect(() => {
     let mounted = true;
+    void Notifications.setNotificationChannelAsync('default', {
+      name: 'Bill reminders',
+      importance: Notifications.AndroidImportance.DEFAULT,
+      vibrationPattern: [0, 220, 120, 220],
+    }).catch((error) => console.warn('Could not prepare bill reminder channel', error));
     const entrance = Animated.parallel([
       Animated.sequence([
         Animated.spring(splashScale, { toValue: 1.08, speed: 11, bounciness: 7, useNativeDriver: true }),
@@ -325,8 +339,12 @@ function AppContent() {
         if (!Number.isFinite(amount) || amount <= 0 || amount > 100000000) { Alert.alert('Check the amount', 'Enter a valid amount greater than zero.'); return; }
         if (!validDay(form.date)) { Alert.alert('Check the due date', 'Use YYYY-MM-DD, for example 2026-10-20.'); return; }
         const data = { title: form.title.trim(), amount, dueDate: form.date };
+        const billId = await withDb(async (db) => {
+          const result = await db.runAsync('INSERT INTO bills (title, amount, dueDate, repeatEvery, notificationId, createdAt) VALUES (?, ?, ?, ?, NULL, ?)', data.title, amount, data.dueDate, form.repeatEvery, new Date().toISOString());
+          return result.lastInsertRowId;
+        });
         const notificationId = await scheduleBillReminder(data);
-        await withDb((db) => db.runAsync('INSERT INTO bills (title, amount, dueDate, repeatEvery, notificationId, createdAt) VALUES (?, ?, ?, ?, ?, ?)', data.title, amount, data.dueDate, form.repeatEvery, notificationId, new Date().toISOString()).then(() => undefined));
+        if (notificationId) await withDb((db) => db.runAsync('UPDATE bills SET notificationId = ? WHERE id = ?', notificationId, billId).then(() => undefined));
       } else if (addKind === 'expense') {
         const amount = Number(form.amount.replace(/,/g, '').trim());
         if (!Number.isFinite(amount) || amount <= 0 || amount > 100000000) { Alert.alert('Check the amount', 'Enter a valid amount greater than zero.'); return; }
@@ -383,7 +401,9 @@ function AppContent() {
         focusSessions: await db.getAllAsync('SELECT * FROM focus_sessions'),
         settings: await db.getAllAsync('SELECT * FROM settings'),
       }));
-      const uri = FileSystem.cacheDirectory + `rozflow-backup-${today}.json`;
+      const cacheDirectory = FileSystem.cacheDirectory;
+      if (!cacheDirectory) throw new Error('The app cache directory is unavailable.');
+      const uri = cacheDirectory + `rozflow-backup-${today}.json`;
       await FileSystem.writeAsStringAsync(uri, JSON.stringify(data, null, 2), { encoding: FileSystem.EncodingType.UTF8 });
       if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(uri, { mimeType: 'application/json', dialogTitle: 'Save your RozFlow backup' });
       else Alert.alert('Backup created', 'The backup was created in the app cache, but device sharing is unavailable.');
