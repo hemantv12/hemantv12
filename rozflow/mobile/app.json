@@ -2,12 +2,12 @@
   "expo": {
     "name": "RozFlow",
     "slug": "rozflow",
-    "version": "2.0.0",
+    "version": "3.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "android": {
       "package": "app.rozflow.daily",
-      "versionCode": 2,
+      "versionCode": 3,
       "edgeToEdgeEnabled": true
     },
     "plugins": [

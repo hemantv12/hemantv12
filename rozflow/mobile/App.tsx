@@ -25,7 +25,9 @@ type AddKind = 'task' | 'habit' | 'bill' | 'expense' | null;
 type Priority = 'High' | 'Medium' | 'Low';
 type ChatMessage = { id: string; role: 'assistant' | 'user'; text: string };
 type SmartBriefing = { title: string; body: string; action: string; screen: Screen; icon: keyof typeof Feather.glyphMap; tone: string };
-type Task = { id: number; title: string; note: string; dueDate: string; priority: Priority; done: number; createdAt: string; notificationId?: string | null };
+type Task = { id: number; title: string; note: string; dueDate: string; priority: Priority; done: number; createdAt: string; completedAt?: string | null; notificationId?: string | null };
+type EnergyLevel = 'Low' | 'Balanced' | 'High';
+type RoutineKind = 'morning' | 'evening' | 'weekly';
 type Habit = { id: number; title: string; icon: string; tint: string; createdAt: string };
 type HabitLog = { habit_id: number; day: string };
 type Bill = { id: number; title: string; amount: number; dueDate: string; repeatEvery: 'Never' | 'Monthly' | 'Yearly'; notificationId: string | null; createdAt: string };
@@ -160,6 +162,10 @@ function AppContent() {
   const [focusEndAt, setFocusEndAt] = useState<number | null>(null);
   const [secondsLeft, setSecondsLeft] = useState(25 * 60);
   const [focusToday, setFocusToday] = useState(0);
+  const [focusWeek, setFocusWeek] = useState(0);
+  const [dailyEnergy, setDailyEnergy] = useState<EnergyLevel>('Balanced');
+  const [dailyDigestEnabled, setDailyDigestEnabled] = useState(false);
+  const [dailyDigestId, setDailyDigestId] = useState<string | null>(null);
   const [expenseFilter, setExpenseFilter] = useState<'Month' | 'Today'>('Month');
   const [budgetDraft, setBudgetDraft] = useState('15000');
   const [search, setSearch] = useState('');
@@ -177,7 +183,7 @@ function AppContent() {
       dbRef.current = db;
       await db.execAsync(`
         PRAGMA journal_mode = WAL;
-        CREATE TABLE IF NOT EXISTS tasks (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, note TEXT NOT NULL DEFAULT '', dueDate TEXT NOT NULL, priority TEXT NOT NULL DEFAULT 'Medium', done INTEGER NOT NULL DEFAULT 0, createdAt TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS tasks (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, note TEXT NOT NULL DEFAULT '', dueDate TEXT NOT NULL, priority TEXT NOT NULL DEFAULT 'Medium', done INTEGER NOT NULL DEFAULT 0, createdAt TEXT NOT NULL, completedAt TEXT, notificationId TEXT);
         CREATE TABLE IF NOT EXISTS habits (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, icon TEXT NOT NULL, tint TEXT NOT NULL, createdAt TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS habit_logs (habit_id INTEGER NOT NULL, day TEXT NOT NULL, PRIMARY KEY (habit_id, day));
         CREATE TABLE IF NOT EXISTS bills (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, amount REAL NOT NULL, dueDate TEXT NOT NULL, repeatEvery TEXT NOT NULL DEFAULT 'Monthly', notificationId TEXT, createdAt TEXT NOT NULL);
@@ -185,28 +191,44 @@ function AppContent() {
         CREATE TABLE IF NOT EXISTS focus_sessions (id INTEGER PRIMARY KEY AUTOINCREMENT, minutes INTEGER NOT NULL, day TEXT NOT NULL, completedAt TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL);
       `);
-      // Safe migration: older RozFlow installs did not store local task notification IDs.
-      try { await db.execAsync('ALTER TABLE tasks ADD COLUMN notificationId TEXT'); } catch { /* Column already exists on newer installs. */ }
+      // Safe migrations: preserve user-created tasks from the earlier RozFlow releases.
+      try { await db.execAsync('ALTER TABLE tasks ADD COLUMN notificationId TEXT'); } catch { /* Already present. */ }
+      try { await db.execAsync('ALTER TABLE tasks ADD COLUMN completedAt TEXT'); } catch { /* Already present. */ }
     }
     return fn(db);
   }, []);
 
   const refreshData = useCallback(async () => {
     const data = await withDb(async (db) => {
-      const [nextTasks, nextHabits, nextLogs, nextBills, nextExpenses, focus, savedBudget] = await Promise.all([
+      const currentDay = localDay();
+      const weekStart = dayOffset(-6);
+      const [nextTasks, nextHabits, nextLogs, nextBills, nextExpenses, focus, weekFocus, savedBudget, energySetting, digestSetting, digestIdSetting] = await Promise.all([
         db.getAllAsync<Task>('SELECT * FROM tasks ORDER BY done ASC, dueDate ASC, CASE priority WHEN "High" THEN 0 WHEN "Medium" THEN 1 ELSE 2 END, id DESC'),
         db.getAllAsync<Habit>('SELECT * FROM habits ORDER BY id ASC'),
         db.getAllAsync<HabitLog>('SELECT * FROM habit_logs'),
         db.getAllAsync<Bill>('SELECT * FROM bills ORDER BY dueDate ASC, id DESC'),
         db.getAllAsync<Expense>('SELECT * FROM expenses ORDER BY day DESC, id DESC'),
-        db.getFirstAsync<{ total: number | null }>('SELECT SUM(minutes) AS total FROM focus_sessions WHERE day = ?', localDay()),
+        db.getFirstAsync<{ total: number | null }>('SELECT SUM(minutes) AS total FROM focus_sessions WHERE day = ?', currentDay),
+        db.getFirstAsync<{ total: number | null }>('SELECT SUM(minutes) AS total FROM focus_sessions WHERE day >= ? AND day <= ?', weekStart, currentDay),
         db.getFirstAsync<{ value: string }>('SELECT value FROM settings WHERE key = "monthlyBudget"'),
+        db.getFirstAsync<{ value: string }>('SELECT value FROM settings WHERE key = ?', 'dailyEnergy-' + currentDay),
+        db.getFirstAsync<{ value: string }>('SELECT value FROM settings WHERE key = "dailyDigestEnabled"'),
+        db.getFirstAsync<{ value: string }>('SELECT value FROM settings WHERE key = "dailyDigestNotificationId"'),
       ]);
-      return { nextTasks, nextHabits, nextLogs, nextBills, nextExpenses, focus: focus?.total ?? 0, budget: savedBudget?.value ?? '15000' };
+      return {
+        nextTasks, nextHabits, nextLogs, nextBills, nextExpenses,
+        focus: focus?.total ?? 0, weekFocus: weekFocus?.total ?? 0,
+        budget: savedBudget?.value ?? '15000',
+        energy: (energySetting?.value as EnergyLevel | undefined) ?? 'Balanced',
+        digestEnabled: digestSetting?.value === 'true',
+        digestId: digestIdSetting?.value ?? null,
+      };
     });
     setTasks(data.nextTasks); setHabits(data.nextHabits); setHabitLogs(data.nextLogs);
-    setBills(data.nextBills); setExpenses(data.nextExpenses); setFocusToday(data.focus);
+    setBills(data.nextBills); setExpenses(data.nextExpenses); setFocusToday(data.focus); setFocusWeek(data.weekFocus);
     setBudget(data.budget); setBudgetDraft(data.budget);
+    setDailyEnergy(data.energy === 'Low' || data.energy === 'High' ? data.energy : 'Balanced');
+    setDailyDigestEnabled(data.digestEnabled); setDailyDigestId(data.digestId);
   }, [withDb]);
 
   useEffect(() => {
@@ -287,16 +309,25 @@ function AppContent() {
   const nextBill = bills.filter((bill) => bill.dueDate >= today).sort((a, b) => a.dueDate.localeCompare(b.dueDate))[0];
   const billDueSoon = nextBill && daysFromToday(nextBill.dueDate) <= 3;
   const budgetUsedPercent = budgetNumber > 0 ? Math.round(spentThisMonth / budgetNumber * 100) : 0;
+  const weekStart = dayOffset(-6);
+  const weeklyTasksCompleted = tasks.filter((task) => task.completedAt && task.completedAt.slice(0, 10) >= weekStart && task.completedAt.slice(0, 10) <= today).length;
+  const weeklyHabitsChecked = habitLogs.filter((log) => log.day >= weekStart && log.day <= today).length;
+  const weeklySpending = expenses.filter((item) => item.day >= weekStart && item.day <= today).reduce((sum, item) => sum + item.amount, 0);
+  const daysElapsed = new Date().getDate();
+  const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
+  const projectedMonthSpend = spentThisMonth / Math.max(1, daysElapsed) * daysInMonth;
+  const forecastReliable = monthExpenses.length >= 3 && daysElapsed >= 5;
   const smartBriefing: SmartBriefing = useMemo(() => {
     if (overdueTasks.length) return { title: 'Clear one overdue task', body: overdueTasks[0].title + ' is past its due date. Spend 10–15 minutes on the next step, or update its date if plans changed.', action: 'Open planner', screen: 'Plan', icon: 'alert-circle', tone: 'amber' };
     if (budgetNumber > 0 && spentThisMonth >= budgetNumber) return { title: 'Your monthly guide has been reached', body: 'You have logged ' + money(spentThisMonth) + ' against ' + money(budgetNumber) + '. Review the biggest categories before the next purchase.', action: 'Review spending', screen: 'Money', icon: 'trending-up', tone: 'red' };
     if (budgetNumber > 0 && budgetUsedPercent >= 80) return { title: 'Keep an eye on spending', body: budgetUsedPercent + '% of your monthly guide is used. ' + money(Math.max(0, remainingBudget)) + ' remains in your personal target.', action: 'Open money', screen: 'Money', icon: 'pie-chart', tone: 'amber' };
     if (billDueSoon && nextBill) return { title: 'A bill is coming up', body: nextBill.title + ' · ' + money(nextBill.amount) + ' due ' + (daysFromToday(nextBill.dueDate) === 0 ? 'today' : dateLabel(nextBill.dueDate) + ' (' + daysFromToday(nextBill.dueDate) + ' days)') + '. Review it before the date.', action: 'Review bills', screen: 'Plan', icon: 'bell', tone: 'blue' };
+    if (dailyEnergy === 'Low' && nextTask) return { title: 'Keep today intentionally light', body: 'You marked your energy as low. Start with one small step: ' + nextTask.title + '. A 15-minute focus session is enough to build momentum.', action: 'Start a short focus', screen: 'Focus', icon: 'coffee', tone: 'violet' };
     if (nextTask) return { title: 'Your next best move', body: nextTask.title + ' is your nearest open task. A short focused session is usually easier than waiting for a perfect moment.', action: 'Start focus', screen: 'Focus', icon: 'target', tone: 'green' };
     const habitToCheck = habits.find((habit) => !habitLogs.some((log) => log.habit_id === habit.id && log.day === today));
     if (habitToCheck) return { title: 'Make your habit easy to finish', body: 'A quick check-in for “' + habitToCheck.title + '” will keep your streak moving.', action: 'Check habits', screen: 'Habits', icon: 'activity', tone: 'violet' };
     return { title: 'You have room to plan ahead', body: 'Your saved details look calm right now. Capture tomorrow’s top priority or take a short focus session while your schedule is clear.', action: 'Plan next step', screen: 'AI', icon: 'zap', tone: 'green' };
-  }, [overdueTasks, budgetNumber, spentThisMonth, budgetUsedPercent, remainingBudget, billDueSoon, nextBill, nextTask, habits, habitLogs, today]);
+  }, [overdueTasks, budgetNumber, spentThisMonth, budgetUsedPercent, remainingBudget, billDueSoon, nextBill, nextTask, habits, habitLogs, today, dailyEnergy]);
 
   const filteredTasks = tasks.filter((task) => (search.trim() === '' || (task.title + ' ' + task.note).toLowerCase().includes(search.toLowerCase())));
   const visibleExpenses = expenseFilter === 'Today' ? todayExpenses : monthExpenses;
@@ -334,10 +365,10 @@ function AppContent() {
     try {
       if (task.done === 0) {
         if (task.notificationId) await Notifications.cancelScheduledNotificationAsync(task.notificationId).catch(() => undefined);
-        await withDb((db) => db.runAsync('UPDATE tasks SET done = 1, notificationId = NULL WHERE id = ?', task.id).then(() => undefined));
+        await withDb((db) => db.runAsync('UPDATE tasks SET done = 1, completedAt = ?, notificationId = NULL WHERE id = ?', new Date().toISOString(), task.id).then(() => undefined));
       } else {
         const notificationId = await scheduleTaskReminder(task);
-        await withDb((db) => db.runAsync('UPDATE tasks SET done = 0, notificationId = ? WHERE id = ?', notificationId, task.id).then(() => undefined));
+        await withDb((db) => db.runAsync('UPDATE tasks SET done = 0, completedAt = NULL, notificationId = ? WHERE id = ?', notificationId, task.id).then(() => undefined));
       }
       await refreshData();
     } catch { Alert.alert('Could not update task', 'Your saved tasks are unchanged. Please try again.'); }
@@ -350,6 +381,102 @@ function AppContent() {
       await refreshData();
     } },
   ]);
+  const saveDailyEnergy = async (level: EnergyLevel) => {
+    try {
+      await withDb((db) => db.runAsync('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value', 'dailyEnergy-' + today, level).then(() => undefined));
+      setDailyEnergy(level);
+    } catch (error) {
+      console.warn('Could not save daily energy check-in', error);
+      Alert.alert('Could not save check-in', 'Your previous preference is unchanged.');
+    }
+  };
+
+  const toggleDailyBriefing = async () => {
+    try {
+      if (dailyDigestEnabled) {
+        if (dailyDigestId) await Notifications.cancelScheduledNotificationAsync(dailyDigestId).catch(() => undefined);
+        await withDb(async (db) => {
+          await db.runAsync('INSERT INTO settings (key, value) VALUES ("dailyDigestEnabled", "false") ON CONFLICT(key) DO UPDATE SET value = "false"');
+          await db.runAsync('DELETE FROM settings WHERE key = "dailyDigestNotificationId"');
+        });
+        setDailyDigestEnabled(false); setDailyDigestId(null);
+        Alert.alert('Morning brief paused', 'RozFlow will still build insights when you open the app.');
+        return;
+      }
+      let permission = await Notifications.getPermissionsAsync();
+      if (!permission.granted) permission = await Notifications.requestPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert('Notifications are off', 'Enable notifications in Android settings to receive the daily 8 AM reminder.');
+        return;
+      }
+      const notificationId = await Notifications.scheduleNotificationAsync({
+        content: {
+          title: 'Your RozFlow daily brief is ready',
+          body: 'Open RozFlow for your top priority, upcoming bills, habit check-ins and spending guide.',
+          data: { type: 'daily-brief' },
+        },
+        trigger: { type: Notifications.SchedulableTriggerInputTypes.DAILY, hour: 8, minute: 0 },
+      });
+      await withDb(async (db) => {
+        await db.runAsync('INSERT INTO settings (key, value) VALUES ("dailyDigestEnabled", "true") ON CONFLICT(key) DO UPDATE SET value = "true"');
+        await db.runAsync('INSERT INTO settings (key, value) VALUES ("dailyDigestNotificationId", ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value', notificationId);
+      });
+      setDailyDigestEnabled(true); setDailyDigestId(notificationId);
+      Alert.alert('Morning brief enabled ✨', 'Android will remind you each morning at 8 AM. Open RozFlow to see the latest personalized insights.');
+    } catch (error) {
+      console.warn('Could not configure daily brief', error);
+      Alert.alert('Could not update reminders', 'Check notification permission and try again.');
+    }
+  };
+
+  const createRoutine = async (kind: RoutineKind) => {
+    const routines: Record<RoutineKind, { label: string; tasks: { title: string; priority: Priority }[] }> = {
+      morning: { label: 'Morning launch', tasks: [
+        { title: 'Drink water and get ready', priority: 'Medium' },
+        { title: 'Review today’s top 3 priorities', priority: 'High' },
+        { title: 'Move or stretch for 10 minutes', priority: 'Low' },
+      ] },
+      evening: { label: 'Evening reset', tasks: [
+        { title: 'Review today’s wins', priority: 'Low' },
+        { title: 'Prepare tomorrow’s top priority', priority: 'Medium' },
+        { title: 'Tidy one small space for 5 minutes', priority: 'Low' },
+      ] },
+      weekly: { label: 'Weekly reset', tasks: [
+        { title: 'Review wins and unfinished tasks', priority: 'High' },
+        { title: 'Check upcoming bills and important dates', priority: 'High' },
+        { title: 'Choose next week’s top 3 outcomes', priority: 'Medium' },
+      ] },
+    };
+    const routine = routines[kind];
+    const additions = routine.tasks.filter((item) => !tasks.some((task) => task.title.toLowerCase() === item.title.toLowerCase() && task.dueDate === today && task.done === 0));
+    if (!additions.length) return { added: 0, skipped: routine.tasks.length };
+    await withDb(async (db) => {
+      for (const item of additions) {
+        await db.runAsync(
+          'INSERT INTO tasks (title, note, dueDate, priority, done, createdAt) VALUES (?, ?, ?, ?, 0, ?)',
+          item.title, 'Routine: ' + routine.label + '. Added by RozFlow Autopilot.', today, item.priority, new Date().toISOString(),
+        );
+      }
+    });
+    await refreshData();
+    return { added: additions.length, skipped: routine.tasks.length - additions.length };
+  };
+
+  const launchRoutine = async (kind: RoutineKind) => {
+    try {
+      const result = await createRoutine(kind);
+      setScreen('Plan');
+      const label = kind === 'morning' ? 'Morning launch' : kind === 'evening' ? 'Evening reset' : 'Weekly reset';
+      const message = result.added
+        ? label + ': added ' + result.added + ' task(s) to your planner.' + (result.skipped ? ' ' + result.skipped + ' already existed and were not duplicated.' : '') + ' Review the tasks and adjust anything that does not fit your day.'
+        : label + ' is already set up for today—no duplicate tasks were added.';
+      setAiMessages((current) => [...current, { id: String(Date.now()) + '-routine', role: 'assistant' as const, text: message }].slice(-14));
+    } catch (error) {
+      console.warn('Could not create routine', error);
+      Alert.alert('Could not set up routine', 'Your existing tasks remain unchanged.');
+    }
+  };
+
   const toggleHabit = async (habit: Habit) => {
     const alreadyDone = habitLogs.some((log) => log.habit_id === habit.id && log.day === today);
     await withDb((db) => alreadyDone
@@ -648,6 +775,31 @@ function AppContent() {
     let answer = '';
     const reply = (text: string) => setAiMessages((current) => [...current, { id: String(Date.now()) + '-a', role: 'assistant' as const, text }].slice(-14));
     try {
+      if (/\b(morning routine|start my morning|morning launch|subah ki routine)\b/.test(lower)) {
+        const result = await createRoutine('morning');
+        answer = result.added ? 'Morning launch is ready: ' + result.added + ' tasks added to today’s planner. ' + (result.skipped ? result.skipped + ' existing task(s) were left alone.' : '') : 'Your morning launch tasks are already in the planner. No duplicates created.';
+        setScreen('Plan');
+      } else if (/\b(evening routine|evening reset|night routine|raat ki routine)\b/.test(lower)) {
+        const result = await createRoutine('evening');
+        answer = result.added ? 'Evening reset is ready: ' + result.added + ' small tasks added to today’s planner.' : 'Your evening reset tasks are already in the planner. No duplicates created.';
+        setScreen('Plan');
+      } else if (/\b(weekly reset|plan my week|weekly review|week reset)\b/.test(lower)) {
+        const result = await createRoutine('weekly');
+        answer = result.added ? 'Weekly reset is ready: ' + result.added + ' planning tasks added. Your weekly review summary is visible below the conversation.' : 'Your weekly reset tasks are already in the planner. No duplicates created.';
+        setScreen('Plan');
+      } else if (/\b(energy check|low energy|energy is low)\b/.test(lower)) {
+        await saveDailyEnergy('Low');
+        answer = 'Got it. I’ll keep your next-step suggestion lighter today. Your choice is saved on this phone.';
+      } else if (/\b(high energy|lots of energy|energy is high)\b/.test(lower)) {
+        await saveDailyEnergy('High');
+        answer = 'Energy set to high. I’ll surface the nearest important task as your next step.';
+      } else if (/\b(balanced energy|normal energy|energy is balanced)\b/.test(lower)) {
+        await saveDailyEnergy('Balanced');
+        answer = 'Energy set to balanced. Your daily briefing will use your normal priority order.';
+      } else if (/\b(enable daily brief|turn on morning brief|morning notifications)\b/.test(lower)) {
+        await toggleDailyBriefing();
+        answer = dailyDigestEnabled ? 'Morning brief reminders were paused.' : 'I tried to enable the daily 8 AM reminder. Check the confirmation and Android notification permission.';
+      } else {
       const dateInText = lower.match(/20\d{2}-\d{2}-\d{2}/)?.[0];
       const dueDate = /\b(tomorrow|kal)\b/.test(lower) ? dayOffset(1)
         : /\b(next week|agle hafte)\b/.test(lower) ? dayOffset(7)
@@ -748,7 +900,8 @@ function AppContent() {
         answer = 'You have completed ' + focusToday + ' focus minutes today. Try “Focus for 25 minutes” to start a session. I save completed sessions locally.';
         setScreen('Focus');
       } else {
-        answer = 'I can take action on your saved RozFlow data. Try “Plan my day”, “Add task call the dentist tomorrow”, “I spent 250 on lunch”, “Add habit drink water”, “Add reminder electricity bill 1800 tomorrow”, or “Focus for 25 minutes”. This build uses a private on-device smart engine; a hosted generative AI model is not connected.';
+        answer = 'I can take action on your saved RozFlow data. Try “Plan my day”, “Add task call the dentist tomorrow”, “I spent 250 on lunch”, “Add habit drink water”, “Add reminder electricity bill 1800 tomorrow”, “Start morning routine”, “Set energy low”, or “Focus for 25 minutes”. This build uses a private on-device smart engine; a hosted generative AI model is not connected.';
+      }
       }
     } catch (error) {
       console.warn('RozFlow Smart Assistant action failed', error);
@@ -794,6 +947,50 @@ function AppContent() {
       <View style={styles.smartBriefCard}>
         <View style={[styles.smartBriefIcon, smartBriefing.tone === 'red' ? { backgroundColor: C.redPale } : smartBriefing.tone === 'amber' ? { backgroundColor: C.amber } : smartBriefing.tone === 'blue' ? { backgroundColor: C.blue } : smartBriefing.tone === 'violet' ? { backgroundColor: C.violet } : { backgroundColor: C.mint }]}><Feather name={smartBriefing.icon} size={20} color={smartBriefing.tone === 'red' ? C.red : C.greenDark} /></View>
         <View style={{ flex: 1 }}><Text style={styles.smartBriefLabel}>YOUR AUTOMATIC BRIEFING</Text><Text style={styles.smartBriefTitle}>{smartBriefing.title}</Text><Text style={styles.smartBriefBody}>{smartBriefing.body}</Text><Pressable accessibilityRole="button" onPress={() => setScreen(smartBriefing.screen)} style={styles.smartBriefAction}><Text style={styles.smartBriefActionText}>{smartBriefing.action}</Text><Feather name="arrow-right" size={13} color={C.greenDark} /></Pressable></View>
+      </View>
+      <View style={styles.energyCard}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.energyEyebrow}>PERSONALISE TODAY</Text>
+          <Text style={styles.energyTitle}>How’s your energy?</Text>
+          <Text style={styles.energyBody}>Your next-step suggestion adapts to what you tell RozFlow.</Text>
+        </View>
+        <View style={styles.energyOptions}>
+          {(['Low', 'Balanced', 'High'] as EnergyLevel[]).map((level) => <Pressable key={level} onPress={() => void saveDailyEnergy(level)} style={[styles.energyOption, dailyEnergy === level && styles.energyOptionActive]}>
+            <Text style={[styles.energyOptionText, dailyEnergy === level && styles.energyOptionTextActive]}>{level}</Text>
+          </Pressable>)}
+        </View>
+      </View>
+      <View style={styles.weeklyReviewCard}>
+        <View style={styles.weeklyReviewTop}>
+          <View style={styles.weeklyReviewBadge}><Feather name="activity" size={18} color="#B9FFE7" /></View>
+          <View style={{ flex: 1 }}><Text style={styles.weeklyReviewKicker}>YOUR LAST 7 DAYS</Text><Text style={styles.weeklyReviewTitle}>A little progress adds up.</Text></View>
+          <Pressable onPress={() => void exportBackup()} style={styles.weeklyExport}><Feather name="download" size={15} color="#D6FFF2" /></Pressable>
+        </View>
+        <View style={styles.weeklyStats}>
+          <View style={styles.weeklyStat}><Text style={styles.weeklyStatValue}>{weeklyTasksCompleted}</Text><Text style={styles.weeklyStatLabel}>TASKS DONE</Text></View>
+          <View style={styles.weeklyStatDivider} />
+          <View style={styles.weeklyStat}><Text style={styles.weeklyStatValue}>{weeklyHabitsChecked}</Text><Text style={styles.weeklyStatLabel}>HABIT CHECK-INS</Text></View>
+          <View style={styles.weeklyStatDivider} />
+          <View style={styles.weeklyStat}><Text style={styles.weeklyStatValue}>{focusWeek}m</Text><Text style={styles.weeklyStatLabel}>FOCUS TIME</Text></View>
+        </View>
+        <View style={styles.weeklyReviewFooter}><Text style={styles.weeklyReviewBody}>Logged spending this week: {money(weeklySpending)}. These numbers use only saved RozFlow entries.</Text><Pressable onPress={() => void launchRoutine('weekly')}><Text style={styles.weeklyReviewAction}>Plan next week ↗</Text></Pressable></View>
+      </View>
+      <SectionHeader title="One-tap routines" />
+      <View style={styles.routineGrid}>
+        {([
+          { kind: 'morning' as RoutineKind, title: 'Morning launch', body: 'Start with clarity and movement.', icon: 'sunrise', tint: C.amber },
+          { kind: 'evening' as RoutineKind, title: 'Evening reset', body: 'Close the day and prepare for tomorrow.', icon: 'moon', tint: C.violet },
+          { kind: 'weekly' as RoutineKind, title: 'Weekly reset', body: 'Review wins, bills and next week.', icon: 'calendar', tint: C.blue },
+        ]).map((routine) => <Pressable key={routine.kind} onPress={() => void launchRoutine(routine.kind)} style={({ pressed }) => [styles.routineCard, pressed && styles.quickPressed]}>
+          <View style={[styles.routineIcon, { backgroundColor: routine.tint }]}><Feather name={routine.icon as keyof typeof Feather.glyphMap} size={19} color={C.ink} /></View>
+          <Text style={styles.routineTitle}>{routine.title}</Text><Text style={styles.routineBody}>{routine.body}</Text>
+          <View style={styles.routineFooter}><Text style={styles.routineAction}>Build routine</Text><Feather name="arrow-up-right" size={13} color={C.greenDark} /></View>
+        </Pressable>)}
+      </View>
+      <View style={styles.dailyBriefCard}>
+        <View style={styles.dailyBriefIcon}><Feather name="bell" size={18} color={C.greenDark} /></View>
+        <View style={{ flex: 1 }}><Text style={styles.dailyBriefTitle}>Automatic morning brief</Text><Text style={styles.dailyBriefBody}>A daily 8 AM local notification nudges you to review today’s current priorities. Requires notification permission.</Text></View>
+        <Pressable accessibilityRole="switch" accessibilityState={{ checked: dailyDigestEnabled }} onPress={() => void toggleDailyBriefing()} style={[styles.digestToggle, dailyDigestEnabled && styles.digestToggleActive]}><View style={[styles.digestKnob, dailyDigestEnabled && styles.digestKnobActive]} /></Pressable>
       </View>
       <SectionHeader title="Conversation" action="Clear" onAction={() => setAiMessages([{ id: String(Date.now()), role: 'assistant', text: 'Fresh start. Ask me to plan your day, log an expense, create a task, add a habit or set a bill reminder.' }])} />
       <View style={styles.aiConversation}>
@@ -848,6 +1045,11 @@ function AppContent() {
         {remainingBudget < 0 && budgetNumber > 0 ? <Text style={styles.overBudgetText}>You are {money(Math.abs(remainingBudget))} over your monthly guide. Review the categories below—no judgement.</Text> : null}
       </LinearGradient>
       <View style={styles.budgetEditCard}><View style={{ flex: 1 }}><Text style={styles.taskTitle}>Monthly spending guide</Text><Text style={styles.taskSub}>A personal target, not a bank balance.</Text></View><View style={styles.budgetEditRight}><TextInput value={budgetDraft} onChangeText={setBudgetDraft} keyboardType="decimal-pad" style={styles.budgetInput} accessibilityLabel="Monthly spending budget" /><Pressable onPress={() => void saveBudget()} style={styles.smallSaveButton}><Text style={styles.smallSaveText}>Save</Text></Pressable></View></View>
+      <View style={styles.forecastCard}>
+        <View style={styles.forecastGlyph}><Feather name="trending-up" size={18} color={C.greenDark} /></View>
+        <View style={{ flex: 1 }}><Text style={styles.forecastTitle}>Month-end pace check</Text><Text style={styles.forecastBody}>{forecastReliable ? 'At the current average, your logged spending could reach about ' + money(projectedMonthSpend) + ' by month-end.' : 'Log a few more expenses over several days to unlock a more useful pace estimate.'}</Text></View>
+        {forecastReliable && budgetNumber > 0 ? <Text style={styles.forecastValue}>{Math.round(projectedMonthSpend / budgetNumber * 100)}%</Text> : null}
+      </View>
       <View style={styles.actionRow}><ActionButton title="Log an expense" onPress={() => openAdd('expense')} compact icon="plus" /><ActionButton title="Set a reminder" onPress={() => { setScreen('Plan'); openAdd('bill'); }} tone="light" compact icon="bell" /></View>
       <SectionHeader title="Where it goes" />
       {categoryTotals.length ? <View style={styles.surfaceCard}>{categoryTotals.map((item) => <View key={item.category} style={styles.categoryRow}><View style={styles.categoryLabelRow}><Text style={styles.categoryName}>{item.category}</Text><Text style={styles.categoryAmount}>{money(item.total)}</Text></View><View style={styles.moneyBarTrack}><View style={[styles.moneyBarFill, { width: `${Math.max(3, item.total / categoryTotals[0].total * 100)}%` }]} /></View></View>)}</View> : <View style={styles.emptyCard}><View style={styles.emptyEmoji}><Feather name="pie-chart" size={24} color={C.greenDark} /></View><Text style={styles.emptyTitle}>Your spending story starts here</Text><Text style={styles.emptyBody}>Log a coffee, commute or grocery run. The monthly breakdown updates automatically.</Text><ActionButton title="Log first expense" onPress={() => openAdd('expense')} compact icon="plus" /></View>}
@@ -861,7 +1063,7 @@ function AppContent() {
   const renderSettings = () => (
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.pageContent}>
       <View style={styles.topHeader}><View><Text style={styles.eyebrow}>YOUR SPACE, YOUR RULES</Text><Text style={styles.screenTitle}>Settings</Text></View><Pressable onPress={() => setScreen('Today')} style={styles.avatarButton}><Feather name="x" size={20} color={C.ink} /></Pressable></View>
-      <View style={styles.settingsBrand}><LinearGradient colors={['#10182E', '#087B65']} style={styles.settingsBrandIcon}><MaterialCommunityIcons name="brain" size={30} color="#CFFFF0" /></LinearGradient><View style={{ flex: 1 }}><Text style={styles.settingsBrandTitle}>RozFlow AI</Text><Text style={styles.taskSub}>Daily Life OS · Version 2.0.0</Text></View><View style={styles.offlinePill}><View style={styles.offlineDot} /><Text style={styles.offlineText}>LOCAL SMARTS</Text></View></View>
+      <View style={styles.settingsBrand}><LinearGradient colors={['#10182E', '#087B65']} style={styles.settingsBrandIcon}><MaterialCommunityIcons name="brain" size={30} color="#CFFFF0" /></LinearGradient><View style={{ flex: 1 }}><Text style={styles.settingsBrandTitle}>RozFlow AI</Text><Text style={styles.taskSub}>Daily Life OS · Version 3.0.0</Text></View><View style={styles.offlinePill}><View style={styles.offlineDot} /><Text style={styles.offlineText}>LOCAL SMARTS</Text></View></View>
       <SectionHeader title="Data & privacy" />
       <View style={styles.surfaceCard}>
         <Pressable onPress={() => void exportBackup()} style={styles.settingsRow}><View style={[styles.settingGlyph, { backgroundColor: C.mint }]}><Feather name="download" size={18} color={C.greenDark} /></View><View style={{ flex: 1 }}><Text style={styles.taskTitle}>Export a backup</Text><Text style={styles.taskSub}>Share a JSON copy of tasks, habits, bills and expenses.</Text></View><Feather name="chevron-right" size={18} color={C.muted} /></Pressable>
@@ -1044,6 +1246,49 @@ const styles = StyleSheet.create({
   tipTitle: { color: C.ink, fontSize: 11, fontWeight: '900' },
   tipText: { color: '#57776B', fontSize: 10, lineHeight: 16, marginTop: 4 },
   privacyHint: { color: '#89999B', fontSize: 9, lineHeight: 14, textAlign: 'center', marginTop: 17, marginHorizontal: 7 },
+  energyCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: C.white, borderRadius: 21, borderWidth: 1, borderColor: C.line, padding: 14, marginBottom: 14 },
+  energyEyebrow: { color: C.greenDark, fontSize: 7, fontWeight: '900', letterSpacing: 1.15 },
+  energyTitle: { color: C.ink, fontSize: 13, fontWeight: '900', marginTop: 4 },
+  energyBody: { color: C.muted, fontSize: 9, lineHeight: 13, marginTop: 4, maxWidth: 205 },
+  energyOptions: { gap: 5 },
+  energyOption: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 9, backgroundColor: '#F1F4F8', borderWidth: 1, borderColor: '#E4E9F0', minWidth: 73, alignItems: 'center' },
+  energyOptionActive: { backgroundColor: C.navy, borderColor: C.navy },
+  energyOptionText: { color: C.muted, fontSize: 9, fontWeight: '800' },
+  energyOptionTextActive: { color: C.white },
+  weeklyReviewCard: { borderRadius: 23, padding: 16, marginBottom: 21, backgroundColor: '#10182E', overflow: 'hidden', shadowColor: '#10182E', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.13, shadowRadius: 15, elevation: 5 },
+  weeklyReviewTop: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  weeklyReviewBadge: { width: 40, height: 40, borderRadius: 14, backgroundColor: 'rgba(117,255,213,0.15)', alignItems: 'center', justifyContent: 'center' },
+  weeklyReviewKicker: { color: '#80E8CA', fontSize: 7, fontWeight: '900', letterSpacing: 1.2 },
+  weeklyReviewTitle: { color: C.white, fontSize: 15, fontWeight: '900', marginTop: 4 },
+  weeklyExport: { width: 33, height: 33, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.1)' },
+  weeklyStats: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 7, paddingVertical: 17, marginTop: 14, borderTopWidth: 1, borderBottomWidth: 1, borderColor: 'rgba(255,255,255,0.14)' },
+  weeklyStat: { flex: 1 },
+  weeklyStatValue: { color: C.white, fontSize: 22, fontWeight: '900' },
+  weeklyStatLabel: { color: '#AACAC8', fontSize: 7, fontWeight: '900', letterSpacing: 0.4, marginTop: 4 },
+  weeklyStatDivider: { width: 1, height: 30, backgroundColor: 'rgba(255,255,255,0.16)' },
+  weeklyReviewFooter: { gap: 8, marginTop: 12 },
+  weeklyReviewBody: { color: '#C9D8E0', fontSize: 9, lineHeight: 15 },
+  weeklyReviewAction: { color: '#83F0CD', fontSize: 10, fontWeight: '900' },
+  routineGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 9, marginBottom: 17 },
+  routineCard: { width: '48%', minHeight: 143, backgroundColor: C.white, borderRadius: 18, borderWidth: 1, borderColor: C.line, padding: 12 },
+  routineIcon: { width: 35, height: 35, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginBottom: 9 },
+  routineTitle: { color: C.ink, fontSize: 11, fontWeight: '900' },
+  routineBody: { color: C.muted, fontSize: 9, lineHeight: 14, marginTop: 4, flex: 1 },
+  routineFooter: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 9 },
+  routineAction: { color: C.greenDark, fontSize: 9, fontWeight: '900' },
+  dailyBriefCard: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: C.white, borderRadius: 20, borderWidth: 1, borderColor: C.line, padding: 13, marginBottom: 22 },
+  dailyBriefIcon: { width: 39, height: 39, borderRadius: 13, backgroundColor: C.mint, alignItems: 'center', justifyContent: 'center' },
+  dailyBriefTitle: { color: C.ink, fontSize: 11, fontWeight: '900' },
+  dailyBriefBody: { color: C.muted, fontSize: 9, lineHeight: 14, marginTop: 4 },
+  digestToggle: { width: 42, height: 25, borderRadius: 13, backgroundColor: '#D6DEE6', padding: 3, justifyContent: 'center' },
+  digestToggleActive: { backgroundColor: C.greenDark, alignItems: 'flex-end' },
+  digestKnob: { height: 19, width: 19, borderRadius: 10, backgroundColor: C.white },
+  digestKnobActive: { backgroundColor: '#E0FFF4' },
+  forecastCard: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: C.white, borderRadius: 18, borderWidth: 1, borderColor: C.line, padding: 13, marginBottom: 17 },
+  forecastGlyph: { width: 38, height: 38, borderRadius: 13, backgroundColor: C.mint, alignItems: 'center', justifyContent: 'center' },
+  forecastTitle: { color: C.ink, fontSize: 11, fontWeight: '900' },
+  forecastBody: { color: C.muted, fontSize: 9, lineHeight: 14, marginTop: 4 },
+  forecastValue: { color: C.greenDark, fontSize: 13, fontWeight: '900' },
   aiStatusPill: { flexDirection: 'row', alignItems: 'center', gap: 6, borderRadius: 11, borderWidth: 1, borderColor: '#CDEDE1', backgroundColor: '#E7FBF2', paddingHorizontal: 9, paddingVertical: 7 },
   aiStatusDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: C.greenDark },
   aiStatusText: { color: C.greenDark, fontSize: 8, fontWeight: '900', letterSpacing: 0.55 },
