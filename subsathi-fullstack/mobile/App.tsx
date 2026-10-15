@@ -238,7 +238,7 @@ function DayPilotApp() {
   const renderTaskRow=(task:DayTask)=><View key={task.id} style={[s.taskRow,!!task.completed&&s.taskRowDone]}>
     <Pressable accessibilityRole="checkbox" accessibilityState={{checked:!!task.completed}} onPress={()=>{void toggleTask(task);}} style={[s.checkCircle,!!task.completed&&s.checkCircleDone]}>{task.completed?<Feather name="check" size={15} color="#FFFFFF"/>:null}</Pressable>
     <Pressable style={s.taskCopy} onPress={()=>Alert.alert(task.title,(task.details?task.details+'\n\n':'')+'Due: '+shortDate(task.dueDate)+'\nPriority: '+task.priority,[{text:'Close',style:'cancel'},{text:'Delete task',style:'destructive',onPress:()=>deleteTask(task)}])}>
-      <Text style={[s.taskTitle,!!task.completed&&s.taskTitleDone}>{task.title}</Text><Text style={s.taskMeta}>{shortDate(task.dueDate)} · {task.priority} priority</Text>
+      <Text style={[s.taskTitle,!!task.completed&&s.taskTitleDone]}>{task.title}</Text><Text style={s.taskMeta}>{shortDate(task.dueDate)} · {task.priority} priority</Text>
     </Pressable><View style={[s.priorityDot,{backgroundColor:priorityColor(task.priority)}]}/>
   </View>;
 
