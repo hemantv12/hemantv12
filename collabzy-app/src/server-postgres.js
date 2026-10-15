@@ -55,6 +55,12 @@ async function start(PORT,SECRET){
   await pool.query('CREATE INDEX IF NOT EXISTS applications_creator_created_idx ON applications(creator_id,created_at DESC)');
   await pool.query('CREATE INDEX IF NOT EXISTS applications_campaign_status_idx ON applications(campaign_id,status,created_at DESC)');
   await pool.query('CREATE INDEX IF NOT EXISTS saved_campaigns_user_created_idx ON saved_campaigns(user_id,created_at DESC)');
+  if(process.env.MIGRATE_SQLITE_ON_START==='true'){
+    const {migrateLegacySQLite}=require('./sqlite-to-postgres-migration');
+    const sourcePath=process.env.SQLITE_MIGRATION_PATH||path.join(__dirname,'..','collabzy.db');
+    const result=await migrateLegacySQLite(pool,sourcePath);
+    console.log('SQLite migration status:',JSON.stringify(result));
+  }
   await pool.query("INSERT INTO conversations(application_id,creator_id,brand_id) SELECT a.id,a.creator_id,c.brand_id FROM applications a JOIN campaigns c ON c.id=a.campaign_id ON CONFLICT(application_id) DO NOTHING");
   if(process.env.NODE_ENV==='production'&&process.env.SEED_DEMO_DATA!=='true')await pool.query('DELETE FROM users WHERE email=$1',['hello@collabzy.demo']);
   app.disable('x-powered-by');
