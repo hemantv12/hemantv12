@@ -8,14 +8,11 @@
     "android": {
       "package": "app.rozflow.daily",
       "versionCode": 1,
-      "adaptiveIcon": { "backgroundColor": "#0A2532" },
       "edgeToEdgeEnabled": true
     },
     "plugins": [
       "expo-sqlite",
       ["expo-notifications", { "color": "#13A879" }],
-      "expo-secure-store",
-      "expo-file-system"
     ],
     "extra": {
       "product": "Daily Life OS",
