@@ -1,0 +1,7 @@
+{
+  "appId":"com.collabzy.creator",
+  "appName":"Collabzy",
+  "webDir":"public",
+  "bundledWebRuntime":false,
+  "android":{"allowMixedContent":false}
+}
