@@ -1,50 +1,21 @@
 {
-  "expo": {
-    "name": "SubSathi",
-    "slug": "subsathi",
-    "version": "0.5.13",
-    "orientation": "portrait",
-    "userInterfaceStyle": "light",
-    "scheme": "subsathi",
-    "android": {
-      "package": "in.subsathi.app",
-      "versionCode": 19,
-      "adaptiveIcon": {
-        "backgroundColor": "#0D2330",
-        "foregroundImage": "./assets/adaptive-icon.png"
-      }
+  "expo":{
+    "name":"DayPilot",
+    "slug":"daypilot-life-os",
+    "version":"1.0.0",
+    "orientation":"portrait",
+    "userInterfaceStyle":"light",
+    "scheme":"daypilot",
+    "android":{
+      "package":"com.daypilot.lifeos",
+      "versionCode":1,
+      "adaptiveIcon":{"backgroundColor":"#0D2330","foregroundImage":"./assets/adaptive-icon.png"}
     },
-    "plugins": [
+    "plugins":[
       "expo-sqlite",
-      [
-        "expo-notifications",
-        {
-          "icon": "./assets/notification-icon.png",
-          "color": "#15A879",
-          "defaultChannel": "renewals"
-        }
-      ],
-      "expo-secure-store",
-      "expo-web-browser",
-      [
-        "react-native-google-mobile-ads",
-        {
-          "androidAppId": "ca-app-pub-3940256099942544~3347511713",
-          "androidSdk": "classic"
-        }
-      ],
-      [
-        "expo-speech-recognition",
-        {
-          "microphonePermission": "Allow SubSathi to use the microphone when you ask a voice question.",
-          "speechRecognitionPermission": "Allow SubSathi to convert your voice question into text."
-        }
-      ]
+      ["expo-notifications",{"icon":"./assets/notification-icon.png","color":"#16A879","defaultChannel":"daily"}]
     ],
-    "extra": {
-      "appStage": "provider-aware-subscription-control",
-      "gmailIntegration": "requires-owner-oauth-credentials"
-    },
-    "icon": "./assets/icon.png"
+    "extra":{"appStage":"offline-daily-life-os","accountConnection":"none"},
+    "icon":"./assets/icon.png"
   }
 }
