@@ -25,7 +25,7 @@ The annual plan is `creator_annual_299`, ₹299 (29,900 paise) for 365 days. In 
 - `RAZORPAY_KEY_SECRET`
 - `RAZORPAY_WEBHOOK_SECRET`
 
-Set the Razorpay webhook URL to `https://collabzy-api.onrender.com/api/billing/webhook`. Configure the `payment.captured`, `order.paid` and `payment.failed` events. Use test-mode keys first. The backend creates an INR order, checks the checkout signature, independently retrieves the payment from Razorpay and only marks the account paid after a captured ₹299 payment. Test successful, cancelled, failed, duplicate-webhook and refund scenarios before live mode. No checkout is available until real provider credentials are configured.
+Set the Razorpay webhook URL to `https://collabzy-api.onrender.com/api/billing/webhook`. Configure the `payment.captured`, `order.paid`, `payment.failed` and `payment.refunded` events. A full refund for the active subscription payment revokes that entitlement; test this with Razorpay test-mode transactions before switching to live keys. Use test-mode keys first. The backend creates an INR order, checks the checkout signature, independently retrieves the payment from Razorpay and only marks the account paid after a captured ₹299 payment. Test successful, cancelled, failed, duplicate-webhook and refund scenarios before live mode. No checkout is available until real provider credentials are configured.
 
 ## Monitored support channel
 
