@@ -20,7 +20,7 @@ GitHub Actions builds a debug APK on pushes to the `collabzy-android` branch. Op
 
 ## Before public commercial launch
 - **Persistent database:** the current deployment uses SQLite on a free web service; managed PostgreSQL is not wired into this version. The free service filesystem may reset on redeploy/restart. A durable database must be attached and the backend migrated and verified before real users rely on the app.
-- **Instagram:** the screen reports setup status, but OAuth, Meta app credentials, callback verification and approved permissions are not yet implemented.
+- **Instagram:** official OAuth and token exchange routes are implemented, with tokens encrypted at rest. Set `META_APP_ID`, `META_APP_SECRET` and the exact `META_REDIRECT_URI` in Render, configure the same redirect URI and required Instagram Login permissions in Meta, and test with an eligible professional account before advertising insights as live.
 - **Payments:** the planned ₹299/year membership is displayed as planned only; checkout is not enabled and no payment is collected.
 - **Operations:** configure durable backups, account recovery/email verification, monitoring, and support contact ownership before scaling.
 - **Security:** keep production secrets in the host's secret store; never commit credentials.
