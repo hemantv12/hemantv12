@@ -28,9 +28,6 @@ jobs:
           java-version: '21'
       - name: Install dependencies
         run: npm install --no-audit --no-fund
-      - name: Configure API endpoint for APK
-        run: |
-          node -e "const fs=require('fs');const p='public/index.html';let s=fs.readFileSync(p,'utf8');s=s.replace(\"const API=(window.COLLABZY_API_BASE||((location.protocol==='capacitor:'||(location.hostname==='localhost'&&!location.port))?'https://collabzy-api.onrender.com/api':'/api')).replace(/\\\\/$/,'');\",\"const API=(window.COLLABZY_API_BASE||'https://collabzy-api.onrender.com/api').replace(/\\\\/$/,'');\");fs.writeFileSync(p,s);"
       - name: Generate Android project
         run: npx cap add android
       - name: Sync Capacitor
