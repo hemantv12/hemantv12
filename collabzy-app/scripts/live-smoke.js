@@ -60,7 +60,7 @@ async function waitForDeployment() {
   try {
     const health = await waitForDeployment();
     check('live API health + persistent PostgreSQL');
-    for (const name of ['instagram','email','support','publicRegistration','emailVerification']) {
+    for (const name of ['instagram','email','support','operatorIdentity','publicRegistration','emailVerification']) {
       assert.ok(typeof health.integrations?.[name] === 'string', 'health should expose safe ' + name + ' readiness');
     }
     const pages = ['/','/privacy.html','/terms.html','/delete-account.html','/support.html','/verify-email.html','/reset-password.html'];
@@ -75,6 +75,7 @@ async function waitForDeployment() {
     if (health.integrations.instagram !== 'configured') launchBlockers.push('Meta Instagram Login credentials / permission review');
     if (health.integrations.email !== 'configured') launchBlockers.push('Email verification and password-recovery delivery');
     if (health.integrations.support !== 'configured') launchBlockers.push('Monitored support contact');
+    if (health.integrations.operatorIdentity !== 'configured') launchBlockers.push('Public operator identity and jurisdiction');
     if (health.integrations.publicRegistration !== 'open') launchBlockers.push('Public registration is safely paused');
     if (health.integrations.emailVerification === 'required' || health.integrations.publicRegistration !== 'open') {
       if (health.integrations.publicRegistration !== 'open') {
