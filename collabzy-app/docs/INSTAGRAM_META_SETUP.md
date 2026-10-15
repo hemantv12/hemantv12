@@ -35,3 +35,6 @@ The current integration reads authorized profile/media/insights; it does not yet
 - [ ] Required permissions submitted/approved for users outside the app's developer/test roles.
 - [ ] Android release signed with the stable upload key, and verified on a physical Android device.
 - [ ] Privacy policy, data deletion/contact details, and Play Console release completed.
+
+
+Public registration also requires `PUBLIC_LAUNCH_APPROVED=true`. Keep this false until real Instagram, email/support, privacy/legal review, backup restoration, paid infrastructure and mobile-device QA have passed. It is intentionally not auto-enabled merely because environment variable names have values.
