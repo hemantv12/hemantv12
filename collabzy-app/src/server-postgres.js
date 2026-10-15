@@ -78,8 +78,9 @@ async function start(PORT,SECRET){
     const testPassword=String(process.env.COLLABZY_TEST_ACCOUNT_PASSWORD||'');
     if(!testEmail||testPassword.length<16||testPassword.length>200)throw Error('The gated Collabzy test account requires a valid email and a password of at least 16 characters.');
     const testHash=await bcrypt.hash(testPassword,12);
-    await pool.query("INSERT INTO users(name,email,password_hash,role,niche,bio,location,email_verified_at) VALUES($1,$2,$3,'creator',$4,$5,$6,CURRENT_TIMESTAMP) ON CONFLICT(email) DO UPDATE SET name=EXCLUDED.name,password_hash=EXCLUDED.password_hash,role=EXCLUDED.role,email_verified_at=COALESCE(users.email_verified_at,CURRENT_TIMESTAMP)",["Collabzy Test Creator",testEmail,testHash,"Lifestyle","Dedicated QA account; not a public customer profile.","India"]);
-    console.log('Dedicated creator QA account initialized; credentials are not logged.');
+    const seeded=await pool.query("INSERT INTO users(name,email,password_hash,role,niche,bio,location,email_verified_at) VALUES($1,$2,$3,'creator',$4,$5,$6,CURRENT_TIMESTAMP) ON CONFLICT(email) DO UPDATE SET name=EXCLUDED.name,password_hash=EXCLUDED.password_hash,role=EXCLUDED.role,email_verified_at=COALESCE(users.email_verified_at,CURRENT_TIMESTAMP) RETURNING password_hash",["Collabzy Test Creator",testEmail,testHash,"Lifestyle","Dedicated QA account; not a public customer profile.","India"]);
+    if(seeded.rows.length!==1||!(await bcrypt.compare(testPassword,seeded.rows[0].password_hash)))throw Error('The gated Collabzy QA account password could not be verified.');
+    console.log('Dedicated creator QA account initialized; stored password hash verified and credentials are not logged.');
   }
   app.disable('x-powered-by');
   app.use((req,res,next)=>{res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('X-Frame-Options','DENY');res.setHeader('Referrer-Policy','strict-origin-when-cross-origin');res.setHeader('Permissions-Policy','camera=(), microphone=(), geolocation=()');next()});
