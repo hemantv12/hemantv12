@@ -27,7 +27,7 @@ test('Collabzy API supports registration, campaign publishing and application wo
   const reg=await fetch(base+'/api/auth/register',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({name:'Test Creator',email,password:'TestPassword123!',role:'creator'})});
   assert.equal(reg.status,201);
   const creator=await reg.json();assert.ok(creator.token);
-  const duplicate=await fetch(base+'/api/auth/register',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({name:'Test Creator',email,password:'TestPassword123!',role:'creator'})});
+  const instagramSetup=await fetch(base+'/api/instagram/connect',{headers:{authorization:'Bearer '+creator.token}});\n  assert.equal(instagramSetup.status,503,'Instagram should clearly report missing Meta credentials in test environment');\n  const duplicate=await fetch(base+'/api/auth/register',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({name:'Test Creator',email,password:'TestPassword123!',role:'creator'})});
   assert.equal(duplicate.status,409);
   const campaignId=campaigns[0].id;
   const apply=await fetch(base+'/api/campaigns/'+campaignId+'/apply',{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+creator.token},body:JSON.stringify({pitch:'I am a good fit',proposed_rate:2500})});
