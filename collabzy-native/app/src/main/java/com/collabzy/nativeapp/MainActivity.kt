@@ -1930,17 +1930,184 @@ private fun ProfilePane(
 }
 
 @Composable
+private fun InstagramConnectGate(
+    loading: Boolean,
+    mode: String,
+    statusMessage: String,
+    onConnect: () -> Unit,
+    onRetry: () -> Unit,
+    onLogout: () -> Unit
+) {
+    Column(
+        Modifier.fillMaxSize().background(Ink).verticalScroll(rememberScrollState()).padding(horizontal = 22.dp, vertical = 26.dp),
+        verticalArrangement = Arrangement.Center
+    ) {
+        Box(Modifier.size(58.dp).clip(RoundedCornerShape(19.dp)).background(VioletStrong), contentAlignment = Alignment.Center) {
+            Text("C", color = Color.White, fontSize = 32.sp, fontWeight = FontWeight.Black)
+        }
+        Spacer(Modifier.height(23.dp))
+        Text("STEP 1 OF 1 · CREATOR SETUP", color = Violet, fontSize = 11.sp, letterSpacing = 1.4.sp, fontWeight = FontWeight.ExtraBold)
+        Spacer(Modifier.height(10.dp))
+        Text("Connect Instagram. Unlock your creator workspace.", color = White, fontSize = 31.sp, lineHeight = 37.sp, fontWeight = FontWeight.ExtraBold)
+        Spacer(Modifier.height(12.dp))
+        Text("Collabzy uses the official Meta authorization flow to securely read the professional profile insights you approve. Your Instagram password is never entered into Collabzy.", color = Muted, fontSize = 15.sp, lineHeight = 23.sp)
+        Spacer(Modifier.height(23.dp))
+        Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(23.dp), border = BorderStroke(1.dp, Border)) {
+            Column(Modifier.padding(18.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(46.dp).clip(RoundedCornerShape(15.dp)).background(Panel2), contentAlignment = Alignment.Center) {
+                        Text("◎", color = Violet, fontSize = 29.sp)
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("Official Instagram Login", color = White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        Text("Creator or Business account", color = Muted, fontSize = 12.sp)
+                    }
+                    Pill(if (mode == "oauth-configured") "READY" else "SETUP NEEDED", if (mode == "oauth-configured") Mint else Color(0xFFB76A12))
+                }
+                Spacer(Modifier.height(15.dp))
+                Text(
+                    if (mode == "oauth-configured") "Meta authorization is configured. Continue to Instagram to approve access." else "The owner still needs to finish Meta app configuration and required permissions before this button can complete connection.",
+                    color = Muted, fontSize = 12.sp, lineHeight = 18.sp
+                )
+                if (statusMessage.isNotBlank()) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(statusMessage, color = Muted, fontSize = 11.sp, lineHeight = 16.sp)
+                }
+                Spacer(Modifier.height(18.dp))
+                Button(
+                    onClick = onConnect,
+                    enabled = !loading,
+                    modifier = Modifier.fillMaxWidth().height(54.dp),
+                    shape = RoundedCornerShape(15.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Violet, contentColor = Color.White)
+                ) {
+                    if (loading) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = Color.White)
+                    else {
+                        Icon(Icons.Outlined.Link, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Connect Instagram securely  →", fontWeight = FontWeight.Bold)
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = onRetry,
+                    enabled = !loading,
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    border = BorderStroke(1.dp, Border),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Violet)
+                ) { Icon(Icons.Outlined.Refresh, null); Spacer(Modifier.width(7.dp)); Text("I've connected — check again") }
+            }
+        }
+        Spacer(Modifier.height(16.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.Top) {
+            Icon(Icons.Outlined.VerifiedUser, null, tint = Mint, modifier = Modifier.size(21.dp))
+            Text("You control what you authorize. Disconnect Instagram later from Insights. Account tokens are stored encrypted on the backend.", color = Muted, fontSize = 12.sp, lineHeight = 18.sp)
+        }
+        Spacer(Modifier.height(20.dp))
+        TextButton(onClick = onLogout, modifier = Modifier.fillMaxWidth()) { Text("Sign out", color = Muted) }
+    }
+}
+
+@Composable
+private fun SubscriptionPane(
+    status: JSONObject,
+    message: String,
+    loading: Boolean,
+    onRefresh: () -> Unit,
+    onSubscribe: () -> Unit
+) {
+    val active = status.flag("active")
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 18.dp, vertical = 10.dp)) {
+        Card(
+            colors = CardDefaults.cardColors(containerColor = Panel),
+            shape = RoundedCornerShape(25.dp),
+            border = BorderStroke(1.dp, Border),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(Modifier.padding(21.dp)) {
+                Surface(color = SoftBlue, shape = RoundedCornerShape(11.dp)) {
+                    Text("COLLABZY PRO", Modifier.padding(horizontal = 11.dp, vertical = 7.dp), color = VioletStrong, fontWeight = FontWeight.ExtraBold, fontSize = 11.sp, letterSpacing = 1.sp)
+                }
+                Spacer(Modifier.height(16.dp))
+                Text("Turn your Instagram into a growth plan.", color = White, fontSize = 27.sp, lineHeight = 32.sp, fontWeight = FontWeight.ExtraBold)
+                Spacer(Modifier.height(9.dp))
+                Text("Annual creator plan", color = Muted, fontSize = 14.sp)
+                Spacer(Modifier.height(4.dp))
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Text("₹299", color = VioletStrong, fontSize = 39.sp, fontWeight = FontWeight.Black)
+                    Spacer(Modifier.width(6.dp))
+                    Text("/ year", color = Muted, fontSize = 14.sp, modifier = Modifier.padding(bottom = 7.dp))
+                }
+                Text("365 days · one-time annual payment · no auto-renewal in this plan", color = Muted, fontSize = 11.sp)
+                Spacer(Modifier.height(18.dp))
+                listOf(
+                    "Personalized AI growth analysis from your real Instagram metrics",
+                    "Content strengths, improvement opportunities and a 7-day action plan",
+                    "Insights for reach, views, interactions and recent posts",
+                    "Creator collaboration workspace, saved campaigns and messaging"
+                ).forEach { feature ->
+                    Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.padding(vertical = 7.dp)) {
+                        Icon(Icons.Outlined.CheckCircle, null, tint = Mint, modifier = Modifier.size(20.dp))
+                        Text(feature, color = White, fontSize = 13.sp, lineHeight = 18.sp)
+                    }
+                }
+                Spacer(Modifier.height(14.dp))
+                if (active) {
+                    Surface(color = SoftGreen, shape = RoundedCornerShape(14.dp), border = BorderStroke(1.dp, Mint.copy(alpha = 0.35f))) {
+                        Column(Modifier.fillMaxWidth().padding(13.dp)) {
+                            Text("PRO IS ACTIVE", color = Mint, fontWeight = FontWeight.ExtraBold, fontSize = 12.sp)
+                            Text("Valid until " + status.optString("expires_at", "the end of your annual term"), color = White, fontSize = 12.sp)
+                        }
+                    }
+                }
+                if (message.isNotBlank()) {
+                    Spacer(Modifier.height(12.dp))
+                    Text(message, color = if (active) Mint else Danger, fontSize = 12.sp, lineHeight = 18.sp)
+                }
+                Spacer(Modifier.height(17.dp))
+                Button(
+                    onClick = onSubscribe,
+                    enabled = !loading,
+                    modifier = Modifier.fillMaxWidth().height(54.dp),
+                    shape = RoundedCornerShape(15.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Violet, contentColor = Color.White)
+                ) {
+                    if (loading) CircularProgressIndicator(Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
+                    else Text(if (active) "Renew for ₹299 / year" else "Activate Pro · ₹299 / year", fontWeight = FontWeight.Bold)
+                }
+                Spacer(Modifier.height(7.dp))
+                OutlinedButton(onClick = onRefresh, enabled = !loading, modifier = Modifier.fillMaxWidth(), border = BorderStroke(1.dp, Border), colors = ButtonDefaults.outlinedButtonColors(contentColor = Violet)) {
+                    Icon(Icons.Outlined.Refresh, null); Spacer(Modifier.width(6.dp)); Text("Refresh plan status")
+                }
+                Spacer(Modifier.height(8.dp))
+                Text("Payments unlock only after a verified server-side payment. Never share an OTP or payment PIN with anyone.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
+            }
+        }
+        Spacer(Modifier.height(18.dp))
+    }
+}
+
+@Composable
 private fun InstagramPane(
     connected: Boolean,
     handle: String,
     insights: List<JSONObject>,
     media: List<JSONObject>,
+    aiReport: JSONObject?,
+    aiReportStatus: String,
+    aiLoading: Boolean,
+    subscriptionActive: Boolean,
+    onGenerateAi: () -> Unit,
+    onUpgrade: () -> Unit,
     onConnect: () -> Unit,
     onRefresh: () -> Unit,
     onDisconnect: () -> Unit
 ) {
+    var aiConsent by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 18.dp, vertical = 8.dp)) {
-        Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(22.dp), border = BorderStroke(1.dp, Border)) {
+        Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(22.dp), border = BorderStroke(1.dp, Border), modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.padding(17.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.size(48.dp).clip(RoundedCornerShape(16.dp)).background(Panel2), contentAlignment = Alignment.Center) {
@@ -1951,69 +2118,158 @@ private fun InstagramPane(
                         Text("Instagram Insights", color = White, fontSize = 19.sp, fontWeight = FontWeight.ExtraBold)
                         Text("Official Meta authorization", color = Muted, fontSize = 11.sp)
                     }
-                    Pill(if (connected) "CONNECTED" else "NOT LINKED", if (connected) Mint else Color(0xFFFFD38B))
+                    Pill(if (connected) "CONNECTED" else "NOT LINKED", if (connected) Mint else Color(0xFFB76A12))
                 }
-                Spacer(Modifier.height(14.dp))
-                Text("Connect an eligible Instagram Creator or Business account to see the insights its current permissions allow. Collabzy never asks for your Instagram password.", color = Muted, fontSize = 12.sp, lineHeight = 18.sp)
+                Spacer(Modifier.height(12.dp))
+                Text("Your account insights, recent content and growth strategy in one light, easy-to-read dashboard.", color = Muted, fontSize = 12.sp, lineHeight = 18.sp)
                 Spacer(Modifier.height(12.dp))
                 if (!connected) {
-                    Button(onClick = onConnect, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Violet, contentColor = Ink), shape = RoundedCornerShape(14.dp)) {
+                    Button(onClick = onConnect, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Violet, contentColor = Color.White), shape = RoundedCornerShape(14.dp)) {
                         Text("Continue with Instagram  →", fontWeight = FontWeight.Bold)
                     }
                 } else {
-                    Text("Connected account: @" + handle.removePrefix("@"), color = Mint, fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.height(8.dp))
+                    Text("Connected account", color = Muted, fontSize = 11.sp)
+                    Text("@" + handle.removePrefix("@"), color = White, fontSize = 21.sp, fontWeight = FontWeight.ExtraBold)
+                    Spacer(Modifier.height(10.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = onRefresh, modifier = Modifier.weight(1f), border = BorderStroke(1.dp, Border), colors = ButtonDefaults.outlinedButtonColors(contentColor = White)) { Icon(Icons.Outlined.Refresh, null); Spacer(Modifier.width(5.dp)); Text("Refresh") }
+                        OutlinedButton(onClick = onRefresh, modifier = Modifier.weight(1f), border = BorderStroke(1.dp, Border), colors = ButtonDefaults.outlinedButtonColors(contentColor = Violet)) { Icon(Icons.Outlined.Refresh, null); Spacer(Modifier.width(5.dp)); Text("Refresh") }
                         OutlinedButton(onClick = onDisconnect, modifier = Modifier.weight(1f), border = BorderStroke(1.dp, Border), colors = ButtonDefaults.outlinedButtonColors(contentColor = Danger)) { Text("Disconnect") }
                     }
                 }
             }
         }
         if (connected) {
-            Spacer(Modifier.height(16.dp))
-            Text("Authorized metrics", color = White, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(17.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Your performance", color = White, fontSize = 19.sp, fontWeight = FontWeight.ExtraBold)
+                    Text("Latest values returned by Instagram", color = Muted, fontSize = 11.sp)
+                }
+                Pill("${insights.size} metrics", Violet)
+            }
+            Spacer(Modifier.height(9.dp))
             if (insights.isEmpty()) {
                 InfoPanel("No daily metrics returned", "Instagram may not provide these metrics for the current account, date range or permission set.", Icons.Outlined.Insights)
             } else {
-                insights.forEach { metric ->
-                    val values = metric.optJSONArray("values")
-                    val latest = values?.optJSONObject(values.length() - 1)?.optString("value") ?: "—"
-                    val name = metric.optString("title").ifBlank { metric.optString("name").replace('_', ' ') }
-                    Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(14.dp), border = BorderStroke(1.dp, Border), modifier = Modifier.fillMaxWidth()) {
-                        Row(Modifier.padding(13.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Column(Modifier.weight(1f)) {
-                                Text(name, color = Muted, fontSize = 12.sp)
-                                Text(latest, color = White, fontSize = 21.sp, fontWeight = FontWeight.ExtraBold)
-                            }
-                            Icon(Icons.Outlined.Insights, null, tint = Violet)
+                insights.take(4).chunked(2).forEach { rowMetrics ->
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                        rowMetrics.forEach { metric ->
+                            val values = metric.optJSONArray("values")
+                            val latest = if (values != null && values.length() > 0) values.optJSONObject(values.length() - 1)?.opt("value")?.toString() ?: "—" else "—"
+                            val label = metric.optString("title").ifBlank { metric.optString("name").replace('_', ' ') }.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.ROOT) else it.toString() }
+                            MetricCard(latest, label, Modifier.weight(1f))
                         }
+                        if (rowMetrics.size == 1) Spacer(Modifier.weight(1f))
                     }
-                    Spacer(Modifier.height(7.dp))
+                    Spacer(Modifier.height(9.dp))
                 }
             }
-            Spacer(Modifier.height(12.dp))
-            Text("Recent content", color = White, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
-            if (media.isEmpty()) Text("No recent posts were returned for the current permissions.", color = Muted, fontSize = 12.sp)
-            media.take(12).forEach { post ->
-                Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(14.dp), border = BorderStroke(1.dp, Border), modifier = Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(13.dp)) {
-                        Pill(post.optString("media_type", "POST"), Violet)
-                        Spacer(Modifier.height(6.dp))
-                        Text(post.optString("caption").ifBlank { "Instagram post" }.take(180), color = White, fontSize = 13.sp)
+            Spacer(Modifier.height(16.dp))
+            Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(22.dp), border = BorderStroke(1.dp, Border), modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(17.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(43.dp).clip(RoundedCornerShape(14.dp)).background(SoftBlue), contentAlignment = Alignment.Center) {
+                            Icon(Icons.Outlined.AutoAwesome, null, tint = VioletStrong, modifier = Modifier.size(24.dp))
+                        }
+                        Spacer(Modifier.width(11.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text("AI Growth Coach", color = White, fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
+                            Text("A practical plan, not vanity metrics", color = Muted, fontSize = 11.sp)
+                        }
+                        Pill(if (subscriptionActive) "PRO" else "PREVIEW", if (subscriptionActive) Mint else Violet)
+                    }
+                    Spacer(Modifier.height(11.dp))
+                    Text("Analyze reach, views, interactions and your latest post captions to find what is working and what to try next.", color = Muted, fontSize = 12.sp, lineHeight = 18.sp)
+                    Spacer(Modifier.height(9.dp))
+                    Text("Privacy: when you tap Generate, Collabzy sends the metrics and recent caption text shown for this report to its AI provider. Instagram access tokens and passwords are never sent to the AI provider.", color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
+                    if (!subscriptionActive) {
+                        Spacer(Modifier.height(14.dp))
+                        Text("Unlock personalized strengths, growth opportunities and a 7-day action plan with Collabzy Pro.", color = White, fontSize = 13.sp, lineHeight = 19.sp)
+                        Spacer(Modifier.height(9.dp))
+                        Button(onClick = onUpgrade, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Violet, contentColor = Color.White), shape = RoundedCornerShape(13.dp)) {
+                            Text("Unlock AI Growth Coach · ₹299/year", fontWeight = FontWeight.Bold)
+                        }
+                    } else if (aiReport != null) {
+                        Spacer(Modifier.height(14.dp))
+                        Text(aiReport.optString("headline", "Your creator growth report"), color = White, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold)
                         Spacer(Modifier.height(5.dp))
-                        Text("Likes " + post.optInt("like_count") + "  ·  Comments " + post.optInt("comments_count"), color = Muted, fontSize = 11.sp)
+                        Text(aiReport.optString("summary", ""), color = Muted, fontSize = 12.sp, lineHeight = 18.sp)
+                        fun strings(key: String): List<String> {
+                            val array = aiReport.optJSONArray(key) ?: return emptyList()
+                            return (0 until array.length()).map { array.optString(it) }.filter { it.isNotBlank() }
+                        }
+                        val strengths = strings("strengths")
+                        if (strengths.isNotEmpty()) {
+                            Spacer(Modifier.height(13.dp))
+                            Text("WHAT'S WORKING", color = Mint, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.sp)
+                            strengths.forEach { Text("•  $it", color = White, fontSize = 12.sp, lineHeight = 18.sp, modifier = Modifier.padding(top = 5.dp)) }
+                        }
+                        val opportunities = strings("opportunities")
+                        if (opportunities.isNotEmpty()) {
+                            Spacer(Modifier.height(13.dp))
+                            Text("BIGGEST OPPORTUNITIES", color = Violet, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.sp)
+                            opportunities.forEach { Text("•  $it", color = White, fontSize = 12.sp, lineHeight = 18.sp, modifier = Modifier.padding(top = 5.dp)) }
+                        }
+                        val plan = strings("next_7_days")
+                        if (plan.isNotEmpty()) {
+                            Spacer(Modifier.height(13.dp))
+                            Text("YOUR NEXT 7 DAYS", color = Violet, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 1.sp)
+                            plan.forEachIndexed { i, item -> Text("${i + 1}.  $item", color = White, fontSize = 12.sp, lineHeight = 18.sp, modifier = Modifier.padding(top = 5.dp)) }
+                        }
+                        Spacer(Modifier.height(12.dp))
+                        OutlinedButton(onClick = onGenerateAi, enabled = !aiLoading, modifier = Modifier.fillMaxWidth(), border = BorderStroke(1.dp, Border), colors = ButtonDefaults.outlinedButtonColors(contentColor = Violet)) {
+                            Icon(Icons.Outlined.Refresh, null); Spacer(Modifier.width(6.dp)); Text("Refresh AI report")
+                        }
+                    } else {
+                        Spacer(Modifier.height(12.dp))
+                        Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Checkbox(checked = aiConsent, onCheckedChange = { aiConsent = it }, colors = CheckboxDefaults.colors(checkedColor = Violet, uncheckedColor = Muted))
+                            Text("I consent to send the listed metrics and recent captions to the AI provider for this report.", color = Muted, fontSize = 11.sp, lineHeight = 16.sp, modifier = Modifier.padding(top = 7.dp))
+                        }
+                        if (aiReportStatus.isNotBlank()) {
+                            Text(aiReportStatus, color = if (aiReportStatus.startsWith("Fresh")) Mint else Muted, fontSize = 11.sp, lineHeight = 16.sp)
+                            Spacer(Modifier.height(7.dp))
+                        }
+                        Button(onClick = onGenerateAi, enabled = aiConsent && !aiLoading, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = Violet, contentColor = Color.White), shape = RoundedCornerShape(13.dp)) {
+                            if (aiLoading) CircularProgressIndicator(Modifier.size(19.dp), color = Color.White, strokeWidth = 2.dp)
+                            else { Icon(Icons.Outlined.AutoAwesome, null); Spacer(Modifier.width(6.dp)); Text("Generate my AI growth report", fontWeight = FontWeight.Bold) }
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(17.dp))
+            Text("Recent content", color = White, fontSize = 19.sp, fontWeight = FontWeight.ExtraBold)
+            Text("Recent posts returned by Instagram permissions", color = Muted, fontSize = 11.sp)
+            Spacer(Modifier.height(8.dp))
+            if (media.isEmpty()) {
+                InfoPanel("No recent posts returned", "This account or its current permission set may not expose recent media.", Icons.Outlined.PhotoLibrary)
+            }
+            media.take(12).forEach { post ->
+                Card(colors = CardDefaults.cardColors(containerColor = Panel), shape = RoundedCornerShape(16.dp), border = BorderStroke(1.dp, Border), modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(13.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Pill(post.optString("media_type", "POST"), Violet)
+                            Spacer(Modifier.weight(1f))
+                            Text(post.optString("timestamp").take(10), color = Muted, fontSize = 10.sp)
+                        }
+                        Spacer(Modifier.height(7.dp))
+                        Text(post.optString("caption").ifBlank { "Instagram post" }.take(180), color = White, fontSize = 13.sp, lineHeight = 18.sp)
+                        Spacer(Modifier.height(7.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Text("♥  ${post.optInt("like_count")}", color = Violet, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            Text("Comments  ${post.optInt("comments_count")}", color = Muted, fontSize = 11.sp)
+                        }
                         val url = post.optString("permalink")
                         if (url.startsWith("https://www.instagram.com/") || url.startsWith("https://instagram.com/")) {
-                            Text(url, color = Violet, fontSize = 10.sp)
+                            Spacer(Modifier.height(5.dp))
+                            Text("Open on Instagram ↗", color = Violet, fontSize = 11.sp, modifier = Modifier.clickable { }.padding(vertical = 3.dp))
                         }
                     }
                 }
-                Spacer(Modifier.height(7.dp))
+                Spacer(Modifier.height(8.dp))
             }
         }
-        Spacer(Modifier.height(20.dp))
+        Spacer(Modifier.height(22.dp))
     }
 }
 
