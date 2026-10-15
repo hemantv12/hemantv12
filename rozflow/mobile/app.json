@@ -12,7 +12,7 @@
     },
     "plugins": [
       "expo-sqlite",
-      ["expo-notifications", { "color": "#13A879" }],
+      ["expo-notifications", { "color": "#13A879" }]
     ],
     "extra": {
       "product": "Daily Life OS",
