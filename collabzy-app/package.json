@@ -1,21 +1,30 @@
 {
-  "name":"collabzy",
-  "version":"1.0.0",
-  "private":true,
-  "description":"Creator and brand collaboration platform",
-  "main":"src/server.js",
-  "scripts":{"start":"node src/server.js","dev":"node --watch src/server.js","test":"node --test test/*.test.js"},
-  "engines":{"node":"22.x"},
-  "dependencies":{
-    "@capacitor/android":"^7.4.3",
-    "@capacitor/core":"^7.4.3",
-    "bcryptjs":"^2.4.3",
-    "better-sqlite3":"^11.8.1",
-    "cors":"^2.8.5",
-    "dotenv":"^16.4.7",
-    "express":"^4.21.2",
-    "express-rate-limit":"^7.5.0",
-    "jsonwebtoken":"^9.0.2"
+  "name": "collabzy",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Creator and brand collaboration platform",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "node --test test/*.test.js"
   },
-  "devDependencies":{"@capacitor/cli":"^7.4.3"}
+  "engines": {
+    "node": "22.x"
+  },
+  "dependencies": {
+    "@capacitor/android": "^7.4.3",
+    "@capacitor/core": "^7.4.3",
+    "bcryptjs": "^2.4.3",
+    "better-sqlite3": "^11.8.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
+    "jsonwebtoken": "^9.0.2",
+    "pg": "^8.16.3"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^7.4.3"
+  }
 }
