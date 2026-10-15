@@ -87,6 +87,9 @@ async function start(PORT,SECRET){
     if(seeded.rows.length!==1||!(await bcrypt.compare(testPassword,seeded.rows[0].password_hash)))throw Error('The gated Collabzy QA account password could not be verified.');
     console.log('Dedicated creator QA account initialized; stored password hash verified and credentials are not logged.');
   }
+  // Render terminates the public connection at one trusted reverse-proxy hop.
+  // Do not use `true` here: a fixed hop count avoids blindly trusting arbitrary client-supplied X-Forwarded-For values.
+  app.set('trust proxy', 1);
   app.disable('x-powered-by');
   app.use((req,res,next)=>{res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('X-Frame-Options','DENY');res.setHeader('Referrer-Policy','strict-origin-when-cross-origin');res.setHeader('Permissions-Policy','camera=(), microphone=(), geolocation=()');next()});
   app.use(cors({origin:(origin,cb)=>{if(!origin||origin.startsWith('http://localhost')||origin.startsWith('https://localhost')||origin.startsWith('http://127.0.0.1')||origin==='https://collabzy-api.onrender.com'||origin==='capacitor://localhost')return cb(null,true);return cb(null,false)},credentials:false}));
