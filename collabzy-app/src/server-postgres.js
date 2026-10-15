@@ -302,9 +302,11 @@ async function start(PORT,SECRET){
       const longUrl=new URL('https://graph.instagram.com/access_token');longUrl.searchParams.set('grant_type','ig_exchange_token');longUrl.searchParams.set('client_secret',process.env.META_APP_SECRET);longUrl.searchParams.set('access_token',accessToken);
       const longRes=await fetch(longUrl),longData=await longRes.json();if(!longRes.ok||!longData.access_token)throw Error(longData.error?.message||'Could not exchange the short-lived Instagram token');accessToken=longData.access_token;tokenExpiresAt=new Date(Date.now()+(Number(longData.expires_in)||5184000)*1000).toISOString();
       const profileUrl=new URL('https://graph.instagram.com/me');profileUrl.searchParams.set('fields','id,user_id,username,account_type,media_count,followers_count');profileUrl.searchParams.set('access_token',accessToken);
-      let profileRes=await fetch(profileUrl),profile=await profileRes.json();if(!profileRes.ok){profileUrl.searchParams.set('fields','id,user_id,username,account_type,media_count');profileRes=await fetch(profileUrl);profile=await profileRes.json()}
-      if(!profileRes.ok||!profile.id)throw Error(profile.error?.message||'Could not read the authorized Instagram profile');
-      const followers=Number(profile.followers_count);await pool.query('UPDATE users SET instagram_handle=$1,instagram_user_id=$2,instagram_access_token_enc=$3,instagram_connected_at=CURRENT_TIMESTAMP,instagram_token_expires_at=$4,followers=CASE WHEN $5::double precision>=0 THEN $5 ELSE followers END WHERE id=$6',[String(profile.username||'').slice(0,100),String(profile.id),encryptToken(accessToken,SECRET),tokenExpiresAt,Number.isFinite(followers)?followers:-1,Number(state.sub)]);
+      let profileRes=await fetch(profileUrl),profile=await profileRes.json();if(!profileRes.ok){profileUrl.searchParams.set('fields','user_id,id,username,account_type,media_count');profileRes=await fetch(profileUrl);profile=await profileRes.json()}
+      const instagramAccountId=String(profile.user_id||profile.id||'').trim();
+      if(!profileRes.ok||!instagramAccountId)throw Error(profile.error?.message||'Could not read the authorized Instagram profile');
+      const followers=Number(profile.followers_count);const updated=await pool.query('UPDATE users SET instagram_handle=$1,instagram_user_id=$2,instagram_access_token_enc=$3,instagram_connected_at=CURRENT_TIMESTAMP,instagram_token_expires_at=$4,followers=CASE WHEN $5::double precision>=0 THEN $5 ELSE followers END WHERE id=$6',[String(profile.username||'').slice(0,100),instagramAccountId,encryptToken(accessToken,SECRET),tokenExpiresAt,Number.isFinite(followers)?followers:-1,Number(state.sub)]);
+      if(!updated.rowCount)throw Error('Collabzy account no longer exists. Sign in again and reconnect Instagram.');
       return done('connected');
     }catch(e){console.error('Instagram OAuth callback failed:',e.message);return done('error')}
   }));
