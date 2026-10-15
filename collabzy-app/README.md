@@ -5,8 +5,8 @@ Collabzy is a mobile-first creator–brand collaboration marketplace. The live e
 ## Implemented features
 
 - Creator and brand accounts with password hashing, signed sessions, validation and auth rate limits.
-- Creator profile with niche, bio, location, Instagram handle, follower count and engagement rate.
-- Campaign marketplace with paid/barter/hybrid listings, search, application pitches, status tracking and saved campaigns.
+- Creator profile with niche, bio, location, Instagram handle, follower count, engagement rate, profile completion guidance and a downloadable media kit.
+- Campaign marketplace with paid/barter/hybrid listings, category/type filters, budget sorting, application pitches, accepted/completed status tracking and saved campaigns.
 - Brand campaign management, creator discovery, campaign invitations and accept/decline response.
 - In-app conversations/messages, unread-message counts and activity notifications.
 - Account password change, self-service data export and password-confirmed deletion.
@@ -24,7 +24,7 @@ Collabzy is a mobile-first creator–brand collaboration marketplace. The live e
 ## Database modes
 
 - **Current deployment:** SQLite on a free web service. Free Render web services have an ephemeral filesystem; do not rely on it for production user records.
-- **Persistent PostgreSQL adapter:** src/server-postgres.js provides a managed PostgreSQL backend with equivalent marketplace endpoints. When a valid DATABASE_URL is configured, src/server.js selects this backend automatically. PostgreSQL schema initialization and existing-application conversation backfill run on startup.
+- **Persistent PostgreSQL adapter:** src/server-postgres.js provides a managed PostgreSQL backend with equivalent marketplace endpoints. When a valid DATABASE_URL is configured, src/server.js selects this backend automatically. PostgreSQL schema initialization and existing-application conversation backfill run on startup. A guarded one-time SQLite importer is available via `MIGRATE_SQLITE_ON_START=true` and optional `SQLITE_MIGRATION_PATH`; it refuses to merge into a populated PostgreSQL database and records completion.
 - Database provisioning is blocked until the Render workspace has billing information. See Production database setup (docs/PRODUCTION_DATABASE.md). Do not reuse or point Collabzy at the separate SubSathi database.
 
 ## Run locally
@@ -54,4 +54,4 @@ The APK is a **debug/testing build** and is around 4 MB because the current fron
 
 ## Automated test coverage
 
-The GitHub Actions workflow covers registration/login, campaign publication/application, saved campaigns, messaging, creator discovery, campaign invitations, account export/password operations and a separate PostgreSQL-mode collaboration workflow. Live Meta OAuth and real Instagram metrics still need an eligible account and a configured Meta app.
+The GitHub Actions workflow covers registration/login, campaign publication/edit/application, saved campaigns, messaging, creator discovery, campaign invitations, accepted-to-completed workflow, account export/password operations, production demo-data cleanup and a separate PostgreSQL-mode collaboration/migration workflow. Live Meta OAuth and real Instagram metrics still need an eligible account and a configured Meta app.
