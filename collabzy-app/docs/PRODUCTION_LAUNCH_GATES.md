@@ -39,3 +39,6 @@ The \`/api/health\` response exposes \`integrations.email\`, \`integrations.supp
 - Configure a stable Android upload keystore in protected build secrets, then run physical-device QA.
 - Complete Meta review, Play Console data-safety disclosures, store listing, required closed testing / production access, and review.
 - Confirm the operator's legal name, jurisdiction, privacy contact and terms with a qualified adviser before commercial launch.
+
+
+Public registration also requires `OPERATOR_LEGAL_NAME` and `OPERATOR_JURISDICTION`. The service displays these fields in its privacy notice and terms. Do not invent an entity name or jurisdiction; the owner must supply accurate public details.
