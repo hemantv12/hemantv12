@@ -23,7 +23,7 @@ function decryptToken(value,secret){
 }
 function publicUser(row){
   if(!row)return row;
-  const {password_hash,session_version,email_verified_at,instagram_user_id,instagram_access_token_enc,instagram_connected_at,instagram_token_expires_at,...user}=row;
+  const {password_hash,session_version,email_verified_at,terms_accepted_at,terms_version,instagram_user_id,instagram_access_token_enc,instagram_connected_at,instagram_token_expires_at,...user}=row;
   return user;
 }
 function tokenFor(user,secret){return jwt.sign({id:String(user.id),email:user.email,role:user.role,ver:Number(user.session_version||0)},secret,{expiresIn:'7d'});}
@@ -31,6 +31,7 @@ function validEmail(value){
   const email=String(value||'').trim().toLowerCase();
   return email.length<=254&&!/\s/.test(email)&&/^[^@]+@[^@]+\.[^@]+$/.test(email)?email:'';
 }
+function htmlEscape(value){return String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));}
 function asyncRoute(fn){return(q,s,n)=>Promise.resolve(fn(q,s,n)).catch(n);}
 const PROFILE_FIELDS='id,name,email,role,niche,bio,location,instagram_handle,followers,engagement,created_at';
 
@@ -42,6 +43,8 @@ async function start(PORT,SECRET){
   await pool.query("CREATE TABLE IF NOT EXISTS users(id BIGSERIAL PRIMARY KEY,name TEXT NOT NULL,email TEXT NOT NULL UNIQUE,password_hash TEXT NOT NULL,role TEXT NOT NULL CHECK(role IN('creator','brand')),niche TEXT NOT NULL DEFAULT '',bio TEXT NOT NULL DEFAULT '',location TEXT NOT NULL DEFAULT '',instagram_handle TEXT NOT NULL DEFAULT '',instagram_user_id TEXT NOT NULL DEFAULT '',instagram_access_token_enc TEXT NOT NULL DEFAULT '',instagram_connected_at TIMESTAMPTZ,instagram_token_expires_at TIMESTAMPTZ,followers BIGINT NOT NULL DEFAULT 0,engagement REAL NOT NULL DEFAULT 0,created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP)");
   await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified_at TIMESTAMPTZ");
   await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS session_version INTEGER NOT NULL DEFAULT 0");
+  await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS terms_accepted_at TIMESTAMPTZ");
+  await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS terms_version TEXT NOT NULL DEFAULT ''");
   await pool.query("CREATE TABLE IF NOT EXISTS email_action_tokens(id BIGSERIAL PRIMARY KEY,user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,token_hash TEXT NOT NULL UNIQUE,purpose TEXT NOT NULL CHECK(purpose IN('verify_email','password_reset')),expires_at TIMESTAMPTZ NOT NULL,consumed_at TIMESTAMPTZ,created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP)");
   await pool.query("CREATE INDEX IF NOT EXISTS email_action_tokens_user_idx ON email_action_tokens(user_id,purpose,created_at DESC)");
   await pool.query("CREATE TABLE IF NOT EXISTS support_requests(id BIGSERIAL PRIMARY KEY,name TEXT NOT NULL,email TEXT NOT NULL,category TEXT NOT NULL,subject TEXT NOT NULL,message TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'open',created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP)");
@@ -131,7 +134,8 @@ async function start(PORT,SECRET){
     if(!registrationReady())return s.status(503).json({error:'Account creation is paused until email verification, a monitored support contact, and required Meta integration are configured.'});
     const hash=await bcrypt.hash(password,12);
     try{
-      const r=await pool.query('INSERT INTO users(name,email,password_hash,role,email_verified_at) VALUES($1,$2,$3,$4,$5) RETURNING '+PROFILE_FIELDS,[name,email,hash,role,requireEmailVerification?null:new Date()]);
+      const acceptedAt=q.body?.accepted_terms===true?new Date():null;
+      const r=await pool.query('INSERT INTO users(name,email,password_hash,role,email_verified_at,terms_accepted_at,terms_version) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING '+PROFILE_FIELDS,[name,email,hash,role,requireEmailVerification?null:new Date(),acceptedAt,acceptedAt?'2026-10-15':'']);
       const u=r.rows[0];
       if(requireEmailVerification){
         try{await createEmailAction(u.id,email,'verify_email')}
@@ -223,7 +227,7 @@ async function start(PORT,SECRET){
   app.get('/api/me/export',auth,asyncRoute(async(q,s)=>{
     const id=q.user.id,brand=q.user.role==='brand';
     const [profile,campaigns,applications,messages,saved,invitations,notifications]=await Promise.all([
-      pool.query('SELECT '+PROFILE_FIELDS+' FROM users WHERE id=$1',[id]),
+      pool.query('SELECT '+PROFILE_FIELDS+',terms_accepted_at,terms_version FROM users WHERE id=$1',[id]),
       brand?pool.query('SELECT * FROM campaigns WHERE brand_id=$1 ORDER BY id',[id]):pool.query('SELECT * FROM campaigns WHERE false'),
       pool.query(brand?'SELECT a.*,c.title campaign_title,u.name creator_name FROM applications a JOIN campaigns c ON c.id=a.campaign_id JOIN users u ON u.id=a.creator_id WHERE c.brand_id=$1 ORDER BY a.id':'SELECT a.*,c.title campaign_title,c.brand_name FROM applications a JOIN campaigns c ON c.id=a.campaign_id WHERE a.creator_id=$1 ORDER BY a.id',[id]),
       pool.query('SELECT m.id,m.conversation_id,m.sender_id,m.body,m.created_at,m.read_at FROM messages m JOIN conversations c ON c.id=m.conversation_id WHERE c.creator_id=$1 OR c.brand_id=$1 ORDER BY m.id',[id]),
@@ -383,7 +387,7 @@ async function start(PORT,SECRET){
     if(!emailReady()||!supportReady())return s.status(503).json({error:'The support channel is not configured yet. Account self-service controls remain available in Profile.'});
     const saved=await pool.query('INSERT INTO support_requests(name,email,category,subject,message) VALUES($1,$2,$3,$4,$5) RETURNING id,created_at',[name,email,category,subject,message]);
     try{
-      await sendEmailMessage({to:process.env.SUPPORT_EMAIL,subject:'[Collabzy '+category+'] '+subject,text:'Request ID: '+saved.rows[0].id+'\nFrom: '+name+' <'+email+'>\nCategory: '+category+'\n\n'+message,html:'<!doctype html><html><body style="font-family:Arial,sans-serif;color:#211c35"><h2>Collabzy support request #'+saved.rows[0].id+'</h2><p><b>From:</b> '+name+' &lt;'+email+'&gt;</p><p><b>Category:</b> '+category+'</p><p><b>Subject:</b> '+subject+'</p><pre style="white-space:pre-wrap">'+message.replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]))+'</pre></body></html>'});
+      await sendEmailMessage({to:process.env.SUPPORT_EMAIL,subject:'[Collabzy '+category+'] '+subject,text:'Request ID: '+saved.rows[0].id+'\nFrom: '+name+' <'+email+'>\nCategory: '+category+'\n\n'+message,html:'<!doctype html><html><body style="font-family:Arial,sans-serif;color:#211c35"><h2>Collabzy support request #'+saved.rows[0].id+'</h2><p><b>From:</b> '+htmlEscape(name)+' &lt;'+htmlEscape(email)+'&gt;</p><p><b>Category:</b> '+htmlEscape(category)+'</p><p><b>Subject:</b> '+htmlEscape(subject)+'</p><pre style="white-space:pre-wrap">'+htmlEscape(message)+'</pre></body></html>'});
     }catch(error){console.error('Support notification delivery failed:',error.message);return s.status(202).json({ok:true,request_id:saved.rows[0].id,message:'Your request was stored, but notification delivery failed. Please retry later if you do not receive an acknowledgement.'})}
     s.status(201).json({ok:true,request_id:saved.rows[0].id,message:'Your request was sent to Collabzy support.'});
   }));
