@@ -62,6 +62,13 @@ test('Collabzy API supports registration, campaign publishing and application wo
   const createBrandCampaign=await fetch(base+'/api/campaigns',{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+brand.token},body:JSON.stringify({title:'Launch campaign',description:'Looking for a creator to launch our product.',category:'Lifestyle',collaboration_type:'Paid',budget_min:3000,budget_max:8000,deliverables:'1 Reel + 2 Stories',location:'India'})});
   assert.equal(createBrandCampaign.status,201,'brand should be able to publish a campaign');
   const brandCampaign=(await createBrandCampaign.json()).campaign;
+  const editCampaign=await fetch(base+'/api/campaigns/'+brandCampaign.id,{method:'PATCH',headers:{'content-type':'application/json',authorization:'Bearer '+brand.token},body:JSON.stringify({title:'Launch campaign updated',description:'Updated brief for testing edits.',budget_min:3500,budget_max:7500,deliverables:'2 Reels'})});
+  assert.equal(editCampaign.status,200,'brand should be able to edit its own campaign');
+  const editedCampaign=(await editCampaign.json()).campaign;
+  assert.equal(editedCampaign.title,'Launch campaign updated');
+  assert.equal(Number(editedCampaign.budget_max),7500);
+  const creatorEditCampaign=await fetch(base+'/api/campaigns/'+brandCampaign.id,{method:'PATCH',headers:{'content-type':'application/json',authorization:'Bearer '+creator.token},body:JSON.stringify({title:'Unauthorized change'})});
+  assert.equal(creatorEditCampaign.status,403,'creators must not edit brand campaigns');
   const directory=await fetch(base+'/api/creators',{headers:{authorization:'Bearer '+brand.token}});
   assert.equal(directory.status,200);
   assert.ok((await directory.json()).creators.some(c=>c.id===creator.user.id),'brands should be able to discover creator profiles');
