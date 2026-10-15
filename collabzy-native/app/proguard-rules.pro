@@ -1,0 +1,3 @@
+-keepattributes Signature
+-keep class org.json.** { *; }
+-dontwarn okhttp3.**
