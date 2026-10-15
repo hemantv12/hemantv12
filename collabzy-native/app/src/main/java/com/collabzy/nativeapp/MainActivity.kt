@@ -576,6 +576,25 @@ private fun CollabzyNativeApp(activity: MainActivity, oauthResult: String?, bill
         }
     }
 
+    LaunchedEffect(billingResult) {
+        val payment = billingResult ?: return@LaunchedEffect
+        clearBillingResult()
+        perform {
+            Api.call("/billing/verify", "POST", payment)
+            refreshBilling()
+            billingMessage = if (billingStatus.flag("active")) "Payment verified. Collabzy Pro is active for one year." else "Payment submitted. Activation will be confirmed after provider verification."
+            toast(billingMessage)
+            screen = "subscription"
+        }
+    }
+
+    LaunchedEffect(billingError) {
+        val error = billingError ?: return@LaunchedEffect
+        clearBillingResult()
+        billingMessage = error
+        toast(error)
+    }
+
     if (me == null) {
         AuthPane(
             loading = loading,
@@ -610,27 +629,64 @@ private fun CollabzyNativeApp(activity: MainActivity, oauthResult: String?, bill
     }
 
     val user = me!!
+    if (user.role == "creator" && !igConnected && !user.connected) {
+        InstagramConnectGate(
+            loading = loading,
+            mode = igMode,
+            statusMessage = igStatusMessage,
+            onConnect = {
+                perform {
+                    val result = Api.call("/instagram/connect?platform=native")
+                    val url = result.optString("authorization_url")
+                    if (!url.startsWith("https://www.instagram.com/")) throw IOException("Meta did not return the official Instagram authorization URL.")
+                    activity.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                }
+            },
+            onRetry = {
+                perform {
+                    refreshInstagram()
+                    if (igConnected) {
+                        refreshAll()
+                        screen = "instagram"
+                        toast("Instagram connection restored.")
+                    }
+                }
+            },
+            onLogout = {
+                token = ""
+                Api.token = ""
+                prefs.edit().remove("token").apply()
+                me = null
+                screen = "discover"
+            }
+        )
+        return
+    }
+
     val navItems = if (user.role == "brand") {
         listOf(
             NavItem("overview", "Home", Icons.Outlined.Dashboard),
             NavItem("campaigns", "Campaigns", Icons.Outlined.Campaign),
             NavItem("creators", "Creators", Icons.Outlined.PeopleAlt),
             NavItem("messages", "Messages", Icons.Outlined.ChatBubbleOutline),
-            NavItem("profile", "Profile", Icons.Outlined.PersonOutline)
+            NavItem("profile", "Profile", Icons.Outlined.PersonOutline),
+            NavItem("subscription", "Pro", Icons.Outlined.WorkspacePremium)
         )
     } else {
         listOf(
             NavItem("discover", "Discover", Icons.Outlined.Explore),
+            NavItem("instagram", "Insights", Icons.Outlined.Insights),
             NavItem("applications", "Deals", Icons.Outlined.WorkOutline),
             NavItem("messages", "Messages", Icons.Outlined.ChatBubbleOutline),
-            NavItem("profile", "Profile", Icons.Outlined.PersonOutline)
+            NavItem("profile", "Profile", Icons.Outlined.PersonOutline),
+            NavItem("subscription", "Pro", Icons.Outlined.WorkspacePremium)
         )
     }
 
     Scaffold(
         containerColor = Ink,
         bottomBar = {
-            if (screen !in setOf("chat", "instagram", "notifications")) {
+            if (screen !in setOf("chat", "notifications")) {
                 NavigationBar(containerColor = Panel, tonalElevation = 0.dp) {
                     navItems.forEach { item ->
                         NavigationBarItem(
@@ -858,17 +914,21 @@ private fun CollabzyNativeApp(activity: MainActivity, oauthResult: String?, bill
                     handle = igHandle.ifBlank { user.handle },
                     insights = igInsights,
                     media = igMedia,
+                    aiReport = aiReport,
+                    aiReportStatus = aiReportStatus,
+                    aiLoading = aiLoading,
+                    subscriptionActive = billingStatus.flag("active"),
+                    onGenerateAi = { perform { generateAiReport() } },
+                    onUpgrade = { screen = "subscription" },
                     onConnect = {
                         perform {
                             val result = Api.call("/instagram/connect?platform=native")
                             val url = result.optString("authorization_url")
-                            if (!url.startsWith("https://www.instagram.com/")) throw IOException(
-                                "The server did not return Meta's official Instagram authorization page."
-                            )
+                            if (!url.startsWith("https://www.instagram.com/")) throw IOException("The server did not return Meta's official Instagram authorization page.")
                             activity.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
                         }
                     },
-                    onRefresh = { perform { refreshInstagram(); toast("Instagram insights refreshed.") } },
+                    onRefresh = { perform { refreshInstagram(); if (billingStatus.flag("active")) generateAiReport(); toast("Instagram insights refreshed.") } },
                     onDisconnect = {
                         perform {
                             Api.call("/instagram/disconnect", "POST")
@@ -876,8 +936,25 @@ private fun CollabzyNativeApp(activity: MainActivity, oauthResult: String?, bill
                             igHandle = ""
                             igInsights = emptyList()
                             igMedia = emptyList()
+                            aiReport = null
                             me = CreatorUser.from(Api.call("/me").getJSONObject("user"))
-                            toast("Instagram account disconnected.")
+                            toast("Instagram account disconnected. Connect again to reopen your workspace.")
+                        }
+                    }
+                )
+                "subscription" -> SubscriptionPane(
+                    status = billingStatus,
+                    message = billingMessage,
+                    loading = loading,
+                    onRefresh = { perform { refreshBilling(); toast("Subscription status refreshed.") } },
+                    onSubscribe = {
+                        billingMessage = ""
+                        perform {
+                            val order = Api.call("/billing/order", "POST", JSONObject().put("plan_code", "creator_annual_299"))
+                            val orderId = order.optString("order_id")
+                            val options = order.optJSONObject("checkout_options") ?: throw IOException("The payment provider did not return checkout options.")
+                            if (orderId.isBlank() || options.optString("key_id").isBlank()) throw IOException("Payment checkout is not configured.")
+                            activity.launchRazorpayCheckout(orderId, options)
                         }
                     }
                 )
