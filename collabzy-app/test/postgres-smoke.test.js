@@ -10,7 +10,7 @@ test('PostgreSQL production backend supports creator-brand collaboration workflo
   await new Promise((resolve,reject)=>probe.listen(0,'127.0.0.1',resolve).once('error',reject));
   const port=probe.address().port;
   await new Promise(resolve=>probe.close(resolve));
-  const child=spawn(process.execPath,['src/server.js'],{
+  let child=spawn(process.execPath,['src/server.js'],{
     cwd:path.join(__dirname,'..'),
     env:{...process.env,NODE_ENV:'test',PORT:String(port),JWT_SECRET:'postgres-test-secret-at-least-32-characters-long',PGSSLMODE:'disable'},
     stdio:['ignore','pipe','pipe']
@@ -73,4 +73,32 @@ test('PostgreSQL production backend supports creator-brand collaboration workflo
   assert.equal(Object.hasOwn(badTokenFields.user,'instagram_access_token_enc'),false);
   const health2=await (await fetch(base+'/api/health')).json();
   assert.equal(health2.mode,'postgres-persistent');
+
+  // Restart the API process while keeping the same PostgreSQL service.
+  child.kill('SIGTERM');
+  await new Promise(resolve=>{if(child.exitCode!==null)return resolve();child.once('exit',resolve);setTimeout(resolve,2500)});
+  child=spawn(process.execPath,['src/server.js'],{
+    cwd:path.join(__dirname,'..'),
+    env:{...process.env,NODE_ENV:'test',PORT:String(port),JWT_SECRET:'postgres-test-secret-at-least-32-characters-long',PGSSLMODE:'disable'},
+    stdio:['ignore','pipe','pipe']
+  });
+  child.stdout.on('data',d=>logs+=d.toString());
+  child.stderr.on('data',d=>logs+=d.toString());
+  let restarted=false;
+  for(let i=0;i<80;i++){
+    if(child.exitCode!==null)break;
+    try{const r=await fetch(base+'/api/health');if(r.ok&&(await r.json()).mode==='postgres-persistent'){restarted=true;break}}catch{}
+    await new Promise(r=>setTimeout(r,250));
+  }
+  assert.equal(restarted,true,'API should restart cleanly on the same persistent database; logs: '+logs);
+  const loginAfterRestart=await fetch(base+'/api/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:creator.user.email,password:'TestPassword123!'})});
+  assert.equal(loginAfterRestart.status,200,'account should still exist after API restart');
+  const restored=await loginAfterRestart.json();
+  const campaignsAfterRestart=(await (await fetch(base+'/api/campaigns')).json()).campaigns;
+  assert.ok(campaignsAfterRestart.some(c=>String(c.id)===String(campaign.id)),'campaign should persist after API restart');
+  const conversationsAfterRestart=(await (await fetch(base+'/api/conversations',{headers:{authorization:'Bearer '+restored.token}})).json()).conversations;
+  assert.ok(conversationsAfterRestart.length>=1,'conversation metadata should persist after API restart');
+  const messagesAfterRestart=await fetch(base+'/api/conversations/'+convId+'/messages',{headers:{authorization:'Bearer '+restored.token}});
+  assert.equal(messagesAfterRestart.status,200);
+  assert.ok((await messagesAfterRestart.json()).messages.some(m=>m.body==='Hello from PostgreSQL.'),'messages should persist after API restart');
 });
