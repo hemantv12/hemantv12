@@ -582,6 +582,11 @@ function AppContent() {
   const autoScanSessionRef = useRef<string | null>(null);
   const scanInFlightRef = useRef(false);
   const screenProgress = useRef(new Animated.Value(1)).current;
+  const splashScale = useRef(new Animated.Value(0.78)).current;
+  const splashRotation = useRef(new Animated.Value(0)).current;
+  const splashGlow = useRef(new Animated.Value(0.2)).current;
+  const splashProgress = useRef(new Animated.Value(0.04)).current;
+  const [splashAnimationDone, setSplashAnimationDone] = useState(false);
   const [assistantLanguage, setAssistantLanguage] = useState<AssistantLanguage>('hi-IN');
   const [voiceListening, setVoiceListening] = useState(false);
   const [voiceRepliesEnabled, setVoiceRepliesEnabled] = useState(false);
@@ -702,6 +707,59 @@ function AppContent() {
   }, [refreshApiHealth]);
 
   useEffect(() => {
+    let active = true;
+    const intro = Animated.parallel([
+      Animated.sequence([
+        Animated.timing(splashScale, {
+          toValue: 1.08,
+          duration: 420,
+          easing: Easing.out(Easing.back(1.25)),
+          useNativeDriver: true,
+        }),
+        Animated.spring(splashScale, {
+          toValue: 1,
+          speed: 13,
+          bounciness: 5,
+          useNativeDriver: true,
+        }),
+      ]),
+      Animated.timing(splashRotation, {
+        toValue: 1,
+        duration: 760,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.sequence([
+        Animated.timing(splashGlow, {
+          toValue: 1,
+          duration: 320,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(splashGlow, {
+          toValue: 0.72,
+          duration: 420,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ]),
+      Animated.timing(splashProgress, {
+        toValue: 1,
+        duration: 760,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+    ], { stopTogether: false });
+    intro.start(({ finished }) => {
+      if (active && finished) setSplashAnimationDone(true);
+    });
+    return () => {
+      active = false;
+      intro.stop();
+    };
+  }, [splashScale, splashRotation, splashGlow, splashProgress]);
+
+  useEffect(() => {
     screenProgress.setValue(0);
     Animated.timing(screenProgress, {
       toValue: 1,
@@ -800,6 +858,12 @@ function AppContent() {
   const activeMonthly = useMemo(() => subscriptions.reduce((sum, item) => sum + monthlyEquivalent(item), 0), [subscriptions]);
   const activeAnnual = useMemo(() => subscriptions.reduce((sum, item) => sum + annualEquivalent(item), 0), [subscriptions]);
   const nextThirtyDays = useMemo(() => subscriptions.filter((item) => daysUntil(item.nextRenewal) >= 0 && daysUntil(item.nextRenewal) <= 30), [subscriptions]);
+  const renewalsThisWeek = useMemo(
+    () => subscriptions
+      .filter((item) => Boolean(item.nextRenewal) && daysUntil(item.nextRenewal) >= 0 && daysUntil(item.nextRenewal) <= 7)
+      .sort((a, b) => a.nextRenewal.localeCompare(b.nextRenewal)),
+    [subscriptions],
+  );
   const upcoming = useMemo(() => subscriptions.filter((item) => daysUntil(item.nextRenewal) >= -3 && daysUntil(item.nextRenewal) <= 30).sort((a, b) => a.nextRenewal.localeCompare(b.nextRenewal)), [subscriptions]);
   const currentMonthDue = useMemo(() => subscriptions.filter((item) => {
     const date = parseLocalDate(item.nextRenewal);
@@ -1677,6 +1741,55 @@ function AppContent() {
         <Pressable style={styles.quickAction} onPress={() => setTab('AI')}><View style={[styles.quickActionIcon, { backgroundColor: '#F1EAFE' }]}><Feather name="cpu" size={21} color="#7651A6" /></View><Text style={styles.quickActionLabel}>AI coach</Text></Pressable>
         <Pressable style={styles.quickAction} onPress={() => setTab('Subscriptions')}><View style={[styles.quickActionIcon, { backgroundColor: '#EAF2FF' }]}><Feather name="grid" size={21} color="#3568A8" /></View><Text style={styles.quickActionLabel}>All plans</Text></Pressable>
       </View>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Open today's money check"
+        onPress={() => {
+          if (!subscriptions.length) {
+            openNew();
+            return;
+          }
+          setSearch('');
+          setFilter('All');
+          setTab(renewalsThisWeek.length || savingsRadar.missingDetails ? 'Subscriptions' : 'Insights');
+        }}
+        style={({ pressed }) => [styles.dailyCheckCard, pressed && { opacity: 0.92, transform: [{ scale: 0.99 }] }]}
+      >
+        <LinearGradient colors={['#EAF9F1', '#F0F6FF']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.dailyCheckGradient}>
+          <View style={styles.dailyCheckIcon}>
+            <Feather
+              name={!subscriptions.length ? 'plus-circle' : renewalsThisWeek.length ? 'calendar' : savingsRadar.missingDetails ? 'clipboard' : savingsRadar.potentialMonthly > 0 ? 'trending-up' : 'check-circle'}
+              size={25}
+              color={C.greenDark}
+            />
+          </View>
+          <View style={styles.dailyCheckCopy}>
+            <Text style={styles.dailyCheckEyebrow}>TODAY'S MONEY CHECK</Text>
+            <Text style={styles.dailyCheckTitle}>
+              {!subscriptions.length ? 'Start your money routine'
+                : renewalsThisWeek.length ? `${renewalsThisWeek.length} renewal${renewalsThisWeek.length === 1 ? '' : 's'} coming up`
+                : savingsRadar.missingDetails ? 'Complete your plan details'
+                : savingsRadar.potentialMonthly > 0 ? 'A savings review is ready'
+                : 'Your money routine is on track'}
+            </Text>
+            <Text style={styles.dailyCheckBody}>
+              {!subscriptions.length ? 'Add your subscriptions to keep prices, renewal dates and reminders together.'
+                : renewalsThisWeek.length ? 'Review the upcoming dates and prices before your next charges.'
+                : savingsRadar.missingDetails ? `${savingsRadar.missingDetails} plan(s) need a confirmed price, billing cycle or renewal date for more reliable alerts.`
+                : savingsRadar.potentialMonthly > 0 ? `Review plans that overlap. ${money(savingsRadar.potentialMonthly)} per month is a potential review opportunity, not guaranteed savings.`
+                : 'Your tracked details look complete. Check Insights again whenever a plan changes.'}
+            </Text>
+            <View style={styles.dailyCheckFooter}>
+              <Text style={styles.dailyCheckCTAText}>{!subscriptions.length ? 'Add first plan' : renewalsThisWeek.length || savingsRadar.missingDetails ? 'Review my plans' : 'Open insights'} <Feather name="arrow-right" size={12} color={C.greenDark} /></Text>
+              <View style={styles.dailyCheckBadge}>
+                <Text style={styles.dailyCheckBadgeText}>
+                  {!subscriptions.length ? 'START' : renewalsThisWeek.length ? `${renewalsThisWeek.length} DUE` : savingsRadar.missingDetails ? `${savingsRadar.missingDetails} TO FIX` : savingsRadar.potentialMonthly > 0 ? 'SAVINGS' : 'ON TRACK'}
+                </Text>
+              </View>
+            </View>
+          </View>
+        </LinearGradient>
+      </Pressable>
       <View style={styles.sectionTitleRow}><Text style={styles.sectionTitle}>Coming up</Text><Pressable onPress={() => setTab('Subscriptions')}><Text style={styles.sectionAction}>View all</Text></Pressable></View>
       {upcoming.length ? <View style={styles.listCard}>{upcoming.slice(0, 4).map((item, index) => <View key={item.id}>{renderSubscriptionCard(item, true)}{index < Math.min(upcoming.length, 4) - 1 ? <View style={styles.innerDivider} /> : null}</View>)}</View> : <View style={styles.emptyCard}><View style={styles.emptyIcon}><Text style={{ fontSize: 26 }}>🗓️</Text></View><Text style={styles.emptyTitle}>No renewals coming up</Text><Text style={styles.emptyBody}>Add a subscription and SubSathi will help you keep an eye on its renewal date.</Text><PrimaryButton title="Add your first plan" onPress={openNew} /></View>}
       <View style={styles.tipCard}><View style={styles.tipIcon}><Text style={{ fontSize: 20 }}>💡</Text></View><View style={styles.tipCopy}><Text style={styles.tipTitle}>Small charges add up</Text><Text style={styles.tipBody}>Review your recurring plans once a month. Cancel unused plans directly with the provider.</Text></View></View>
@@ -1873,7 +1986,7 @@ function AppContent() {
   const renderSettings = () => (
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
       <View style={styles.pageHeader}><Text style={styles.pageEyebrow}>YOUR APP</Text><Text style={styles.pageTitle}>Settings</Text><Text style={styles.pageSub}>Privacy, alerts and connected services.</Text></View>
-      <View style={styles.profilePanel}><BrandMark size={52} /><View style={{ flex: 1 }}><Text style={styles.profilePanelTitle}>SubSathi</Text><Text style={styles.profilePanelSub}>Local-first · Version 0.5.12 · SmartSathi AI</Text></View><Pill tone="green">On device</Pill></View>
+      <View style={styles.profilePanel}><BrandMark size={52} /><View style={{ flex: 1 }}><Text style={styles.profilePanelTitle}>SubSathi</Text><Text style={styles.profilePanelSub}>Local-first · Version 0.5.13 · SmartSathi AI</Text></View><Pill tone="green">On device</Pill></View>
       <View style={styles.panel}>
         <Text style={styles.settingsSectionLabel}>REMINDERS</Text>
         <View style={styles.settingRow}><View style={styles.settingIcon}><Text>🔔</Text></View><View style={styles.settingCopy}><Text style={styles.settingTitle}>Renewal notifications</Text><Text style={styles.settingBody}>Remind two days before, at 9:00 AM when permitted.</Text></View><Switch value={notificationsEnabled} onValueChange={(value) => { setNotificationsEnabled(value); void withLocalDatabase((db) => db.runAsync("INSERT INTO app_settings (key, value) VALUES ('notificationsEnabled', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value", value ? 'true' : 'false').then(() => undefined)).catch((error) => { console.warn('Could not save notification preference', error); Alert.alert('Preference not saved', 'Renewal notifications changed for this session. Restart SubSathi and retry if the setting does not persist.'); }); void rescheduleRenewalReminders(subscriptions, value); }} trackColor={{ false: '#CBD5D4', true: '#A7E4CD' }} thumbColor={notificationsEnabled ? C.green : '#F6F7F7'} /></View>
@@ -1895,7 +2008,45 @@ function AppContent() {
     </ScrollView>
   );
 
-  if (!ready) return <SafeAreaView edges={['top', 'bottom']} style={styles.loadingScreen}><StatusBar barStyle="dark-content" backgroundColor={C.cream} /><BrandMark size={58} /><Text style={styles.loadingTitle}>SubSathi</Text><ActivityIndicator color={C.green} style={{ marginTop: 12 }} /><Text style={styles.loadingSub}>Getting your subscriptions ready...</Text></SafeAreaView>;
+  if (!ready || !splashAnimationDone) return (
+    <SafeAreaView edges={['top', 'bottom']} style={styles.loadingScreen}>
+      <StatusBar barStyle="light-content" backgroundColor="#081F2B" />
+      <LinearGradient colors={['#071923', '#0B3940', '#087756']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.splashBackground}>
+        <View pointerEvents="none" style={styles.splashOrbTop} />
+        <View pointerEvents="none" style={styles.splashOrbBottom} />
+        <Animated.View pointerEvents="none" style={[
+          styles.splashGlow,
+          {
+            opacity: splashGlow,
+            transform: [{ scale: splashGlow.interpolate({ inputRange: [0, 1], outputRange: [0.76, 1.16] }) }],
+          },
+        ]} />
+        <Animated.View style={[
+          styles.splashLogoFrame,
+          {
+            transform: [
+              { scale: splashScale },
+              { rotate: splashRotation.interpolate({ inputRange: [0, 1], outputRange: ['-16deg', '0deg'] }) },
+            ],
+          },
+        ]}>
+          <BrandMark size={76} />
+        </Animated.View>
+        <Animated.Text style={[styles.splashTitle, { opacity: splashGlow }]}>SubSathi</Animated.Text>
+        <Text style={styles.splashTagline}>Your subscriptions. One smarter place.</Text>
+        {!ready ? <ActivityIndicator color="#49E8B0" size="small" style={{ marginTop: 22 }} /> : <View style={{ height: 22 }} />}
+        <View style={styles.splashDotsRow}>
+          <View style={styles.splashDot} />
+          <Animated.View style={[styles.splashDot, styles.splashDotActive, { opacity: splashGlow }]} />
+          <View style={styles.splashDot} />
+        </View>
+        <Text style={styles.splashLoading}>GETTING YOUR MONEY LIFE READY</Text>
+        <View style={styles.splashProgressTrack}>
+          <Animated.View style={[styles.splashProgressFill, { transform: [{ scaleX: splashProgress }] }]} />
+        </View>
+      </LinearGradient>
+    </SafeAreaView>
+  );
 
   return (
     <SafeAreaView edges={['top']} style={styles.safeArea}>
@@ -2173,9 +2324,34 @@ const pillRed = StyleSheet.create({ base: { alignSelf: 'flex-start', backgroundC
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: C.cream }, appContent: { flex: 1, minHeight: 0 }, adContainer: { minHeight: 58, alignItems: 'center', justifyContent: 'center', backgroundColor: C.white, borderTopWidth: 1, borderTopColor: C.line, paddingTop: 2, paddingBottom: 2 }, adTestLabel: { color: '#829398', fontSize: 8, fontWeight: '800', letterSpacing: 1, marginBottom: 1 }, scrollContent: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 24 },
-  loadingScreen: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: C.cream }, loadingTitle: { marginTop: 12, color: C.ink, fontSize: 24, fontWeight: '800' }, loadingSub: { marginTop: 10, fontSize: 13, color: C.muted },
+  loadingScreen: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#081F2B' },
+  splashBackground: { flex: 1, width: '100%', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28, overflow: 'hidden' },
+  splashOrbTop: { position: 'absolute', width: 310, height: 310, borderRadius: 155, top: -130, right: -100, borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)', backgroundColor: 'rgba(255,255,255,0.025)' },
+  splashOrbBottom: { position: 'absolute', width: 360, height: 360, borderRadius: 180, bottom: -190, left: -130, borderWidth: 1, borderColor: 'rgba(156,255,210,0.10)', backgroundColor: 'rgba(18,168,121,0.07)' },
+  splashGlow: { position: 'absolute', width: 160, height: 160, borderRadius: 80, backgroundColor: 'rgba(42,230,165,0.16)', borderWidth: 1, borderColor: 'rgba(145,255,214,0.22)' },
+  splashLogoFrame: { width: 122, height: 122, borderRadius: 40, borderWidth: 1, borderColor: 'rgba(195,255,229,0.34)', backgroundColor: 'rgba(255,255,255,0.07)', alignItems: 'center', justifyContent: 'center', marginBottom: 24, shadowColor: '#21D6A0', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.28, shadowRadius: 28, elevation: 10 },
+  splashTitle: { color: '#F4FFF9', fontSize: 42, fontWeight: '900', letterSpacing: -1.6 },
+  splashTagline: { marginTop: 8, color: '#B9DDD2', fontSize: 13, fontWeight: '500', letterSpacing: 0.2, textAlign: 'center' },
+  splashDotsRow: { position: 'absolute', bottom: 106, flexDirection: 'row', alignItems: 'center', gap: 7 },
+  splashDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.30)' },
+  splashDotActive: { width: 19, backgroundColor: '#49E8B0' },
+  splashLoading: { position: 'absolute', bottom: 74, letterSpacing: 1.7, fontSize: 9, color: '#A3CFC0', fontWeight: '800' },
+  splashProgressTrack: { position: 'absolute', bottom: 56, height: 3, width: 150, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.13)', overflow: 'hidden' },
+  splashProgressFill: { width: '100%', height: 3, borderRadius: 4, backgroundColor: '#49E8B0' },
+  loadingTitle: { marginTop: 12, color: C.ink, fontSize: 24, fontWeight: '800' }, loadingSub: { marginTop: 10, fontSize: 13, color: C.muted },
   brandMark: { alignItems: 'center', justifyContent: 'center', backgroundColor: C.green, overflow: 'hidden' }, brandName: { fontSize: 20, color: C.ink, fontWeight: '800', letterSpacing: -0.6 }, brandTagline: { marginTop: 2, fontSize: 11, color: C.muted }, brandLockup: { flexDirection: 'row', alignItems: 'center', gap: 10 }, homeTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 19 }, profileCircle: { height: 40, width: 40, borderRadius: 20, backgroundColor: '#E1ECE8', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: '#D2E1DB' }, profileText: { color: C.greenDark, fontWeight: '800', fontSize: 16 },
   heroCard: { borderRadius: 26, padding: 21, overflow: 'hidden', minHeight: 175 }, heroDecorLarge: { position: 'absolute', width: 205, height: 205, borderRadius: 103, right: -66, top: -60, backgroundColor: 'rgba(255,255,255,0.055)' }, heroDecorSmall: { position: 'absolute', width: 125, height: 125, borderRadius: 63, right: 44, bottom: -88, backgroundColor: 'rgba(255,255,255,0.07)' }, heroArtwork: { position: 'absolute', right: 60, top: 54, opacity: 1, transform: [{ rotate: '-12deg' }] }, heroArtworkTrend: { position: 'absolute', right: -5, top: -2 }, heroTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }, heroEyebrow: { fontSize: 10, letterSpacing: 1.2, color: '#B7CDD2', fontWeight: '700' }, heroAmount: { marginTop: 7, fontSize: 31, fontWeight: '800', color: C.white, letterSpacing: -1 }, heroPer: { fontSize: 13, fontWeight: '500', color: '#B7CDD2', letterSpacing: 0 }, heroIconBubble: { width: 52, height: 52, borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.14)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)', alignItems: 'center', justifyContent: 'center' }, heroDivider: { height: 1, backgroundColor: '#2C4650', marginVertical: 18 }, heroStatsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, heroStatLabel: { color: '#B7CDD2', fontSize: 10, marginBottom: 6 }, heroStatValue: { color: C.white, fontSize: 13, fontWeight: '700' }, heroStatsSeparator: { width: 1, height: 30, backgroundColor: '#2C4650', marginHorizontal: 3 },
+  dailyCheckCard: { marginBottom: 22, borderRadius: 20, borderWidth: 1, borderColor: '#D8EEE4', overflow: 'hidden', backgroundColor: C.white, shadowColor: '#0A5038', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.06, shadowRadius: 10, elevation: 2 },
+  dailyCheckGradient: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 15 },
+  dailyCheckIcon: { width: 48, height: 48, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.76)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.92)', alignItems: 'center', justifyContent: 'center' },
+  dailyCheckCopy: { flex: 1, minWidth: 0 },
+  dailyCheckEyebrow: { color: C.greenDark, fontSize: 9, fontWeight: '900', letterSpacing: 1.1, marginBottom: 5 },
+  dailyCheckTitle: { color: C.ink, fontSize: 15, fontWeight: '900', letterSpacing: -0.3 },
+  dailyCheckBody: { color: '#58716B', fontSize: 11, lineHeight: 16, marginTop: 5 },
+  dailyCheckFooter: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 9 },
+  dailyCheckCTAText: { color: C.greenDark, fontSize: 10, fontWeight: '900' },
+  dailyCheckBadge: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.72)', alignItems: 'center' },
+  dailyCheckBadgeText: { fontSize: 10, fontWeight: '900', color: C.greenDark },
   gmailBannerPressable: { marginTop: 13, marginBottom: 5, borderRadius: 20, overflow: 'hidden', shadowColor: '#0A5038', shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.08, shadowRadius: 12, elevation: 2 }, gmailBanner: { flexDirection: 'row', alignItems: 'center', padding: 13, gap: 11, borderRadius: 20, minHeight: 86 }, gmailBannerIcon: { width: 44, height: 44, borderRadius: 15, alignItems: 'center', justifyContent: 'center' }, gmailBannerCopy: { flex: 1, minWidth: 0 }, gmailBannerTitle: { color: C.ink, fontSize: 12, fontWeight: '800', letterSpacing: -0.15 }, gmailBannerBody: { color: '#58716B', fontSize: 10, lineHeight: 15, marginTop: 5 },
   quickActionRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 16, marginBottom: 24 }, quickAction: { alignItems: 'center', width: '19%' }, quickActionIcon: { height: 52, width: 52, borderRadius: 18, alignItems: 'center', justifyContent: 'center' }, quickActionLabel: { color: C.ink, fontSize: 11, fontWeight: '600', marginTop: 8 }, sectionTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, marginTop: 1 }, sectionTitle: { color: C.ink, fontSize: 17, fontWeight: '800', letterSpacing: -0.4 }, sectionAction: { color: C.greenDark, fontSize: 12, fontWeight: '700' },
   listCard: { backgroundColor: C.white, borderRadius: 18, borderWidth: 1, borderColor: C.line, paddingHorizontal: 14, paddingVertical: 4 }, subscriptionCard: { flexDirection: 'row', alignItems: 'center', paddingVertical: 13, gap: 11 }, compactCard: { paddingVertical: 11 }, serviceIcon: { width: 46, height: 46, borderRadius: 15, alignItems: 'center', justifyContent: 'center' }, serviceEmoji: { fontSize: 20 }, subscriptionMain: { flex: 1, minWidth: 0 }, serviceName: { color: C.ink, fontSize: 13, fontWeight: '800' }, serviceSub: { color: C.muted, fontSize: 10, marginTop: 4 }, duePillRow: { marginTop: 7 }, subscriptionRight: { alignItems: 'flex-end', minWidth: 75 }, serviceAmount: { color: C.ink, fontSize: 13, fontWeight: '800' }, manageMini: { paddingTop: 8, paddingBottom: 2 }, manageMiniText: { color: C.greenDark, fontSize: 10, fontWeight: '700' }, innerDivider: { height: 1, backgroundColor: '#EEF2F1', marginLeft: 0 }, listDivider: { height: 1, backgroundColor: C.line }, cardActionsRow: { flexDirection: 'row', alignItems: 'center', paddingBottom: 11, gap: 8 }, cardAction: { fontSize: 11, color: C.greenDark, fontWeight: '700' }, actionDot: { color: '#ADB9BA' },
