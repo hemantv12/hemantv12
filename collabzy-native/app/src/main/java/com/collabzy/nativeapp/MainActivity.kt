@@ -514,7 +514,25 @@ private fun CollabzyNativeApp(activity: MainActivity, oauthResult: String?, clea
                     val body = JSONObject().put("email", email.trim()).put("password", password).put("role", role)
                     if (isRegister) body.put("name", name.trim())
                     val endpoint = if (isRegister) "/auth/register" else "/auth/login"
-                    acceptSession(Api.call(endpoint, "POST", body, authenticated = false))
+                    if (isRegister) body.put("accepted_terms", true)
+                    val result = Api.call(endpoint, "POST", body, authenticated = false)
+                    if (isRegister && result.optBoolean("requires_email_verification")) {
+                        toast(result.optString("message", "Check your email to verify your account before signing in."))
+                        return@perform
+                    }
+                    acceptSession(result)
+                }
+            },
+            onForgotPassword = { email ->
+                perform {
+                    val result = Api.call("/auth/forgot-password", "POST", JSONObject().put("email", email.trim()), authenticated = false)
+                    toast(result.optString("message", "If that account exists, a reset link will be sent."))
+                }
+            },
+            onResendVerification = { email ->
+                perform {
+                    val result = Api.call("/auth/resend-verification", "POST", JSONObject().put("email", email.trim()), authenticated = false)
+                    toast(result.optString("message", "If that account is unverified, a new link will be sent."))
                 }
             }
         )
@@ -910,9 +928,13 @@ private fun AppHeader(
 @Composable
 private fun AuthPane(
     loading: Boolean,
-    onSubmit: (Boolean, String, String, String, String) -> Unit
+    onSubmit: (Boolean, String, String, String, String) -> Unit,
+    onForgotPassword: (String) -> Unit,
+    onResendVerification: (String) -> Unit
 ) {
+    val context = LocalContext.current
     var register by remember { mutableStateOf(false) }
+    var acceptedTerms by remember { mutableStateOf(false) }
     var name by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -956,6 +978,33 @@ private fun AuthPane(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 shape = RoundedCornerShape(16.dp), colors = fieldColors()
             )
+            if (register) {
+                Spacer(Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Checkbox(
+                        checked = acceptedTerms,
+                        onCheckedChange = { acceptedTerms = it },
+                        colors = CheckboxDefaults.colors(checkedColor = Violet, uncheckedColor = Muted)
+                    )
+                    Column(Modifier.weight(1f).padding(top = 8.dp)) {
+                        Text("I agree to the Terms of Use and Privacy Notice.", color = White, fontSize = 12.sp, lineHeight = 17.sp)
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Text(
+                                "Terms of Use",
+                                color = Violet,
+                                fontSize = 11.sp,
+                                modifier = Modifier.clickable { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://collabzy-api.onrender.com/terms.html"))) }
+                            )
+                            Text(
+                                "Privacy Notice",
+                                color = Violet,
+                                fontSize = 11.sp,
+                                modifier = Modifier.clickable { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://collabzy-api.onrender.com/privacy.html"))) }
+                            )
+                        }
+                    }
+                }
+            }
             if (validation.isNotBlank()) {
                 Spacer(Modifier.height(8.dp))
                 Text(validation, color = Danger, fontSize = 12.sp)
@@ -967,12 +1016,13 @@ private fun AuthPane(
                         register && name.trim().isBlank() -> "Please enter your name."
                         email.trim().isBlank() -> "Please enter your email address."
                         password.length < 8 -> "Password must contain at least 8 characters."
+                        register && !acceptedTerms -> "Please accept the Terms of Use and Privacy Notice."
                         else -> ""
                     }
                     if (validation.isBlank()) onSubmit(register, name, email, password, role)
                 },
                 modifier = Modifier.fillMaxWidth().height(54.dp),
-                enabled = !loading,
+                enabled = !loading && (!register || acceptedTerms),
                 shape = RoundedCornerShape(17.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Violet, contentColor = Ink)
             ) {
@@ -980,8 +1030,18 @@ private fun AuthPane(
                 else Text(if (register) "Create your account  →" else "Sign in  →", fontWeight = FontWeight.Bold)
             }
             Spacer(Modifier.height(12.dp))
+            if (!register) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = { onForgotPassword(email) }, modifier = Modifier.weight(1f)) {
+                        Text("Forgot password?", color = Violet, fontSize = 12.sp)
+                    }
+                    TextButton(onClick = { onResendVerification(email) }, modifier = Modifier.weight(1f)) {
+                        Text("Resend verification", color = Violet, fontSize = 12.sp)
+                    }
+                }
+            }
             OutlinedButton(
-                onClick = { register = !register; validation = "" },
+                onClick = { register = !register; acceptedTerms = false; validation = "" },
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 shape = RoundedCornerShape(17.dp),
                 border = BorderStroke(1.dp, Border),
