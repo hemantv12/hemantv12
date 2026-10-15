@@ -45,6 +45,15 @@ Every push to collabzy-android runs frontend/backend syntax and API tests, plus 
 
 The APK is a **debug/testing build** and is around 4 MB because the current frontend is a compact, locally bundled HTML/CSS/JavaScript interface running in Capacitor's Android WebView. It is not a full native Kotlin screen-by-screen UI. The web interface itself is packaged into the APK and calls the live API over the network. A Play Store release needs release signing, app icon/splash polish, package/version review and physical Android testing; a debug build should not be published as-is.
 
+## Private beta without payment setup
+
+Collabzy can be tested before the owner has a custom domain or Razorpay account. The hosted `onrender.com` URL remains the API base URL and can be used for the exact Meta OAuth callback; a custom domain is not required for this private test phase.
+
+- **No payment bypass:** checkout stays disabled unless the full Razorpay key + webhook configuration is ready. There is no client-side success shortcut and no fake paid subscription.
+- **Optional approved tester access:** `COLLABZY_BETA_ACCESS_EMAILS` is a comma-separated allowlist of specific email addresses. Only an exact email match receives AI Growth Coach beta entitlement; it does not create a paid subscription or unlock public registration. Leave it unset when beta access is not desired.
+- AI reports still require `OPENAI_API_KEY`, explicit in-app consent, an authorized Instagram connection and available Meta permissions. With those missing, the API reports setup required rather than inventing live metrics.
+- Keep `PUBLIC_LAUNCH_APPROVED=false` and public registration paused until account recovery email, support ownership, legal identity, provider approvals, backups and a signed release are ready.
+
 ## Before public commercial launch
 
 - **Persistent database:** create a separate Collabzy PostgreSQL database and configure DATABASE_URL in Render. See the setup guide. This has a monthly charge. Until it is configured and tested on the live service, records may be lost on restart or redeploy.
