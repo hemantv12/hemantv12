@@ -2,7 +2,7 @@ const crypto = require('node:crypto');
 const assert = require('node:assert/strict');
 
 const base = (process.env.COLLABZY_BASE_URL || 'https://collabzy-api.onrender.com').replace(/\/+$/, '');
-const expectedVersion = process.env.COLLABZY_EXPECTED_VERSION || '2.2.1';
+const expectedVersion = process.env.COLLABZY_EXPECTED_VERSION || '2.3.0';
 
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -35,7 +35,7 @@ async function waitForDeployment() {
     try {
       const { response, json } = await request('/api/health');
       last = 'HTTP ' + response.status + ', version=' + (json.version || 'unknown');
-      if (response.ok && json.ok === true && json.database === 'connected' && json.version === expectedVersion && ['instagram','email','support','operatorIdentity','publicLaunchApproval','publicRegistration','emailVerification','payments'].every(key => typeof json.integrations?.[key] === 'string')) {
+      if (response.ok && json.ok === true && json.database === 'connected' && json.version === expectedVersion && ['instagram','email','support','operatorIdentity','publicLaunchApproval','publicRegistration','emailVerification','payments','aiAnalytics'].every(key => typeof json.integrations?.[key] === 'string')) {
         assert.equal(json.mode, 'postgres-persistent', 'production API must use persistent PostgreSQL');
         return json;
       }
@@ -60,7 +60,7 @@ async function waitForDeployment() {
   try {
     const health = await waitForDeployment();
     check('live API health + persistent PostgreSQL');
-    for (const name of ['instagram','email','support','operatorIdentity','publicRegistration','emailVerification']) {
+    for (const name of ['instagram','email','support','operatorIdentity','publicRegistration','emailVerification','payments','aiAnalytics']) {
       assert.ok(typeof health.integrations?.[name] === 'string', 'health should expose safe ' + name + ' readiness');
     }
     const pages = ['/','/privacy.html','/terms.html','/delete-account.html','/support.html','/verify-email.html','/reset-password.html'];
@@ -77,6 +77,8 @@ async function waitForDeployment() {
     if (health.integrations.support !== 'configured') launchBlockers.push('Monitored support contact');
     if (health.integrations.operatorIdentity !== 'configured') launchBlockers.push('Public operator identity and jurisdiction');
     if (health.integrations.publicLaunchApproval !== 'approved') launchBlockers.push('Explicit operator production sign-off');
+    if (health.integrations.aiAnalytics !== 'configured') launchBlockers.push('AI Analytics provider key is not configured');
+    if (health.integrations.payments !== 'configured') launchBlockers.push('Razorpay checkout and webhook verification are not configured');
     if (health.integrations.publicRegistration !== 'open') launchBlockers.push('Public registration is safely paused');
     if (health.integrations.emailVerification === 'required' || health.integrations.publicRegistration !== 'open') {
       if (health.integrations.publicRegistration !== 'open') {
