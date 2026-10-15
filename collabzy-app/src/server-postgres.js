@@ -541,6 +541,14 @@ async function start(PORT,SECRET){
       await pool.query("UPDATE billing_orders SET status=CASE WHEN status='paid' THEN status ELSE 'failed' END WHERE order_id=$1",[payment.order_id]);
       return s.json({ok:true,received:true});
     }
+    if(event==='payment.refunded'&&payment?.order_id&&payment?.id){
+      const amount=Number(payment.amount||0),refunded=Number(payment.amount_refunded||0);
+      if(amount>0&&refunded>=amount){
+        await pool.query("UPDATE billing_orders SET status='refunded' WHERE order_id=$1 AND payment_id=$2",[payment.order_id,payment.id]);
+        await pool.query("UPDATE user_subscriptions SET status='refunded',expires_at=LEAST(expires_at,CURRENT_TIMESTAMP),updated_at=CURRENT_TIMESTAMP WHERE user_id=(SELECT user_id FROM billing_orders WHERE order_id=$1 AND payment_id=$2) AND provider_payment_id=$2",[payment.order_id,payment.id]);
+      }
+      return s.json({ok:true,received:true});
+    }
     if((event==='payment.captured'||event==='order.paid')&&payment?.order_id&&payment?.id){
       await recordCapturedPayment({orderId:payment.order_id,paymentId:payment.id,amount:payment.amount,currency:payment.currency});
     }
