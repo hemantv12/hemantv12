@@ -291,7 +291,7 @@ function AppContent() {
     if (overdueTasks.length) return { title: 'Clear one overdue task', body: overdueTasks[0].title + ' is past its due date. Spend 10–15 minutes on the next step, or update its date if plans changed.', action: 'Open planner', screen: 'Plan', icon: 'alert-circle', tone: 'amber' };
     if (budgetNumber > 0 && spentThisMonth >= budgetNumber) return { title: 'Your monthly guide has been reached', body: 'You have logged ' + money(spentThisMonth) + ' against ' + money(budgetNumber) + '. Review the biggest categories before the next purchase.', action: 'Review spending', screen: 'Money', icon: 'trending-up', tone: 'red' };
     if (budgetNumber > 0 && budgetUsedPercent >= 80) return { title: 'Keep an eye on spending', body: budgetUsedPercent + '% of your monthly guide is used. ' + money(Math.max(0, remainingBudget)) + ' remains in your personal target.', action: 'Open money', screen: 'Money', icon: 'pie-chart', tone: 'amber' };
-    if (billDueSoon) return { title: 'A bill is coming up', body: nextBill.title + ' · ' + money(nextBill.amount) + ' due ' + (daysFromToday(nextBill.dueDate) === 0 ? 'today' : dateLabel(nextBill.dueDate) + ' (' + daysFromToday(nextBill.dueDate) + ' days)'). Review it before the date.', action: 'Review bills', screen: 'Plan', icon: 'bell', tone: 'blue' };
+    if (billDueSoon && nextBill) return { title: 'A bill is coming up', body: nextBill.title + ' · ' + money(nextBill.amount) + ' due ' + (daysFromToday(nextBill.dueDate) === 0 ? 'today' : dateLabel(nextBill.dueDate) + ' (' + daysFromToday(nextBill.dueDate) + ' days)') + '. Review it before the date.', action: 'Review bills', screen: 'Plan', icon: 'bell', tone: 'blue' };
     if (nextTask) return { title: 'Your next best move', body: nextTask.title + ' is your nearest open task. A short focused session is usually easier than waiting for a perfect moment.', action: 'Start focus', screen: 'Focus', icon: 'target', tone: 'green' };
     const habitToCheck = habits.find((habit) => !habitLogs.some((log) => log.habit_id === habit.id && log.day === today));
     if (habitToCheck) return { title: 'Make your habit easy to finish', body: 'A quick check-in for “' + habitToCheck.title + '” will keep your streak moving.', action: 'Check habits', screen: 'Habits', icon: 'activity', tone: 'violet' };
@@ -642,7 +642,8 @@ function AppContent() {
     setAiMessages((current) => [...current, { id: String(Date.now()) + '-u', role: 'user', text: query }].slice(-14));
     const lower = query.toLowerCase();
     const createSignal = /\b(add|create|make|schedule|remind|track|save|log|record|start|build)\b/.test(lower);
-    const amountMatch = query.match(/(?:₹|rs\.?|inr)?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i);
+    const amountSafeQuery = query.replace(/\b20\d{2}-\d{2}-\d{2}\b/g, '').replace(/\b\d{1,3}\s*(?:min|mins|minutes?)\b/gi, '');
+    const amountMatch = amountSafeQuery.match(/(?:₹|rs\.?|inr)?\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)/i);
     const parsedAmount = amountMatch ? Number(amountMatch[1].replace(/,/g, '')) : null;
     let answer = '';
     const reply = (text: string) => setAiMessages((current) => [...current, { id: String(Date.now()) + '-a', role: 'assistant', text }].slice(-14));
