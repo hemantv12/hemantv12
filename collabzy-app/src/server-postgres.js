@@ -284,13 +284,15 @@ async function start(PORT,SECRET){
   app.get('/api/instagram/connect',auth,asyncRoute(async(q,s)=>{
     if(!process.env.META_APP_ID||!process.env.META_APP_SECRET)return s.status(503).json({error:'Instagram connection is not configured yet. Add META_APP_ID, META_APP_SECRET and META_REDIRECT_URI in hosting settings.'});
     const redirect=process.env.META_REDIRECT_URI||'https://collabzy-api.onrender.com/api/instagram/callback';
-    const state=jwt.sign({sub:String(q.user.id),purpose:'instagram-oauth',nonce:crypto.randomBytes(16).toString('hex')},SECRET,{expiresIn:'10m'});
+    const state=jwt.sign({sub:String(q.user.id),purpose:'instagram-oauth',platform:q.query.platform==='native'?'native':'web',nonce:crypto.randomBytes(16).toString('hex')},SECRET,{expiresIn:'10m'});
     const u=new URL('https://www.instagram.com/oauth/authorize');u.searchParams.set('client_id',process.env.META_APP_ID);u.searchParams.set('redirect_uri',redirect);u.searchParams.set('response_type','code');u.searchParams.set('scope','instagram_business_basic,instagram_business_manage_insights');u.searchParams.set('state',state);s.json({authorization_url:u.toString()});
   }));
   app.get('/api/instagram/callback',asyncRoute(async(q,s)=>{
-    const home='/';if(q.query.error)return s.redirect(home+'?instagram=denied');if(!q.query.code||!q.query.state)return s.redirect(home+'?instagram=error');
+    let state=null;const done=result=>s.redirect(state?.platform==='native'?'collabzy://instagram/callback?instagram='+encodeURIComponent(result):'/?instagram='+encodeURIComponent(result));
+    try{if(q.query.state)state=jwt.verify(String(q.query.state),SECRET)}catch{}
+    if(q.query.error)return done('denied');if(!q.query.code||!state)return done('error');
     try{
-      const state=jwt.verify(String(q.query.state),SECRET);if(state.purpose!=='instagram-oauth'||!state.sub)throw Error('Invalid OAuth state');
+      if(state.purpose!=='instagram-oauth'||!state.sub)throw Error('Invalid OAuth state');
       if(!process.env.META_APP_ID||!process.env.META_APP_SECRET)throw Error('Meta credentials missing');
       const redirect=process.env.META_REDIRECT_URI||'https://collabzy-api.onrender.com/api/instagram/callback';
       const form=new URLSearchParams({client_id:process.env.META_APP_ID,client_secret:process.env.META_APP_SECRET,grant_type:'authorization_code',redirect_uri:redirect,code:String(q.query.code)});
@@ -303,8 +305,8 @@ async function start(PORT,SECRET){
       let profileRes=await fetch(profileUrl),profile=await profileRes.json();if(!profileRes.ok){profileUrl.searchParams.set('fields','id,user_id,username,account_type,media_count');profileRes=await fetch(profileUrl);profile=await profileRes.json()}
       if(!profileRes.ok||!profile.id)throw Error(profile.error?.message||'Could not read the authorized Instagram profile');
       const followers=Number(profile.followers_count);await pool.query('UPDATE users SET instagram_handle=$1,instagram_user_id=$2,instagram_access_token_enc=$3,instagram_connected_at=CURRENT_TIMESTAMP,instagram_token_expires_at=$4,followers=CASE WHEN $5::double precision>=0 THEN $5 ELSE followers END WHERE id=$6',[String(profile.username||'').slice(0,100),String(profile.id),encryptToken(accessToken,SECRET),tokenExpiresAt,Number.isFinite(followers)?followers:-1,Number(state.sub)]);
-      return s.redirect(home+'?instagram=connected');
-    }catch(e){console.error('Instagram OAuth callback failed:',e.message);return s.redirect(home+'?instagram=error')}
+      return done('connected');
+    }catch(e){console.error('Instagram OAuth callback failed:',e.message);return done('error')}
   }));
   app.get('/api/instagram/status',auth,asyncRoute(async(q,s)=>{
     const r=await pool.query('SELECT instagram_handle,instagram_user_id,instagram_access_token_enc,instagram_connected_at,instagram_token_expires_at FROM users WHERE id=$1',[q.user.id]),u=r.rows[0];
