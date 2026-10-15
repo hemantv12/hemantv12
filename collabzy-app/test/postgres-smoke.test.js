@@ -55,13 +55,16 @@ test('PostgreSQL production backend supports creator-brand collaboration workflo
   assert.equal(savedResponse.status,200);
   const saved=(await (await fetch(base+'/api/saved-campaigns',{headers:{authorization:'Bearer '+creator.token}})).json()).campaigns;
   assert.equal(saved.length,1);
-  const invitationResponse=await fetch(base+'/api/campaigns/'+campaign.id+'/invite',{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+brand.token},body:JSON.stringify({creator_id:creator.user.id,message:'Would love to work together.'})});
+  const secondCampaignResponse=await fetch(base+'/api/campaigns',{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+brand.token},body:JSON.stringify({title:'Postgres Invitation Test',description:'A second campaign for testing invitations.',category:'Beauty',collaboration_type:'Hybrid',budget_min:2000,budget_max:6000,deliverables:'1 Reel',location:'India'})});
+  assert.equal(secondCampaignResponse.status,201);
+  const secondCampaign=(await secondCampaignResponse.json()).campaign;
+  const invitationResponse=await fetch(base+'/api/campaigns/'+secondCampaign.id+'/invite',{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+brand.token},body:JSON.stringify({creator_id:creator.user.id,message:'Would love to work together.'})});
   assert.equal(invitationResponse.status,201,'brand should invite creator: '+await invitationResponse.clone().text());
   const invitation=(await invitationResponse.json()).invitation;
   const response=await fetch(base+'/api/invitations/'+invitation.id+'/respond',{method:'PATCH',headers:{'content-type':'application/json',authorization:'Bearer '+creator.token},body:JSON.stringify({status:'accepted'})});
   assert.equal(response.status,200,'creator should accept invitation: '+await response.clone().text());
   const dashboard=(await (await fetch(base+'/api/dashboard',{headers:{authorization:'Bearer '+brand.token}})).json()).stats;
-  assert.equal(Number(dashboard.myCampaigns),1);
+  assert.equal(Number(dashboard.myCampaigns),2);
   assert.equal(Number(dashboard.receivedApplications),2);
   const exportResponse=await fetch(base+'/api/me/export',{headers:{authorization:'Bearer '+creator.token}});
   assert.equal(exportResponse.status,200);
