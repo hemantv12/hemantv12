@@ -178,7 +178,7 @@ async function start(PORT,SECRET){
   app.get('/api/applications',auth,asyncRoute(async(q,s)=>{
     const r=q.user.role==='creator'
       ?await pool.query('SELECT a.*,c.title campaign_title,c.brand_name,c.collaboration_type,c.category FROM applications a JOIN campaigns c ON c.id=a.campaign_id WHERE a.creator_id=$1 ORDER BY a.created_at DESC',[q.user.id])
-      :await pool.query('SELECT a.*,c.title campaign_title,c.brand_name,u.name creator_name,u.email creator_email,u.niche,u.followers,u.engagement FROM applications a JOIN campaigns c ON c.id=a.campaign_id JOIN users u ON u.id=a.creator_id WHERE c.brand_id=$1 ORDER BY a.created_at DESC',[q.user.id]);
+      :await pool.query('SELECT a.*,c.title campaign_title,c.brand_name,u.name creator_name,u.niche,u.followers,u.engagement FROM applications a JOIN campaigns c ON c.id=a.campaign_id JOIN users u ON u.id=a.creator_id WHERE c.brand_id=$1 ORDER BY a.created_at DESC',[q.user.id]);
     s.json({applications:r.rows});
   }));
   app.patch('/api/applications/:id/status',auth,asyncRoute(async(q,s)=>{
