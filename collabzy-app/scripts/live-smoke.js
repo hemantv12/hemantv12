@@ -168,7 +168,7 @@ async function waitForDeployment() {
     const respond = await expectStatus('/api/invitations/' + invitation.invitation.id + '/respond', {
       method: 'PATCH', token: creator.token, body: { status: 'accepted' }
     }, 200, 'creator invitation response');
-    assert.ok(respond.ok);
+    assert.equal(respond.invitation?.status, 'accepted', 'accepted invitation response should return the updated invitation');
     check('creator invitation flow');
 
     const dashboard = await expectStatus('/api/dashboard', { token: brand.token }, 200, 'brand dashboard');
