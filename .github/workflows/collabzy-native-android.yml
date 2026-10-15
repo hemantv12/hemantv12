@@ -34,12 +34,42 @@ jobs:
         run: |
           yes | sdkmanager --licenses >/dev/null
           sdkmanager "platforms;android-35" "build-tools;35.0.0"
-      - name: Build native debug APK
-        run: gradle assembleDebug --no-daemon
-      - name: Upload installable APK
+      - name: Configure optional release signing
+        id: signing
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -n "${ANDROID_KEYSTORE_BASE64:-}" ] && [ -n "${ANDROID_KEYSTORE_PASSWORD:-}" ] && [ -n "${ANDROID_KEY_ALIAS:-}" ] && [ -n "${ANDROID_KEY_PASSWORD:-}" ]; then
+            echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/collabzy-upload-key.jks"
+            echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/collabzy-upload-key.jks" >> "$GITHUB_ENV"
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "No release signing secrets configured; release variant will be compile-checked but not distributed."
+          fi
+      - name: Build Android variants
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: gradle assembleDebug assembleRelease bundleRelease --no-daemon
+      - name: Upload installable preview APK
         uses: actions/upload-artifact@v4
         with:
-          name: Collabzy-Native-Android-APK
+          name: Collabzy-Native-Android-Preview-APK
           path: collabzy-native/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload signed production Android release
+        if: steps.signing.outputs.enabled == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Collabzy-Android-Signed-Release
+          path: |
+            collabzy-native/app/build/outputs/apk/release/app-release.apk
+            collabzy-native/app/build/outputs/bundle/release/app-release.aab
           if-no-files-found: error
           retention-days: 14
