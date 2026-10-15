@@ -52,11 +52,20 @@ h2{font-size:20px;margin:28px 0 6px}p,li{color:var(--muted)}small{color:var(--mu
 <h2>8. Your choices and account deletion</h2>
 <p>From Profile you can update your information, change your password, export account data, disconnect Instagram and permanently delete your account. A public web path is available on the <a href="/delete-account.html">Delete account page</a>. If you cannot sign in, use the <a href="/support.html">Support page</a> to submit an account or deletion request; support must verify ownership before acting on requests made for an inaccessible account.</p>
 
-<h2>9. Contact and privacy requests</h2>
-<p>Use the <a href="/support.html">Support page</a> for privacy, security or data requests. The service operator must configure a monitored support mailbox and publish its legal/operator identity before public launch; the production readiness check indicates whether that contact channel is configured.</p>
+<h2>9. Operator and privacy contact</h2>
+<p><b>Service operator:</b> <span id="operatorName">Operator details are not yet configured.</span></p>
+<p><b>Jurisdiction:</b> <span id="jurisdiction">Not yet configured.</span></p>
+<p><b>Support / privacy email:</b> <span id="supportEmail">Contact details are not yet configured.</span></p>
+<p>Use the <a href="/support.html">Support page</a> for privacy, security or data requests. Self-service export and deletion controls remain available from Profile. Public registration stays paused until a monitored contact and operator details are configured.</p>
 
 <h2>10. Changes to this notice</h2>
 <p>We may update this notice as the service changes. We will update the date above when a material revision is published.</p>
 <p class="note">This notice describes the current implementation. The operator must confirm it reflects the actual deployment, legal entity and local-law obligations before a public commercial launch.</p>
 <p><a href="/terms.html">Read the Terms of Use</a> · <a href="/delete-account.html">Delete account</a> · <a href="/support.html">Support</a></p>
-</main></body></html>
+</main><script>
+fetch('/api/public-config').then(r=>r.ok?r.json():Promise.reject()).then(c=>{
+document.getElementById('operatorName').textContent=c.operatorName||'Not configured by the service operator';
+document.getElementById('jurisdiction').textContent=c.jurisdiction||'Not configured by the service operator';
+document.getElementById('supportEmail').textContent=c.supportEmail||'Not configured by the service operator';
+}).catch(()=>{});
+</script></body></html>
