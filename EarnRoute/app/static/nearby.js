@@ -1,6 +1,8 @@
 'use strict';
 
-const ER_RADIUS_OPTIONS = [1, 3, 5];
+const ER_RADIUS_OPTIONS = [1, 3, 5, 8, 10, 15];
+const ER_RADIUS_STANDARD = [1, 3, 5];
+const ER_RADIUS_MORE = [8, 10, 15];
 const ER_WORK_CATEGORIES = ['All', 'Delivery', 'Retail', 'Events', 'Warehouse', 'Hospitality', 'Other'];
 const erBaseRenderPage = renderPage;
 const erBasePostJob = renderPostJob;
@@ -45,11 +47,20 @@ function erUseLocation() {
   });
 }
 function erRadiusButtons(selected) {
-  return '<div class="er-radius-picker" role="group" aria-label="Nearby work distance">' +
-    ER_RADIUS_OPTIONS.map(function(km) {
-      return '<button type="button" class="er-radius-btn ' + (selected === km ? 'is-active' : '') +
+  const expanded = sessionStorage.getItem('earnroute_more_radius_open') === '1' || selected > 5;
+  const standard = ER_RADIUS_STANDARD.map(function(km) {
+    return '<button type="button" class="er-radius-btn ' + (selected === km ? 'is-active' : '') +
+      '" data-er-radius="' + km + '" aria-pressed="' + (selected === km) + '"><b>' + km + '</b><small>km</small></button>';
+  }).join('');
+  const moreOptions = expanded ? '<div class="er-radius-more-options" role="group" aria-label="More work distances">' +
+    ER_RADIUS_MORE.map(function(km) {
+      return '<button type="button" class="er-radius-btn er-radius-extra ' + (selected === km ? 'is-active' : '') +
         '" data-er-radius="' + km + '" aria-pressed="' + (selected === km) + '"><b>' + km + '</b><small>km</small></button>';
-    }).join('') + '</div>';
+    }).join('') + '</div>' : '';
+  return '<div class="er-radius-control"><div class="er-radius-picker" role="group" aria-label="Nearby work distance">' +
+    standard + '<button type="button" class="er-radius-btn er-radius-more ' + (selected > 5 ? 'is-active' : '') +
+    '" data-er-more-radius aria-expanded="' + expanded + '"><b>More</b><small>km</small></button></div>' +
+    moreOptions + '</div>';
 }
 function erCategoryIcon(category) {
   return ({Delivery:'📦',Retail:'🛍️',Events:'🎟️',Warehouse:'🏷️',Hospitality:'☕',Other:'🧰'})[category] || '✳';
@@ -66,7 +77,7 @@ function erLocationPrompt() {
   return '<section class="er-location-prompt">' +
     '<div class="er-location-art"><span class="er-location-ring er-ring-one"></span><span class="er-location-ring er-ring-two"></span><span class="er-location-marker">⌖</span></div>' +
     '<div class="er-location-copy"><span class="er-overline">START WITH YOUR AREA</span><h2>Earn closer to home.</h2>' +
-    '<p>Turn on location to find real paid shifts within <b>1 km, 3 km or 5 km</b>. Your live position stays on this device and expires after 30 minutes.</p>' +
+    '<p>Turn on location to find real paid shifts within <b>1 km, 3 km, 5 km or more</b> (up to 15 km). Your live position stays on this device and expires after 30 minutes.</p>' +
     '<button class="btn btn-primary btn-large" type="button" data-er-enable-location>⌖ Use my location</button></div></section>';
 }
 function erNearbyCard(job) {
@@ -129,7 +140,7 @@ renderWorkerOverview = async function() {
   else if (result.items && result.items.length) list = '<div class="er-job-grid">' + result.items.map(erNearbyCard).join('') + '</div>';
   else list = '<div class="er-nearby-empty"><div class="er-empty-icon">⌖</div><h3>No shifts inside ' + radius + ' km yet</h3><p>We only show shifts with an actual workplace pin inside your chosen radius. Try a wider local radius or check back later.</p><button type="button" class="btn btn-outline" data-er-radius="' + (radius === 1 ? 3 : 5) + '">Look within ' + (radius === 1 ? 3 : 5) + ' km</button></div>';
   return '<section class="er-nearby-hero"><div class="er-hero-main"><span class="er-overline"><i></i> LOCAL GIGS · CLEAR PAY</span>' +
-    '<h1>Hi ' + escapeHtml(firstName) + '.<br><span>Let’s earn nearby.</span></h1><p>Short shifts, local gigs and paid help. Less travel, more time back.</p>' +
+    '<h1>Hi ' + escapeHtml(firstName) + '.<br><span>Let’s earn nearby.</span></h1><p>Short shifts, local gigs and paid help up to 15 km away. Less travel, more time back.</p>' +
     '<div class="er-hero-actions"><button type="button" class="btn btn-primary btn-large" data-er-enable-location>' + (location ? '↻ Refresh my location' : '⌖ Find jobs near me') + '</button>' +
     '<span>' + (location ? 'Location ready · approx. ±' + Math.max(1, Number(location.accuracy_m || 0)) + ' m' : 'Location is only used to find nearby work') + '</span></div></div>' +
     '<div class="er-hero-map" aria-hidden="true"><div class="er-map-roads"></div><span class="er-map-shop er-shop-a">🛍️</span><span class="er-map-shop er-shop-b">📦</span><span class="er-map-shop er-shop-c">☕</span><span class="er-map-pin">⌖</span><span class="er-map-label">' + radius + ' km radius</span></div></section>' +
@@ -146,7 +157,7 @@ renderDiscover = async function(filters) {
   const radius = ER_RADIUS_OPTIONS.includes(requestedRadius) ? requestedRadius : erRadius();
   const category = filters.category || erCategory();
   if (!location) {
-    return pageHeading('NEARBY WORK','Find a gig close to you.','Choose 1 km, 3 km or 5 km. EarnRoute shows only jobs with a real workplace pin inside that distance.','') +
+    return pageHeading('NEARBY WORK','Find a gig close to you.','Choose 1 km, 3 km, 5 km or open More for 8 km, 10 km and 15 km. EarnRoute shows only jobs with a real workplace pin inside that distance.','') +
       '<div class="er-discover-toolbar"><div><span class="er-control-label">Distance limit</span>' + erRadiusButtons(radius) + '</div></div>' + erLocationPrompt();
   }
   let result;
@@ -160,7 +171,7 @@ renderDiscover = async function(filters) {
     '<input name="min_pay" type="number" min="0" step="50" placeholder="Min pay ₹" value="' + escapeHtml(filters.min_pay || '') + '" aria-label="Minimum pay"><button class="btn btn-primary" type="submit">Search</button><button class="btn btn-outline" type="reset">Clear</button></form>' +
     '<div class="er-results-note"><b>' + (result.total || 0) + '</b> shift' + (result.total === 1 ? '' : 's') + ' within ' + radius + ' km · closest first</div>' +
     (result.items && result.items.length ? '<div class="er-job-grid">' + result.items.map(erNearbyCard).join('') + '</div>' :
-    '<div class="er-nearby-empty"><div class="er-empty-icon">⌖</div><h3>No shifts in this radius yet</h3><p>Try 3 km or 5 km. Jobs without a workplace pin stay hidden rather than showing a made-up distance.</p><button type="button" class="btn btn-outline" data-er-radius="' + (radius === 1 ? 3 : 5) + '">Expand to ' + (radius === 1 ? 3 : 5) + ' km</button></div>');
+    '<div class="er-nearby-empty"><div class="er-empty-icon">⌖</div><h3>No shifts in this radius yet</h3><p>Try a wider radius using More (up to 15 km). Jobs without a workplace pin stay hidden rather than showing a made-up distance.</p><button type="button" class="btn btn-outline" data-er-radius="' + (radius === 1 ? 3 : 5) + '">Expand to ' + (radius === 1 ? 3 : 5) + ' km</button></div>');
 };
 renderPostJob = function() {
   let html = erBasePostJob();
@@ -196,7 +207,7 @@ submitJob = async function(form) {
     const data = formObject(form);
     const publish = $('#job-publish').checked;
     if (publish && (!String(data.latitude == null ? '' : data.latitude).trim() || !String(data.longitude == null ? '' : data.longitude).trim())) {
-      throw new Error('Set the workplace pin first. Workers only see shifts inside 1 km, 3 km or 5 km of the real pin.');
+      throw new Error('Set the workplace pin first. Workers only see shifts inside their selected radius, up to 15 km of the real pin.');
     }
     const dateTime = function(value) {
       const date = new Date(value);
@@ -284,6 +295,14 @@ function erSyncWelcomeRadius() {
     button.classList.toggle('is-active', active);
     button.setAttribute('aria-pressed', active ? 'true' : 'false');
   });
+  const moreButton = $('[data-er-welcome-more]');
+  const moreOptions = $('#er-welcome-more-options');
+  const expanded = sessionStorage.getItem('earnroute_more_radius_open') === '1' || radius > 5;
+  if (moreButton) {
+    moreButton.classList.toggle('is-active', radius > 5);
+    moreButton.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+  }
+  if (moreOptions) moreOptions.hidden = !expanded;
   const label = $('#er-welcome-radius-label');
   if (label) label.textContent = radius + ' km radius';
 }
@@ -311,17 +330,31 @@ setWorkspace = function(user) {
 };
 
 document.addEventListener('click', function(event) {
+  const moreButton = event.target.closest('[data-er-welcome-more]');
+  if (moreButton) {
+    const expanded = moreButton.getAttribute('aria-expanded') !== 'true';
+    sessionStorage.setItem('earnroute_more_radius_open', expanded ? '1' : '0');
+    erSyncWelcomeRadius();
+    return;
+  }
   const button = event.target.closest('[data-er-welcome-radius]');
   if (!button) return;
   const radius = Number(button.dataset.erWelcomeRadius);
   if (!ER_RADIUS_OPTIONS.includes(radius)) return;
   sessionStorage.setItem('earnroute_nearby_radius', String(radius));
+  sessionStorage.setItem('earnroute_more_radius_open', radius > 5 ? '1' : '0');
   erSyncWelcomeRadius();
 });
 
 document.addEventListener('click', async function(event) {
   const target = event.target.closest('button');
   if (!target) return;
+  if (target.hasAttribute('data-er-more-radius')) {
+    const expanded = target.getAttribute('aria-expanded') !== 'true';
+    sessionStorage.setItem('earnroute_more_radius_open', expanded ? '1' : '0');
+    await renderPage();
+    return;
+  }
   if (target.hasAttribute('data-er-enable-location')) {
     const oldText = target.textContent;
     target.disabled = true;
@@ -341,6 +374,7 @@ document.addEventListener('click', async function(event) {
     const value = Number(target.dataset.erRadius);
     if (!ER_RADIUS_OPTIONS.includes(value)) return;
     sessionStorage.setItem('earnroute_nearby_radius', String(value));
+    sessionStorage.setItem('earnroute_more_radius_open', value > 5 ? '1' : '0');
     await renderPage();
     return;
   }
