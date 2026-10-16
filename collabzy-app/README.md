@@ -11,6 +11,9 @@ Collabzy is a mobile-first creator–brand collaboration marketplace. The live e
 - In-app conversations/messages, unread-message counts and activity notifications.
 - Account password change, self-service data export and password-confirmed deletion.
 - Official Instagram Login OAuth, encrypted access-token storage, expiry handling, insights, recent media and disconnect. Requires Meta app credentials and approved permissions before it can be used with real accounts.
+- AI Studio with creator bio optimization, Reel hooks, captions/hashtags, content planning, brand pitches, brand campaign brief generation, creator outreach drafts and UGC scripts. With no OpenAI key, the UI deliberately labels output as starter templates rather than live AI.
+- Creator Instagram Auto DM workspace with keyword-match rules, private-reply drafts, enable/pause/delete controls, signed webhook validation and duplicate-event protection. Real sending stays disabled until the owner configures the official Meta permissions, webhook and explicit server-side enable switch.
+- Match-safe campaign workflows: brands post paid/barter/hybrid campaigns and creators apply, track status, chat, save opportunities and download media kits.
 - Privacy and Terms pages.
 
 ## Live services
@@ -52,7 +55,8 @@ Collabzy can be tested before the owner has a custom domain or Razorpay account.
 - **Invite-only account creation:** set a random `COLLABZY_PRIVATE_BETA_CODE` (at least 24 characters) in Render's protected environment settings. Approved testers enter it on the registration screen. It bypasses only the public-launch/email-verification gate for a private-beta account; it does not mark the email as verified, activate a paid subscription, unlock AI Pro entitlement, or open public registration. Clearing the environment variable disables invite-based sign-up. Rotate the code if it is shared beyond the intended tester group.
 - **No payment bypass:** checkout stays disabled unless the full Razorpay key + webhook configuration is ready. There is no client-side success shortcut and no fake paid subscription.
 - **Optional approved tester access:** `COLLABZY_BETA_ACCESS_EMAILS` is a comma-separated allowlist of specific email addresses. Only an exact email match receives AI Growth Coach beta entitlement; it does not create a paid subscription or unlock public registration. Leave it unset when beta access is not desired.
-- AI reports still require `OPENAI_API_KEY`, explicit in-app consent, an authorized Instagram connection and available Meta permissions. With those missing, the API reports setup required rather than inventing live metrics.
+- Live AI Studio output and Growth Coach reports require `OPENAI_API_KEY`; the Growth Coach additionally requires explicit in-app consent, an authorized Instagram connection, available Meta permissions and plan/beta entitlement. If the key is missing, AI Studio presents labelled starter templates instead of pretending the result came from a model.
+- Auto DM rules can be drafted in beta, but live sending requires Meta App Review/access, the verified webhook at `/api/instagram/webhook`, an authorized creator account, and `META_AUTO_DM_ENABLED=true` only after end-to-end testing. The app limits this to supported comment-triggered private replies; no cold-DM or bulk-spam behavior is provided.
 - Keep `PUBLIC_LAUNCH_APPROVED=false` and public registration paused until account recovery email, support ownership, legal identity, provider approvals, backups and a signed release are ready.
 
 ## Before public commercial launch
