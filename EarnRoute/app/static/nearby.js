@@ -274,6 +274,11 @@ function erCreateJobPopup(job) {
   view.className = 'btn btn-primary btn-sm';
   view.textContent = 'View shift';
   view.dataset.erMapFocusJob = String(Number(job.id));
+  view.addEventListener('click', function(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    erFocusJobCard(Number(job.id));
+  });
   actions.appendChild(view);
   const directions = document.createElement('a');
   directions.className = 'btn btn-outline btn-sm';
@@ -284,6 +289,14 @@ function erCreateJobPopup(job) {
   actions.appendChild(directions);
   root.appendChild(actions);
   return root;
+}
+function erFocusJobCard(jobId) {
+  if (!Number.isFinite(Number(jobId)) || Number(jobId) <= 0) return;
+  const card = document.querySelector('[data-er-job-id="' + Number(jobId) + '"]');
+  if (!card) return;
+  card.scrollIntoView({behavior:'smooth',block:'center'});
+  card.classList.add('er-map-job-highlight');
+  window.setTimeout(function(){card.classList.remove('er-map-job-highlight');},1800);
 }
 function erSetWorkplacePin(latitude, longitude, accuracy, source) {
   const lat = Number(latitude), lon = Number(longitude);
@@ -666,13 +679,7 @@ document.addEventListener('click', async function(event) {
   }
   if (target.hasAttribute('data-er-map-focus-job')) {
     event.preventDefault();
-    const id = Number(target.dataset.erMapFocusJob);
-    const card = document.querySelector('[data-er-job-id="' + id + '"]');
-    if (card) {
-      card.scrollIntoView({behavior:'smooth',block:'center'});
-      card.classList.add('er-map-job-highlight');
-      window.setTimeout(function(){card.classList.remove('er-map-job-highlight');},1800);
-    }
+    erFocusJobCard(Number(target.dataset.erMapFocusJob));
     return;
   }
   if (target.hasAttribute('data-er-more-radius')) {
