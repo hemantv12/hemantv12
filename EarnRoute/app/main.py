@@ -1691,9 +1691,17 @@ def public_metrics():
             "note": "Platform growth and earnings metrics appear only when real activity has been recorded."}
 
 
-# Public pages are served from the same origin as the API, avoiding a separate CORS dependency.
+# Public pages and the dedicated admin sign-in entry are served from the same origin.
+# /admin is a UI route only; all privileged data and mutations still require an admin bearer token.
 @app.get("/", include_in_schema=False)
 def home():
     return FileResponse(STATIC_DIR / "index.html")
+
+
+@app.get("/admin", include_in_schema=False)
+@app.get("/admin/", include_in_schema=False)
+def admin_console_entry():
+    return FileResponse(STATIC_DIR / "index.html")
+
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
