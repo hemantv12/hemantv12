@@ -54,7 +54,7 @@ public final class MainActivity extends Activity {
     private static final String PREFS = "earnroute_settings";
     private static final String API_BASE_KEY = "api_base_url";
     private static final int LOCATION_PERMISSION_REQUEST = 4821;
-    private static final String DEFAULT_API_BASE_URL = "https://earnroute-api.onrender.com";
+    private static final String DEFAULT_API_BASE_URL = "https://earnroute-nearby-api.onrender.com";
 
     private WebView webView;
     private GeolocationPermissions.Callback pendingGeoCallback;
