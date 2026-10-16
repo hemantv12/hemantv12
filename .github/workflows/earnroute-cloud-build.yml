@@ -20,7 +20,14 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Verify checked-in application source
-        run: test -f EarnRoute/app/main.py && test -f EarnRoute/app/static/nearby.js && test -f EarnRoute/android/app/src/main/java/in/earnroute/app/MainActivity.java
+        run: |
+          test -f EarnRoute/app/main.py
+          test -f EarnRoute/app/static/nearby.js
+          test -f EarnRoute/android/app/src/main/java/in/earnroute/app/MainActivity.java
+          grep -q 'id="er-app-welcome"' EarnRoute/app/static/index.html
+          grep -q 'classList.add("er-native-app")' EarnRoute/app/static/index.html
+          grep -q 'NATIVE-FIRST APP SHELL' EarnRoute/app/static/nearby.css
+          grep -q "versionName '1.2.0'" EarnRoute/android/app/build.gradle
 
       - name: Set up Python
         uses: actions/setup-python@v5
