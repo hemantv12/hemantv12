@@ -43,7 +43,7 @@ Updated 16 October 2026. This reflects the repository and connected hosting/data
 | 33 | Docker | Production API uses Docker; a separate backup Dockerfile is included. Script can install Docker Desktop. |
 | 34 | Error Monitoring Tool | Sentry SDK integration is wired but remains disabled until SENTRY_DSN is configured. |
 | 35 | Analytics Tool | Not connected. Choose a provider and review privacy/consent before enabling client analytics. |
-| 36 | Database Backup System | A baseline Neon snapshot exists. Daily encrypted exports to private object storage are being configured; verify the first successful scheduled job and practise restore. |
+| 36 | Database Backup System | Baseline Neon snapshot exists, private bucket created and backup-container source included. Scheduled Render Cron Job is not active; owner must add database/storage secrets in Render and verify a successful run before relying on automatic backups. |
 | 37 | Security Testing Tools | CodeQL and Python dependency audit workflow are included; scans are not a third-party security audit. |
 | 38 | Automated Testing Framework | Pytest API/business-rule tests and JavaScript syntax checks run in CI. |
 | 39 | APK/AAB Signing Key | No production keystore is committed. Signed-release workflow expects owner-managed GitHub Actions secrets. Keep an offline backup. |
