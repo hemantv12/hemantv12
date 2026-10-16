@@ -35,4 +35,5 @@ test('AI Studio and Auto DM workspaces have explicit user controls and honest se
  assert.match(backend,/x-hub-signature-256/i,'Instagram webhook must validate signed Meta events');
  assert.match(backend,/ON CONFLICT\(comment_id\) DO NOTHING/,'webhook event processing must deduplicate comment IDs');
  assert.match(backend,/confirmed_ai_disclosure/,'AI generation must require the in-app data-use acknowledgement');
+ assert.match(backend,/\/me\/subscribed_apps/,'Instagram Login webhook setup must use the official /me/subscribed_apps edge');
 });
