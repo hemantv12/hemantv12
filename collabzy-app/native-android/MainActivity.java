@@ -728,48 +728,115 @@ public final class MainActivity extends Activity {
     }
 
     private void renderExplore() {
-        if ("brand".equals(user.optString("role"))) {
-            heading("Creator discovery", "Explore the marketplace or publish a new brief.");
-            TextView post = button("+  Create campaign", true);
-            post.setOnClickListener(v -> showShell("create_campaign"));
-            content.addView(post);
-            gap(content, 18);
-        } else {
-            heading("Explore campaigns", "Find paid, barter and hybrid collaborations.");
+        boolean brand = "brand".equals(user.optString("role"));
+        heading(brand ? "Creator discovery" : "Explore campaigns",
+            brand ? "Find creators by niche and location, then invite them to an active brief." :
+            "Search real campaigns and filter by collaboration type.");
+        LinearLayout filters = card();
+        EditText query = field(brand ? "Creator name or keywords" : "Campaign, brand or keyword", InputType.TYPE_CLASS_TEXT, "");
+        addField(filters, "SEARCH", query);
+        EditText category = field(brand ? "Creator niche (optional)" : "Category (optional)", InputType.TYPE_CLASS_TEXT, "");
+        EditText location = field("Location (optional)", InputType.TYPE_CLASS_TEXT, "");
+        addField(filters, brand ? "NICHE" : "CATEGORY", category);
+        addField(filters, "LOCATION", location);
+        final String[] type = new String[]{"All"};
+        if (!brand) {
+            filters.addView(text("COLLABORATION TYPE", 11, MUTED, true));
+            gap(filters, 7);
+            LinearLayout types = row();
+            String[] typeLabels = new String[]{"All", "Paid", "Barter", "Hybrid"};
+            for (String value : typeLabels) {
+                TextView chip = smallButton(value);
+                LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0, -2, 1);
+                cp.rightMargin = dp(4);
+                types.addView(chip, cp);
+                chip.setOnClickListener(v -> {
+                    type[0] = value;
+                    for (int i = 0; i < types.getChildCount(); i++) {
+                        TextView current = (TextView) types.getChildAt(i);
+                        boolean active = current.getText().toString().equals(value);
+                        current.setBackground(rounded(active ? MINT : Color.rgb(28, 56, 65), 13, 0));
+                        current.setTextColor(active ? BG : WHITE);
+                    }
+                });
+            }
+            filters.addView(types);
+            gap(filters, 13);
         }
+        TextView search = button("Search  →", true);
+        filters.addView(search);
+        content.addView(filters);
+        gap(content, 16);
+        LinearLayout results = column();
+        content.addView(results);
+        Runnable searchAction = () -> loadExploreResults(results, query.getText().toString().trim(),
+            category.getText().toString().trim(), location.getText().toString().trim(), type[0]);
+        search.setOnClickListener(v -> searchAction.run());
+        searchAction.run();
+    }
+
+    private void loadExploreResults(LinearLayout results, String query, String category, String location, String type) {
+        results.removeAllViews();
         TextView loading = text("Loading live opportunities…", 13, MUTED, false);
-        content.addView(loading);
-        api("GET", "brand".equals(user.optString("role")) ? "/api/creators" : "/api/campaigns", null, (data, error) -> {
+        results.addView(loading);
+        boolean brand = "brand".equals(user.optString("role"));
+        String endpoint = brand ? "/api/creators" : "/api/campaigns";
+        java.util.ArrayList<String> params = new java.util.ArrayList<>();
+        if (!query.isEmpty()) params.add("q=" + Uri.encode(query));
+        if (!category.isEmpty()) params.add((brand ? "niche=" : "category=") + Uri.encode(category));
+        if (!location.isEmpty()) params.add("location=" + Uri.encode(location));
+        if (!brand && !type.equals("All")) params.add("type=" + Uri.encode(type));
+        if (!params.isEmpty()) endpoint += "?" + String.join("&", params);
+        api("GET", endpoint, null, (data, error) -> {
             if (!"explore".equals(screen)) return;
-            content.removeView(loading);
+            results.removeAllViews();
             if (error != null) {
-                showInlineMessage("Could not load opportunities", error);
+                LinearLayout errorPanel = card();
+                errorPanel.addView(text("Could not load opportunities", 15, RED, true));
+                gap(errorPanel, 6);
+                errorPanel.addView(text(error, 12, MUTED, false));
+                results.addView(errorPanel);
                 return;
             }
-            if ("brand".equals(user.optString("role"))) {
-                JSONArray creators = data.optJSONArray("creators");
-                if (creators == null || creators.length() == 0) {
-                    showEmpty("Creator profiles will appear here", "Create a campaign and invite creators once profiles are available.");
-                    return;
-                }
-                for (int i = 0; i < creators.length(); i++) {
-                    JSONObject creator = creators.optJSONObject(i);
-                    if (creator != null) renderCreatorCard(creator);
-                }
-            } else {
-                JSONArray campaigns = data.optJSONArray("campaigns");
-                if (campaigns == null || campaigns.length() == 0) {
-                    showEmpty("Your next campaign is still out there", "No live campaigns are available right now. Check back as brands publish new briefs.");
-                    return;
-                }
-                for (int i = 0; i < campaigns.length(); i++) {
-                    JSONObject campaign = campaigns.optJSONObject(i);
-                    if (campaign != null) renderCampaignCard(campaign, false, null);
-                }
+            JSONArray items = data.optJSONArray(brand ? "creators" : "campaigns");
+            if (items == null || items.length() == 0) {
+                showEmptyIn(results, brand ? "No creators match those filters" : "No campaigns match those filters",
+                    brand ? "Try a broader niche or location. You can also publish a brief and invite creators." :
+                    "Try another search or collaboration type. New briefs appear as brands publish them.");
+                return;
+            }
+            for (int i = 0; i < items.length(); i++) {
+                JSONObject item = items.optJSONObject(i);
+                if (item == null) continue;
+                if (brand) renderCreatorCardInto(results, item);
+                else renderCampaignCardInto(results, item, false, null);
             }
         });
     }
 
+    private void showEmptyIn(LinearLayout target, String title, String body) {
+        LinearLayout c = card();
+        c.setGravity(Gravity.CENTER);
+        c.setPadding(dp(22), dp(24), dp(22), dp(24));
+        TextView icon = text("✦", 28, MINT, true);
+        icon.setGravity(Gravity.CENTER);
+        c.addView(icon);
+        gap(c, 7);
+        TextView h = text(title, 17, WHITE, true);
+        h.setGravity(Gravity.CENTER);
+        c.addView(h);
+        gap(c, 6);
+        TextView b = text(body, 12, MUTED, false);
+        b.setGravity(Gravity.CENTER);
+        c.addView(b);
+        target.addView(c);
+    }
+
+    private void renderCampaignCard(JSONObject c, boolean withScore, JSONObject match) {
+        renderCampaignCardInto(content, c, withScore, match);
+    }
+
+    private void renderCampaignCardInto(LinearLayout target, JSONObject c, boolean withScore, JSONObject match) {
     private void renderCampaignCard(JSONObject c, boolean withScore, JSONObject match) {
         LinearLayout card = card();
         LinearLayout meta = row();
