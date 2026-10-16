@@ -185,7 +185,10 @@ function jobCard(job, action = 'apply') {
   return `<article class="job-card"><div class="job-card-head"><div class="job-brand-icon">${escapeHtml((job.business_name || job.title || 'E').slice(0,1).toUpperCase())}</div><div class="job-head-main"><div class="job-title">${escapeHtml(job.title)}</div><div class="job-business">${escapeHtml(job.business_name || 'Business')}${job.business_verified ? '<span class="verified-chip">✓ VERIFIED</span>' : ''}${job.business_rating ? `<span class="job-rating">★ ${Number(job.business_rating).toFixed(1)} (${Number(job.business_review_count||0)})</span>` : ''}</div></div><div class="job-pay"><b>${formatMoney(job.pay_amount)}</b><small>per ${escapeHtml(job.pay_basis || 'shift')}</small><small class="net-estimate">~${formatMoney(estimatedNet)} net / shift</small></div></div><div class="job-meta"><span class="meta-chip">⌖ ${escapeHtml(job.city)}</span><span class="meta-chip">◷ ${escapeHtml(formatDate(job.start_at))}</span><span class="meta-chip">◴ ${escapeHtml(job.duration_hours)} hrs</span><span class="meta-chip">${remaining} position${remaining === 1 ? '' : 's'} open</span><span class="meta-chip">${escapeHtml(job.category)}</span></div><div class="compensation-disclosure"><b>Pay transparency:</b> Estimated gross for the full shift ${formatMoney(job.gross_shift_pay_estimate ?? job.pay_amount)} · worker platform fee (${Number(job.platform_fee_percent || 0)}%) ${formatMoney(estimatedFee)} · estimated worker net ${formatMoney(estimatedNet)}. Actual payment depends on accepted terms and approved completion.</div>${match ? `<div class="match-reasons" style="margin-top:10px">${reasons}${match.score ? `<span class="reason-chip">${match.score}% match</span>` : ''}</div>` : ''}<div class="job-card-bottom"><span class="job-business">Apply by ${escapeHtml(formatDate(job.application_deadline))} · ${escapeHtml(job.payment_terms || 'Terms listed in job details')}</span>${actionHtml}</div>${job.description ? `<details class="job-description-details"><summary>Role details and requirements</summary><p>${escapeHtml(job.description)}</p>${job.requirements?.length ? `<p><b>Skills:</b> ${escapeHtml(job.requirements.join(', '))}</p>` : ''}${job.address ? `<p><b>Location:</b> ${escapeHtml(job.address)}</p>` : ''}${job.breaks_info ? `<p><b>Breaks:</b> ${escapeHtml(job.breaks_info)}</p>` : ''}${job.equipment_info ? `<p><b>Equipment / dress:</b> ${escapeHtml(job.equipment_info)}</p>` : ''}${job.safety_info ? `<p><b>Safety:</b> ${escapeHtml(job.safety_info)}</p>` : ''}${job.cancellation_policy ? `<p><b>Cancellation:</b> ${escapeHtml(job.cancellation_policy)}</p>` : ''}</details>` : ''}</article>`;
 }
 async function shareEarnRouteText(title, text) {
-  const body = String(text || '').slice(0, 5000);
+  const rawBody = String(text || '').slice(0, 5000);
+  const body = selectedLanguage === 'hi'
+    ? rawBody.split(/\r?\n/).map(translateEarnRouteText).join('\n')
+    : rawBody;
   const safeTitle = selectedLanguage === 'hi'
     ? translateEarnRouteText(String(title || 'Share shift details'))
     : String(title || 'Share shift details');
@@ -593,7 +596,7 @@ document.addEventListener('click', async event => {
         payLabel + ': ' + formatMoney(payment),
         directions,
         'Shared from EarnRoute. Confirm the shift details with the other party before travelling.'
-      ].filter(Boolean).join('\\n');
+      ].filter(Boolean).join('\n');
       await shareEarnRouteText('EarnRoute shift details', message);
     } catch(error) { showToast(friendlyError(error), 'error'); }
     return;
@@ -917,6 +920,17 @@ function translateEarnRouteText(input) {
     .replace(/^Net payable\s*/i, 'देय कमाई ')
     .replace(/^Payment:\s*/i, 'भुगतान: ')
     .replace(/^Location:\s*/i, 'लोकेशन: ')
+    .replace(/^Shift:\s*/i, 'शिफ्ट: ')
+    .replace(/^Business:\s*/i, 'बिज़नेस: ')
+    .replace(/^City:\s*/i, 'शहर: ')
+    .replace(/^Workplace:\s*/i, 'काम की जगह: ')
+    .replace(/^Category:\s*/i, 'कैटेगरी: ')
+    .replace(/^Start:\s*/i, 'शुरू: ')
+    .replace(/^Distance:\s*/i, 'दूरी: ')
+    .replace(/^Gross shift pay:\s*/i, 'शिफ्ट का कुल भुगतान: ')
+    .replace(/^Estimated take-home:\s*/i, 'अनुमानित कमाई: ')
+    .replace(/^Directions:\s*/i, 'रास्ता: ')
+    .replace(/^Shared from EarnRoute\./i, 'EarnRoute से साझा किया गया।')
     .replace(/^Deadline\s*/i, 'आख़िरी तारीख ')
     .replace(/^Created\s*/i, 'बनाया गया ')
     .replace(/^Received\s*/i, 'मिला ')
