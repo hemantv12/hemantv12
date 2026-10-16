@@ -21,6 +21,9 @@ test('owner admin dashboard is responsive, real-data-only and JavaScript parses'
   assert.match(adminHtml, /data-view="support"/);
   assert.match(adminHtml, /data-view="readiness"/);
   assert.match(adminHtml, /sessionStorage\.setItem\('collabzy_admin_token'/);
+  assert.match(adminHtml, /id="setup-form"/);
+  assert.match(adminHtml, /Create owner account/);
+  assert.match(adminHtml, /api\('\/setup-status'\)/);
   assert.match(adminHtml, /No sample data is shown/);
   assert.doesNotMatch(adminHtml, /COLLABZY_ADMIN_PASSWORD_HASH|process\.env|RAZORPAY_KEY_SECRET|OPENAI_API_KEY/);
 });
