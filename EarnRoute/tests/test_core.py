@@ -456,3 +456,17 @@ def test_published_job_requires_workplace_pin(client, register_business, create_
     assert blocked.status_code == 409
     assert "workplace pin" in blocked.json()["detail"].lower()
 
+
+
+def test_support_ticket_create_and_private_detail(client, register_worker):
+    _, owner_headers = register_worker()
+    _, other_headers = register_worker(email="other-worker@example.com")
+    created = client.post("/api/support/tickets", headers=owner_headers, json={
+        "subject": "Account information update",
+        "category": "account",
+        "message": "I need help updating my account contact information.",
+    })
+    assert created.status_code == 201, created.text
+    ticket_id = created.json()["ticket"]["id"]
+    assert client.get(f"/api/support/tickets/{ticket_id}", headers=owner_headers).status_code == 200
+    assert client.get(f"/api/support/tickets/{ticket_id}", headers=other_headers).status_code == 404
