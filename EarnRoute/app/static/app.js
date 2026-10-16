@@ -562,4 +562,4 @@ async function init() {
   try {const data=await api('/api/auth/me');setWorkspace(data.user);}
   catch {sessionStorage.removeItem('earnroute_token');setLanding();}
 }
-init();
+window.addEventListener('load', init, { once: true });
