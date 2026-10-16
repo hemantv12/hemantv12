@@ -1,5 +1,5 @@
-const CACHE_NAME = 'earnroute-shell-v1';
-const CORE = ['/', '/static/styles.css', '/static/app.js', '/static/manifest.webmanifest', '/static/icon.svg'];
+const CACHE_NAME = 'earnroute-shell-v2';
+const CORE = ['/', '/static/styles.css', '/static/app.js', '/static/nearby.js', '/static/nearby.css', '/static/manifest.webmanifest', '/static/icon.svg'];
 self.addEventListener('install', event => event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(CORE))));
 self.addEventListener('activate', event => event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key))))));
 self.addEventListener('fetch', event => {
