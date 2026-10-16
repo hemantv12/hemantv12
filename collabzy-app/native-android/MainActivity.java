@@ -596,7 +596,13 @@ public final class MainActivity extends Activity {
         String[] glyphs = new String[]{"⌂", "⌕", "✦", "▤", "•••"};
         for (int i = 0; i < labels.length; i++) {
             final String key = keys[i];
-            boolean selected = active.equals(key) || (active.equals("conversation") && key.equals("inbox"));
+            boolean moreScreen = active.equals("more") || active.equals("profile") || active.equals("saved")
+                || active.equals("invitations") || active.equals("notifications") || active.equals("my_campaigns")
+                || active.equals("instagram") || active.equals("autodm") || active.equals("billing")
+                || active.equals("support") || active.equals("applications") || active.equals("ai")
+                || active.equals("create_campaign");
+            boolean selected = active.equals(key) || (active.equals("conversation") && key.equals("inbox"))
+                || (key.equals("more") && moreScreen);
             LinearLayout item = column();
             item.setGravity(Gravity.CENTER);
             TextView icon = text(glyphs[i], 21, selected ? MINT : MUTED, true);
