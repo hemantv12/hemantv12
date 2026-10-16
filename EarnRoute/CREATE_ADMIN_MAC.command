@@ -43,8 +43,11 @@ fi
 TEMP_JWT_SECRET="$(openssl rand -hex 48)"
 echo
 echo "Connecting to the production database and opening the private account-creation prompt..."
-APP_ENV=production DATABASE_URL="$DATABASE_URL" JWT_SECRET="$TEMP_JWT_SECRET" "$ROOT/.venv/bin/python" "$ROOT/scripts/create_admin.py"
-RESULT=$?
+if APP_ENV=production DATABASE_URL="$DATABASE_URL" JWT_SECRET="$TEMP_JWT_SECRET" "$ROOT/.venv/bin/python" "$ROOT/scripts/create_admin.py"; then
+  RESULT=0
+else
+  RESULT=$?
+fi
 unset DATABASE_URL TEMP_JWT_SECRET
 echo
 if [ "$RESULT" -eq 0 ]; then
