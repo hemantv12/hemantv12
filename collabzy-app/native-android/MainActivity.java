@@ -7,6 +7,8 @@ import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.content.Intent;
+import android.net.Uri;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -58,6 +60,11 @@ public final class MainActivity extends Activity {
     private String aiTool = "";
     private JSONObject user = new JSONObject();
     private ProgressBar progress;
+    private JSONObject dashboardStats = new JSONObject();
+    private boolean dashboardLoaded = false;
+    private boolean dashboardRequestStarted = false;
+    private JSONArray cachedInstagramMedia = new JSONArray();
+    private JSONArray cachedInstagramInsights = new JSONArray();
 
     private interface ApiCallback {
         void complete(JSONObject data, String error);
@@ -72,14 +79,18 @@ public final class MainActivity extends Activity {
         storage = getSharedPreferences("collabzy_native", MODE_PRIVATE);
         token = storage.getString("token", "");
         if (token.isEmpty()) {
-            showWelcome();
+            if (isInstagramCallback(getIntent())) {
+                showWelcome();
+                toast("Sign in to Collabzy, then connect Instagram from the app.");
+            } else showWelcome();
         } else {
             api("GET", "/api/me", null, (data, error) -> {
                 if (error == null && data != null) {
                     user = data.optJSONObject("user");
                     if (user == null) user = data;
-                    screen = "home";
-                    showShell("home");
+                    screen = isInstagramCallback(getIntent()) ? "instagram" : "home";
+                    showShell(screen);
+                    handleInstagramCallback(getIntent());
                 } else {
                     token = "";
                     storage.edit().remove("token").apply();
@@ -87,6 +98,39 @@ public final class MainActivity extends Activity {
                 }
             });
             showLoadingScreen("Opening your workspace…");
+        }
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        if (isInstagramCallback(intent) && !token.isEmpty()) {
+            handleInstagramCallback(intent);
+            showShell("instagram");
+        }
+    }
+
+    private boolean isInstagramCallback(Intent intent) {
+        if (intent == null || intent.getData() == null) return false;
+        Uri uri = intent.getData();
+        return "collabzy".equals(uri.getScheme()) && "instagram".equals(uri.getHost())
+            && "/callback".equals(uri.getPath());
+    }
+
+    private void handleInstagramCallback(Intent intent) {
+        if (!isInstagramCallback(intent)) return;
+        String result = intent.getData().getQueryParameter("instagram");
+        if ("connected".equals(result)) {
+            toast("Instagram connected. Refreshing account details…");
+            api("GET", "/api/instagram/status", null, (data, error) -> {
+                if (error == null && data != null) showShell("instagram");
+                else toast(error == null ? "Instagram was connected, but status could not be refreshed." : error);
+            });
+        } else if ("denied".equals(result)) {
+            toast("Instagram connection was cancelled.");
+        } else {
+            toast("Instagram could not be connected. Check Meta app setup and try again.");
         }
     }
 
@@ -477,6 +521,15 @@ public final class MainActivity extends Activity {
             case "matches": renderMatches(); break;
             case "inbox": renderInbox(); break;
             case "profile": renderProfile(); break;
+            case "more": renderMore(); break;
+            case "saved": renderSavedCampaigns(); break;
+            case "invitations": renderInvitations(); break;
+            case "notifications": renderNotifications(); break;
+            case "my_campaigns": renderMyCampaigns(); break;
+            case "instagram": renderInstagram(); break;
+            case "autodm": renderAutoDM(); break;
+            case "billing": renderBilling(); break;
+            case "support": renderSupport(); break;
             case "applications": renderApplications(); break;
             case "ai": renderAI(); break;
             case "create_campaign": renderCreateCampaign(); break;
@@ -514,9 +567,9 @@ public final class MainActivity extends Activity {
         LinearLayout nav = row();
         nav.setPadding(dp(7), dp(8), dp(7), dp(10));
         nav.setBackground(rounded(Color.rgb(16, 20, 39), 0, Color.rgb(43, 49, 73)));
-        String[] labels = new String[]{"Home", "Explore", "Matches", "Inbox", "Profile"};
-        String[] keys = new String[]{"home", "explore", "matches", "inbox", "profile"};
-        String[] glyphs = new String[]{"⌂", "⌕", "✦", "▤", "◉"};
+        String[] labels = new String[]{"Home", "Explore", "Matches", "Inbox", "More"};
+        String[] keys = new String[]{"home", "explore", "matches", "inbox", "more"};
+        String[] glyphs = new String[]{"⌂", "⌕", "✦", "▤", "•••"};
         for (int i = 0; i < labels.length; i++) {
             final String key = keys[i];
             boolean selected = active.equals(key) || (active.equals("conversation") && key.equals("inbox"));
@@ -594,9 +647,13 @@ public final class MainActivity extends Activity {
         addQuickAction("✧", "AI Studio", "Pitches, content ideas and campaign briefs", () -> showShell("ai"));
         gap(content, 10);
         addQuickAction("▤", "Applications & activity", "Track collaboration progress", () -> showShell("applications"));
+        gap(content, 10);
+        addQuickAction("◎", "Instagram & creator insights", "Official account connection and metrics", () -> showShell("instagram"));
         if (!creator) {
             gap(content, 10);
             addQuickAction("+", "Create a campaign", "Publish a collaboration brief", () -> showShell("create_campaign"));
+            gap(content, 10);
+            addQuickAction("♙", "Manage campaigns", "Edit status and review applicants", () -> showShell("my_campaigns"));
         }
         gap(content, 18);
         TextView beta = text("PRIVATE BETA  ·  Built for real creator–brand workflows", 10, MUTED, false);
