@@ -30,5 +30,5 @@ jobs:
         working-directory: collabzy-app
         env:
           COLLABZY_BASE_URL: https://collabzy-api.onrender.com
-          COLLABZY_EXPECTED_VERSION: '2.3.0'
+          COLLABZY_EXPECTED_VERSION: '2.4.0'
         run: node scripts/live-smoke.js

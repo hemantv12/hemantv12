@@ -193,7 +193,7 @@ async function start(PORT,SECRET){
     q.sessionVersion=Number(r.rows[0].session_version||0);
     q.user=publicUser(r.rows[0]);n();
   });
-  app.get('/api/health',asyncRoute(async(q,s)=>{await pool.query('SELECT 1');s.json({ok:true,app:'Collabzy',version:'2.3.0',database:'connected',mode:'postgres-persistent',integrations:{instagram:metaReady()?'configured':'setup_required',email:emailReady()?'configured':'setup_required',emailVerification:requireEmailVerification?'required':'not_enforced',aiAnalytics:openAiReady()?'configured':'setup_required',payments:razorpayReady()?'configured':'setup_required',support:supportReady()&&emailReady()?'configured':'setup_required',operatorIdentity:legalIdentityReady()?'configured':'setup_required',publicLaunchApproval:publicLaunchApproved()?'approved':'required',publicRegistration:registrationReady()?'open':'setup_required',privateBetaRegistration:privateBetaRegistrationEnabled()?'invite_only':'disabled'}})}));
+  app.get('/api/health',asyncRoute(async(q,s)=>{await pool.query('SELECT 1');s.json({ok:true,app:'Collabzy',version:'2.4.0',database:'connected',mode:'postgres-persistent',integrations:{instagram:metaReady()?'configured':'setup_required',email:emailReady()?'configured':'setup_required',emailVerification:requireEmailVerification?'required':'not_enforced',aiAnalytics:openAiReady()?'configured':'setup_required',payments:razorpayReady()?'configured':'setup_required',support:supportReady()&&emailReady()?'configured':'setup_required',operatorIdentity:legalIdentityReady()?'configured':'setup_required',publicLaunchApproval:publicLaunchApproved()?'approved':'required',publicRegistration:registrationReady()?'open':'setup_required',privateBetaRegistration:privateBetaRegistrationEnabled()?'invite_only':'disabled'}})}));
   app.get('/api/public-config',(q,s)=>s.json({operatorName:process.env.OPERATOR_LEGAL_NAME||'',jurisdiction:process.env.OPERATOR_JURISDICTION||'',supportEmail:process.env.SUPPORT_EMAIL||'',supportReady:supportReady()&&emailReady(),aiAnalyticsReady:openAiReady(),paymentsReady:razorpayReady(),annualPlan:{code:'creator_annual_299',amount:299,currency:'INR',durationDays:365}}));
   app.post('/api/auth/register',asyncRoute(async(q,s)=>{
     const name=String(q.body?.name||'').trim(),email=validEmail(q.body?.email),password=String(q.body?.password||''),role=q.body?.role||'creator';
@@ -205,7 +205,7 @@ async function start(PORT,SECRET){
     const suppliedBetaCode=String(q.body?.beta_code||'').trim();
     const privateBeta=privateBetaCodeMatches(suppliedBetaCode);
     if(suppliedBetaCode&&!privateBeta)return s.status(403).json({error:'That private beta access code is invalid or no longer active.'});
-    if(!registrationReady()&&!privateBeta)return s.status(503).json({error:privateBetaRegistrationEnabled()?'Account creation is invite-only during private beta. Enter the valid private beta access code.':'Account creation is paused until required production integrations are configured.'});
+    if(!registrationReady()&&!privateBeta)return s.status(503).json({error:privateBetaRegistrationEnabled()?'Public account creation is paused. This release supports invite-only private beta access with a valid code.':'Account creation is paused until required production integrations are configured.'});
     const hash=await bcrypt.hash(password,12);
     try{
       const acceptedAt=q.body?.accepted_terms===true?new Date():null;
