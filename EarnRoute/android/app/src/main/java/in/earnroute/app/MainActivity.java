@@ -256,7 +256,7 @@ public final class MainActivity extends Activity {
     private void applyCssSystemBottomInset(WebView target) {
         if (target == null) return;
         final int inset = Math.max(0, systemBottomInsetDp);
-        target.evaluateJavascript("(function(){if(document.documentElement.classList.contains(\\\"er-native-app\\\")){document.documentElement.style.setProperty(\\\"--er-system-bottom-inset\\\",\\\"" + inset + "px\\\");}})();", null);
+        target.evaluateJavascript("(function(){if(document.documentElement.classList.contains('er-native-app')){document.documentElement.style.setProperty('--er-system-bottom-inset','" + inset + "px');}})();", null);
     }
 
     private final class EarnRouteBridge {
