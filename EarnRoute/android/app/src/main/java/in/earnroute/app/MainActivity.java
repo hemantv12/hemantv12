@@ -69,7 +69,7 @@ public final class MainActivity extends Activity {
         configureSystemBars();
 
         webView = new WebView(this);
-        webView.setBackgroundColor(Color.rgb(247, 250, 247));
+        webView.setBackgroundColor(Color.rgb(18, 45, 33));
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setGeolocationEnabled(true);
@@ -82,7 +82,7 @@ public final class MainActivity extends Activity {
         settings.setJavaScriptCanOpenWindowsAutomatically(false);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         settings.setMediaPlaybackRequiresUserGesture(true);
-        settings.setUserAgentString(settings.getUserAgentString() + " EarnRouteAndroid/1.0");
+        settings.setUserAgentString(settings.getUserAgentString() + " EarnRouteAndroid/1.2.0");
 
         WebViewAssetLoader assetLoader = new WebViewAssetLoader.Builder()
                 .setDomain(ASSET_HOST)
@@ -163,7 +163,7 @@ public final class MainActivity extends Activity {
         settings.setSupportMultipleWindows(false);
         settings.setJavaScriptCanOpenWindowsAutomatically(false);
         settings.setMediaPlaybackRequiresUserGesture(true);
-        view.setBackgroundColor(Color.rgb(247, 250, 247));
+        view.setBackgroundColor(Color.rgb(18, 45, 33));
         applyInsets(view);
         view.addJavascriptInterface(new EarnRouteBridge(), "EarnRouteNative");
         WebViewAssetLoader loader = new WebViewAssetLoader.Builder()
