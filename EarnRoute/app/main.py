@@ -24,6 +24,7 @@ from sqlalchemy import (
     create_engine, func, select,
 )
 from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, relationship, sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -1206,7 +1207,14 @@ def save_shift(job_id: int, user: User = Depends(require_role("worker")), db: Se
     saved = db.scalar(select(SavedShift).where(SavedShift.worker_id == user.id, SavedShift.job_id == job_id))
     if not saved:
         db.add(SavedShift(worker_id=user.id, job_id=job_id))
-        db.commit()
+        try:
+            db.commit()
+        except IntegrityError:
+            # Two fast requests can race; the uniqueness constraint makes the second save idempotent.
+            db.rollback()
+            saved = db.scalar(select(SavedShift).where(SavedShift.worker_id == user.id, SavedShift.job_id == job_id))
+            if not saved:
+                raise
     return {"saved": True, "job_id": job_id}
 
 
