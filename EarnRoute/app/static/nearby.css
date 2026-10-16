@@ -543,3 +543,13 @@ html[lang^="hi"] .form-field label,html[lang^="hi"] .form-help,html[lang^="hi"] 
  html.er-native-app .topbar-actions{gap:4px}
  html.er-native-app .er-pay-row strong{font-size:17px}
 }
+
+.er-support-thread{margin:18px 0;min-width:0}
+.er-support-messages{display:grid;gap:10px;margin-bottom:18px;min-width:0}
+.er-support-message{border:1px solid #e5ece6;border-radius:12px;background:#fbfdfb;padding:13px;min-width:0}
+.er-support-message-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap}
+.er-support-message-head b{font-size:11px}
+.er-support-message-head small{color:#87958b;font-size:9px}
+.er-support-message p{font-size:11px;line-height:1.7;white-space:pre-wrap;overflow-wrap:anywhere;margin:10px 0 0}
+.er-support-status-actions{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+.er-support-thread .form-panel{margin:12px 0 0;padding:14px}
