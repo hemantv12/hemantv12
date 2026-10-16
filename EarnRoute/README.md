@@ -78,7 +78,9 @@ In development/test mode, app startup can create any missing tables for convenie
 
 Open `/admin` on the deployed HTTPS origin: `https://earnroute-api.onrender.com/admin`. The route opens a dedicated admin-only sign-in screen; after a valid admin login it loads Founder overview, business verification, job moderation, dispute review, support tickets and audit history. It does not grant administrator permission to an ordinary worker or business account. The backend enforces the admin role for every admin API request.
 
-If the sign-in page opens but no founder account can log in, create the first founder account through the secure provisioning procedure below. Admin account creation is intentionally not available in public sign-up. There are currently no administrator accounts in the connected production database, so a one-time owner bootstrap is required before the console can show live metrics.
+If the sign-in page opens but no founder account can log in, create the first founder account through the secure provisioning procedure below. Admin account creation is intentionally not available in public sign-up. The production database currently has no administrator account, so a one-time owner bootstrap is required before the console can show live metrics.
+
+For a guided Mac setup, download the repository ZIP for branch `earnroute-production`, open its `EarnRoute` folder, and run `bash CREATE_ADMIN_MAC.command`. It asks for the Neon `DATABASE_URL` in hidden input, installs the project dependencies into a local `.venv`, then prompts for the founder email/name and a new 14+ character password. It does not save the database URL into `.env`. Obtain the connection URL from your own Neon Console and do not paste it into chat or commit it.
 
 ## Provision the founder/admin account
 
