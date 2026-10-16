@@ -65,9 +65,10 @@ test('Native Android app covers core creator, brand and account workflows',()=>{
   'renderInstagram','renderAutoDM','renderApplications','renderProfile','renderAI',
   'renderCreateCampaign','renderBilling','renderSupport','showPasswordDialog','exportAccountData','confirmDeleteAccount',
   'showInviteDialog','showEditCampaignDialog','showForgotPasswordDialog','loadExploreResults','loadAutomationEvents',
-  'downloadMediaKit','generateMediaKitPdf','drawWrappedText'
+  'downloadMediaKit','generateMediaKitPdf'
  ];
  for(const screen of requiredScreens) assert.ok(native.includes('private void '+screen+'('),'native screen/function '+screen+' must exist');
+ assert.ok(native.includes('private float drawWrappedText('),'media kit text wrapping helper must exist');
  for(const endpoint of [
   '/api/auth/register','/api/auth/login','/api/dashboard','/api/campaigns','/api/matches',
   '/api/applications','/api/invitations','/api/notifications','/api/conversations',
