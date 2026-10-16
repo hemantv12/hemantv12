@@ -628,14 +628,19 @@ public final class MainActivity extends Activity {
         content.addView(hero);
         gap(content, 22);
 
-        heading("Your at-a-glance", "Real account information, not demo numbers.");
+        heading("Your at-a-glance", "Live counts from your Collabzy account.");
+        JSONObject stats = dashboardStats;
+        String primaryTitle = creator ? "My applications" : "My campaigns";
+        String primaryValue = String.valueOf(stats.optInt(creator ? "myApplications" : "myCampaigns", 0));
+        String primaryHint = creator ? stats.optInt("accepted", 0) + " accepted" : stats.optInt("receivedApplications", 0) + " applications received";
+        String secondaryTitle = creator ? "Saved campaigns" : "Active campaigns";
+        String secondaryValue = String.valueOf(stats.optInt(creator ? "savedCampaigns" : "activeCampaigns", 0));
+        String secondaryHint = creator ? (user.optString("instagram_handle", "").isEmpty() ? "Instagram not linked" : "@" + user.optString("instagram_handle")) : "Marketplace opportunities";
         LinearLayout statRow = row();
-        statRow.addView(statCard(creator ? "Followers" : "Campaigns", creator ? compact(user.optLong("followers", 0)) : "View studio",
-                creator && user.optString("instagram_handle", "").isEmpty() ? "Instagram not linked" : (creator ? "Profile audience" : "Campaign manager")), new LinearLayout.LayoutParams(0, -2, 1));
+        statRow.addView(statCard(primaryTitle, primaryValue, primaryHint), new LinearLayout.LayoutParams(0, -2, 1));
         LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(0, -2, 1);
         sp.leftMargin = dp(10);
-        statRow.addView(statCard(creator ? "Engagement" : "Account type", creator ? (user.optDouble("engagement", 0) > 0 ? String.format(Locale.US, "%.1f%%", user.optDouble("engagement", 0)) : "—") : "Brand",
-                creator ? "From your profile" : "Brand workspace"), sp);
+        statRow.addView(statCard(secondaryTitle, secondaryValue, secondaryHint), sp);
         content.addView(statRow);
         gap(content, 22);
 
@@ -656,6 +661,20 @@ public final class MainActivity extends Activity {
             addQuickAction("♙", "Manage campaigns", "Edit status and review applicants", () -> showShell("my_campaigns"));
         }
         gap(content, 18);
+        if (!dashboardLoaded && !dashboardRequestStarted) {
+            dashboardRequestStarted = true;
+            api("GET", "/api/dashboard", null, (data, error) -> {
+                dashboardRequestStarted = false;
+                dashboardLoaded = true;
+                if (error == null && data != null) {
+                    JSONObject actual = data.optJSONObject("stats");
+                    if (actual != null) dashboardStats = actual;
+                    if ("home".equals(screen)) showShell("home");
+                } else if (error != null) {
+                    toast("Dashboard counts could not refresh: " + error);
+                }
+            });
+        }
         TextView beta = text("PRIVATE BETA  ·  Built for real creator–brand workflows", 10, MUTED, false);
         beta.setGravity(Gravity.CENTER);
         content.addView(beta);
@@ -1732,16 +1751,41 @@ public final class MainActivity extends Activity {
                 badge.setPadding(dp(10), dp(7), dp(10), dp(7));
                 badge.setBackground(rounded(Color.rgb(30, 56, 64), 11, 0));
                 c.addView(badge, new LinearLayout.LayoutParams(-2, -2));
-                if ("brand".equals(user.optString("role")) && "pending".equals(a.optString("status"))) {
-                    gap(c, 12);
-                    TextView accept = smallButton("Accept application");
-                    accept.setOnClickListener(v -> api("PATCH", "/api/applications/" + a.optLong("id") + "/status", json("status", "accepted"), (d, e) -> {
-                        if (e != null) toast(e); else { toast("Application accepted."); showShell("applications"); }
-                    }));
-                    c.addView(accept);
+                if ("brand".equals(user.optString("role"))) {
+                    String currentStatus = a.optString("status", "pending");
+                    LinearLayout actions = row();
+                    if ("pending".equals(currentStatus)) {
+                        TextView accept = smallButton("Accept");
+                        TextView decline = smallButton("Decline");
+                        actions.addView(accept, new LinearLayout.LayoutParams(0, -2, 1));
+                        LinearLayout.LayoutParams declineP = new LinearLayout.LayoutParams(0, -2, 1);
+                        declineP.leftMargin = dp(8);
+                        actions.addView(decline, declineP);
+                        accept.setOnClickListener(v -> updateApplicationStatus(a, "accepted"));
+                        decline.setOnClickListener(v -> updateApplicationStatus(a, "declined"));
+                    } else if ("accepted".equals(currentStatus)) {
+                        TextView complete = smallButton("Mark completed");
+                        actions.addView(complete, new LinearLayout.LayoutParams(-1, -2));
+                        complete.setOnClickListener(v -> updateApplicationStatus(a, "completed"));
+                    }
+                    if (actions.getChildCount() > 0) {
+                        gap(c, 12);
+                        c.addView(actions);
+                    }
                 }
                 content.addView(c);
                 gap(content, 10);
+            }
+        });
+    }
+
+    private void updateApplicationStatus(JSONObject application, String status) {
+        api("PATCH", "/api/applications/" + application.optLong("id") + "/status", json("status", status), (data, error) -> {
+            if (error != null) toast(error);
+            else {
+                toast("Application marked " + status + ".");
+                dashboardLoaded = false;
+                showShell("applications");
             }
         });
     }
