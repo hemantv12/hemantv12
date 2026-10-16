@@ -63,14 +63,16 @@ test('Native Android app covers core creator, brand and account workflows',()=>{
   'renderHome','renderExplore','renderMatches','renderInbox','renderConversation',
   'renderSavedCampaigns','renderInvitations','renderNotifications','renderMyCampaigns',
   'renderInstagram','renderAutoDM','renderApplications','renderProfile','renderAI',
-  'renderCreateCampaign','renderBilling','renderSupport','showPasswordDialog','exportAccountData','confirmDeleteAccount'
+  'renderCreateCampaign','renderBilling','renderSupport','showPasswordDialog','exportAccountData','confirmDeleteAccount',
+  'showInviteDialog','showEditCampaignDialog','showForgotPasswordDialog','loadExploreResults','loadAutomationEvents'
  ];
  for(const screen of requiredScreens) assert.ok(native.includes('private void '+screen+'('),'native screen/function '+screen+' must exist');
  for(const endpoint of [
   '/api/auth/register','/api/auth/login','/api/dashboard','/api/campaigns','/api/matches',
   '/api/applications','/api/invitations','/api/notifications','/api/conversations',
   '/api/me/password','/api/me/export','/api/instagram/connect','/api/instagram/insights',
-  '/api/instagram/automations','/api/ai/studio','/api/billing/status','/api/support'
+  '/api/instagram/automations','/api/ai/studio','/api/billing/status','/api/support',
+  '/api/campaigns/','/api/auth/forgot-password','/api/invitations/'
  ]) assert.ok(native.includes(endpoint),'native client should use '+endpoint);
  assert.ok(native.includes('class MainActivity extends Activity'),'main screen must use Android native Activity');
  assert.equal(native.includes('android.webkit.WebView'),false,'native main Activity must not embed the website in a WebView');
