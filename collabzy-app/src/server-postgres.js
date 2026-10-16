@@ -339,6 +339,7 @@ async function start(PORT,SECRET){
   app.post('/api/auth/login',asyncRoute(async(q,s)=>{
     const email=validEmail(q.body?.email),r=await pool.query('SELECT * FROM users WHERE email=$1',[email]);
     if(!r.rows.length||!(await bcrypt.compare(String(q.body?.password||''),r.rows[0].password_hash)))return s.status(401).json({error:'Email or password is incorrect.'});
+    if(r.rows[0].account_status==='suspended')return s.status(403).json({error:'This account is suspended. Contact Collabzy support.'});
     if(requireEmailVerification&&!r.rows[0].email_verified_at&&r.rows[0].private_beta_access!==true)return s.status(403).json({error:'Please verify your email before signing in. Use Resend verification if you need a new link.'});
     const u=publicUser(r.rows[0]);s.json({token:tokenFor(r.rows[0],SECRET),user:u});
   }));
