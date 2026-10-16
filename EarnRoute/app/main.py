@@ -363,7 +363,7 @@ class WorkerProfileBody(BaseModel):
     skills: list[str] = Field(default_factory=list, max_length=30)
     preferred_categories: list[str] = Field(default_factory=list, max_length=20)
     availability: list[dict[str, Any]] = Field(default_factory=list, max_length=21)
-    travel_radius_km: int = Field(default=3, ge=1, le=5)
+    travel_radius_km: int = Field(default=3, ge=1, le=15)
     min_pay: float = Field(default=0, ge=0, le=1_000_000)
     experience_years: int = Field(default=0, ge=0, le=60)
 
@@ -498,7 +498,7 @@ def serialize_user(user: User, db: Session) -> dict[str, Any]:
         p = db.get(WorkerProfile, user.id)
         if p:
             profile = {"city": p.city, "skills": p.skills or [], "preferred_categories": p.preferred_categories or [],
-                       "availability": p.availability or [], "travel_radius_km": min(5, max(1, int(p.travel_radius_km or 3))),
+                       "availability": p.availability or [], "travel_radius_km": min(15, max(1, int(p.travel_radius_km or 3))),
                        "min_pay": p.min_pay, "experience_years": p.experience_years}
     elif user.role == "business":
         p = db.get(BusinessProfile, user.id)
@@ -857,7 +857,7 @@ def list_jobs(
     min_pay: float | None = Query(default=None, ge=0), max_pay: float | None = Query(default=None, ge=0),
     latitude: float | None = Query(default=None, ge=-90, le=90),
     longitude: float | None = Query(default=None, ge=-180, le=180),
-    radius_km: float | None = Query(default=None, gt=0, le=5),
+    radius_km: float | None = Query(default=None, gt=0, le=15),
     page: int = Query(default=1, ge=1, le=10000), page_size: int = Query(default=12, ge=1, le=50),
     db: Session = Depends(get_db), authorization: str | None = Header(default=None),
 ):
