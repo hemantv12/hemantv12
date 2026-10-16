@@ -458,3 +458,9 @@ html.er-native-app .er-welcome-footnote{font-size:9px;line-height:1.45;margin-to
  html.er-native-app .er-pay-row strong{font-size:18px}
  html.er-native-app .er-mobile-nav button span{font-size:18px}
 }
+
+
+/* External workplace directions use a browser/maps-app URL; no API key or simulated map is used. */
+.er-map-link{display:inline-flex;align-items:center;gap:5px;width:fit-content;max-width:100%;margin:7px 0;padding:8px 11px;border:1px solid #dce8c9;border-radius:10px;background:#f4f8e9;color:#2b5936;font-size:11px;font-weight:800;text-decoration:none;overflow-wrap:anywhere;line-height:1.35}
+.er-map-link:hover{border-color:#b9d27d;background:#edf5dc}
+html.er-native-app .er-map-link{min-height:38px;padding:9px 11px;font-size:11px;white-space:normal}
