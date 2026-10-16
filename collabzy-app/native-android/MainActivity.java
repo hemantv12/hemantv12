@@ -786,7 +786,7 @@ public final class MainActivity extends Activity {
         if (!category.isEmpty()) params.add((brand ? "niche=" : "category=") + Uri.encode(category));
         if (!location.isEmpty()) params.add("location=" + Uri.encode(location));
         if (!brand && !type.equals("All")) params.add("type=" + Uri.encode(type));
-        if (!params.isEmpty()) endpoint += "?" + String.join("&", params);
+        if (!params.isEmpty()) endpoint += "?" + android.text.TextUtils.join("&", params);
         api("GET", endpoint, null, (data, error) -> {
             if (!"explore".equals(screen)) return;
             results.removeAllViews();
@@ -1045,6 +1045,10 @@ public final class MainActivity extends Activity {
             }
         }
         gap(card, 11);
+        TextView invite = smallButton("Invite to campaign");
+        card.addView(invite);
+        invite.setOnClickListener(v -> showInviteDialog(c));
+        gap(card, 12);
         TextView invite = smallButton("Invite to campaign");
         card.addView(invite);
         invite.setOnClickListener(v -> showInviteDialog(c));
@@ -1545,6 +1549,10 @@ public final class MainActivity extends Activity {
             status.addView(text(data.optString("message", ""), 11, MUTED, false));
             content.addView(status);
             gap(content, 10);
+            TextView activityButton = button("View Auto DM activity", false);
+            activityButton.setOnClickListener(v -> loadAutomationEvents());
+            content.addView(activityButton);
+            gap(content, 10);
             JSONArray rules = data.optJSONArray("rules");
             if (rules == null || rules.length() == 0) {
                 showEmpty("No keyword rules yet", "Add a keyword and draft a reply. It will not send until the server and Meta permissions allow it.");
@@ -1585,9 +1593,6 @@ public final class MainActivity extends Activity {
                 content.addView(c);
                 gap(content, 10);
             }
-            TextView events = button("View Auto DM activity", false);
-            content.addView(events);
-            events.setOnClickListener(v -> loadAutomationEvents());
         });
     }
 
@@ -1601,7 +1606,7 @@ public final class MainActivity extends Activity {
         EditText keyword = field("Keyword (minimum 2 characters)", InputType.TYPE_CLASS_TEXT, "");
         EditText reply = field("Private reply text", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE, "");
         reply.setSingleLine(false); reply.setMinLines(3);
-        EditText link = field("Optional HTTPS link", InputType.TYPE_TEXT_VARIATION_URI, "");
+        EditText link = field("Optional HTTPS link", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI, "");
         box.addView(keyword); gap(box, 9); box.addView(reply); gap(box, 9); box.addView(link); gap(box, 12);
         TextView save = button("Save draft rule", true);
         TextView cancel = button("Cancel", false);
