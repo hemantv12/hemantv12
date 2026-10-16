@@ -164,6 +164,15 @@ class Application(Base):
     __table_args__ = (UniqueConstraint("job_id", "worker_id", name="uq_application_job_worker"),)
 
 
+class SavedShift(Base):
+    __tablename__ = "saved_shifts"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    worker_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    job_id: Mapped[int] = mapped_column(ForeignKey("jobs.id", ondelete="CASCADE"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    __table_args__ = (UniqueConstraint("worker_id", "job_id", name="uq_saved_shift_worker_job"),)
+
+
 class Assignment(Base):
     __tablename__ = "assignments"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -1161,6 +1170,54 @@ def withdraw_application(application_id: int, user: User = Depends(require_role(
     log_event(db, user.id, "application_withdrawn", "application", application.id, {"job_id": application.job_id})
     db.commit()
     return {"application": serialize_application(db, application)}
+
+
+@app.get("/api/worker/saved-shifts")
+def list_saved_shifts(user: User = Depends(require_role("worker")), db: Session = Depends(get_db)):
+    """Return only this worker's saved, still-published future shifts."""
+    now = utc_now()
+    rows = db.execute(
+        select(SavedShift, Job)
+        .join(Job, Job.id == SavedShift.job_id)
+        .where(
+            SavedShift.worker_id == user.id,
+            Job.status == "published",
+            Job.start_at > now,
+            Job.application_deadline > now,
+        )
+        .order_by(SavedShift.created_at.desc())
+        .limit(100)
+    ).all()
+    profile = get_worker_profile(db, user.id)
+    items = []
+    for saved, job in rows:
+        item = serialize_job(db, job, profile)
+        item["saved_at"] = as_utc(saved.created_at).isoformat()
+        items.append(item)
+    return {"items": items, "total": len(items)}
+
+
+@app.post("/api/jobs/{job_id}/save")
+def save_shift(job_id: int, user: User = Depends(require_role("worker")), db: Session = Depends(get_db)):
+    """Idempotently save a shift to the authenticated worker's private list."""
+    job = db.get(Job, job_id)
+    if not job or job.status != "published" or as_utc(job.start_at) <= utc_now() or as_utc(job.application_deadline) <= utc_now():
+        raise HTTPException(status_code=404, detail="This shift is no longer available to save.")
+    saved = db.scalar(select(SavedShift).where(SavedShift.worker_id == user.id, SavedShift.job_id == job_id))
+    if not saved:
+        db.add(SavedShift(worker_id=user.id, job_id=job_id))
+        db.commit()
+    return {"saved": True, "job_id": job_id}
+
+
+@app.delete("/api/jobs/{job_id}/save")
+def unsave_shift(job_id: int, user: User = Depends(require_role("worker")), db: Session = Depends(get_db)):
+    """Idempotently remove a shift from the authenticated worker's private list."""
+    saved = db.scalar(select(SavedShift).where(SavedShift.worker_id == user.id, SavedShift.job_id == job_id))
+    if saved:
+        db.delete(saved)
+        db.commit()
+    return {"saved": False, "job_id": job_id}
 
 
 @app.get("/api/applications/me")
