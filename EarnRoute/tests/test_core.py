@@ -13,6 +13,7 @@ def future_job_payload(days=3, title="Event registration associate", publish=Tru
         "title": title,
         "description": "Help attendees check in, manage the event desk, and answer visitor questions.",
         "category": "Events", "city": "Delhi", "address": "Example convention centre, Delhi",
+        "latitude": 28.6139, "longitude": 77.2090,
         "slots": 2, "start_at": start.isoformat(), "end_at": end.isoformat(),
         "pay_amount": 1200, "pay_basis": "shift", "payment_terms": "Within 3 business days after approved completion",
         "requirements": ["customer service", "event support"], "min_experience": 0,
@@ -30,7 +31,7 @@ def set_eligible_worker_profile(client, headers, availability=None, skills=None,
     return client.patch("/api/worker/profile", headers=headers, json={
         "city": "Delhi", "skills": skills if skills is not None else ["customer service", "event support"],
         "preferred_categories": ["Events"], "availability": windows,
-        "travel_radius_km": 15, "min_pay": 0, "experience_years": experience_years,
+        "travel_radius_km": 5, "min_pay": 0, "experience_years": experience_years,
     })
 
 
@@ -79,7 +80,7 @@ def test_role_based_access_and_worker_profile(client, register_worker):
     _, worker_headers = register_worker()
     forbidden = client.post("/api/jobs", headers=worker_headers, json=future_job_payload())
     assert forbidden.status_code == 403
-    body = {"city":"Delhi","skills":["Customer service","Event support"],"preferred_categories":["Events"],"availability":[{"day":5,"start":"09:00","end":"18:00"}],"travel_radius_km":15,"min_pay":800,"experience_years":1}
+    body = {"city":"Delhi","skills":["Customer service","Event support"],"preferred_categories":["Events"],"availability":[{"day":5,"start":"09:00","end":"18:00"}],"travel_radius_km":5,"min_pay":800,"experience_years":1}
     response = client.patch("/api/worker/profile", headers=worker_headers, json=body)
     assert response.status_code == 200, response.text
     profile = response.json()["user"]["profile"]
@@ -367,3 +368,50 @@ def test_unconfigured_payment_webhook_does_not_mark_payout_paid(client):
     os.environ.pop('RAZORPAY_WEBHOOK_SECRET', None)
     response=client.post('/api/webhooks/razorpay',content=b'{"id":"evt_123","event":"payment.captured"}',headers={'content-type':'application/json','X-Razorpay-Signature':'wrong'})
     assert response.status_code==503
+
+
+
+def test_nearby_jobs_are_distance_filtered_and_sorted(client, register_business, create_admin):
+    business, business_headers = register_business()
+    verify_business(client, create_admin, business["user"]["id"])
+    base = future_job_payload()
+    listings = [
+        ("Corner shop helper", 28.6170, 77.2090),
+        ("Cafe stock assistant", 28.6409, 77.2090),
+        ("Far warehouse shift", 28.7000, 77.2090),
+    ]
+    for title, latitude, longitude in listings:
+        response = client.post("/api/jobs", headers=business_headers, json={
+            **base, "title": title, "latitude": latitude, "longitude": longitude,
+        })
+        assert response.status_code == 201, response.text
+
+    one_km = client.get("/api/jobs?latitude=28.6139&longitude=77.2090&radius_km=1&page_size=20")
+    assert one_km.status_code == 200
+    assert one_km.json()["nearby"] is True
+    assert one_km.json()["total"] == 1
+    assert one_km.json()["items"][0]["title"] == "Corner shop helper"
+    assert 0 < one_km.json()["items"][0]["distance_km"] < 1
+
+    five_km = client.get("/api/jobs?latitude=28.6139&longitude=77.2090&radius_km=5&page_size=20")
+    assert five_km.status_code == 200
+    assert five_km.json()["total"] == 2
+    assert [item["title"] for item in five_km.json()["items"]] == ["Corner shop helper", "Cafe stock assistant"]
+    assert all(item["distance_km"] <= 5 for item in five_km.json()["items"])
+    assert client.get("/api/jobs?latitude=28.6139&longitude=77.2090&radius_km=10").status_code == 422
+    assert client.get("/api/jobs?latitude=28.6139&radius_km=3").status_code == 422
+
+
+def test_published_job_requires_workplace_pin(client, register_business, create_admin):
+    business, business_headers = register_business()
+    verify_business(client, create_admin, business["user"]["id"])
+    payload = future_job_payload(publish=False)
+    payload.pop("latitude")
+    payload.pop("longitude")
+    draft = client.post("/api/jobs", headers=business_headers, json=payload)
+    assert draft.status_code == 201, draft.text
+    job_id = draft.json()["job"]["id"]
+    blocked = client.post(f"/api/jobs/{job_id}/publish", headers=business_headers)
+    assert blocked.status_code == 409
+    assert "workplace pin" in blocked.json()["detail"].lower()
+
