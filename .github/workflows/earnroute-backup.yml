@@ -36,9 +36,15 @@ jobs:
         run: |
           set -euo pipefail
           missing=0
-          for key in DATABASE_URL AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY BACKUP_ENCRYPTION_PASSPHRASE; do
+          for spec in \
+            "DATABASE_URL:EARNROUTE_DATABASE_URL" \
+            "AWS_ACCESS_KEY_ID:NEON_STORAGE_ACCESS_KEY_ID" \
+            "AWS_SECRET_ACCESS_KEY:NEON_STORAGE_SECRET_ACCESS_KEY" \
+            "BACKUP_ENCRYPTION_PASSPHRASE:EARNROUTE_BACKUP_PASSPHRASE"; do
+            key="${spec%%:*}"
+            secret_name="${spec#*:}"
             if [ -z "${!key:-}" ]; then
-              echo "::error::Missing Actions secret for ${key}. See EarnRoute/OWNER-SETUP-44.md, section 'Daily encrypted backup'."
+              echo "::error::Missing GitHub Actions secret: ${secret_name}. See EarnRoute/OWNER-SETUP-44.md, section 'Daily encrypted backup'."
               missing=1
             fi
           done
