@@ -2090,6 +2090,15 @@ public final class MainActivity extends Activity {
             toast("Media kits are available to creator accounts.");
             return;
         }
+        api("GET", "/api/instagram/status", null, (statusData, statusError) -> {
+            boolean connected = statusError == null && statusData != null && statusData.optBoolean("connected");
+            String handle = statusData == null ? user.optString("instagram_handle", "")
+                : statusData.optString("handle", user.optString("instagram_handle", ""));
+            generateMediaKitPdf(connected, handle);
+        });
+    }
+
+    private void generateMediaKitPdf(boolean linked, String verifiedHandle) {
         PdfDocument pdf = new PdfDocument();
         try {
             PdfDocument.PageInfo info = new PdfDocument.PageInfo.Builder(595, 842, 1).create();
@@ -2128,8 +2137,6 @@ public final class MainActivity extends Activity {
 
             String followers = String.format(Locale.US, "%,d", user.optLong("followers", 0));
             String engagement = String.format(Locale.US, "%.1f%%", user.optDouble("engagement", 0));
-            boolean linked = !user.optString("instagram_handle", "").trim().isEmpty()
-                && user.optBoolean("instagram_connected", false);
             String status = linked ? "Linked" : "Profile";
             String[] statValues = new String[]{followers, engagement, status};
             String[] statLabels = new String[]{"FOLLOWERS", "ENGAGEMENT", "INSTAGRAM"};
@@ -2146,7 +2153,7 @@ public final class MainActivity extends Activity {
             float afterBio = drawWrappedText(canvas, pdfSafe(bio, 650), body, 45, 362, 500, 18);
             float instaY = Math.max(500, afterBio + 28);
             canvas.drawText("INSTAGRAM", 45, instaY, labelPaint);
-            String handle = user.optString("instagram_handle", "").trim();
+            String handle = String.valueOf(verifiedHandle == null ? "" : verifiedHandle).trim();
             if (!handle.isEmpty() && !handle.startsWith("@")) handle = "@" + handle;
             canvas.drawText(pdfSafe(handle.isEmpty() ? "Add your handle in Profile" : handle, 100), 45, instaY + 24, body);
             canvas.drawText(linked ? "Account connected via Meta authorization" : "Instagram account not yet verified as connected", 45, instaY + 44, muted);
