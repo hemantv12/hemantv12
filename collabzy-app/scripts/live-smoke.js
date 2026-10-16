@@ -35,7 +35,7 @@ async function waitForDeployment() {
     try {
       const { response, json } = await request('/api/health');
       last = 'HTTP ' + response.status + ', version=' + (json.version || 'unknown');
-      if (response.ok && json.ok === true && json.database === 'connected' && json.version === expectedVersion && ['instagram','email','support','operatorIdentity','publicLaunchApproval','publicRegistration','privateBetaRegistration','emailVerification','payments','aiAnalytics'].every(key => typeof json.integrations?.[key] === 'string')) {
+      if (response.ok && json.ok === true && json.database === 'connected' && json.version === expectedVersion && ['instagram','instagramAutoDm','email','support','operatorIdentity','publicLaunchApproval','publicRegistration','privateBetaRegistration','emailVerification','payments','aiAnalytics'].every(key => typeof json.integrations?.[key] === 'string')) {
         assert.equal(json.mode, 'postgres-persistent', 'production API must use persistent PostgreSQL');
         return json;
       }
@@ -62,7 +62,7 @@ async function waitForDeployment() {
     assert.equal(health.integrations.privateBetaRegistration,'invite_only','private beta invite code should be configured while public registration remains closed');
     assert.equal(health.integrations.publicRegistration,'setup_required','public registration must stay locked during private beta');
     check('live API health + persistent PostgreSQL + invite-only beta gate');
-    for (const name of ['instagram','email','support','operatorIdentity','publicRegistration','privateBetaRegistration','emailVerification','payments','aiAnalytics']) {
+    for (const name of ['instagram','instagramAutoDm','email','support','operatorIdentity','publicRegistration','privateBetaRegistration','emailVerification','payments','aiAnalytics']) {
       assert.ok(typeof health.integrations?.[name] === 'string', 'health should expose safe ' + name + ' readiness');
     }
     const pages = ['/','/privacy.html','/terms.html','/delete-account.html','/support.html','/verify-email.html','/reset-password.html'];
@@ -75,6 +75,7 @@ async function waitForDeployment() {
 
     const launchBlockers = [];
     if (health.integrations.instagram !== 'configured') launchBlockers.push('Meta Instagram Login credentials / permission review');
+    if (health.integrations.instagramAutoDm !== 'configured') launchBlockers.push('Meta comment-to-DM webhook and permissions are not configured');
     if (health.integrations.email !== 'configured') launchBlockers.push('Email verification and password-recovery delivery');
     if (health.integrations.support !== 'configured') launchBlockers.push('Monitored support contact');
     if (health.integrations.operatorIdentity !== 'configured') launchBlockers.push('Public operator identity and jurisdiction');
