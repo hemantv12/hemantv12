@@ -27,6 +27,11 @@ jobs:
           grep -q 'id="er-app-welcome"' EarnRoute/app/static/index.html
           grep -q 'classList.add("er-native-app")' EarnRoute/app/static/index.html
           grep -q 'NATIVE-FIRST APP SHELL' EarnRoute/app/static/nearby.css
+          grep -q 'MOBILE FIT AND WRAPPING FIXES' EarnRoute/app/static/nearby.css
+          grep -q 'EXPANDABLE RADIUS SELECTOR LAYOUT' EarnRoute/app/static/nearby.css
+          grep -Fq 'const ER_RADIUS_OPTIONS = [1, 3, 5, 8, 10, 15]' EarnRoute/app/static/nearby.js
+          grep -q 'google.com/maps/search' EarnRoute/app/static/nearby.js
+          grep -q 'test_worker_profile_accepts_more_radius_presets' EarnRoute/tests/test_core.py
           grep -q "versionName '1.3.0'" EarnRoute/android/app/build.gradle
 
       - name: Set up Python
