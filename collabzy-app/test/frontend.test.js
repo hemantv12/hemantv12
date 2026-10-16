@@ -64,7 +64,8 @@ test('Native Android app covers core creator, brand and account workflows',()=>{
   'renderSavedCampaigns','renderInvitations','renderNotifications','renderMyCampaigns',
   'renderInstagram','renderAutoDM','renderApplications','renderProfile','renderAI',
   'renderCreateCampaign','renderBilling','renderSupport','showPasswordDialog','exportAccountData','confirmDeleteAccount',
-  'showInviteDialog','showEditCampaignDialog','showForgotPasswordDialog','loadExploreResults','loadAutomationEvents'
+  'showInviteDialog','showEditCampaignDialog','showForgotPasswordDialog','loadExploreResults','loadAutomationEvents',
+  'downloadMediaKit','generateMediaKitPdf','drawWrappedText'
  ];
  for(const screen of requiredScreens) assert.ok(native.includes('private void '+screen+'('),'native screen/function '+screen+' must exist');
  for(const endpoint of [
@@ -75,6 +76,9 @@ test('Native Android app covers core creator, brand and account workflows',()=>{
   '/api/campaigns/','/api/auth/forgot-password','/api/invitations/'
  ]) assert.ok(native.includes(endpoint),'native client should use '+endpoint);
  assert.ok(native.includes('class MainActivity extends Activity'),'main screen must use Android native Activity');
+ assert.ok(native.includes('PdfDocument'),'creator media kit must be generated as an actual PDF');
+ assert.ok(native.includes('Intent.ACTION_CREATE_DOCUMENT'),'media kit must offer a user-controlled save destination');
+ assert.ok(native.includes('/api/instagram/status'),'media kit must read verified Instagram connection status from the backend');
  assert.equal(native.includes('android.webkit.WebView'),false,'native main Activity must not embed the website in a WebView');
  assert.ok(workflow.includes('cp native-android/MainActivity.java android/app/src/main/java/com/collabzy/creator/MainActivity.java'),'APK build must install the native Activity source');
  assert.ok(workflow.includes('com.squareup.okhttp3:okhttp:4.12.0'),'native HTTP dependency must be installed at build time');
