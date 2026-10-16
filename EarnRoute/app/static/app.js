@@ -5,7 +5,10 @@ const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selec
 let currentUser = null;
 let activeScreen = 'overview';
 let activeApplicationJob = null;
-let selectedLanguage = sessionStorage.getItem('earnroute_language') || 'en';
+let selectedLanguage = (() => {
+  try { return localStorage.getItem('earnroute_language') || sessionStorage.getItem('earnroute_language') || 'en'; }
+  catch (_) { return sessionStorage.getItem('earnroute_language') || 'en'; }
+})();
 let currentJobs = [];
 let authMode = 'login';
 
@@ -42,7 +45,7 @@ function formatDate(value, withTime = true) {
   if (!value) return 'Not set';
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return 'Not set';
-  return new Intl.DateTimeFormat('en-IN', withTime ? { weekday:'short', day:'numeric', month:'short', hour:'numeric', minute:'2-digit' } : { day:'numeric', month:'short', year:'numeric' }).format(d);
+  return new Intl.DateTimeFormat(selectedLanguage === 'hi' ? 'hi-IN' : 'en-IN', withTime ? { weekday:'short', day:'numeric', month:'short', hour:'numeric', minute:'2-digit' } : { day:'numeric', month:'short', year:'numeric' }).format(d);
 }
 function dateInputValue(date) {
   const d = new Date(date);
@@ -139,7 +142,10 @@ function buildNavigation() {
 }
 function setLanguageButton() {
   $('#lang-btn').textContent = t('language');
-  $$('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
+  $('[data-er-language-toggle]').forEach(el => { el.textContent = t('language'); });
+  $('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
+  document.documentElement.lang = selectedLanguage === 'hi' ? 'hi-IN' : 'en-IN';
+  applyEarnRouteLocale(document.body);
 }
 const TITLES = {
   overview:'Overview', discover:'Discover work', applications:'Applications', schedule:'My schedule', earnings:'Earnings', profile:'My profile',
@@ -513,7 +519,15 @@ document.addEventListener('click', async event => {
   if(target.id==='close-auth' || (target.classList.contains('modal-backdrop')&&target.id==='auth-modal')){closeAuth();return;}
   if(target.id==='logout-btn') {sessionStorage.removeItem('earnroute_token');currentUser=null;setLanding();showToast('You have signed out.');return;}
   if(target.id==='mobile-menu'){ $('#sidebar').classList.toggle('mobile-open'); return; }
-  if(target.id==='lang-btn') {selectedLanguage=selectedLanguage==='en'?'hi':'en';sessionStorage.setItem('earnroute_language',selectedLanguage);if(currentUser){buildNavigation();setWorkspace(currentUser);}else setLanguageButton();return;}
+  if(target.id==='lang-btn' || target.hasAttribute('data-er-language-toggle')) {
+    selectedLanguage=selectedLanguage==='en'?'hi':'en';
+    try { localStorage.setItem('earnroute_language',selectedLanguage); } catch (_) {}
+    sessionStorage.setItem('earnroute_language',selectedLanguage);
+    document.documentElement.lang = selectedLanguage === 'hi' ? 'hi-IN' : 'en-IN';
+    if(currentUser){buildNavigation();setWorkspace(currentUser);}
+    else setLanguageButton();
+    return;
+  }
   if(target.id==='notifications-btn'){showNotifications();return;}
   if(target.dataset.closeNotifications!==undefined){$('#notification-panel')?.remove();return;}
   if(target.dataset.screen){event.preventDefault();setActiveScreen(target.dataset.screen);return;}
