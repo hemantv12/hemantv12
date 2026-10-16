@@ -65,13 +65,16 @@ async function waitForDeployment() {
     for (const name of ['instagram','instagramAutoDm','email','support','operatorIdentity','publicRegistration','privateBetaRegistration','emailVerification','payments','aiAnalytics']) {
       assert.ok(typeof health.integrations?.[name] === 'string', 'health should expose safe ' + name + ' readiness');
     }
-    const pages = ['/','/privacy.html','/terms.html','/delete-account.html','/support.html','/verify-email.html','/reset-password.html'];
+    const pages = ['/','/admin/','/privacy.html','/terms.html','/delete-account.html','/support.html','/verify-email.html','/reset-password.html'];
     for (const path of pages) {
       const page = await request(path);
       assert.equal(page.response.status, 200, 'public page should be reachable: ' + path);
       assert.match(page.response.headers.get('content-type') || '', /text\/html/i, 'page should serve HTML: ' + path);
     }
     check('public web pages including privacy, terms, deletion, support and recovery');
+
+    await expectStatus('/api/admin/overview', {}, 401, 'admin API must reject unauthenticated access');
+    check('admin dashboard is served and admin API rejects anonymous requests');
 
     const launchBlockers = [];
     if (health.integrations.instagram !== 'configured') launchBlockers.push('Meta Instagram Login credentials / permission review');
