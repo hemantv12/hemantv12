@@ -82,6 +82,8 @@ def test_nearby_live_map_and_workplace_pin_picker_are_present():
     assert "erLiveMapSectionMarkup({id:'er-workplace-map'" in nearby_js
     assert "data-er-map-focus-job" in nearby_js
     assert "data-er-map-geolocate" in nearby_js
+    assert "function erDisposeLiveMaps(root)" in nearby_js
+    assert "erDisposeLiveMaps($('#view-root'))" in nearby_js
     assert ".er-live-map-card" in nearby_css
     assert '"latitude": job.latitude, "longitude": job.longitude' in main
     assert "Interactive nearby shift map" in nearby_js
