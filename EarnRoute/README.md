@@ -74,6 +74,12 @@ Open `http://127.0.0.1:8000`. The first account can be a worker or business; the
 
 In development/test mode, app startup can create any missing tables for convenience. When `APP_ENV=production`, the server will not run `create_all`; run `alembic upgrade head` as a deployment step.
 
+## Open the live admin dashboard
+
+Open `/admin` on the deployed HTTPS origin: `https://earnroute-api.onrender.com/admin`. The route opens a dedicated admin-only sign-in screen; after a valid admin login it loads Founder overview, business verification, job moderation, dispute review, support tickets and audit history. It does not grant administrator permission to an ordinary worker or business account. The backend enforces the admin role for every admin API request.
+
+If the sign-in page opens but no founder account can log in, create the first founder account through the secure provisioning procedure below. Admin account creation is intentionally not available in public sign-up. There are currently no administrator accounts in the connected production database, so a one-time owner bootstrap is required before the console can show live metrics.
+
 ## Provision the founder/admin account
 
 Do not add an admin role by changing a browser payload. Use the interactive local command after the schema is migrated:
