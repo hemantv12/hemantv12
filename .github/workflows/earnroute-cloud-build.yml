@@ -5,7 +5,7 @@ on:
   push:
     branches: [earnroute-production]
     paths:
-      - '.earnroute-payload/**'
+      - 'EarnRoute-source.tar.gz'
 
 permissions:
   contents: write
@@ -22,8 +22,7 @@ jobs:
         shell: bash
         run: |
           mkdir -p /tmp/earnroute-source
-          cat .earnroute-payload/*.b64 | base64 --decode > /tmp/earnroute-source.tar.gz
-          tar -xzf /tmp/earnroute-source.tar.gz -C /tmp/earnroute-source
+          tar -xzf EarnRoute-source.tar.gz -C /tmp/earnroute-source
           test -f /tmp/earnroute-source/EarnRoute/app/main.py
           rm -rf EarnRoute
           mkdir -p EarnRoute
