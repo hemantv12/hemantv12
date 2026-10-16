@@ -20,5 +20,3 @@ services:
         value: "12"
       - key: MARKET_TIMEZONE
         value: Asia/Kolkata
-      - key: SENTRY_DSN
-        sync: false
