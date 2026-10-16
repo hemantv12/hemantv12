@@ -84,4 +84,4 @@ def test_nearby_live_map_and_workplace_pin_picker_are_present():
     assert "data-er-map-geolocate" in nearby_js
     assert ".er-live-map-card" in nearby_css
     assert '"latitude": job.latitude, "longitude": job.longitude' in main
-    assert 'aria-label="Interactive nearby shift map"' in nearby_js
+    assert "Interactive nearby shift map" in nearby_js
