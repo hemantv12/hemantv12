@@ -692,6 +692,7 @@ def serialize_assignment(db: Session, assignment: Assignment) -> dict[str, Any]:
         "business_name": (business_profile.legal_name if business_profile and business_profile.legal_name else "Business") if job else "Business",
         "worker_name": worker.full_name if worker else "Worker",
         "city": job.city if job else "", "address": job.address if job else "",
+        "latitude": job.latitude if job else None, "longitude": job.longitude if job else None,
         "description": job.description if job else "", "requirements": job.requirements or [] if job else [],
         "breaks_info": job.breaks_info if job else "", "equipment_info": job.equipment_info if job else "",
         "safety_info": job.safety_info if job else "", "payment_terms": job.payment_terms if job else "",
