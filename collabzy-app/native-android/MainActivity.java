@@ -419,6 +419,13 @@ public final class MainActivity extends Activity {
         TextView submit = button(create ? "Create account  →" : "Sign in  →", true);
         page.addView(submit);
         gap(page, 12);
+        if (!create) {
+            TextView forgot = text("Forgot password?", 13, MINT, true);
+            forgot.setGravity(Gravity.CENTER);
+            forgot.setPadding(dp(8), dp(10), dp(8), dp(10));
+            page.addView(forgot);
+            forgot.setOnClickListener(v -> showForgotPasswordDialog());
+        }
         TextView swap = text(create ? "Already registered?  Sign in" : "New to Collabzy?  Create account", 14, VIOLET, true);
         swap.setGravity(Gravity.CENTER);
         swap.setPadding(dp(10), dp(13), dp(10), dp(13));
@@ -491,6 +498,23 @@ public final class MainActivity extends Activity {
         });
         setContentView(frame);
         fadeIn(page);
+    }
+
+    private void showForgotPasswordDialog() {
+        EditText email = field("Email address", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS, "");
+        new android.app.AlertDialog.Builder(this)
+            .setTitle("Reset your password")
+            .setMessage("We'll request a secure password-reset link. If email delivery isn't configured, the server will tell you.")
+            .setView(email)
+            .setNegativeButton("Cancel", null)
+            .setPositiveButton("Send link", (dialog, which) -> {
+                String address = email.getText().toString().trim();
+                if (address.isEmpty()) { toast("Enter your account email."); return; }
+                api("POST", "/api/auth/forgot-password", json("email", address), (data, error) -> {
+                    if (error != null) toast(error);
+                    else toast(data.optString("message", "If that account exists, a reset link will be sent."));
+                });
+            }).show();
     }
 
     private void hideKeyboard() {
@@ -1969,6 +1993,9 @@ public final class MainActivity extends Activity {
             .setPositiveButton("Sign out", (d, w) -> {
                 token = "";
                 user = new JSONObject();
+                dashboardStats = new JSONObject();
+                dashboardLoaded = false;
+                dashboardRequestStarted = false;
                 storage.edit().remove("token").apply();
                 showWelcome();
             }).show());
