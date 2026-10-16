@@ -27,7 +27,7 @@ EarnRoute is an India-first, mobile-first hyperlocal earning marketplace for fin
 - Earnings separate completed work, pending settlement, and provider-verified paid status. **No UI action can mark a payout paid.**
 - Admin overview, business verification, job moderation, dispute review, audit history, and operational metrics based on recorded database activity.
 - Responsive hyperlocal-first UI with forest-green/ivory/electric-lime palette, clear distance/pay cards, compact 1/3/5 km radius controls with expandable 8/10/15 km presets, category chips, role-aware mobile bottom navigation, English/Hindi language toggle, app-first Android onboarding, Google Maps destination links for shift workplaces, PWA support, public terms/privacy/fair-work pages, and security headers.
-- SQLAlchemy schema with a six-revision Alembic migration chain, `.env.example`, Dockerfile, founder-admin provisioning script, and automated API tests.
+- SQLAlchemy schema with a seven-revision Alembic migration chain, `.env.example`, Dockerfile, founder-admin provisioning script, and automated API tests.
 
 ## Important limitations before public launch
 
