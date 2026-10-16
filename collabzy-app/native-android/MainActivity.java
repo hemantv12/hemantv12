@@ -1069,6 +1069,571 @@ public final class MainActivity extends Activity {
         });
     }
 
+    private void renderMore() {
+        heading("More tools", "Every part of your creator or brand workspace, in one app.");
+        addQuickAction("◉", "Your profile", "Edit your niche, bio and account details", () -> showShell("profile"));
+        gap(content, 9);
+        addQuickAction("▤", "Applications & activity", "Review applications and collaboration status", () -> showShell("applications"));
+        gap(content, 9);
+        addQuickAction("♡", "Saved campaigns", "Return to opportunities you bookmarked", () -> showShell("saved"));
+        gap(content, 9);
+        addQuickAction("✉", "Invitations", "Accept or decline collaboration invitations", () -> showShell("invitations"));
+        gap(content, 9);
+        addQuickAction("♧", "Notifications", "Review application and message updates", () -> showShell("notifications"));
+        gap(content, 9);
+        addQuickAction("◎", "Instagram Insights", "Connect your professional account and view metrics", () -> showShell("instagram"));
+        if ("creator".equals(user.optString("role", "creator"))) {
+            gap(content, 9);
+            addQuickAction("↗", "Instagram Auto DM", "Manage keyword reply drafts and activity", () -> showShell("autodm"));
+        } else {
+            gap(content, 9);
+            addQuickAction("♙", "My campaigns", "Manage published briefs and applications", () -> showShell("my_campaigns"));
+        }
+        gap(content, 9);
+        addQuickAction("✧", "AI Studio", "Create pitches, content ideas and campaign briefs", () -> showShell("ai"));
+        gap(content, 9);
+        addQuickAction("♢", "Plan & billing", "Check beta access and subscription status", () -> showShell("billing"));
+        gap(content, 9);
+        addQuickAction("?", "Contact support", "Send an account, privacy or technical request", () -> showShell("support"));
+    }
+
+    private void renderSavedCampaigns() {
+        heading("Saved campaigns", "Keep interesting opportunities close at hand.");
+        TextView loading = text("Loading saved opportunities…", 13, MUTED, false);
+        content.addView(loading);
+        api("GET", "/api/saved-campaigns", null, (data, error) -> {
+            if (!"saved".equals(screen)) return;
+            content.removeView(loading);
+            if (error != null) {
+                showInlineMessage("Saved campaigns couldn't load", error);
+                return;
+            }
+            JSONArray campaigns = data.optJSONArray("campaigns");
+            if (campaigns == null || campaigns.length() == 0) {
+                showEmpty("No saved campaigns yet", "Open Explore and save a brief you want to revisit.");
+                return;
+            }
+            for (int i = 0; i < campaigns.length(); i++) {
+                JSONObject campaign = campaigns.optJSONObject(i);
+                if (campaign != null) renderCampaignCard(campaign, false, null);
+            }
+        });
+    }
+
+    private void renderInvitations() {
+        heading("Invitations", "Respond to real collaboration invitations.");
+        TextView loading = text("Loading invitations…", 13, MUTED, false);
+        content.addView(loading);
+        api("GET", "/api/invitations", null, (data, error) -> {
+            if (!"invitations".equals(screen)) return;
+            content.removeView(loading);
+            if (error != null) {
+                showInlineMessage("Invitations couldn't load", error);
+                return;
+            }
+            JSONArray invitations = data.optJSONArray("invitations");
+            if (invitations == null || invitations.length() == 0) {
+                showEmpty("No invitations yet", "When a brand invites you—or you invite a creator—updates will appear here.");
+                return;
+            }
+            boolean creator = "creator".equals(user.optString("role", "creator"));
+            for (int i = 0; i < invitations.length(); i++) {
+                JSONObject inv = invitations.optJSONObject(i);
+                if (inv == null) continue;
+                LinearLayout c = card();
+                String title = inv.optString("campaign_title", "Collaboration");
+                c.addView(text(title, 17, WHITE, true));
+                gap(c, 5);
+                c.addView(text(creator ? inv.optString("brand_name", "Brand") : inv.optString("creator_name", "Creator"), 12, MUTED, true));
+                gap(c, 7);
+                if (!inv.optString("message", "").trim().isEmpty()) {
+                    c.addView(text(inv.optString("message"), 13, Color.rgb(211, 219, 239), false));
+                    gap(c, 10);
+                }
+                c.addView(text(budget(inv) + "  ·  " + inv.optString("collaboration_type", "Collaboration"), 12, MINT, true));
+                gap(c, 10);
+                String status = inv.optString("status", "pending");
+                TextView state = text(status.toUpperCase(Locale.ROOT), 10, MINT, true);
+                state.setPadding(dp(9), dp(6), dp(9), dp(6));
+                state.setBackground(rounded(Color.rgb(29, 58, 64), 10, 0));
+                c.addView(state, new LinearLayout.LayoutParams(-2, -2));
+                if (creator && "pending".equals(status)) {
+                    gap(c, 12);
+                    LinearLayout actions = row();
+                    TextView accept = button("Accept", true);
+                    TextView decline = button("Decline", false);
+                    actions.addView(accept, new LinearLayout.LayoutParams(0, -2, 1));
+                    LinearLayout.LayoutParams d = new LinearLayout.LayoutParams(0, -2, 1);
+                    d.leftMargin = dp(8);
+                    actions.addView(decline, d);
+                    c.addView(actions);
+                    accept.setOnClickListener(v -> respondToInvitation(inv, "accepted"));
+                    decline.setOnClickListener(v -> respondToInvitation(inv, "declined"));
+                } else if (!creator && "pending".equals(status)) {
+                    gap(c, 7);
+                    c.addView(text("Awaiting creator response", 11, MUTED, false));
+                }
+                content.addView(c);
+                gap(content, 11);
+            }
+        });
+    }
+
+    private void respondToInvitation(JSONObject inv, String response) {
+        long id = inv.optLong("id", 0);
+        api("PATCH", "/api/invitations/" + id + "/respond", json("status", response), (data, error) -> {
+            if (error != null) toast(error);
+            else {
+                toast(response.equals("accepted") ? "Invitation accepted. Your conversation is ready in Inbox." : "Invitation declined.");
+                dashboardLoaded = false;
+                showShell("invitations");
+            }
+        });
+    }
+
+    private void renderNotifications() {
+        heading("Notifications", "Application, invitation and message updates.");
+        TextView loading = text("Loading notifications…", 13, MUTED, false);
+        content.addView(loading);
+        api("GET", "/api/notifications", null, (data, error) -> {
+            if (!"notifications".equals(screen)) return;
+            content.removeView(loading);
+            if (error != null) {
+                showInlineMessage("Notifications couldn't load", error);
+                return;
+            }
+            JSONArray items = data.optJSONArray("notifications");
+            int unread = data.optInt("unread", 0);
+            if (unread > 0) {
+                TextView mark = button("Mark all as read", false);
+                content.addView(mark);
+                gap(content, 12);
+                mark.setOnClickListener(v -> api("PATCH", "/api/notifications/read-all", json("ok", "true"), (d, e) -> {
+                    if (e != null) toast(e);
+                    else showShell("notifications");
+                }));
+            }
+            if (items == null || items.length() == 0) {
+                showEmpty("You're all caught up", "New collaboration activity will appear here.");
+                return;
+            }
+            for (int i = 0; i < items.length(); i++) {
+                JSONObject item = items.optJSONObject(i);
+                if (item == null) continue;
+                LinearLayout c = card();
+                boolean isUnread = item.isNull("read_at") || item.optString("read_at", "").isEmpty();
+                LinearLayout top = row();
+                TextView dot = text(isUnread ? "●" : "○", 12, isUnread ? MINT : MUTED, true);
+                top.addView(dot);
+                TextView title = text(item.optString("title", "Collabzy update"), 15, WHITE, true);
+                LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(0, -2, 1);
+                tp.leftMargin = dp(8);
+                top.addView(title, tp);
+                c.addView(top);
+                gap(c, 7);
+                c.addView(text(item.optString("body", ""), 12, MUTED, false));
+                content.addView(c);
+                gap(content, 9);
+            }
+        });
+    }
+
+    private void renderMyCampaigns() {
+        heading("My campaigns", "Manage live briefs and review application counts.");
+        TextView create = button("+  Create campaign", true);
+        content.addView(create);
+        create.setOnClickListener(v -> showShell("create_campaign"));
+        gap(content, 16);
+        TextView loading = text("Loading your campaigns…", 13, MUTED, false);
+        content.addView(loading);
+        api("GET", "/api/my-campaigns", null, (data, error) -> {
+            if (!"my_campaigns".equals(screen)) return;
+            content.removeView(loading);
+            if (error != null) {
+                showInlineMessage("Campaign manager couldn't load", error);
+                return;
+            }
+            JSONArray campaigns = data.optJSONArray("campaigns");
+            if (campaigns == null || campaigns.length() == 0) {
+                showEmpty("Your first campaign starts here", "Publish a clear brief and creators can discover it in Explore.");
+                return;
+            }
+            for (int i = 0; i < campaigns.length(); i++) {
+                JSONObject campaign = campaigns.optJSONObject(i);
+                if (campaign == null) continue;
+                LinearLayout c = card();
+                c.addView(text(campaign.optString("title", "Campaign"), 17, WHITE, true));
+                gap(c, 7);
+                c.addView(text(budget(campaign) + "  ·  " + campaign.optString("collaboration_type", "Collaboration"), 12, MINT, true));
+                gap(c, 6);
+                c.addView(text(campaign.optInt("application_count", 0) + " applications  ·  " + campaign.optString("status", "active"), 12, MUTED, false));
+                gap(c, 12);
+                boolean active = "active".equals(campaign.optString("status"));
+                TextView toggle = button(active ? "Close campaign" : "Reopen campaign", false);
+                c.addView(toggle);
+                toggle.setOnClickListener(v -> {
+                    toggle.setEnabled(false);
+                    api("PATCH", "/api/campaigns/" + campaign.optLong("id") + "/manage", json("status", active ? "closed" : "active"), (d, e) -> {
+                        if (e != null) { toggle.setEnabled(true); toast(e); }
+                        else { toast(active ? "Campaign closed." : "Campaign reopened."); showShell("my_campaigns"); }
+                    });
+                });
+                content.addView(c);
+                gap(content, 11);
+            }
+        });
+    }
+
+    private void renderInstagram() {
+        heading("Instagram Studio", "Official Meta connection, insights and recent media.");
+        LinearLayout panel = card();
+        TextView loading = text("Checking Instagram connection…", 13, MUTED, false);
+        panel.addView(loading);
+        content.addView(panel);
+        api("GET", "/api/instagram/status", null, (data, error) -> {
+            if (!"instagram".equals(screen)) return;
+            panel.removeView(loading);
+            if (error != null) {
+                panel.addView(text("Instagram status unavailable", 15, RED, true));
+                gap(panel, 6);
+                panel.addView(text(error, 12, MUTED, false));
+                return;
+            }
+            boolean connected = data.optBoolean("connected");
+            panel.addView(text(connected ? "Instagram connected" : "Instagram not connected", 18, WHITE, true));
+            gap(panel, 6);
+            panel.addView(text(connected ? "@" + data.optString("handle", "") : data.optString("message", "Connect an eligible professional account to continue."), 12, MUTED, false));
+            gap(panel, 12);
+            if (!connected) {
+                TextView connect = button("Connect Instagram securely", true);
+                panel.addView(connect);
+                connect.setOnClickListener(v -> connectInstagram());
+            } else {
+                TextView insights = button("Refresh insights", true);
+                panel.addView(insights);
+                gap(panel, 8);
+                TextView media = button("Recent Instagram posts", false);
+                panel.addView(media);
+                gap(panel, 8);
+                TextView disconnect = button("Disconnect Instagram", false);
+                panel.addView(disconnect);
+                insights.setOnClickListener(v -> loadInstagramInsights());
+                media.setOnClickListener(v -> loadInstagramMedia());
+                disconnect.setOnClickListener(v -> new android.app.AlertDialog.Builder(this)
+                    .setTitle("Disconnect Instagram?")
+                    .setMessage("Collabzy will remove the stored access token and synced profile metrics.")
+                    .setNegativeButton("Cancel", (d, w) -> d.dismiss())
+                    .setPositiveButton("Disconnect", (d, w) -> api("POST", "/api/instagram/disconnect", json("confirm", "true"), (res, problem) -> {
+                        if (problem != null) toast(problem);
+                        else { user = json("instagram_handle", ""); dashboardLoaded = false; toast("Instagram disconnected."); showShell("instagram"); }
+                    })).show());
+            }
+        });
+        gap(content, 12);
+        LinearLayout note = card();
+        note.addView(text("Connection requirements", 15, WHITE, true));
+        gap(note, 6);
+        note.addView(text("Live metrics require the operator's Meta app credentials, matching OAuth redirect URI, approved permissions, and an eligible Instagram professional account. If these are not configured, the app will show the setup state rather than fake metrics.", 12, MUTED, false));
+        content.addView(note);
+    }
+
+    private void connectInstagram() {
+        api("GET", "/api/instagram/connect?platform=native", null, (data, error) -> {
+            if (error != null) { toast(error); return; }
+            String url = data.optString("authorization_url", "");
+            if (url.isEmpty()) { toast("The server did not return an Instagram authorization URL."); return; }
+            try {
+                startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
+            } catch (Exception ex) {
+                toast("Unable to open the secure Instagram authorization page on this device.");
+            }
+        });
+    }
+
+    private void loadInstagramInsights() {
+        toast("Refreshing official Instagram metrics…");
+        api("GET", "/api/instagram/insights", null, (data, error) -> {
+            if (error != null) { toast(error); return; }
+            JSONArray items = data.optJSONArray("insights");
+            StringBuilder out = new StringBuilder();
+            out.append("Account: @").append(data.optString("handle", "")).append("\n\n");
+            if (items == null || items.length() == 0) {
+                out.append("Instagram returned no insight rows for the available permission set.");
+            } else {
+                for (int i = 0; i < items.length(); i++) {
+                    JSONObject m = items.optJSONObject(i);
+                    if (m == null) continue;
+                    out.append(m.optString("title", m.optString("name", "Metric"))).append("\n");
+                    out.append(m.optString("description", "")).append("\n");
+                    JSONArray values = m.optJSONArray("values");
+                    if (values != null && values.length() > 0) {
+                        JSONObject v = values.optJSONObject(values.length() - 1);
+                        if (v != null) out.append("Latest value: ").append(v.opt("value")).append("\n");
+                    }
+                    out.append("\n");
+                }
+            }
+            showTextDialog("Instagram Insights", out.toString());
+        });
+    }
+
+    private void loadInstagramMedia() {
+        api("GET", "/api/instagram/media", null, (data, error) -> {
+            if (error != null) { toast(error); return; }
+            JSONArray media = data.optJSONArray("media");
+            StringBuilder out = new StringBuilder("Recent posts from @").append(data.optString("handle", "")).append("\n\n");
+            if (media == null || media.length() == 0) out.append("No media was returned for this account.");
+            else for (int i = 0; i < media.length(); i++) {
+                JSONObject m = media.optJSONObject(i);
+                if (m == null) continue;
+                out.append(i + 1).append(". ").append(m.optString("media_type", "POST")).append("\n");
+                out.append(m.optString("caption", "(No caption)")).append("\n");
+                out.append("Likes: ").append(m.optInt("like_count", 0)).append("  ·  Comments: ").append(m.optInt("comments_count", 0)).append("\n");
+                out.append(m.optString("permalink", "")).append("\n\n");
+            }
+            showTextDialog("Recent Instagram posts", out.toString());
+        });
+    }
+
+    private void renderAutoDM() {
+        heading("Instagram Auto DM", "Manage comment-triggered reply rules. Live sending stays protected by Meta setup.");
+        LinearLayout info = card();
+        info.addView(text("Private-reply automation", 16, WHITE, true));
+        gap(info, 6);
+        info.addView(text("Rules can be saved as drafts. Enabling actual replies requires an authorized Instagram account, Meta messaging/comment permissions, webhook verification and the server-side operator enable switch.", 12, MUTED, false));
+        content.addView(info);
+        gap(content, 12);
+        TextView add = button("+  Add keyword rule", true);
+        content.addView(add);
+        add.setOnClickListener(v -> showAutomationDialog());
+        gap(content, 8);
+        TextView setup = button("Configure comment webhook", false);
+        content.addView(setup);
+        setup.setOnClickListener(v -> api("POST", "/api/instagram/automations/setup", json("confirm", "true"), (data, error) -> {
+            if (error != null) toast(error);
+            else { toast(data.optString("message", "Webhook setup completed.")); showShell("autodm"); }
+        }));
+        gap(content, 17);
+        content.addView(text("YOUR RULES", 11, MUTED, true));
+        gap(content, 8);
+        TextView loading = text("Loading reply rules…", 13, MUTED, false);
+        content.addView(loading);
+        api("GET", "/api/instagram/automations", null, (data, error) -> {
+            if (!"autodm".equals(screen)) return;
+            content.removeView(loading);
+            if (error != null) {
+                showInlineMessage("Auto DM rules couldn't load", error);
+                return;
+            }
+            boolean configured = data.optBoolean("configured");
+            boolean connected = data.optBoolean("connected");
+            LinearLayout status = card();
+            status.addView(text(configured && connected ? "Meta integration configured" : "Draft mode only", 14, configured && connected ? MINT : VIOLET, true));
+            gap(status, 4);
+            status.addView(text(data.optString("message", ""), 11, MUTED, false));
+            content.addView(status);
+            gap(content, 10);
+            JSONArray rules = data.optJSONArray("rules");
+            if (rules == null || rules.length() == 0) {
+                showEmpty("No keyword rules yet", "Add a keyword and draft a reply. It will not send until the server and Meta permissions allow it.");
+                return;
+            }
+            for (int i = 0; i < rules.length(); i++) {
+                JSONObject rule = rules.optJSONObject(i);
+                if (rule == null) continue;
+                LinearLayout c = card();
+                c.addView(text(rule.optString("keyword", "Keyword"), 16, WHITE, true));
+                gap(c, 5);
+                c.addView(text(rule.optString("reply_text", ""), 12, MUTED, false));
+                if (!rule.optString("cta_url", "").isEmpty()) {
+                    gap(c, 5);
+                    c.addView(text(rule.optString("cta_url"), 11, MINT, false));
+                }
+                gap(c, 9);
+                c.addView(text(rule.optBoolean("enabled") ? "Enabled on server" : "Paused / draft", 11, rule.optBoolean("enabled") ? MINT : VIOLET, true));
+                gap(c, 10);
+                LinearLayout actions = row();
+                TextView toggle = button(rule.optBoolean("enabled") ? "Pause" : "Enable", false);
+                TextView remove = button("Delete", false);
+                actions.addView(toggle, new LinearLayout.LayoutParams(0, -2, 1));
+                LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(0, -2, 1);
+                rp.leftMargin = dp(8);
+                actions.addView(remove, rp);
+                c.addView(actions);
+                toggle.setOnClickListener(v -> api("PATCH", "/api/instagram/automations/" + rule.optLong("id"), json("enabled", rule.optBoolean("enabled") ? "false" : "true"), (d, e) -> {
+                    if (e != null) toast(e); else { toast(d.optString("message", "Rule updated.")); showShell("autodm"); }
+                }));
+                remove.setOnClickListener(v -> new android.app.AlertDialog.Builder(this)
+                    .setTitle("Delete keyword rule?")
+                    .setMessage("This rule will be removed from your account.")
+                    .setNegativeButton("Cancel", (d, w) -> d.dismiss())
+                    .setPositiveButton("Delete", (d, w) -> api("DELETE", "/api/instagram/automations/" + rule.optLong("id"), null, (res, problem) -> {
+                        if (problem != null) toast(problem); else { toast("Rule deleted."); showShell("autodm"); }
+                    })).show());
+                content.addView(c);
+                gap(content, 10);
+            }
+            TextView events = button("View Auto DM activity", false);
+            content.addView(events);
+            events.setOnClickListener(v -> loadAutomationEvents());
+        });
+    }
+
+    private void showAutomationDialog() {
+        android.app.Dialog dialog = new android.app.Dialog(this);
+        LinearLayout box = column();
+        box.setPadding(dp(20), dp(20), dp(20), dp(20));
+        box.setBackground(rounded(PANEL, 22, Color.rgb(57, 70, 99)));
+        box.addView(text("New keyword rule", 21, WHITE, true));
+        gap(box, 12);
+        EditText keyword = field("Keyword (minimum 2 characters)", InputType.TYPE_CLASS_TEXT, "");
+        EditText reply = field("Private reply text", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE, "");
+        reply.setSingleLine(false); reply.setMinLines(3);
+        EditText link = field("Optional HTTPS link", InputType.TYPE_TEXT_VARIATION_URI, "");
+        box.addView(keyword); gap(box, 9); box.addView(reply); gap(box, 9); box.addView(link); gap(box, 12);
+        TextView save = button("Save draft rule", true);
+        TextView cancel = button("Cancel", false);
+        box.addView(save); gap(box, 8); box.addView(cancel);
+        cancel.setOnClickListener(v -> dialog.dismiss());
+        save.setOnClickListener(v -> {
+            if (keyword.getText().toString().trim().length() < 2 || reply.getText().toString().trim().length() < 2) {
+                toast("Enter a keyword and a reply before saving.");
+                return;
+            }
+            JSONObject payload = new JSONObject();
+            try {
+                payload.put("keyword", keyword.getText().toString().trim());
+                payload.put("match_type", "contains");
+                payload.put("reply_text", reply.getText().toString().trim());
+                payload.put("cta_url", link.getText().toString().trim());
+                payload.put("enabled", false);
+            } catch (Exception ignored) {}
+            save.setEnabled(false);
+            api("POST", "/api/instagram/automations", payload, (data, error) -> {
+                save.setEnabled(true);
+                if (error != null) toast(error);
+                else { dialog.dismiss(); toast(data.optString("message", "Draft saved.")); showShell("autodm"); }
+            });
+        });
+        dialog.setContentView(box);
+        dialog.show();
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+            dialog.getWindow().setLayout(getResources().getDisplayMetrics().widthPixels - dp(32), -2);
+        }
+    }
+
+    private void loadAutomationEvents() {
+        api("GET", "/api/instagram/automations/events", null, (data, error) -> {
+            if (error != null) { toast(error); return; }
+            JSONArray events = data.optJSONArray("events");
+            StringBuilder out = new StringBuilder("Recent comment-reply activity\n\n");
+            if (events == null || events.length() == 0) out.append("No delivery events recorded.");
+            else for (int i = 0; i < events.length(); i++) {
+                JSONObject e = events.optJSONObject(i);
+                if (e == null) continue;
+                out.append("• ").append(e.optString("keyword", "Rule")).append(": ")
+                   .append(e.optString("status", "received"));
+                if (e.optInt("response_code") > 0) out.append(" (HTTP ").append(e.optInt("response_code")).append(")");
+                out.append("\n").append(e.optString("message", "")).append("\n\n");
+            }
+            showTextDialog("Auto DM activity", out.toString());
+        });
+    }
+
+    private void renderBilling() {
+        heading("Plan & billing", "Your subscription status is checked on the server.");
+        LinearLayout panel = card();
+        TextView loading = text("Checking plan status…", 13, MUTED, false);
+        panel.addView(loading);
+        content.addView(panel);
+        api("GET", "/api/billing/status", null, (data, error) -> {
+            if (!"billing".equals(screen)) return;
+            panel.removeView(loading);
+            if (error != null) {
+                showInlineMessage("Plan status unavailable", error);
+                return;
+            }
+            panel.addView(text("Collabzy Pro", 22, WHITE, true));
+            gap(panel, 5);
+            panel.addView(text("₹" + data.optInt("amount", 299) + " / year", 15, MINT, true));
+            gap(panel, 11);
+            String status = data.optBoolean("active") ? "Active subscription" : data.optBoolean("beta_access") ? "Private beta access" : "No active subscription";
+            panel.addView(text(status, 14, data.optBoolean("active") || data.optBoolean("beta_access") ? MINT : VIOLET, true));
+            gap(panel, 7);
+            panel.addView(text("Checkout: " + (data.optBoolean("checkout_ready") ? "configured" : "not configured"), 12, MUTED, false));
+            if (!data.optString("expires_at", "").isEmpty()) {
+                gap(panel, 5);
+                panel.addView(text("Expires: " + data.optString("expires_at"), 11, MUTED, false));
+            }
+        });
+        gap(content, 12);
+        LinearLayout note = card();
+        note.addView(text("Safe beta billing", 15, WHITE, true));
+        gap(note, 6);
+        note.addView(text("Payment collection is not enabled unless the owner configures Razorpay keys and webhook verification. This screen never marks a payment successful or creates a paid plan on its own.", 12, MUTED, false));
+        content.addView(note);
+    }
+
+    private void renderSupport() {
+        heading("Contact support", "Send a clear account, privacy or technical request.");
+        LinearLayout panel = card();
+        EditText name = field("Your name", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS, user.optString("name", ""));
+        EditText email = field("Email address", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS, user.optString("email", ""));
+        EditText subject = field("Subject", InputType.TYPE_CLASS_TEXT, "");
+        EditText message = field("Describe the issue (at least 20 characters)", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE, "");
+        message.setSingleLine(false); message.setMinLines(5); message.setGravity(Gravity.TOP | Gravity.START);
+        addField(panel, "NAME", name); addField(panel, "EMAIL", email); addField(panel, "SUBJECT", subject); addField(panel, "MESSAGE", message);
+        TextView submit = button("Send support request", true);
+        panel.addView(submit);
+        content.addView(panel);
+        submit.setOnClickListener(v -> {
+            if (subject.getText().toString().trim().length() < 4 || message.getText().toString().trim().length() < 20) {
+                toast("Add a subject and a message of at least 20 characters.");
+                return;
+            }
+            JSONObject payload = new JSONObject();
+            try {
+                payload.put("name", name.getText().toString().trim());
+                payload.put("email", email.getText().toString().trim());
+                payload.put("subject", subject.getText().toString().trim());
+                payload.put("message", message.getText().toString().trim());
+                payload.put("category", "general");
+            } catch (Exception ignored) {}
+            submit.setEnabled(false);
+            api("POST", "/api/support", payload, (data, error) -> {
+                submit.setEnabled(true);
+                if (error != null) toast(error);
+                else { toast(data.optString("message", "Support request received.")); showShell("more"); }
+            });
+        });
+    }
+
+    private void showTextDialog(String title, String value) {
+        android.app.Dialog dialog = new android.app.Dialog(this);
+        LinearLayout box = column();
+        box.setPadding(dp(20), dp(20), dp(20), dp(20));
+        box.setBackground(rounded(PANEL, 22, Color.rgb(57, 70, 99)));
+        box.addView(text(title, 20, WHITE, true));
+        gap(box, 12);
+        ScrollView scroll = new ScrollView(this);
+        TextView body = text(value, 13, Color.rgb(218, 226, 244), false);
+        body.setTextIsSelectable(true);
+        body.setLineSpacing(dp(4), 1f);
+        scroll.addView(body);
+        box.addView(scroll, new LinearLayout.LayoutParams(-1, dp(310)));
+        gap(box, 12);
+        TextView close = button("Done", true);
+        box.addView(close);
+        close.setOnClickListener(v -> dialog.dismiss());
+        dialog.setContentView(box);
+        dialog.show();
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+            dialog.getWindow().setLayout(getResources().getDisplayMetrics().widthPixels - dp(32), -2);
+        }
+    }
+
     private void renderApplications() {
         heading("Applications & activity", "See where your collaborations stand.");
         String path = "/api/applications";
