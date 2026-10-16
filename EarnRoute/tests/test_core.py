@@ -49,6 +49,11 @@ def test_health_and_public_pages(client):
     assert response.json()["status"] == "ok"
     home = client.get("/")
     assert home.status_code == 200 and "EarnRoute" in home.text
+    admin_page = client.get("/admin")
+    assert admin_page.status_code == 200 and 'id="auth-modal"' in admin_page.text
+    assert client.get("/admin/").status_code == 200
+    # UI entry is public; administrator data remains protected by bearer auth and role checks.
+    assert client.get("/api/admin/overview").status_code == 401
     assert client.get("/static/terms.html").status_code == 200
     assert client.get("/static/privacy.html").status_code == 200
 
