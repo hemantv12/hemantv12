@@ -11,6 +11,12 @@ function erRadius() {
   const value = Number(sessionStorage.getItem('earnroute_nearby_radius') || (currentUser && currentUser.profile && currentUser.profile.travel_radius_km) || 3);
   return ER_RADIUS_OPTIONS.includes(value) ? value : 3;
 }
+function erRadiusNextAction(radius, verb) {
+  const next = ER_RADIUS_OPTIONS.find(function(km) { return km > radius; });
+  return next
+    ? '<button type="button" class="btn btn-outline" data-er-radius="' + next + '">' + verb + next + ' km</button>'
+    : '<p>You’re already at the widest radius. Try another work category or check back later.</p>';
+}
 function erCategory() {
   const saved = sessionStorage.getItem('earnroute_nearby_category') || 'All';
   return ER_WORK_CATEGORIES.includes(saved) ? saved : 'All';
@@ -141,7 +147,7 @@ renderWorkerOverview = async function() {
   if (!location) list = erLocationPrompt();
   else if (failure) list = '<div class="er-nearby-empty"><div class="er-empty-icon">↻</div><h3>Nearby work did not load</h3><p>' + escapeHtml(failure) + '</p><button type="button" class="btn btn-outline" data-er-enable-location>Refresh location</button></div>';
   else if (result.items && result.items.length) list = '<div class="er-job-grid">' + result.items.map(erNearbyCard).join('') + '</div>';
-  else list = '<div class="er-nearby-empty"><div class="er-empty-icon">⌖</div><h3>No shifts inside ' + radius + ' km yet</h3><p>We only show shifts with an actual workplace pin inside your chosen radius. Try a wider local radius or check back later.</p><button type="button" class="btn btn-outline" data-er-radius="' + (radius === 1 ? 3 : 5) + '">Look within ' + (radius === 1 ? 3 : 5) + ' km</button></div>';
+  else list = '<div class="er-nearby-empty"><div class="er-empty-icon">⌖</div><h3>No shifts inside ' + radius + ' km yet</h3><p>We only show shifts with a real workplace pin inside your selected radius. Try a wider range or another category.</p>' + erRadiusNextAction(radius, 'Look within ') + '</div>';
   return '<section class="er-nearby-hero"><div class="er-hero-main"><span class="er-overline"><i></i> LOCAL GIGS · CLEAR PAY</span>' +
     '<h1>Hi ' + escapeHtml(firstName) + '.<br><span>Let’s earn nearby.</span></h1><p>Short shifts, local gigs and paid help up to 15 km away. Less travel, more time back.</p>' +
     '<div class="er-hero-actions"><button type="button" class="btn btn-primary btn-large" data-er-enable-location>' + (location ? '↻ Refresh my location' : '⌖ Find jobs near me') + '</button>' +
@@ -174,7 +180,7 @@ renderDiscover = async function(filters) {
     '<input name="min_pay" type="number" min="0" step="50" placeholder="Min pay ₹" value="' + escapeHtml(filters.min_pay || '') + '" aria-label="Minimum pay"><button class="btn btn-primary" type="submit">Search</button><button class="btn btn-outline" type="reset">Clear</button></form>' +
     '<div class="er-results-note"><b>' + (result.total || 0) + '</b> shift' + (result.total === 1 ? '' : 's') + ' within ' + radius + ' km · closest first</div>' +
     (result.items && result.items.length ? '<div class="er-job-grid">' + result.items.map(erNearbyCard).join('') + '</div>' :
-    '<div class="er-nearby-empty"><div class="er-empty-icon">⌖</div><h3>No shifts in this radius yet</h3><p>Try a wider radius using More (up to 15 km). Jobs without a workplace pin stay hidden rather than showing a made-up distance.</p><button type="button" class="btn btn-outline" data-er-radius="' + (radius === 1 ? 3 : 5) + '">Expand to ' + (radius === 1 ? 3 : 5) + ' km</button></div>');
+    '<div class="er-nearby-empty"><div class="er-empty-icon">⌖</div><h3>No shifts in this radius yet</h3><p>Only jobs with a real workplace pin are shown. Expand the distance or try another category.</p>' + erRadiusNextAction(radius, 'Expand to ') + '</div>');
 };
 renderPostJob = function() {
   let html = erBasePostJob();
