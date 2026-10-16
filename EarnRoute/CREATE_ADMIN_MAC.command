@@ -37,13 +37,13 @@ if [ ! -x "$ROOT/.venv/bin/python" ]; then
   python3 -m venv "$ROOT/.venv"
 fi
 
-"$ROOT/.venv/bin/python" -m pip install --upgrade pip
-"$ROOT/.venv/bin/python" -m pip install -r "$ROOT/requirements.txt"
+"$ROOT/.venv/bin/python" -m pip install --disable-pip-version-check --upgrade pip
+"$ROOT/.venv/bin/python" -m pip install --disable-pip-version-check -r "$ROOT/requirements.txt"
 
 TEMP_JWT_SECRET="$(openssl rand -hex 48)"
 echo
 echo "Connecting to the production database and opening the private account-creation prompt..."
-if APP_ENV=production DATABASE_URL="$DATABASE_URL" JWT_SECRET="$TEMP_JWT_SECRET" "$ROOT/.venv/bin/python" "$ROOT/scripts/create_admin.py"; then
+if APP_ENV=production DATABASE_URL="$DATABASE_URL" JWT_SECRET="$TEMP_JWT_SECRET" PYTHONPATH="$ROOT${PYTHONPATH:+:$PYTHONPATH}" "$ROOT/.venv/bin/python" "$ROOT/scripts/create_admin.py"; then
   RESULT=0
 else
   RESULT=$?
