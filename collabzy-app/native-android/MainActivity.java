@@ -955,6 +955,48 @@ public final class MainActivity extends Activity {
         gap(target, 12);
     }
 
+    private void showInviteDialog(JSONObject creator) {
+        api("GET", "/api/my-campaigns", null, (data, error) -> {
+            if (error != null) { toast(error); return; }
+            JSONArray campaigns = data.optJSONArray("campaigns");
+            java.util.ArrayList<JSONObject> active = new java.util.ArrayList<>();
+            java.util.ArrayList<String> labels = new java.util.ArrayList<>();
+            if (campaigns != null) {
+                for (int i = 0; i < campaigns.length(); i++) {
+                    JSONObject campaign = campaigns.optJSONObject(i);
+                    if (campaign != null && "active".equals(campaign.optString("status"))) {
+                        active.add(campaign);
+                        labels.add(campaign.optString("title", "Campaign") + "  ·  " + budget(campaign));
+                    }
+                }
+            }
+            if (active.isEmpty()) {
+                new android.app.AlertDialog.Builder(this).setTitle("Create a campaign first")
+                    .setMessage("Publish an active campaign before inviting a creator.")
+                    .setPositiveButton("Create campaign", (d, w) -> showShell("create_campaign"))
+                    .setNegativeButton("Cancel", null).show();
+                return;
+            }
+            new android.app.AlertDialog.Builder(this)
+                .setTitle("Invite " + creator.optString("name", "creator"))
+                .setItems(labels.toArray(new String[0]), (dialog, which) -> {
+                    JSONObject campaign = active.get(which);
+                    JSONObject payload = new JSONObject();
+                    try {
+                        payload.put("creator_id", creator.optLong("id"));
+                        payload.put("message", "We would like to invite you to collaborate on " + campaign.optString("title", "our campaign") + ".");
+                    } catch (Exception ignored) {}
+                    api("POST", "/api/campaigns/" + campaign.optLong("id") + "/invite", payload, (result, problem) -> {
+                        if (problem != null) toast(problem);
+                        else {
+                            toast("Invitation sent.");
+                            dashboardLoaded = false;
+                        }
+                    });
+                }).setNegativeButton("Cancel", null).show();
+        });
+    }
+
     private void showApplyDialog(JSONObject campaign) {
         android.app.Dialog dialog = new android.app.Dialog(this);
         LinearLayout box = column();
