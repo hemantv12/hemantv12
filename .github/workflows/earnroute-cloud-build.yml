@@ -22,6 +22,8 @@ jobs:
       - name: Verify checked-in application source
         run: |
           test -f EarnRoute/app/main.py
+          test -f EarnRoute/deployment/backup_postgres.py
+          test -f EarnRoute/OWNER-SETUP-44.md
           test -f EarnRoute/app/static/nearby.js
           test -f EarnRoute/android/app/src/main/java/in/earnroute/app/MainActivity.java
           grep -q 'id="er-app-welcome"' EarnRoute/app/static/index.html
@@ -54,6 +56,7 @@ jobs:
           pip install -r requirements.txt
           pytest -q
           python -m compileall -q app tests scripts
+          python -m py_compile deployment/backup_postgres.py
           node --check app/static/app.js
           node --check app/static/nearby.js
 

@@ -1,0 +1,150 @@
+{
+  "info": {
+    "name": "EarnRoute API",
+    "description": "Basic API health and nearby radius checks. No passwords or private records are stored.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://earnroute-nearby-api.onrender.com"
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "latitude",
+      "value": "28.6139"
+    },
+    {
+      "key": "longitude",
+      "value": "77.2090"
+    },
+    {
+      "key": "radiusKm",
+      "value": "5"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health / database",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/health"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('API and database are healthy', function () {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().status).to.eql('ok');",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Nearby published work",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/jobs?latitude={{latitude}}&longitude={{longitude}}&radius_km={{radiusKm}}&page_size=10"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Nearby radius is accepted', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const body = pm.response.json();",
+              "  pm.expect(body.nearby).to.eql(true);",
+              "  pm.expect(body.radius_km).to.eql(Number(pm.collectionVariables.get('radiusKm')));",
+              "  body.items.forEach((job) => pm.expect(job.distance_km).to.be.at.most(Number(pm.collectionVariables.get('radiusKm'))));",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Reject unsupported 20 km",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": "{{baseUrl}}/api/jobs?latitude={{latitude}}&longitude={{longitude}}&radius_km=20&page_size=10"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Unsupported radius is rejected', function () {",
+              "  pm.response.to.have.status(422);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Login (replace with an owned test account)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"replace-with-your-test-account-email\",\n  \"password\": \"replace-with-your-test-account-password\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": "{{baseUrl}}/api/auth/login"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Login returns a bearer token', function () {",
+              "  pm.response.to.have.status(200);",
+              "  const body = pm.response.json();",
+              "  pm.expect(body.access_token).to.be.a('string');",
+              "  pm.collectionVariables.set('token', body.access_token);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "My authenticated account",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": "{{baseUrl}}/api/auth/me"
+      }
+    }
+  ]
+}

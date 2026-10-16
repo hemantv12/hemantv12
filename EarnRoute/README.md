@@ -182,3 +182,12 @@ The Android wrapper now requests native fine/coarse location permission for near
 For a local evaluation, double-click `RUN_EARNROUTE_MAC.command`. On first launch it creates a private Python virtual environment, installs dependencies, replaces the sample JWT signing secret with a random local secret, applies database migrations and opens the browser at `http://127.0.0.1:8000`. Keep the Terminal window open while using the app; press Ctrl+C there to stop it. First-time dependency installation requires internet access. This runs on that Mac only and is not a public production deployment.
 
 To create the founder console account after the app setup is ready, run `python3 scripts/create_admin.py` from the project folder after activating `.venv` (or `.venv/bin/python scripts/create_admin.py`). It asks you to choose a unique email and password; there is no preset admin login.
+
+
+## Owner setup and operations
+
+The numbered 44-item setup and readiness checklist is in OWNER-SETUP-44.md. On the owner's Mac, run SETUP_DEVELOPER_TOOLS_MAC.command with Bash. This installer can set up local tools, but it cannot run remotely against the owner's Mac.
+
+Optional Sentry error reporting activates only when SENTRY_DSN is set in Render's secret environment. Never commit live credentials. The signed-release workflow requires the owner's Android keystore in GitHub Actions Secrets; a debug APK is not a Play Store release.
+
+A daily database backup job exports a PostgreSQL custom-format dump, encrypts it with AES-256, uploads to a private bucket, downloads and decrypts the uploaded copy, and verifies it with pg_restore before reporting success. It retains up to 14 days of backups. The bucket is in the same Neon project and region; configure a second-provider copy before treating this as disaster-proof off-site backup.

@@ -757,6 +757,18 @@ async def lifespan(_: FastAPI):
     yield
 
 
+# Optional error reporting: disabled until the owner configures SENTRY_DSN.
+SENTRY_DSN = os.getenv("SENTRY_DSN", "").strip()
+if SENTRY_DSN:
+    import sentry_sdk
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        environment=APP_ENV,
+        release=os.getenv("APP_RELEASE") or None,
+        send_default_pii=False,
+        traces_sample_rate=0.0,
+    )
+
 app = FastAPI(title="EarnRoute API", version="0.1.0", description="India-first marketplace for genuine paid shifts.", lifespan=lifespan)
 
 origins = [x.strip() for x in os.getenv("CORS_ORIGINS", "").split(",") if x.strip()]
