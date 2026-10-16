@@ -1792,6 +1792,12 @@ public final class MainActivity extends Activity {
         addQuickAction("✧", "AI Studio", "Create content, pitches and campaign briefs", () -> showShell("ai"));
         gap(content, 10);
         addQuickAction("▤", "My applications", "Review application statuses", () -> showShell("applications"));
+        gap(content, 10);
+        addQuickAction("♢", "Password & security", "Change your sign-in password", () -> showPasswordDialog());
+        gap(content, 10);
+        addQuickAction("⇩", "Export account data", "View a copy of your stored account information", () -> exportAccountData());
+        gap(content, 10);
+        addQuickAction("⚠", "Delete account", "Permanently delete your account after password confirmation", () -> confirmDeleteAccount());
         gap(content, 20);
         TextView signOut = button("Sign out", false);
         content.addView(signOut);
@@ -1805,6 +1811,87 @@ public final class MainActivity extends Activity {
                 storage.edit().remove("token").apply();
                 showWelcome();
             }).show());
+    }
+
+    private void showPasswordDialog() {
+        android.app.Dialog dialog = new android.app.Dialog(this);
+        LinearLayout box = column();
+        box.setPadding(dp(20), dp(20), dp(20), dp(20));
+        box.setBackground(rounded(PANEL, 22, Color.rgb(57, 70, 99)));
+        box.addView(text("Change password", 20, WHITE, true));
+        gap(box, 12);
+        EditText current = field("Current password", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD, "");
+        EditText next = field("New password (8+ characters)", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD, "");
+        box.addView(current); gap(box, 9); box.addView(next); gap(box, 12);
+        TextView save = button("Update password", true);
+        box.addView(save);
+        save.setOnClickListener(v -> {
+            String currentPassword = current.getText().toString();
+            String newPassword = next.getText().toString();
+            if (currentPassword.isEmpty() || newPassword.length() < 8) {
+                toast("Enter your current password and a new password of at least 8 characters.");
+                return;
+            }
+            JSONObject payload = new JSONObject();
+            try { payload.put("current_password", currentPassword); payload.put("new_password", newPassword); }
+            catch (Exception ignored) {}
+            save.setEnabled(false);
+            api("PATCH", "/api/me/password", payload, (data, error) -> {
+                save.setEnabled(true);
+                if (error != null) toast(error);
+                else {
+                    String refreshed = data.optString("token", "");
+                    if (!refreshed.isEmpty()) { token = refreshed; storage.edit().putString("token", token).apply(); }
+                    dialog.dismiss();
+                    toast("Password updated successfully.");
+                }
+            });
+        });
+        dialog.setContentView(box);
+        dialog.show();
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+            dialog.getWindow().setLayout(getResources().getDisplayMetrics().widthPixels - dp(32), -2);
+        }
+    }
+
+    private void exportAccountData() {
+        api("GET", "/api/me/export", null, (data, error) -> {
+            if (error != null) toast(error);
+            else {
+                String output;
+                try { output = data.toString(2); } catch (Exception ex) { output = data.toString(); }
+                showTextDialog("Account data export", output);
+            }
+        });
+    }
+
+    private void confirmDeleteAccount() {
+        EditText password = field("Confirm your password", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD, "");
+        LinearLayout box = card();
+        box.addView(text("Delete your Collabzy account", 20, WHITE, true));
+        gap(box, 7);
+        box.addView(text("This permanently deletes your profile and associated campaigns, applications and messages. This cannot be undone.", 12, MUTED, false));
+        gap(box, 12);
+        box.addView(password);
+        new android.app.AlertDialog.Builder(this)
+            .setTitle("Delete account permanently?")
+            .setView(box)
+            .setNegativeButton("Cancel", null)
+            .setPositiveButton("Delete account", (d, w) -> {
+                JSONObject payload = json("password", password.getText().toString());
+                api("DELETE", "/api/me", payload, (data, error) -> {
+                    if (error != null) toast(error);
+                    else {
+                        token = "";
+                        user = new JSONObject();
+                        storage.edit().remove("token").apply();
+                        dashboardLoaded = false;
+                        toast("Your account was deleted.");
+                        showWelcome();
+                    }
+                });
+            }).show();
     }
 
     private void renderAI() {
