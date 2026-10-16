@@ -51,7 +51,7 @@ Updated 16 October 2026. This reflects the repository and connected hosting/data
 | 41 | Environment Variables & Secrets | Local .env.example template added; live credentials remain in hosting secret storage. |
 | 42 | Privacy Policy | Existing public privacy page exists; provider/data-flow review remains before launch. |
 | 43 | Terms & Conditions | Existing terms page exists; obtain appropriate professional review before public marketplace launch. |
-| 44 | Customer Support System | Admin dispute tools exist but staffed ticket/email support is not live. Replace support@earnroute.example after establishing a real support mailbox/ticketing account. |
+| 44 | Customer Support System | In-app support-ticket creation, threaded replies, admin queue and status updates are implemented. Email/ticketing-provider delivery and staffed support hours still need an owner mailbox/provider. |
 
 ## Mac developer setup
 
@@ -85,7 +85,7 @@ Do not commit the keystore. Keep an encrypted offline backup; losing the key can
 
 ## Scheduled backup configuration
 
-The intended schedule is daily at 20:30 UTC (02:00 Asia/Kolkata), but the Render Cron Job is not active yet. It uses PostgreSQL custom-format dumps, GPG/AES-256 encryption, a private storage bucket, verifies the downloaded copy with pg_restore --list, and prunes old objects under its dedicated prefix. Retention is 14 days, and at least the newest backup is kept. The encryption passphrase must stay outside the bucket and be recorded securely by the owner.
+The intended schedule is daily at 20:30 UTC (02:00 Asia/Kolkata), but the Render Cron Job is not active yet. To activate it, create a Docker Cron Job in Render for this repository/branch using EarnRoute/deployment/Backup.Dockerfile, then add DATABASE_URL, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_ENDPOINT_URL_S3, AWS_REGION, BACKUP_BUCKET, BACKUP_ENCRYPTION_PASSPHRASE and BACKUP_RETENTION_DAYS as secret environment variables. Use private bucket earnroute-backups, endpoint https://br-snowy-paper-b3u8r564.storage.c-4.ap-southeast-1.aws.neon.tech, region ap-southeast-1, retention 14, and schedule 30 20 * * * UTC. Generate a new, narrowly scoped Neon storage credential through the Neon console and store the key/secret directly in Render; never paste those values into chat or commit them. Verify the first successful backup log before relying on the scheduler. It uses PostgreSQL custom-format dumps, GPG/AES-256 encryption, a private storage bucket, verifies the downloaded copy with pg_restore --list, and prunes old objects under its dedicated prefix. Retention is 14 days, and at least the newest backup is kept. The encryption passphrase must stay outside the bucket and be recorded securely by the owner.
 
 This bucket is in the same Neon project and region; configure a second-provider copy before treating this as disaster-proof off-site backup. Verify successful scheduled execution in Render logs and rehearse restore to a non-production database.
 
