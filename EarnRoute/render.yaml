@@ -2,7 +2,7 @@ services:
   - type: web
     name: earnroute-api
     runtime: docker
-    dockerfilePath: ./deployment/Dockerfile.render
+    dockerfilePath: ./Dockerfile
     dockerContext: .
     plan: free
     healthCheckPath: /api/health
@@ -11,20 +11,14 @@ services:
         value: production
       - key: JWT_SECRET
         generateValue: true
+      # Required secret from the existing Neon PostgreSQL database.
       - key: DATABASE_URL
-        fromDatabase:
-          name: earnroute-postgres
-          property: connectionString
+        sync: false
       - key: CORS_ORIGINS
-        value: https://appassets.androidplatform.net
+        value: https://appassets.androidplatform.net,https://earnroute-api.onrender.com,https://earnroute-nearby-api.onrender.com
       - key: DEFAULT_PLATFORM_FEE_PERCENT
         value: "12"
       - key: MARKET_TIMEZONE
         value: Asia/Kolkata
-
-databases:
-  - name: earnroute-postgres
-    databaseName: earnroute
-    user: earnroute
-    plan: free
-    postgresMajorVersion: "16"
+      - key: SENTRY_DSN
+        sync: false
