@@ -208,6 +208,27 @@ class Notification(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
 
+class SupportTicket(Base):
+    __tablename__ = "support_tickets"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"), index=True)
+    subject: Mapped[str] = mapped_column(String(140))
+    category: Mapped[str] = mapped_column(String(40), default="other", index=True)
+    status: Mapped[str] = mapped_column(String(24), default="open", index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class SupportMessage(Base):
+    __tablename__ = "support_messages"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    ticket_id: Mapped[int] = mapped_column(ForeignKey("support_tickets.id", ondelete="CASCADE"), index=True)
+    sender_user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"), index=True)
+    message: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+
 class Dispute(Base):
     __tablename__ = "disputes"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -314,6 +335,36 @@ def notify(db: Session, user_id: int, title: str, body: str) -> None:
     db.add(Notification(user_id=user_id, title=title[:140], body=body[:500]))
 
 
+def serialize_support_ticket(db: Session, ticket: SupportTicket, include_messages: bool = False) -> dict[str, Any]:
+    owner = db.get(User, ticket.user_id)
+    messages = db.scalars(
+        select(SupportMessage).where(SupportMessage.ticket_id == ticket.id)
+        .order_by(SupportMessage.created_at.asc()).limit(100)
+    ).all()
+    last = messages[-1] if messages else None
+    last_sender = db.get(User, last.sender_user_id) if last else None
+    result = {
+        "id": ticket.id, "user_id": ticket.user_id,
+        "requester_name": owner.full_name if owner else "Account",
+        "requester_email": owner.email if owner else "",
+        "requester_role": owner.role if owner else "",
+        "subject": ticket.subject, "category": ticket.category, "status": ticket.status,
+        "message_count": len(messages), "latest_message": last.message[:240] if last else "",
+        "latest_sender_role": last_sender.role if last_sender else "",
+        "created_at": as_utc(ticket.created_at).isoformat(),
+        "updated_at": as_utc(ticket.updated_at).isoformat(),
+        "closed_at": as_utc(ticket.closed_at).isoformat() if ticket.closed_at else None,
+    }
+    if include_messages:
+        result["messages"] = [{
+            "id": item.id, "sender_user_id": item.sender_user_id,
+            "sender_name": (db.get(User, item.sender_user_id).full_name if db.get(User, item.sender_user_id) else "Account"),
+            "sender_role": (db.get(User, item.sender_user_id).role if db.get(User, item.sender_user_id) else ""),
+            "message": item.message, "created_at": as_utc(item.created_at).isoformat(),
+        } for item in messages]
+    return result
+
+
 # ----- Input schemas -----
 class RegisterBody(BaseModel):
     email: str = Field(min_length=5, max_length=254)
@@ -410,6 +461,36 @@ class BusinessProfileBody(BaseModel):
     address: str = Field(default="", max_length=300)
     phone: str = Field(default="", max_length=20)
     description: str = Field(default="", max_length=3000)
+
+
+class SupportTicketCreateBody(BaseModel):
+    subject: str = Field(min_length=5, max_length=140)
+    category: Literal["account", "payments", "shift", "safety", "technical", "other"] = "other"
+    message: str = Field(min_length=20, max_length=4000)
+
+    @field_validator("subject", "message")
+    @classmethod
+    def clean_support_text(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("Enter a subject and a message.")
+        return value
+
+
+class SupportMessageBody(BaseModel):
+    message: str = Field(min_length=2, max_length=4000)
+
+    @field_validator("message")
+    @classmethod
+    def clean_message(cls, value: str) -> str:
+        value = value.strip()
+        if len(value) < 2:
+            raise ValueError("Please enter a message.")
+        return value
+
+
+class SupportTicketStatusBody(BaseModel):
+    status: Literal["open", "in_progress", "waiting_user", "resolved", "closed"]
 
 
 class JobBody(BaseModel):
@@ -1492,6 +1573,91 @@ async def razorpay_webhook(request: Request, x_razorpay_signature: str | None = 
     log_event(db, None, "payment_provider_event_received", "provider_event", event_id, {"event_type": event_type})
     db.commit()
     return {"received": True, "mapped_to_payout": False, "note": "Signed event stored idempotently; payout remains unchanged until a verified settlement mapping is configured."}
+
+
+@app.post("/api/support/tickets", status_code=201)
+def create_support_ticket(body: SupportTicketCreateBody, user: User = Depends(require_role("worker", "business")), db: Session = Depends(get_db)):
+    ticket = SupportTicket(user_id=user.id, subject=body.subject, category=body.category, status="open")
+    db.add(ticket)
+    db.flush()
+    db.add(SupportMessage(ticket_id=ticket.id, sender_user_id=user.id, message=body.message))
+    log_event(db, user.id, "support_ticket_created", "support_ticket", ticket.id, {"category": body.category})
+    for administrator in db.scalars(select(User).where(User.role == "admin", User.active.is_(True))).all():
+        notify(db, administrator.id, "New support ticket", f"{body.subject} · submitted by {user.full_name}.")
+    db.commit()
+    db.refresh(ticket)
+    return {"ticket": serialize_support_ticket(db, ticket, include_messages=True)}
+
+
+@app.get("/api/support/tickets/me")
+def my_support_tickets(user: User = Depends(require_role("worker", "business")), db: Session = Depends(get_db)):
+    tickets = db.scalars(
+        select(SupportTicket).where(SupportTicket.user_id == user.id)
+        .order_by(SupportTicket.updated_at.desc()).limit(100)
+    ).all()
+    return {"items": [serialize_support_ticket(db, item) for item in tickets]}
+
+
+@app.get("/api/support/tickets/{ticket_id}")
+def get_support_ticket(ticket_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    ticket = db.get(SupportTicket, ticket_id)
+    if not ticket or (user.role != "admin" and ticket.user_id != user.id):
+        raise HTTPException(status_code=404, detail="Support ticket not found.")
+    return {"ticket": serialize_support_ticket(db, ticket, include_messages=True)}
+
+
+@app.post("/api/support/tickets/{ticket_id}/messages", status_code=201)
+def add_support_message(ticket_id: int, body: SupportMessageBody, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    ticket = db.get(SupportTicket, ticket_id)
+    if not ticket or (user.role != "admin" and ticket.user_id != user.id):
+        raise HTTPException(status_code=404, detail="Support ticket not found.")
+    if user.role not in {"worker", "business", "admin"}:
+        raise HTTPException(status_code=403, detail="This account cannot reply to support tickets.")
+    if ticket.status == "closed":
+        raise HTTPException(status_code=409, detail="This support ticket is closed. Create a new ticket if you still need help.")
+    db.add(SupportMessage(ticket_id=ticket.id, sender_user_id=user.id, message=body.message))
+    ticket.updated_at = utc_now()
+    if user.role == "admin":
+        ticket.status = "waiting_user"
+        ticket.closed_at = None
+        notify(db, ticket.user_id, "Support replied", f"We replied to your support ticket: {ticket.subject}.")
+    else:
+        if ticket.status in {"resolved", "waiting_user"}:
+            ticket.status = "open"
+            ticket.closed_at = None
+        for administrator in db.scalars(select(User).where(User.role == "admin", User.active.is_(True))).all():
+            notify(db, administrator.id, "Support ticket updated", f"{ticket.subject} has a new reply.")
+    log_event(db, user.id, "support_message_added", "support_ticket", ticket.id, {"sender_role": user.role})
+    db.commit()
+    db.refresh(ticket)
+    return {"ticket": serialize_support_ticket(db, ticket, include_messages=True)}
+
+
+@app.get("/api/admin/support/tickets")
+def admin_support_tickets(status_filter: str | None = None, user: User = Depends(require_role("admin")), db: Session = Depends(get_db)):
+    allowed = {"open", "in_progress", "waiting_user", "resolved", "closed"}
+    if status_filter and status_filter not in allowed:
+        raise HTTPException(status_code=422, detail="Choose a supported support-ticket status.")
+    query = select(SupportTicket)
+    if status_filter:
+        query = query.where(SupportTicket.status == status_filter)
+    tickets = db.scalars(query.order_by(SupportTicket.updated_at.desc()).limit(200)).all()
+    return {"items": [serialize_support_ticket(db, item) for item in tickets]}
+
+
+@app.patch("/api/admin/support/tickets/{ticket_id}/status")
+def update_support_ticket_status(ticket_id: int, body: SupportTicketStatusBody, user: User = Depends(require_role("admin")), db: Session = Depends(get_db)):
+    ticket = db.get(SupportTicket, ticket_id)
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Support ticket not found.")
+    ticket.status = body.status
+    ticket.updated_at = utc_now()
+    ticket.closed_at = utc_now() if body.status in {"resolved", "closed"} else None
+    log_event(db, user.id, "support_ticket_status_changed", "support_ticket", ticket.id, {"status": body.status})
+    notify(db, ticket.user_id, "Support ticket updated", f"Your ticket \"{ticket.subject}\" is now {body.status.replace('_', ' ')}.")
+    db.commit()
+    db.refresh(ticket)
+    return {"ticket": serialize_support_ticket(db, ticket, include_messages=True)}
 
 
 @app.get("/api/business/summary")
