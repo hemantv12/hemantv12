@@ -400,6 +400,9 @@ def test_nearby_jobs_are_distance_filtered_and_sorted(client, register_business,
     assert one_km.json()["total"] == 1
     assert one_km.json()["items"][0]["title"] == "Corner shop helper"
     assert 0 < one_km.json()["items"][0]["distance_km"] < 1
+    assert one_km.json()["items"][0]["latitude"] == 28.6170
+    assert one_km.json()["items"][0]["longitude"] == 77.2090
+    assert one_km.json()["items"][0]["has_workplace_pin"] is True
 
     five_km = client.get("/api/jobs?latitude=28.6139&longitude=77.2090&radius_km=5&page_size=20")
     assert five_km.status_code == 200
