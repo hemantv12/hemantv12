@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import math
 import os
 import re
 import secrets
@@ -91,7 +92,7 @@ class WorkerProfile(Base):
     skills: Mapped[list] = mapped_column(JSON().with_variant(JSONB, "postgresql"), default=list)
     preferred_categories: Mapped[list] = mapped_column(JSON().with_variant(JSONB, "postgresql"), default=list)
     availability: Mapped[list] = mapped_column(JSON().with_variant(JSONB, "postgresql"), default=list)
-    travel_radius_km: Mapped[int] = mapped_column(Integer, default=10)
+    travel_radius_km: Mapped[int] = mapped_column(Integer, default=3)
     min_pay: Mapped[float] = mapped_column(Float, default=0.0)
     experience_years: Mapped[int] = mapped_column(Integer, default=0)
     profile_photo_url: Mapped[str] = mapped_column(String(500), default="")
@@ -122,6 +123,9 @@ class Job(Base):
     category: Mapped[str] = mapped_column(String(70), index=True)
     city: Mapped[str] = mapped_column(String(100), index=True)
     address: Mapped[str] = mapped_column(String(300), default="")
+    # Public workplace coordinates come from the business-set pin. Worker GPS is never stored here.
+    latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
     slots: Mapped[int] = mapped_column(Integer, default=1)
     start_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
     end_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
@@ -142,7 +146,7 @@ class Job(Base):
     business: Mapped[User] = relationship(foreign_keys=[business_id])
     applications: Mapped[list[Application]] = relationship(back_populates="job", cascade="all, delete-orphan")
 
-    __table_args__ = (Index("ix_jobs_status_city_start", "status", "city", "start_at"),)
+    __table_args__ = (Index("ix_jobs_status_city_start", "status", "city", "start_at"), Index("ix_jobs_workplace_coordinates", "latitude", "longitude"))
 
 
 class Application(Base):
@@ -359,7 +363,7 @@ class WorkerProfileBody(BaseModel):
     skills: list[str] = Field(default_factory=list, max_length=30)
     preferred_categories: list[str] = Field(default_factory=list, max_length=20)
     availability: list[dict[str, Any]] = Field(default_factory=list, max_length=21)
-    travel_radius_km: int = Field(default=10, ge=1, le=100)
+    travel_radius_km: int = Field(default=3, ge=1, le=5)
     min_pay: float = Field(default=0, ge=0, le=1_000_000)
     experience_years: int = Field(default=0, ge=0, le=60)
 
@@ -407,6 +411,8 @@ class JobBody(BaseModel):
     category: str = Field(min_length=2, max_length=70)
     city: str = Field(min_length=2, max_length=100)
     address: str = Field(default="", max_length=300)
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
     slots: int = Field(default=1, ge=1, le=500)
     start_at: datetime
     end_at: datetime
@@ -438,7 +444,16 @@ class JobBody(BaseModel):
             raise ValueError("The shift must start at least five minutes in the future.")
         if deadline >= start or deadline <= utc_now():
             raise ValueError("The application deadline must be in the future and before the shift starts.")
+        if (self.latitude is None) != (self.longitude is None):
+            raise ValueError("Set both workplace coordinates together.")
+        if self.publish and (self.latitude is None or self.longitude is None):
+            raise ValueError("Set the workplace location before publishing so nearby workers can find this shift.")
         return self
+
+
+class WorkplaceLocationBody(BaseModel):
+    latitude: float = Field(ge=-90, le=90)
+    longitude: float = Field(ge=-180, le=180)
 
 
 class ApplyBody(BaseModel):
@@ -483,7 +498,7 @@ def serialize_user(user: User, db: Session) -> dict[str, Any]:
         p = db.get(WorkerProfile, user.id)
         if p:
             profile = {"city": p.city, "skills": p.skills or [], "preferred_categories": p.preferred_categories or [],
-                       "availability": p.availability or [], "travel_radius_km": p.travel_radius_km,
+                       "availability": p.availability or [], "travel_radius_km": min(5, max(1, int(p.travel_radius_km or 3))),
                        "min_pay": p.min_pay, "experience_years": p.experience_years}
     elif user.role == "business":
         p = db.get(BusinessProfile, user.id)
@@ -630,7 +645,7 @@ def serialize_job(db: Session, job: Job, worker_profile: WorkerProfile | None = 
         "business_verified": bool(business_profile and business_profile.verification_status == "verified"),
         "business_rating": business_rating, "business_review_count": business_review_count,
         "title": job.title, "description": job.description, "category": job.category, "city": job.city,
-        "address": job.address, "slots": job.slots, "positions_filled": filled,
+        "address": job.address, "has_workplace_pin": job.latitude is not None and job.longitude is not None, "slots": job.slots, "positions_filled": filled,
         "start_at": as_utc(job.start_at).isoformat(), "end_at": as_utc(job.end_at).isoformat(),
         "duration_hours": round((as_utc(job.end_at) - as_utc(job.start_at)).total_seconds() / 3600, 2),
         "pay_amount": job.pay_amount, "pay_basis": job.pay_basis, "payment_terms": job.payment_terms,
@@ -826,14 +841,32 @@ def update_business_profile(body: BusinessProfileBody, user: User = Depends(requ
     return {"user": serialize_user(user, db)}
 
 
+def haversine_km(latitude_a: float, longitude_a: float, latitude_b: float, longitude_b: float) -> float:
+    """Straight-line surface distance in kilometres, using the Haversine formula."""
+    earth_radius_km = 6371.0088
+    lat1, lat2 = math.radians(latitude_a), math.radians(latitude_b)
+    delta_lat = math.radians(latitude_b - latitude_a)
+    delta_lon = math.radians(longitude_b - longitude_a)
+    a = math.sin(delta_lat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(delta_lon / 2) ** 2
+    return earth_radius_km * 2 * math.asin(math.sqrt(min(1.0, max(0.0, a))))
+
+
 @app.get("/api/jobs")
 def list_jobs(
     city: str | None = None, category: str | None = None, search: str | None = None,
     min_pay: float | None = Query(default=None, ge=0), max_pay: float | None = Query(default=None, ge=0),
+    latitude: float | None = Query(default=None, ge=-90, le=90),
+    longitude: float | None = Query(default=None, ge=-180, le=180),
+    radius_km: float | None = Query(default=None, gt=0, le=5),
     page: int = Query(default=1, ge=1, le=10000), page_size: int = Query(default=12, ge=1, le=50),
     db: Session = Depends(get_db), authorization: str | None = Header(default=None),
 ):
-    # Optional auth: public listings remain available without a token.
+    if (latitude is None) != (longitude is None):
+        raise HTTPException(status_code=422, detail="Provide both latitude and longitude for nearby search.")
+    if radius_km is not None and latitude is None:
+        raise HTTPException(status_code=422, detail="Nearby search requires your device location.")
+    if latitude is not None and radius_km is None:
+        radius_km = 3.0
     worker_profile = None
     if authorization and authorization.lower().startswith("bearer "):
         token = authorization.split(" ", 1)[1].strip()
@@ -847,7 +880,7 @@ def list_jobs(
     query = select(Job).where(Job.status == "published", Job.start_at > utc_now())
     if city:
         query = query.where(Job.city.ilike(f"%{city.strip()[:100]}%"))
-    if category:
+    if category and category.strip().lower() != "all":
         query = query.where(Job.category.ilike(f"%{category.strip()[:70]}%"))
     if search:
         needle = f"%{search.strip()[:120]}%"
@@ -856,9 +889,31 @@ def list_jobs(
         query = query.where(Job.pay_amount >= min_pay)
     if max_pay is not None:
         query = query.where(Job.pay_amount <= max_pay)
+    if latitude is not None and longitude is not None:
+        # Bounding-box filter reduces database rows before exact distance math.
+        lat_delta = radius_km / 110.574
+        cos_lat = max(0.01, abs(math.cos(math.radians(latitude))))
+        lon_delta = min(180.0, radius_km / (111.320 * cos_lat))
+        query = query.where(Job.latitude.is_not(None), Job.longitude.is_not(None))
+        query = query.where(Job.latitude >= latitude - lat_delta, Job.latitude <= latitude + lat_delta)
+        query = query.where(Job.longitude >= longitude - lon_delta, Job.longitude <= longitude + lon_delta)
+        candidates = db.scalars(query.order_by(Job.start_at.asc()).limit(2500)).all()
+        nearby = []
+        for job in candidates:
+            distance = haversine_km(latitude, longitude, float(job.latitude), float(job.longitude))
+            if distance <= radius_km + 0.0001:
+                item = serialize_job(db, job, worker_profile)
+                item["distance_km"] = round(distance, 2)
+                nearby.append((distance, as_utc(job.start_at), item))
+        nearby.sort(key=lambda row: (row[0], row[1]))
+        total = len(nearby)
+        start = (page - 1) * page_size
+        return {"items": [row[2] for row in nearby[start:start + page_size]], "total": total,
+                "page": page, "page_size": page_size, "nearby": True, "radius_km": radius_km}
     total = db.scalar(select(func.count()).select_from(query.subquery())) or 0
     jobs = db.scalars(query.order_by(Job.start_at.asc()).offset((page - 1) * page_size).limit(page_size)).all()
-    return {"items": [serialize_job(db, job, worker_profile) for job in jobs], "total": total, "page": page, "page_size": page_size}
+    return {"items": [serialize_job(db, job, worker_profile) for job in jobs], "total": total,
+            "page": page, "page_size": page_size, "nearby": False}
 
 
 @app.get("/api/jobs/{job_id}")
@@ -885,7 +940,7 @@ def create_job(body: JobBody, user: User = Depends(require_role("business")), db
         raise HTTPException(status_code=403, detail="Business verification is required before publishing jobs. Save it as a draft while verification is pending.")
     job = Job(
         business_id=user.id, title=body.title.strip(), description=body.description.strip(), category=body.category.strip(),
-        city=body.city.strip(), address=body.address.strip(), slots=body.slots, start_at=as_utc(body.start_at), end_at=as_utc(body.end_at),
+        city=body.city.strip(), address=body.address.strip(), latitude=body.latitude, longitude=body.longitude, slots=body.slots, start_at=as_utc(body.start_at), end_at=as_utc(body.end_at),
         pay_amount=body.pay_amount, pay_basis=body.pay_basis, payment_terms=body.payment_terms.strip(), requirements=body.requirements,
         min_experience=body.min_experience, breaks_info=body.breaks_info.strip(), equipment_info=body.equipment_info.strip(),
         safety_info=body.safety_info.strip(), application_deadline=as_utc(body.application_deadline),
@@ -906,6 +961,20 @@ def business_jobs(user: User = Depends(require_role("business")), db: Session = 
     return {"items": [serialize_job(db, j) for j in jobs]}
 
 
+@app.patch("/api/jobs/{job_id}/location")
+def update_job_location(job_id: int, body: WorkplaceLocationBody,
+                        user: User = Depends(require_role("business", "admin")), db: Session = Depends(get_db)):
+    job = db.get(Job, job_id)
+    if not job or (user.role != "admin" and job.business_id != user.id):
+        raise HTTPException(status_code=404, detail="Job not found.")
+    job.latitude = body.latitude
+    job.longitude = body.longitude
+    job.updated_at = utc_now()
+    log_event(db, user.id, "job_workplace_pin_updated", "job", job.id)
+    db.commit()
+    return {"job": serialize_job(db, job)}
+
+
 @app.post("/api/jobs/{job_id}/publish")
 def publish_job(job_id: int, user: User = Depends(require_role("business")), db: Session = Depends(get_db)):
     job = get_owned_job(db, job_id, user.id)
@@ -914,6 +983,8 @@ def publish_job(job_id: int, user: User = Depends(require_role("business")), db:
         raise HTTPException(status_code=409, detail="Only draft or paused jobs can be published.")
     if as_utc(job.start_at) <= utc_now() or as_utc(job.application_deadline) <= utc_now():
         raise HTTPException(status_code=409, detail="This job's deadline or shift time has passed.")
+    if job.latitude is None or job.longitude is None:
+        raise HTTPException(status_code=409, detail="Set the workplace pin first so workers within 1–5 km can find this shift.")
     job.status = "published"
     log_event(db, user.id, "job_published", "job", job.id)
     db.commit()
