@@ -1,29 +1,22 @@
 # Collabzy owner admin dashboard
 
-The dashboard is served by the same backend and PostgreSQL database as Collabzy:
+The dashboard is served by the same backend and PostgreSQL database as Collabzy.
 
-- Route: **/admin/** (after the collabzy-api service has deployed this commit)
-- Admin API namespace: **/api/admin/***
-- Sections: overview, people/accounts, campaigns, support inbox, and launch readiness
-- Admin session: signed bearer token, two-hour expiry, five login attempts per 15 minutes
-- Moderation: suspending an account revokes existing user sessions; account, campaign and support status changes are written to admin_audit_log
-- Browser credential handling: the dashboard stores the temporary token in sessionStorage; the password and bcrypt hash are not embedded in frontend code
+- Dashboard: https://collabzy-api.onrender.com/admin/
+- Admin API: /api/admin/*
+- Sections: live overview, creator/brand accounts, campaign moderation, support inbox, launch readiness and audit trail.
+- Admin session: signed bearer token, two-hour expiry and rate-limited login.
+- Moderation: suspending an account invalidates existing sessions; campaign/support status changes are audited.
+- Browser credential handling: a temporary token is kept in sessionStorage. Passwords and provider secrets are not included in frontend code.
 
-## One-time owner setup
+## First-time owner setup
 
-The admin console intentionally stays unavailable until its owner identity is configured. It does not reuse a creator/brand account or have a hard-coded default password.
+When the server reports that admin setup is required, the dashboard displays a one-time owner setup form. Enter an email address you control, create a strong password (14+ characters; maximum 72 UTF-8 bytes), confirm the password, and enter the private one-time setup code provided to the owner for this deployment. The server hashes the password with bcrypt and creates the single owner record in PostgreSQL. The setup route refuses further setup once that record exists and has rate limits. Store the password in a password manager; do not send it in chat or commit it to the repository.
 
-1. On a trusted computer, open the repository's collabzy-app directory and run npm install (if dependencies are not installed).
-2. Run npm run admin:hash. Enter a unique password in the hidden prompt. Use at least 14 characters; the helper prints only a bcrypt hash.
-3. In the Render dashboard, open the collabzy-api service → **Environment**. Add:
-   - **COLLABZY_ADMIN_EMAIL** — the owner email address, in lowercase.
-   - **COLLABZY_ADMIN_PASSWORD_HASH** — the complete bcrypt hash generated in step 2.
-4. Save the Render environment changes and let the service restart/deploy. Open https://collabzy-api.onrender.com/admin/ and sign in with the configured email and the original password (not the hash).
+The optional environment-based override remains available for operators who prefer managing `COLLABZY_ADMIN_EMAIL` and `COLLABZY_ADMIN_PASSWORD_HASH` directly in Render. The repository also includes `npm run admin:hash` to generate a bcrypt hash in a local terminal.
 
-Keep the original password private, do not commit the hash into the Git repository, and do not paste either into public issues or chat. If the hash or password needs rotation, generate a new hash, update the environment variable, then replace the old password.
+## Important launch notes
 
-## Important safety notes
+Metrics come from PostgreSQL; the dashboard does not manufacture sample data. Provider checks indicate configuration presence only: they cannot verify that Meta permissions are approved, mail is deliverable, payments settle correctly, legal terms are complete, or the operator has approved public launch. Public account registration remains gated by existing launch readiness checks.
 
-The dashboard reads data from production tables; it does not manufacture sample metrics. Provider checks only show whether server settings are present. They do not prove that Instagram permissions were approved, emails can be delivered, Razorpay payments settle, or a legal/public launch is approved. The API keeps public registration gated according to the existing launch checks. Do not turn on public registration solely because this dashboard loads.
-
-Admin status changes are powerful. Use account suspension for access control, campaign status for moderation, and the support inbox for request tracking. The support page can open a prefilled email draft; it does not send email through an unconfigured provider.
+Campaign moderation, account suspension and support-state changes affect real production records. The support inbox opens a prefilled email draft but does not send mail through an unconfigured provider.
