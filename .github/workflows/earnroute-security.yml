@@ -1,0 +1,87 @@
+name: EarnRoute security checks
+
+on:
+  push:
+    branches: [earnroute-production]
+    paths:
+      - 'EarnRoute/**'
+      - '.github/workflows/earnroute-security.yml'
+      - '.github/dependabot.yml'
+  pull_request:
+    paths:
+      - 'EarnRoute/**'
+      - '.github/workflows/earnroute-security.yml'
+      - '.github/dependabot.yml'
+  schedule:
+    - cron: '23 2 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  codeql:
+    name: CodeQL - ${{ matrix.language }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ['python', 'javascript-typescript', 'actions']
+    steps:
+      - name: Checkout EarnRoute production source
+        uses: actions/checkout@v4
+        with:
+          ref: earnroute-production
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          queries: security-extended,security-and-quality
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@v3
+
+  python-dependency-audit:
+    name: Python dependency vulnerability audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout EarnRoute production source
+        uses: actions/checkout@v4
+        with:
+          ref: earnroute-production
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependency audit tool
+        run: python -m pip install --upgrade pip pip-audit
+      - name: Audit EarnRoute dependencies
+        run: pip-audit -r EarnRoute/requirements.txt
+
+  application-tests:
+    name: API and frontend regression checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout EarnRoute production source
+        uses: actions/checkout@v4
+        with:
+          ref: earnroute-production
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r EarnRoute/requirements.txt
+      - name: Run API tests
+        working-directory: EarnRoute
+        run: pytest -q
+      - name: Check Python source
+        working-directory: EarnRoute
+        run: python -m compileall -q app tests scripts
+      - name: Check frontend JavaScript
+        run: |
+          node --check EarnRoute/app/static/app.js
+          node --check EarnRoute/app/static/nearby.js
