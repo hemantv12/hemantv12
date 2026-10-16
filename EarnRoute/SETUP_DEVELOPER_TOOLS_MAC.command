@@ -38,6 +38,14 @@ if [ -x "$SDKMANAGER" ]; then
 else
   echo "ACTION NEEDED: Android Studio > Settings > Android SDK; install Platform 36, Build-Tools 36.0.0, and Command-line Tools (latest)."
 fi
+FLUTTER_BIN="$(python3 -c 'import os, shutil; p=shutil.which("flutter"); print(os.path.dirname(os.path.realpath(p)) if p else "")')"
+if [ -n "$FLUTTER_BIN" ]; then
+  export PATH="$FLUTTER_BIN:$PATH"
+  if ! grep -q 'EARNROUTE FLUTTER BIN' "$HOME/.zprofile"; then
+    printf '\n# EARNROUTE FLUTTER BIN\nexport PATH="%s:$PATH"\n' "$FLUTTER_BIN" >> "$HOME/.zprofile"
+  fi
+fi
+
 echo
 echo "Versions detected:"
 flutter --version
