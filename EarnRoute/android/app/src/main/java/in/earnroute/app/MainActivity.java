@@ -82,7 +82,7 @@ public final class MainActivity extends Activity {
         settings.setJavaScriptCanOpenWindowsAutomatically(false);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         settings.setMediaPlaybackRequiresUserGesture(true);
-        settings.setUserAgentString(settings.getUserAgentString() + " EarnRouteAndroid/1.3.0");
+        settings.setUserAgentString(settings.getUserAgentString() + " EarnRouteAndroid/1.4.0");
 
         WebViewAssetLoader assetLoader = new WebViewAssetLoader.Builder()
                 .setDomain(ASSET_HOST)
@@ -242,6 +242,24 @@ public final class MainActivity extends Activity {
         @JavascriptInterface public boolean isAndroidApp() { return true; }
         @JavascriptInterface public String getApiBaseUrl() { return preferences.getString(API_BASE_KEY, DEFAULT_API_BASE_URL); }
         @JavascriptInterface public void openServerSettings() { runOnUiThread(() -> showServerSettings()); }
+
+        /** Share work/shift details using Android's native share sheet. */
+        @JavascriptInterface public void shareText(String text, String chooserTitle) {
+            final String safeText = text == null ? "" : text.trim();
+            if (safeText.isEmpty() || safeText.length() > 5000) return;
+            final String safeTitle = chooserTitle == null || chooserTitle.trim().isEmpty()
+                    ? "Share shift details" : chooserTitle.trim().substring(0, Math.min(80, chooserTitle.trim().length()));
+            runOnUiThread(() -> {
+                Intent sendIntent = new Intent(Intent.ACTION_SEND);
+                sendIntent.setType("text/plain");
+                sendIntent.putExtra(Intent.EXTRA_TEXT, safeText);
+                try {
+                    startActivity(Intent.createChooser(sendIntent, safeTitle));
+                } catch (ActivityNotFoundException | SecurityException ignored) {
+                    Toast.makeText(MainActivity.this, "No app available to share these details.", Toast.LENGTH_SHORT).show();
+                }
+            });
+        }
     }
 
     private void showServerSettings() {
