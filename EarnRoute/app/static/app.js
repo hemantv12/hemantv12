@@ -642,7 +642,6 @@ const ER_HI_UI = Object.freeze({
   "Location took too long. Move near a window or try again.":"लोकेशन मिलने में देर हुई। खिड़की के पास जाकर या फिर से कोशिश करें।",
   "This device cannot share its location. Open EarnRoute in a location-enabled browser.":"यह डिवाइस लोकेशन साझा नहीं कर पा रहा। लोकेशन चालू ब्राउज़र में EarnRoute खोलें।",
   "Could not get your location. Please try again.":"आपकी लोकेशन नहीं मिल सकी। फिर कोशिश करें।",
-  "No shifts inside ":"के अंदर कोई शिफ्ट नहीं मिली: ",
   "No shifts inside 1 km yet":"1 किमी के अंदर अभी कोई शिफ्ट नहीं है",
   "No shifts in this radius yet":"इस दूरी के अंदर अभी कोई शिफ्ट नहीं है",
   "Try a wider radius using More (up to 15 km). Jobs without a workplace pin stay hidden rather than showing a made-up distance.":"More से दूरी बढ़ाकर 15 किमी तक देखें। सही वर्कप्लेस पिन न होने पर काम छिपा रहेगा, गलत दूरी नहीं दिखाई जाएगी।",
