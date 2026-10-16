@@ -5,6 +5,8 @@ const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selec
 let currentUser = null;
 let activeScreen = 'overview';
 let activeApplicationJob = null;
+let activeSupportTicketId = null;
+let activeAdminSupportTicketId = null;
 let selectedLanguage = (() => {
   try { return localStorage.getItem('earnroute_language') || sessionStorage.getItem('earnroute_language') || 'en'; }
   catch (_) { return sessionStorage.getItem('earnroute_language') || 'en'; }
@@ -19,7 +21,7 @@ const TRANSLATIONS = {
     signOut: 'Sign out', overviewSub: 'Your work, organized around your life.', findShifts: 'Find shifts', profileSettings: 'Edit profile', recommended: 'Recommended for you', upcoming: 'Upcoming assignments',
     applied: 'Applications', confirmed: 'Confirmed shifts', completed: 'Completed work', pending: 'Pending settlement',
     noJobs: 'No published opportunities yet', noJobsCopy: 'New, verified opportunities will appear here when businesses publish genuine shifts. Try another category or check back later.',
-    language: 'हि', myAccount: 'My account', workerRole: 'Worker', businessRole: 'Business', adminRole: 'Admin'
+    language: 'हि', myAccount: 'My account', workerRole: 'Worker', businessRole: 'Business', adminRole: 'Admin', support: 'Help & support', adminSupport: 'Support tickets'
   },
   hi: {
     workspace: 'आपका वर्कस्पेस', overview: 'डैशबोर्ड', discover: 'काम खोजें', applications: 'आवेदन', schedule: 'मेरा शेड्यूल', earnings: 'कमाई', profile: 'मेरी प्रोफ़ाइल',
@@ -27,7 +29,7 @@ const TRANSLATIONS = {
     signOut: 'साइन आउट', overviewSub: 'आपका काम, आपकी ज़िंदगी के हिसाब से।', findShifts: 'शिफ्ट खोजें', profileSettings: 'प्रोफ़ाइल एडिट करें', recommended: 'आपके लिए सही काम', upcoming: 'आने वाले असाइनमेंट',
     applied: 'आवेदन', confirmed: 'कन्फ़र्म शिफ्ट', completed: 'पूरा किया काम', pending: 'पेमेंट लंबित',
     noJobs: 'अभी कोई प्रकाशित अवसर नहीं', noJobsCopy: 'बिज़नेस द्वारा वास्तविक शिफ्ट प्रकाशित होने पर अवसर यहाँ दिखेंगे। फ़िल्टर बदलकर देखें या बाद में वापस आएँ।',
-    language: 'EN', myAccount: 'मेरा अकाउंट', workerRole: 'वर्कर', businessRole: 'बिज़नेस', adminRole: 'एडमिन'
+    language: 'EN', myAccount: 'मेरा अकाउंट', workerRole: 'वर्कर', businessRole: 'बिज़नेस', adminRole: 'एडमिन', support: 'सहायता', adminSupport: 'सपोर्ट टिकट'
   }
 };
 const t = key => (TRANSLATIONS[selectedLanguage] && TRANSLATIONS[selectedLanguage][key]) || TRANSLATIONS.en[key] || key;
@@ -125,14 +127,14 @@ function setWorkspace(user) {
 function navItems() {
   if (currentUser?.role === 'business') return [
     { group:'WORKSPACE', items:[['business-overview','overview','◫'],['post-job','postJob','＋'],['business-jobs','manageJobs','▤'],['business-applicants','applicants','◎'],['business-assignments','assignments','✓']] },
-    { group:'ACCOUNT', items:[['profile','profile','○']] }
+    { group:'ACCOUNT', items:[['profile','profile','○'],['support','support','?']] }
   ];
   if (currentUser?.role === 'admin') return [
-    { group:'FOUNDER CONTROL', items:[['admin-overview','overview','◫'],['admin-verifications','verify','✓'],['admin-jobs','manageJobs','▤'],['admin-disputes','disputes','⚑'],['admin-audit','audit','≋']] }
+    { group:'FOUNDER CONTROL', items:[['admin-overview','overview','◫'],['admin-verifications','verify','✓'],['admin-jobs','manageJobs','▤'],['admin-disputes','disputes','⚑'],['admin-support','adminSupport','✉'],['admin-audit','audit','≋']] }
   ];
   return [
     { group:'WORKSPACE', items:[['overview','overview','◫'],['discover','discover','⌕'],['applications','applications','▤'],['schedule','schedule','▦'],['earnings','earnings','₹']] },
-    { group:'ACCOUNT', items:[['profile','profile','○']] }
+    { group:'ACCOUNT', items:[['profile','profile','○'],['support','support','?']] }
   ];
 }
 function buildNavigation() {
@@ -150,7 +152,7 @@ function setLanguageButton() {
 const TITLES = {
   overview:'Overview', discover:'Discover work', applications:'Applications', schedule:'My schedule', earnings:'Earnings', profile:'My profile',
   'business-overview':'Business overview','post-job':'Post a shift','business-jobs':'Manage jobs','business-applicants':'Applicants','business-assignments':'Assignments',
-  'admin-overview':'Founder overview','admin-verifications':'Business verification','admin-jobs':'Job moderation','admin-disputes':'Dispute review','admin-audit':'Audit history'
+  'admin-overview':'Founder overview','admin-verifications':'Business verification','admin-jobs':'Job moderation','admin-disputes':'Dispute review','admin-support':'Support tickets','support':'Help & support','admin-audit':'Audit history'
 };
 function setActiveScreen(screen) {
   activeScreen = screen;
@@ -269,6 +271,8 @@ async function renderPage() {
       case 'admin-jobs': html = await renderAdminJobs(); break;
       case 'admin-disputes': html = await renderAdminDisputes(); break;
       case 'admin-audit': html = await renderAdminAudit(); break;
+      case 'support': html = await renderSupport(); break;
+      case 'admin-support': html = await renderAdminSupport(); break;
       default: html = emptyState('Page not found', 'Use the navigation to open a workspace section.');
     }
     $('#view-root').innerHTML = html;
@@ -573,6 +577,18 @@ document.addEventListener('click', async event => {
   if(target.id==='notifications-btn'){showNotifications();return;}
   if(target.dataset.closeNotifications!==undefined){$('#notification-panel')?.remove();return;}
   if(target.dataset.screen){event.preventDefault();setActiveScreen(target.dataset.screen);return;}
+  if(target.dataset.supportOpen){activeSupportTicketId=Number(target.dataset.supportOpen);setActiveScreen('support');return;}
+  if(target.dataset.adminSupportOpen){activeAdminSupportTicketId=Number(target.dataset.adminSupportOpen);setActiveScreen('admin-support');return;}
+  if(target.dataset.supportStatus){
+    const id=Number(target.dataset.supportTicketId);
+    try {
+      await api('/api/admin/support/tickets/'+id+'/status',{method:'PATCH',body:{status:target.dataset.supportStatus}});
+      activeAdminSupportTicketId=id;
+      showToast('Support ticket status updated.');
+      await renderPage();
+    } catch(error) { showToast(friendlyError(error),'error'); }
+    return;
+  }
   if(target.dataset.retry!==undefined){renderPage();return;}
   if(target.dataset.shareAssignment){
     try {
@@ -633,6 +649,29 @@ document.addEventListener('submit', async event => {
   if(form.id==='discover-filter-form'){event.preventDefault();const d=formObject(form);const clean=Object.fromEntries(Object.entries(d).filter(([k,v])=>String(v).trim()));$('#view-root').innerHTML='<div class="loading-surface"><span class="loading-spinner"></span><span>Searching published opportunities…</span></div>';try{$('#view-root').innerHTML=await renderDiscover(clean);}catch(error){showToast(friendlyError(error),'error');}return;}
   if(form.id==='worker-profile-form'){event.preventDefault();await submitWorkerProfile(form);return;}
   if(form.id==='business-profile-form'){event.preventDefault();await submitBusinessProfile(form);return;}
+  if(form.id==='support-ticket-form'){
+    event.preventDefault();
+    const data=formObject(form);
+    try {
+      const result=await api('/api/support/tickets',{method:'POST',body:data});
+      activeSupportTicketId=result.ticket.id;
+      showToast('Support ticket created.');
+      await renderPage();
+    } catch(error) { showToast(friendlyError(error),'error'); }
+    return;
+  }
+  if(form.id==='support-reply-form'){
+    event.preventDefault();
+    const data=formObject(form);
+    const ticketId=Number(data.ticket_id);
+    try {
+      await api('/api/support/tickets/'+ticketId+'/messages',{method:'POST',body:{message:data.message}});
+      showToast('Support reply sent.');
+      if(currentUser.role==='admin')activeAdminSupportTicketId=ticketId;else activeSupportTicketId=ticketId;
+      await renderPage();
+    } catch(error) { showToast(friendlyError(error),'error'); }
+    return;
+  }
   if(form.id==='job-form'){event.preventDefault();await submitJob(form);return;}
 });
 document.addEventListener('change',event=>{if(event.target.matches('#auth-form input[name="role"]'))setAuthMode(authMode);});
