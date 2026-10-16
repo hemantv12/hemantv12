@@ -152,4 +152,61 @@ test('PostgreSQL production backend supports creator-brand collaboration workflo
   const messagesAfterRestart=await fetch(base+'/api/conversations/'+convId+'/messages',{headers:{authorization:'Bearer '+restored.token}});
   assert.equal(messagesAfterRestart.status,200);
   assert.ok((await messagesAfterRestart.json()).messages.some(m=>m.body==='Hello from PostgreSQL.'),'messages should persist after API restart');
+
+  // Production-like private beta: no email provider, Meta credentials or payment keys are configured.
+  child.kill('SIGTERM');
+  await new Promise(resolve=>{if(child.exitCode!==null)return resolve();child.once('exit',resolve);setTimeout(resolve,2500)});
+  child=spawn(process.execPath,['src/server.js'],{
+    cwd:path.join(__dirname,'..'),
+    env:{
+      ...process.env,NODE_ENV:'production',PORT:String(port),
+      JWT_SECRET:'postgres-test-secret-at-least-32-characters-long',
+      PGSSLMODE:'disable',MIGRATE_SQLITE_ON_START:'false',
+      REQUIRE_EMAIL_VERIFICATION:'true',PUBLIC_LAUNCH_APPROVED:'false',
+      COLLABZY_PRIVATE_BETA_CODE:'collabzy-test-beta-code-32-characters',
+      COLLABZY_TEST_ACCOUNT_ENABLED:'',
+      RESEND_API_KEY:'',EMAIL_FROM:'',SUPPORT_EMAIL:'',
+      OPERATOR_LEGAL_NAME:'',OPERATOR_JURISDICTION:'',
+      OPENAI_API_KEY:'',RAZORPAY_KEY_ID:'',RAZORPAY_KEY_SECRET:'',
+      RAZORPAY_WEBHOOK_SECRET:'',META_APP_ID:'',META_APP_SECRET:''
+    },
+    stdio:['ignore','pipe','pipe']
+  });
+  child.stdout.on('data',d=>logs+=d.toString());
+  child.stderr.on('data',d=>logs+=d.toString());
+  let betaReady=false;
+  for(let i=0;i<80;i++){
+    if(child.exitCode!==null)break;
+    try{
+      const r=await fetch(base+'/api/health');
+      if(r.ok){
+        const h=await r.json();
+        if(h.mode==='postgres-persistent'&&h.integrations?.privateBetaRegistration==='invite_only'&&h.integrations?.publicRegistration==='setup_required'){betaReady=true;break}
+      }
+    }catch{}
+    await new Promise(r=>setTimeout(r,250));
+  }
+  assert.equal(betaReady,true,'private beta should be enabled while public registration stays locked; logs: '+logs);
+
+  const paused=await fetch(base+'/api/auth/register',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({name:'Uninvited Tester',email:'uninvited'+Date.now()+'@example.com',password:'TestPassword123!',role:'creator',accepted_terms:true})});
+  assert.equal(paused.status,503,'public sign-up without an invite must remain closed');
+  const badCode=await fetch(base+'/api/auth/register',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({name:'Wrong Code Tester',email:'wrongcode'+Date.now()+'@example.com',password:'TestPassword123!',role:'creator',accepted_terms:true,beta_code:'not-the-private-code'})});
+  assert.equal(badCode.status,403,'an invalid invite code must be rejected');
+
+  const betaEmail='privatebeta'+Date.now()+'@example.com';
+  const betaRegister=await fetch(base+'/api/auth/register',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({name:'Private Beta Creator',email:betaEmail,password:'BetaPassword123!',role:'creator',accepted_terms:true,beta_code:'collabzy-test-beta-code-32-characters'})});
+  assert.equal(betaRegister.status,201,'valid invite should create a beta account without claiming email verification: '+await betaRegister.clone().text());
+  const betaAccount=await betaRegister.json();
+  assert.equal(betaAccount.private_beta,true);
+  assert.equal(Object.hasOwn(betaAccount.user,'private_beta_access'),false,'beta access flag must not be returned in public profile payload');
+  const betaLogin=await fetch(base+'/api/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:betaEmail,password:'BetaPassword123!'})});
+  assert.equal(betaLogin.status,200,'a private-beta account can sign in without pretending its email was verified');
+  const betaSession=await betaLogin.json();
+  const betaProfile=await fetch(base+'/api/me',{headers:{authorization:'Bearer '+betaSession.token}});
+  assert.equal(betaProfile.status,200,'private-beta account can use authenticated API routes');
+  const betaBilling=await fetch(base+'/api/billing/status',{headers:{authorization:'Bearer '+betaSession.token}});
+  assert.equal(betaBilling.status,200);
+  assert.equal((await betaBilling.json()).active,false,'private beta must not create a paid subscription');
+  const betaCheckout=await fetch(base+'/api/billing/order',{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+betaSession.token},body:JSON.stringify({plan_code:'creator_annual_299'})});
+  assert.equal(betaCheckout.status,503,'paid checkout must remain blocked without merchant keys');
 });

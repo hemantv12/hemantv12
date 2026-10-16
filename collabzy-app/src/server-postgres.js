@@ -23,7 +23,7 @@ function decryptToken(value,secret){
 }
 function publicUser(row){
   if(!row)return row;
-  const {password_hash,session_version,email_verified_at,terms_accepted_at,terms_version,instagram_user_id,instagram_access_token_enc,instagram_connected_at,instagram_token_expires_at,...user}=row;
+  const {password_hash,session_version,email_verified_at,terms_accepted_at,terms_version,private_beta_access,instagram_user_id,instagram_access_token_enc,instagram_connected_at,instagram_token_expires_at,...user}=row;
   return user;
 }
 function tokenFor(user,secret){return jwt.sign({id:String(user.id),email:user.email,role:user.role,ver:Number(user.session_version||0)},secret,{expiresIn:'7d'});}
@@ -45,6 +45,7 @@ async function start(PORT,SECRET){
   await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS session_version INTEGER NOT NULL DEFAULT 0");
   await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS terms_accepted_at TIMESTAMPTZ");
   await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS terms_version TEXT NOT NULL DEFAULT ''");
+  await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS private_beta_access BOOLEAN NOT NULL DEFAULT FALSE");
   await pool.query("CREATE TABLE IF NOT EXISTS email_action_tokens(id BIGSERIAL PRIMARY KEY,user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,token_hash TEXT NOT NULL UNIQUE,purpose TEXT NOT NULL CHECK(purpose IN('verify_email','password_reset')),expires_at TIMESTAMPTZ NOT NULL,consumed_at TIMESTAMPTZ,created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP)");
   await pool.query("CREATE INDEX IF NOT EXISTS email_action_tokens_user_idx ON email_action_tokens(user_id,purpose,created_at DESC)");
   await pool.query("CREATE TABLE IF NOT EXISTS support_requests(id BIGSERIAL PRIMARY KEY,name TEXT NOT NULL,email TEXT NOT NULL,category TEXT NOT NULL,subject TEXT NOT NULL,message TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'open',created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP)");
@@ -113,6 +114,16 @@ async function start(PORT,SECRET){
     const allowed=String(process.env.COLLABZY_BETA_ACCESS_EMAILS||'').split(',').map(x=>x.trim().toLowerCase()).filter(Boolean);
     return !!user?.email&&allowed.includes(String(user.email).trim().toLowerCase());
   };
+  // A separate secret gates invitation-only account creation. Never enable it after public launch approval.
+  const privateBetaCode=()=>String(process.env.COLLABZY_PRIVATE_BETA_CODE||'');
+  const privateBetaRegistrationEnabled=()=>!publicLaunchApproved()&&privateBetaCode().length>=24;
+  const privateBetaCodeMatches=(provided)=>{
+    const expected=privateBetaCode(),candidate=String(provided||'').trim();
+    if(!privateBetaRegistrationEnabled()||!candidate||candidate.length>256)return false;
+    const candidateDigest=crypto.createHash('sha256').update(candidate,'utf8').digest();
+    const expectedDigest=crypto.createHash('sha256').update(expected,'utf8').digest();
+    return crypto.timingSafeEqual(candidateDigest,expectedDigest);
+  };
   const registrationReady=()=>!requireEmailVerification||(publicLaunchApproved()&&emailReady()&&supportReady()&&legalIdentityReady()&&openAiReady()&&razorpayReady()&&(process.env.REQUIRE_INSTAGRAM_CONFIG!=='true'||metaReady()));
   const annualPlan={code:'creator_annual_299',amountPaise:29900,currency:'INR',durationDays:365};
   const razorpayAuthorization=()=>('Basic '+Buffer.from(process.env.RAZORPAY_KEY_ID+':'+process.env.RAZORPAY_KEY_SECRET).toString('base64'));
@@ -175,14 +186,14 @@ async function start(PORT,SECRET){
     const raw=String(q.headers.authorization||'').replace(/^Bearer\s+/i,'');
     if(!raw)return s.status(401).json({error:'Please sign in to continue.'});
     let decoded;try{decoded=jwt.verify(raw,SECRET)}catch{return s.status(401).json({error:'Session expired. Please sign in again.'})}
-    const r=await pool.query('SELECT '+PROFILE_FIELDS+', (instagram_access_token_enc<>\'\') AS instagram_connected,session_version,email_verified_at FROM users WHERE id=$1',[decoded.id]);
+    const r=await pool.query('SELECT '+PROFILE_FIELDS+', (instagram_access_token_enc<>\'\') AS instagram_connected,session_version,email_verified_at,private_beta_access FROM users WHERE id=$1',[decoded.id]);
     if(!r.rows.length)return s.status(401).json({error:'Please sign in to continue.'});
     if(Number(decoded.ver||0)!==Number(r.rows[0].session_version||0))return s.status(401).json({error:'Your session expired. Please sign in again.'});
-    if(requireEmailVerification&&!r.rows[0].email_verified_at)return s.status(403).json({error:'Please verify your email before using Collabzy.'});
+    if(requireEmailVerification&&!r.rows[0].email_verified_at&&r.rows[0].private_beta_access!==true)return s.status(403).json({error:'Please verify your email before using Collabzy.'});
     q.sessionVersion=Number(r.rows[0].session_version||0);
     q.user=publicUser(r.rows[0]);n();
   });
-  app.get('/api/health',asyncRoute(async(q,s)=>{await pool.query('SELECT 1');s.json({ok:true,app:'Collabzy',version:'2.3.0',database:'connected',mode:'postgres-persistent',integrations:{instagram:metaReady()?'configured':'setup_required',email:emailReady()?'configured':'setup_required',emailVerification:requireEmailVerification?'required':'not_enforced',aiAnalytics:openAiReady()?'configured':'setup_required',payments:razorpayReady()?'configured':'setup_required',support:supportReady()&&emailReady()?'configured':'setup_required',operatorIdentity:legalIdentityReady()?'configured':'setup_required',publicLaunchApproval:publicLaunchApproved()?'approved':'required',publicRegistration:registrationReady()?'open':'setup_required'}})}));
+  app.get('/api/health',asyncRoute(async(q,s)=>{await pool.query('SELECT 1');s.json({ok:true,app:'Collabzy',version:'2.3.0',database:'connected',mode:'postgres-persistent',integrations:{instagram:metaReady()?'configured':'setup_required',email:emailReady()?'configured':'setup_required',emailVerification:requireEmailVerification?'required':'not_enforced',aiAnalytics:openAiReady()?'configured':'setup_required',payments:razorpayReady()?'configured':'setup_required',support:supportReady()&&emailReady()?'configured':'setup_required',operatorIdentity:legalIdentityReady()?'configured':'setup_required',publicLaunchApproval:publicLaunchApproved()?'approved':'required',publicRegistration:registrationReady()?'open':'setup_required',privateBetaRegistration:privateBetaRegistrationEnabled()?'invite_only':'disabled'}})}));
   app.get('/api/public-config',(q,s)=>s.json({operatorName:process.env.OPERATOR_LEGAL_NAME||'',jurisdiction:process.env.OPERATOR_JURISDICTION||'',supportEmail:process.env.SUPPORT_EMAIL||'',supportReady:supportReady()&&emailReady(),aiAnalyticsReady:openAiReady(),paymentsReady:razorpayReady(),annualPlan:{code:'creator_annual_299',amount:299,currency:'INR',durationDays:365}}));
   app.post('/api/auth/register',asyncRoute(async(q,s)=>{
     const name=String(q.body?.name||'').trim(),email=validEmail(q.body?.email),password=String(q.body?.password||''),role=q.body?.role||'creator';
@@ -191,24 +202,28 @@ async function start(PORT,SECRET){
     if(password.length<8||password.length>200)return s.status(400).json({error:'Password must contain 8 to 200 characters.'});
     if(!['creator','brand'].includes(role))return s.status(400).json({error:'Choose creator or brand.'});
     if(process.env.NODE_ENV==='production'&&q.body?.accepted_terms!==true)return s.status(400).json({error:'Please accept the Terms of Use and Privacy Notice.'});
-    if(!registrationReady())return s.status(503).json({error:'Account creation is paused until email verification, operator/legal contact details, a monitored support mailbox, and required Meta integration are configured.'});
+    const suppliedBetaCode=String(q.body?.beta_code||'').trim();
+    const privateBeta=privateBetaCodeMatches(suppliedBetaCode);
+    if(suppliedBetaCode&&!privateBeta)return s.status(403).json({error:'That private beta access code is invalid or no longer active.'});
+    if(!registrationReady()&&!privateBeta)return s.status(503).json({error:privateBetaRegistrationEnabled()?'Account creation is invite-only during private beta. Enter the valid private beta access code.':'Account creation is paused until required production integrations are configured.'});
     const hash=await bcrypt.hash(password,12);
     try{
       const acceptedAt=q.body?.accepted_terms===true?new Date():null;
-      const r=await pool.query('INSERT INTO users(name,email,password_hash,role,email_verified_at,terms_accepted_at,terms_version) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING '+PROFILE_FIELDS,[name,email,hash,role,requireEmailVerification?null:new Date(),acceptedAt,acceptedAt?'2026-10-15':'']);
+      const emailVerifiedAt=requireEmailVerification&&!privateBeta?null:new Date();
+      const r=await pool.query('INSERT INTO users(name,email,password_hash,role,email_verified_at,terms_accepted_at,terms_version,private_beta_access) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING '+PROFILE_FIELDS+',private_beta_access',[name,email,hash,role,emailVerifiedAt,acceptedAt,acceptedAt?'2026-10-15':'',privateBeta]);
       const u=r.rows[0];
-      if(requireEmailVerification){
+      if(requireEmailVerification&&!privateBeta){
         try{await createEmailAction(u.id,email,'verify_email')}
         catch(error){console.error('Verification email delivery failed:',error.message);return s.status(503).json({error:'Your account was created but verification email delivery failed. Use Resend verification from the sign-in screen after email service is restored.'})}
         return s.status(201).json({requires_email_verification:true,message:'Check your email for a verification link before signing in.'});
       }
-      s.status(201).json({token:tokenFor(u,SECRET),user:publicUser(u)});
+      s.status(201).json({token:tokenFor(u,SECRET),user:publicUser(u),private_beta:privateBeta,message:privateBeta?'Private beta access enabled. Your email is not marked as verified and no paid subscription was created.':undefined});
     }catch(e){if(e.code==='23505')return s.status(409).json({error:'Email already registered.'});throw e}
   }));
   app.post('/api/auth/login',asyncRoute(async(q,s)=>{
     const email=validEmail(q.body?.email),r=await pool.query('SELECT * FROM users WHERE email=$1',[email]);
     if(!r.rows.length||!(await bcrypt.compare(String(q.body?.password||''),r.rows[0].password_hash)))return s.status(401).json({error:'Email or password is incorrect.'});
-    if(requireEmailVerification&&!r.rows[0].email_verified_at)return s.status(403).json({error:'Please verify your email before signing in. Use Resend verification if you need a new link.'});
+    if(requireEmailVerification&&!r.rows[0].email_verified_at&&r.rows[0].private_beta_access!==true)return s.status(403).json({error:'Please verify your email before signing in. Use Resend verification if you need a new link.'});
     const u=publicUser(r.rows[0]);s.json({token:tokenFor(r.rows[0],SECRET),user:u});
   }));
   app.post('/api/auth/verify-email',asyncRoute(async(q,s)=>{

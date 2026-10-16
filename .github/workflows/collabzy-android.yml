@@ -62,20 +62,20 @@ jobs:
           mkdir -p android/app/src/main/res/drawable android/app/src/main/res/values
           cat > android/app/src/main/res/values/collabzy_launcher_colors.xml <<'EOF'
           <resources>
-            <color name="collabzy_launcher_background">#17132E</color>
+            <color name="collabzy_launcher_background">#201633</color>
           </resources>
           EOF
           cat > android/app/src/main/res/drawable/collabzy_launcher_foreground.xml <<'EOF'
           <vector xmlns:android="http://schemas.android.com/apk/res/android"
               android:width="108dp" android:height="108dp"
               android:viewportWidth="108" android:viewportHeight="108">
-            <path android:fillColor="#00000000" android:strokeColor="#B9AAFF"
+            <path android:fillColor="#00000000" android:strokeColor="#73EAD4"
                 android:strokeWidth="8" android:strokeLineCap="round" android:strokeLineJoin="round"
                 android:pathData="M46,31 L39,31 C26,31 18,41 18,54 C18,67 27,77 40,77 L46,77" />
             <path android:fillColor="#00000000" android:strokeColor="#FFFFFF"
                 android:strokeWidth="8" android:strokeLineCap="round" android:strokeLineJoin="round"
                 android:pathData="M62,31 L69,31 C82,31 90,41 90,54 C90,67 81,77 68,77 L62,77" />
-            <path android:fillColor="#B9AAFF" android:pathData="M35,50 L73,50 L73,58 L35,58 Z" />
+            <path android:fillColor="#73EAD4" android:pathData="M35,50 L73,50 L73,58 L35,58 Z" />
           </vector>
           EOF
           cat > android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml <<'EOF'
