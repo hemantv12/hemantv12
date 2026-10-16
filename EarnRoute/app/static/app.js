@@ -142,8 +142,8 @@ function buildNavigation() {
 }
 function setLanguageButton() {
   $('#lang-btn').textContent = t('language');
-  $('[data-er-language-toggle]').forEach(el => { el.textContent = t('language'); });
-  $('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
+  document.querySelectorAll('[data-er-language-toggle]').forEach(el => { el.textContent = t('language'); });
+  document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = t(el.dataset.i18n); });
   document.documentElement.lang = selectedLanguage === 'hi' ? 'hi-IN' : 'en-IN';
   applyEarnRouteLocale(document.body);
 }
