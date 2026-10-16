@@ -34,6 +34,10 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Sync frontend into Android assets
+        working-directory: EarnRoute/android
+        run: ./sync-assets.sh
+
       - name: Run backend tests and checks
         working-directory: EarnRoute
         run: |
@@ -61,10 +65,6 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '9.8.1'
-
-      - name: Sync frontend into Android assets
-        working-directory: EarnRoute/android
-        run: ./sync-assets.sh
 
       - name: Build installable debug APK
         working-directory: EarnRoute/android
