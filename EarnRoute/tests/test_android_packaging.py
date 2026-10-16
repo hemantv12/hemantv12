@@ -87,3 +87,27 @@ def test_nearby_live_map_and_workplace_pin_picker_are_present():
     assert ".er-live-map-card" in nearby_css
     assert '"latitude": job.latitude, "longitude": job.longitude' in main
     assert "Interactive nearby shift map" in nearby_js
+
+
+def test_saved_shifts_discovery_sorting_and_india_safety_are_wired():
+    main = (ROOT / "app/main.py").read_text()
+    app_js = (ROOT / "app/static/app.js").read_text()
+    nearby_js = (ROOT / "app/static/nearby.js").read_text()
+    nearby_css = (ROOT / "app/static/nearby.css").read_text()
+    migration = (ROOT / "migrations/versions/71dca93e5a21_add_saved_shifts.py").read_text()
+    assert "class SavedShift(Base)" in main
+    assert '@app.get("/api/worker/saved-shifts")' in main
+    assert '@app.post("/api/jobs/{job_id}/save")' in main
+    assert '@app.delete("/api/jobs/{job_id}/save")' in main
+    assert "uq_saved_shift_worker_job" in main
+    assert "case 'saved-shifts': html = await renderSavedShifts()" in app_js
+    assert "renderSavedShifts = async function()" in nearby_js
+    assert "data-er-save-shift" in nearby_js
+    assert "Highest estimated take-home" in nearby_js
+    assert "Most open spots" in nearby_js
+    assert "href=\"tel:112\"" in nearby_js
+    assert "href=\"tel:1930\"" in nearby_js
+    assert "https://www.ncs.gov.in/" in nearby_js
+    assert "prefers-reduced-motion:reduce" in nearby_css
+    assert 'down_revision = "e3b90a71c6d2"' in migration
+    assert "saved_shifts" in migration
