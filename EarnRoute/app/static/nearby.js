@@ -87,6 +87,9 @@ function erNearbyCard(job) {
   const distance = Number.isFinite(dist) ? (dist < 0.1 ? 'Under 100 m' : dist.toFixed(1) + ' km away') : 'Nearby';
   const slots = Math.max(0, Number(job.slots || 0) - Number(job.positions_filled || 0));
   const mismatch = job.match && job.match.eligible === false;
+  const mapQuery = encodeURIComponent([job.address, job.city].filter(Boolean).join(', '));
+  const mapsLink = mapQuery ? '<a class="er-map-link" href="https://www.google.com/maps/search/?api=1&amp;query=' + mapQuery +
+    '" target="_blank" rel="noopener noreferrer">Open workplace in Maps ↗</a>' : '';
   return '<article class="er-job-card">' +
     '<div class="er-job-card-top"><span class="er-job-icon">' + erCategoryIcon(job.category) + '</span><span class="er-distance-pill">⌖ ' + escapeHtml(distance) + '</span></div>' +
     '<div class="er-job-title-wrap"><div><h3>' + escapeHtml(job.title) + '</h3><p>' + escapeHtml(job.business_name || 'Local business') +
@@ -97,7 +100,7 @@ function erNearbyCard(job) {
     (mismatch ? '<p class="er-match-note">Review your skills and availability before applying.</p>' : '') +
     '<div class="er-job-action-row"><button type="button" class="btn btn-primary er-apply" data-apply-job="' + job.id + '" ' + (mismatch ? 'disabled' : '') + '>' + (mismatch ? 'Profile needed' : 'Apply now') + ' <span>→</span></button>' +
     '<details class="er-job-details"><summary>Details</summary><p>' + escapeHtml(job.description || '') + '</p>' +
-    (job.address ? '<p><b>Workplace:</b> ' + escapeHtml(job.address) + '</p>' : '') +
+    (job.address ? '<p><b>Workplace:</b> ' + escapeHtml(job.address) + '</p>' : '') + mapsLink +
     (job.requirements && job.requirements.length ? '<p><b>Skills:</b> ' + escapeHtml(job.requirements.join(', ')) + '</p>' : '') +
     '<p><b>Apply by:</b> ' + escapeHtml(formatDate(job.application_deadline)) + '</p><p><b>Payment:</b> ' + escapeHtml(job.payment_terms || 'Confirm terms before accepting.') + '</p>' +
     '<small>Distance is straight-line GPS distance, not driving distance or ETA. Take-home pay is an estimate, not payment confirmation.</small></details></div></article>';
