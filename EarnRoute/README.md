@@ -191,3 +191,17 @@ The numbered 44-item setup and readiness checklist is in OWNER-SETUP-44.md. On t
 Optional Sentry error reporting activates only when SENTRY_DSN is set in Render's secret environment. Never commit live credentials. The signed-release workflow requires the owner's Android keystore in GitHub Actions Secrets; a debug APK is not a Play Store release.
 
 The backup-container implementation exports a PostgreSQL custom-format dump, encrypts it with AES-256, uploads to a private bucket, downloads and decrypts the uploaded copy, and verifies it with pg_restore before reporting success. A private Neon bucket and baseline snapshot are ready, but the recurring Render Cron Job is not active yet because production database/storage secrets must be added through the owner's Render secret store. Do not assume scheduled backups are running until the first verified backup is recorded. The bucket is in the same Neon project and region; configure a second-provider copy before treating this as disaster-proof off-site backup.
+
+
+## Daily encrypted PostgreSQL backup
+
+The scheduled workflow is `.github/workflows/earnroute-backup.yml`. It is configured to run daily at 20:30 UTC (02:00 Asia/Kolkata), or manually from GitHub Actions. It builds the backup container, makes a PostgreSQL custom-format dump, encrypts with GPG/AES-256, uploads to the private `earnroute-backups` Neon Storage bucket, downloads the object again, and verifies the decrypted dump/checksum before reporting success. It retains 14 days of backups.
+
+**The schedule will fail until the four owner-managed GitHub Actions secrets below are configured.** Go to GitHub repository Settings → Secrets and variables → Actions and add:
+
+- `EARNROUTE_DATABASE_URL`: SSL-enabled connection string to the Neon `earnroute` database using the database role that can read all application tables.
+- `NEON_STORAGE_ACCESS_KEY_ID`: token ID from a new Neon Storage credential scoped to the production branch with `storage:read` and `storage:write`.
+- `NEON_STORAGE_SECRET_ACCESS_KEY`: secret for that same credential (copy it at creation time; do not commit or send it in chat).
+- `EARNROUTE_BACKUP_PASSPHRASE`: independently generated secret of at least 32 characters, stored in the owner's password manager. This key is needed to decrypt every backup made with it; keep an offline recovery copy.
+
+The workflow uses the existing Neon Storage endpoint in `ap-southeast-1`; credentials and the encryption passphrase are not stored in source. After adding the secrets, run `EarnRoute encrypted PostgreSQL backup` manually once in Actions and confirm the log ends with successful upload/download/archive verification before relying on the daily schedule. This is an off-site copy only within the same Neon provider and region, so a second-provider copy is still recommended for disaster recovery. A manual baseline snapshot already exists; automatic Neon snapshot scheduling is not enabled for this project.
