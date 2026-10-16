@@ -85,7 +85,7 @@ Do not commit the keystore. Keep an encrypted offline backup; losing the key can
 
 ## Scheduled backup configuration
 
-The planned backup worker runs daily at 20:30 UTC (02:00 Asia/Kolkata). It uses PostgreSQL custom-format dumps, GPG/AES-256 encryption, a private storage bucket, verifies the downloaded copy with pg_restore --list, and prunes old objects under its dedicated prefix. Retention is 14 days, and at least the newest backup is kept. The encryption passphrase must stay outside the bucket and be recorded securely by the owner.
+The intended schedule is daily at 20:30 UTC (02:00 Asia/Kolkata), but the Render Cron Job is not active yet. It uses PostgreSQL custom-format dumps, GPG/AES-256 encryption, a private storage bucket, verifies the downloaded copy with pg_restore --list, and prunes old objects under its dedicated prefix. Retention is 14 days, and at least the newest backup is kept. The encryption passphrase must stay outside the bucket and be recorded securely by the owner.
 
 This bucket is in the same Neon project and region; configure a second-provider copy before treating this as disaster-proof off-site backup. Verify successful scheduled execution in Render logs and rehearse restore to a non-production database.
 
