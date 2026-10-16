@@ -31,9 +31,14 @@ jobs:
         language: ['python', 'javascript-typescript', 'actions']
     steps:
       - name: Checkout EarnRoute production source
+        id: source
         uses: actions/checkout@v4
         with:
           ref: earnroute-production
+      - name: Capture analyzed commit
+        id: analyzed
+        shell: bash
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
         with:
@@ -41,6 +46,9 @@ jobs:
           queries: security-extended,security-and-quality
       - name: Perform CodeQL analysis
         uses: github/codeql-action/analyze@v3
+        with:
+          ref: refs/heads/earnroute-production
+          sha: ${{ steps.analyzed.outputs.sha }}
 
   python-dependency-audit:
     name: Python dependency vulnerability audit
