@@ -4,6 +4,10 @@ import android.app.Activity;
 import android.os.Bundle;
 import android.graphics.Color;
 import android.graphics.Typeface;
+import android.graphics.Canvas;
+import android.graphics.Paint;
+import android.graphics.RectF;
+import android.graphics.pdf.PdfDocument;
 import android.graphics.drawable.GradientDrawable;
 import android.content.Context;
 import android.content.SharedPreferences;
@@ -60,6 +64,8 @@ public final class MainActivity extends Activity {
     private String aiTool = "";
     private JSONObject user = new JSONObject();
     private ProgressBar progress;
+    private static final int MEDIA_KIT_CREATE_REQUEST = 4207;
+    private byte[] pendingMediaKitPdf;
     private JSONObject dashboardStats = new JSONObject();
     private boolean dashboardLoaded = false;
     private boolean dashboardRequestStarted = false;
@@ -131,6 +137,26 @@ public final class MainActivity extends Activity {
             toast("Instagram connection was cancelled.");
         } else {
             toast("Instagram could not be connected. Check Meta app setup and try again.");
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != MEDIA_KIT_CREATE_REQUEST) return;
+        byte[] content = pendingMediaKitPdf;
+        pendingMediaKitPdf = null;
+        if (resultCode != RESULT_OK || data == null || data.getData() == null || content == null) {
+            toast("Media kit export was cancelled.");
+            return;
+        }
+        try (OutputStream stream = getContentResolver().openOutputStream(data.getData())) {
+            if (stream == null) throw new IOException("Could not open the selected destination.");
+            stream.write(content);
+            stream.flush();
+            toast("Creator media kit PDF saved.");
+        } catch (Exception error) {
+            toast("Could not save the media kit. Please choose another location.");
         }
     }
 
@@ -2028,6 +2054,10 @@ public final class MainActivity extends Activity {
         });
         content.addView(panel);
         gap(content, 16);
+        if ("creator".equals(user.optString("role", "creator"))) {
+            addQuickAction("▣", "Download creator media kit", "Generate a shareable PDF profile for brand partnerships", () -> downloadMediaKit());
+            gap(content, 10);
+        }
         addQuickAction("✧", "AI Studio", "Create content, pitches and campaign briefs", () -> showShell("ai"));
         gap(content, 10);
         addQuickAction("▤", "My applications", "Review application statuses", () -> showShell("applications"));
@@ -2053,6 +2083,129 @@ public final class MainActivity extends Activity {
                 storage.edit().remove("token").apply();
                 showWelcome();
             }).show());
+    }
+
+    private void downloadMediaKit() {
+        if (!"creator".equals(user.optString("role", "creator"))) {
+            toast("Media kits are available to creator accounts.");
+            return;
+        }
+        PdfDocument pdf = new PdfDocument();
+        try {
+            PdfDocument.PageInfo info = new PdfDocument.PageInfo.Builder(595, 842, 1).create();
+            PdfDocument.Page page = pdf.startPage(info);
+            Canvas canvas = page.getCanvas();
+            Paint background = new Paint(Paint.ANTI_ALIAS_FLAG);
+            background.setColor(Color.rgb(245, 242, 255));
+            canvas.drawColor(background.getColor());
+            Paint sheet = new Paint(Paint.ANTI_ALIAS_FLAG);
+            sheet.setColor(Color.WHITE);
+            canvas.drawRoundRect(new RectF(22, 22, 573, 820), 25, 25, sheet);
+
+            Paint tag = pdfPaint(Color.rgb(112, 86, 232), 10, true);
+            Paint namePaint = pdfPaint(Color.rgb(35, 27, 58), 31, true);
+            Paint body = pdfPaint(Color.rgb(67, 65, 88), 12, false);
+            Paint muted = pdfPaint(Color.rgb(119, 116, 138), 10, false);
+            Paint labelPaint = pdfPaint(Color.rgb(112, 86, 232), 12, true);
+            Paint statPaint = pdfPaint(Color.rgb(35, 27, 58), 20, true);
+            Paint cardPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            cardPaint.setColor(Color.rgb(250, 249, 255));
+            cardPaint.setStyle(Paint.Style.FILL);
+
+            canvas.drawText("COLLABZY  ·  CREATOR MEDIA KIT", 45, 63, tag);
+            canvas.drawRoundRect(new RectF(45, 82, 103, 140), 17, 17, cardPaint);
+            Paint avatarPaint = pdfPaint(Color.rgb(33, 25, 64), 24, true);
+            String fullName = user.optString("name", "Creator").trim();
+            if (fullName.isEmpty()) fullName = "Creator";
+            String initial = fullName.substring(0, 1).toUpperCase(Locale.ROOT);
+            canvas.drawText(initial, 64, 119, avatarPaint);
+
+            float nameY = 177;
+            canvas.drawText(pdfSafe(fullName, 42), 45, nameY, namePaint);
+            String niche = user.optString("niche", "Creator");
+            String location = user.optString("location", "");
+            canvas.drawText(pdfSafe(niche + (location.isEmpty() ? "" : "  ·  " + location), 90), 45, 202, muted);
+
+            String followers = String.format(Locale.US, "%,d", user.optLong("followers", 0));
+            String engagement = String.format(Locale.US, "%.1f%%", user.optDouble("engagement", 0));
+            boolean linked = !user.optString("instagram_handle", "").trim().isEmpty()
+                && user.optBoolean("instagram_connected", false);
+            String status = linked ? "Linked" : "Profile";
+            String[] statValues = new String[]{followers, engagement, status};
+            String[] statLabels = new String[]{"FOLLOWERS", "ENGAGEMENT", "INSTAGRAM"};
+            int[] xs = new int[]{45, 222, 399};
+            for (int i = 0; i < 3; i++) {
+                canvas.drawRoundRect(new RectF(xs[i], 224, xs[i] + 151, 300), 14, 14, cardPaint);
+                canvas.drawText(statValues[i], xs[i] + 13, 256, statPaint);
+                canvas.drawText(statLabels[i], xs[i] + 13, 281, muted);
+            }
+
+            canvas.drawText("ABOUT", 45, 338, labelPaint);
+            String bio = user.optString("bio", "").trim();
+            if (bio.isEmpty()) bio = "Add a creator bio in your Collabzy profile to tell brands about your style, audience and work.";
+            float afterBio = drawWrappedText(canvas, pdfSafe(bio, 650), body, 45, 362, 500, 18);
+            float instaY = Math.max(500, afterBio + 28);
+            canvas.drawText("INSTAGRAM", 45, instaY, labelPaint);
+            String handle = user.optString("instagram_handle", "").trim();
+            if (!handle.isEmpty() && !handle.startsWith("@")) handle = "@" + handle;
+            canvas.drawText(pdfSafe(handle.isEmpty() ? "Add your handle in Profile" : handle, 100), 45, instaY + 24, body);
+            canvas.drawText(linked ? "Account connected via Meta authorization" : "Instagram account not yet verified as connected", 45, instaY + 44, muted);
+
+            Paint divider = new Paint(Paint.ANTI_ALIAS_FLAG);
+            divider.setColor(Color.rgb(238, 236, 244));
+            canvas.drawRect(45, 770, 550, 771, divider);
+            canvas.drawText("Prepared with Collabzy · Verify all profile details before sharing with brands.", 45, 792, muted);
+            pdf.finishPage(page);
+            ByteArrayOutputStream output = new ByteArrayOutputStream();
+            pdf.writeTo(output);
+            pendingMediaKitPdf = output.toByteArray();
+            String safeName = fullName.replaceAll("[^A-Za-z0-9_-]+", "_");
+            Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+            intent.addCategory(Intent.CATEGORY_OPENABLE);
+            intent.setType("application/pdf");
+            intent.putExtra(Intent.EXTRA_TITLE, (safeName.isEmpty() ? "Creator" : safeName) + "-Collabzy-Media-Kit.pdf");
+            startActivityForResult(intent, MEDIA_KIT_CREATE_REQUEST);
+        } catch (Exception error) {
+            pendingMediaKitPdf = null;
+            toast("Could not create the media kit PDF. Please try again.");
+        } finally {
+            pdf.close();
+        }
+    }
+
+    private Paint pdfPaint(int color, float size, boolean bold) {
+        Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        p.setColor(color);
+        p.setTextSize(size);
+        p.setTypeface(Typeface.create("sans-serif", bold ? Typeface.BOLD : Typeface.NORMAL));
+        return p;
+    }
+
+    private String pdfSafe(String value, int maxLength) {
+        String cleaned = String.valueOf(value == null ? "" : value).replaceAll("[\\r\\n\\t]+", " ").trim();
+        return cleaned.length() > maxLength ? cleaned.substring(0, maxLength - 1) + "…" : cleaned;
+    }
+
+    private float drawWrappedText(Canvas canvas, String value, Paint paint, float x, float y, float maxWidth, float lineHeight) {
+        String[] words = String.valueOf(value).split("\\s+");
+        StringBuilder line = new StringBuilder();
+        for (String word : words) {
+            String candidate = line.length() == 0 ? word : line + " " + word;
+            if (line.length() > 0 && paint.measureText(candidate) > maxWidth) {
+                canvas.drawText(line.toString(), x, y, paint);
+                y += lineHeight;
+                line.setLength(0);
+                line.append(word);
+            } else {
+                if (line.length() > 0) line.append(' ');
+                line.append(word);
+            }
+        }
+        if (line.length() > 0) {
+            canvas.drawText(line.toString(), x, y, paint);
+            y += lineHeight;
+        }
+        return y;
     }
 
     private void showPasswordDialog() {
