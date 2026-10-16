@@ -433,6 +433,13 @@ def test_worker_profile_accepts_more_radius_presets(client, register_worker):
         assert response.status_code == 200, response.text
         assert response.json()["user"]["profile"]["travel_radius_km"] == radius
 
+    invalid = client.patch(
+        "/api/worker/profile",
+        headers=headers,
+        json={**payload, "travel_radius_km": 2},
+    )
+    assert invalid.status_code == 422
+
 
 def test_published_job_requires_workplace_pin(client, register_business, create_admin):
     business, business_headers = register_business()
