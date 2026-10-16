@@ -733,7 +733,10 @@ def serialize_job(db: Session, job: Job, worker_profile: WorkerProfile | None = 
         "business_verified": bool(business_profile and business_profile.verification_status == "verified"),
         "business_rating": business_rating, "business_review_count": business_review_count,
         "title": job.title, "description": job.description, "category": job.category, "city": job.city,
-        "address": job.address, "has_workplace_pin": job.latitude is not None and job.longitude is not None, "slots": job.slots, "positions_filled": filled,
+        "address": job.address, "has_workplace_pin": job.latitude is not None and job.longitude is not None,
+        # Workplace pins are public listing data by design; worker GPS is never serialized or stored.
+        "latitude": job.latitude, "longitude": job.longitude,
+        "slots": job.slots, "positions_filled": filled,
         "start_at": as_utc(job.start_at).isoformat(), "end_at": as_utc(job.end_at).isoformat(),
         "duration_hours": round((as_utc(job.end_at) - as_utc(job.start_at)).total_seconds() / 3600, 2),
         "pay_amount": job.pay_amount, "pay_basis": job.pay_basis, "payment_terms": job.payment_terms,
