@@ -1552,7 +1552,17 @@ public final class MainActivity extends Activity {
                     .setNegativeButton("Cancel", (d, w) -> d.dismiss())
                     .setPositiveButton("Disconnect", (d, w) -> api("POST", "/api/instagram/disconnect", json("confirm", "true"), (res, problem) -> {
                         if (problem != null) toast(problem);
-                        else { user = json("instagram_handle", ""); dashboardLoaded = false; toast("Instagram disconnected."); showShell("instagram"); }
+                        else {
+                            dashboardLoaded = false;
+                            toast("Instagram disconnected.");
+                            api("GET", "/api/me", null, (profileData, profileError) -> {
+                                if (profileError == null && profileData != null) {
+                                    JSONObject refreshedUser = profileData.optJSONObject("user");
+                                    if (refreshedUser != null) user = refreshedUser;
+                                }
+                                showShell("instagram");
+                            });
+                        }
                     })).show());
             }
         });

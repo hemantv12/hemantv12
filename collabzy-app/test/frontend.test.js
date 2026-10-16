@@ -54,3 +54,25 @@ test('Capacitor Android uses an app-first welcome screen and mobile tab navigati
  assert.match(html,/env\(safe-area-inset-bottom\)/,'bottom navigation must account for Android safe-area insets');
  assert.match(html,/function closeMoreSheet\(\)/,'the More sheet must be dismissible');
 });
+
+test('Native Android app covers core creator, brand and account workflows',()=>{
+ const native=fs.readFileSync(path.join(root,'native-android','MainActivity.java'),'utf8');
+ const workflow=fs.readFileSync(path.join(root,'..','.github','workflows','collabzy-android.yml'),'utf8');
+ const requiredScreens=[
+  'renderHome','renderExplore','renderMatches','renderInbox','renderConversation',
+  'renderSavedCampaigns','renderInvitations','renderNotifications','renderMyCampaigns',
+  'renderInstagram','renderAutoDM','renderApplications','renderProfile','renderAI',
+  'renderCreateCampaign','renderBilling','renderSupport','showPasswordDialog','exportAccountData','confirmDeleteAccount'
+ ];
+ for(const screen of requiredScreens) assert.match(native,new RegExp('private void '+screen+'\\\\('),'native screen/function '+screen+' must exist');
+ for(const endpoint of [
+  '/api/auth/register','/api/auth/login','/api/dashboard','/api/campaigns','/api/matches',
+  '/api/campaigns/','/api/applications','/api/invitations','/api/notifications','/api/conversations',
+  '/api/me/password','/api/me/export','/api/instagram/connect','/api/instagram/insights',
+  '/api/instagram/automations','/api/ai/studio','/api/billing/status','/api/support'
+ ]) assert.ok(native.includes(endpoint),'native client should use '+endpoint);
+ assert.match(native,/class MainActivity extends Activity/,'native UI should use Android views rather than a WebView Activity');
+ assert.doesNotMatch(native,/android\\.webkit\\.WebView/,'native main Activity must not embed the website in a WebView');
+ assert.match(workflow,/cp native-android\\/MainActivity\\.java android\\/app\\/src\\/main\\/java\\/com\\/collabzy\\/creator\\/MainActivity\\.java/,'APK build must install the native Activity source');
+ assert.match(workflow,/com\\.squareup\\.okhttp3:okhttp:4\\.12\\.0/,'native HTTP client dependency must be available at build time');
+});
