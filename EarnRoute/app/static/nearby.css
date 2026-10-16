@@ -553,3 +553,104 @@ html[lang^="hi"] .form-field label,html[lang^="hi"] .form-help,html[lang^="hi"] 
 .er-support-message p{font-size:11px;line-height:1.7;white-space:pre-wrap;overflow-wrap:anywhere;margin:10px 0 0}
 .er-support-status-actions{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
 .er-support-thread .form-panel{margin:12px 0 0;padding:14px}
+
+
+/* Android polish: keep the native shell clear of system bars and stop header controls wrapping. */
+html.er-native-app { --er-system-bottom-inset: 0px; }
+html.er-native-app .workspace-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 200;
+  background: #fbfcf7 !important;
+  border-bottom-color: #e3e9dc;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  justify-content: space-between;
+  gap: 7px;
+  flex-wrap: nowrap;
+}
+html.er-native-app .mobile-brand {
+  flex: 0 1 auto;
+  gap: 6px;
+  min-width: 0;
+  max-width: 52%;
+}
+html.er-native-app .mobile-brand-title {
+  font-size: clamp(13px, 3.8vw, 15px);
+  line-height: 1.15;
+  letter-spacing: -.45px;
+  white-space: nowrap;
+}
+html.er-native-app .topbar-actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-left: auto;
+}
+html.er-native-app .topbar-actions > #lang-btn,
+html.er-native-app .topbar-actions > #notifications-btn,
+html.er-native-app .topbar-actions > #profile-btn {
+  flex: 0 0 34px;
+  width: 34px;
+  min-width: 34px;
+  height: 36px;
+  min-height: 36px;
+  padding: 0;
+}
+html.er-native-app .topbar-actions > #profile-btn {
+  width: 32px;
+  flex-basis: 32px;
+  min-width: 32px;
+}
+html.er-native-app .connect-server-btn {
+  display: inline-flex !important;
+  flex: 0 0 34px;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  min-width: 34px;
+  height: 36px;
+  min-height: 36px;
+  padding: 0 !important;
+  overflow: hidden;
+  border: 1px solid #dfe7d8;
+  border-radius: 11px;
+  background: #fff;
+  color: #31583c;
+  font-size: 0 !important;
+  line-height: 1;
+  white-space: nowrap;
+}
+html.er-native-app .connect-server-btn::before {
+  content: "↔";
+  display: block;
+  font-size: 19px;
+  line-height: 1;
+}
+html.er-native-app #notifications-btn svg {
+  display: block;
+  width: 18px;
+  height: 18px;
+}
+html.er-native-app .er-mobile-nav {
+  bottom: var(--er-system-bottom-inset, 0px) !important;
+  padding: 8px 7px !important;
+}
+html.er-native-app .view-root {
+  padding-bottom: calc(105px + var(--er-system-bottom-inset, 0px)) !important;
+}
+html.er-native-app .er-nearby-empty {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 390px) {
+  html.er-native-app .workspace-topbar { padding-left: 10px; padding-right: 10px; gap: 5px; }
+  html.er-native-app .mobile-brand { gap: 5px; max-width: 50%; }
+  html.er-native-app .topbar-actions { gap: 4px; }
+  html.er-native-app .connect-server-btn,
+  html.er-native-app .topbar-actions > #lang-btn,
+  html.er-native-app .topbar-actions > #notifications-btn { flex-basis: 32px; width: 32px; min-width: 32px; }
+}
