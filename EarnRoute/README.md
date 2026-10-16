@@ -1,29 +1,30 @@
 # EarnRoute
 
-EarnRoute is an India-first, mobile-first work marketplace for finding and managing genuine short shifts. This repository is a runnable launch candidate: it includes a responsive public website, worker/business/admin workspaces, API, PostgreSQL-compatible schema, migration, tests, and deployment assets. It must **not** be represented as a fully production-verified marketplace until the remaining integrations and operating procedures in this README are completed.
+EarnRoute is an India-first, mobile-first hyperlocal earning marketplace for finding genuine paid shifts within a strict 1 km, 3 km or 5 km radius. This repository is a runnable launch candidate: it includes a responsive public website, worker/business/admin workspaces, API, PostgreSQL-compatible schema, migration, tests, and deployment assets. It must **not** be represented as a fully production-verified marketplace until the remaining integrations and operating procedures in this README are completed.
 
 ## What works in this release
 
 - Worker/business registration and login; workers confirm they are 18+ and accept terms before joining; passwords are hashed with PBKDF2-SHA256, and role permissions are enforced server-side.
 - Business profile editing and a human-reviewed verification queue; publishing is blocked until an administrator approves a profile.
 - Job drafts and publishing with shift times, city, responsibilities, skills, pay basis, payment terms, cancellation terms, breaks, equipment, and safety instructions.
+- Hyperlocal nearby discovery that requires device location and calculates real straight-line distance from a business-set workplace pin. Workers can choose 1 km, 3 km or 5 km only; results are distance-sorted and unpinned listings are excluded from nearby mode. Worker GPS stays in the browser session and is not saved to the profile.
 - Published job discovery, category/city/pay filtering, pagination, explainable match scores, required-skill and experience checks, explicit availability checks, and a schedule-conflict safety buffer.
 - Application status, business applicant review, offers, worker offer acceptance/decline, capacity checks, assignments, attendance timestamps, completion review, disputes, one review per participant after resolved completion, rating aggregates, notifications, and audit events.
 - Transparent compensation estimates: hourly rates are multiplied by shift duration; gross shift estimate, configured platform fee, and estimated net are shown separately before applying.
 - Earnings separate completed work, pending settlement, and provider-verified paid status. **No UI action can mark a payout paid.**
 - Admin overview, business verification, job moderation, dispute review, audit history, and operational metrics based on recorded database activity.
-- Responsive light UI, English/Hindi language toggle, PWA manifest/service worker, public terms/privacy/fair-work pages, and security headers.
-- SQLAlchemy schema with a four-revision Alembic migration chain, `.env.example`, Dockerfile, founder-admin provisioning script, and automated API tests.
+- Responsive hyperlocal-first UI with forest-green/ivory/electric-lime palette, clear distance/pay cards, one-tap 1/3/5 km radius controls, category chips, mobile bottom navigation, English/Hindi language toggle, PWA support, public terms/privacy/fair-work pages, and security headers.
+- SQLAlchemy schema with a five-revision Alembic migration chain, `.env.example`, Dockerfile, founder-admin provisioning script, and automated API tests.
 
 ## Important limitations before public launch
 
-This codebase has not been deployed or independently security-reviewed. No external workspace was modified. It is not yet a complete labour/payment compliance implementation.
+The API and PostgreSQL database have a live HTTPS deployment and a successful health/database smoke check. The app has not been independently security-reviewed or fully tested on physical devices. It is not yet a complete labour/payment compliance implementation.
 
 - **Payment and payouts:** a Razorpay webhook endpoint verifies signatures and stores event IDs idempotently when configured, but it does not yet map provider settlement/payout events to assignments. Real checkout, marketplace settlement, refunds, payout orchestration, reconciliation, and production account approval are not connected. No payment is simulated or labelled paid. Do not accept real money or promise payouts until a supported provider flow is implemented, tested, and approved for the intended marketplace model.
 - **Email/OTP:** email/phone verification, password-reset delivery, email notifications, SMS and WhatsApp are not configured. The UI currently uses password-based login. Do not describe accounts as email-verified just because a signup succeeded.
 - **Business/worker verification:** admin review is a workflow only. Secure document upload, an external identity/business verification provider, background checks, and evidence-retention rules are not integrated. A platform status is not a government endorsement or a guarantee of safety.
 - **Attendance:** check-in/check-out timestamps are recorded, but workplace-issued OTP/QR scans, geofence verification, supervisor signatures, and evidence-file storage are not integrated. Use an established workplace verification process in addition to timestamps.
-- **Maps and travel:** no geocoding/distance matrix is configured. The travel radius is a saved preference, not a reliable distance filter yet. Cross-city assignments are conservatively flagged when travel information is missing; this is not real-time routing.
+- **Nearby location:** hyperlocal filtering is implemented from device GPS and the actual workplace pin. No paid maps, geocoding, traffic, or travel-time matrix is configured. Distance is straight-line kilometre distance, not road distance or ETA. A business must set the pin at the physical workplace before publishing; old jobs without a pin stay hidden from nearby mode until updated.
 - **Messaging, recurring shifts, subscriptions, worker payout orchestration, file evidence, account deletion workflow, and referral features:** these are not fully implemented in this release. Completed assignments support participant ratings and comments; payout provider settlement is still not integrated.
 - **Operations:** the login rate limiter is process-local; configure a shared rate limiter/API gateway before multi-instance scaling. Add central logs, alerting, backup restore drills, retention jobs, and support contact details. `support@earnroute.example` is a placeholder.
 - **Legal/marketplace operations:** obtain appropriate professional guidance for worker classification, applicable labour rules, consumer/privacy policies, taxes/invoicing, dispute and cancellation rules, and payment-provider eligibility. This README makes no legal-compliance claim.
@@ -149,6 +150,13 @@ Use your production Postgres provider's SSL requirements and credentials. Do not
 8. Deploy. Verify `/api/health`, registration, roles, job posting/discovery, assignment lifecycle, and provider sandbox events on the deployed host.
 9. Only announce “live” once the public URL and its critical paths have been manually verified.
 
+## Hyperlocal release behaviour
+
+- Worker home opens to a local feed and offers 1 km, 3 km and 5 km radius controls. Nearby mode only returns jobs with a saved workplace pin within that radius.
+- Worker location is stored in a short-lived browser session entry only and expires after 30 minutes; it is not sent to the worker profile.
+- Businesses must set an accurate pin at the actual work location to publish. They can add pins to old jobs from job management. Distances shown are straight-line distances.
+- Estimated take-home is an estimate based on the configured platform fee, not a guarantee or payment confirmation.
+
 ## Known behavior to keep honest
 
 - An assignment marked `completed` creates a **pending settlement**, not a paid transaction.
@@ -160,7 +168,7 @@ Use your production Postgres provider's SSL requirements and credentials. Do not
 
 The `android/` directory contains an Android Studio project bundling the responsive frontend with a secure `WebViewAssetLoader`, EarnRoute launcher icon, native **Connect server** setting and HTTPS `/api/health` verification before a server URL is saved. The Android page calls the deployed API over HTTPS; no fake server is hardcoded. See [`android/BUILD_APK.md`](android/BUILD_APK.md).
 
-The current container does not include Android SDK/Gradle/DEX/signing tools and outbound DNS to Google/Maven build hosts is unavailable, so a compiled APK binary cannot be produced in this environment. Do not rename the source ZIP or any other file to `.apk`; build the Android project with Android Studio/SDK. The Android client defaults to the configured EarnRoute API URL and keeps a server-settings option for overrides. The project targets Android API 36 for current Play submission requirements; API 36 is used to compile.
+The Android wrapper now requests native fine/coarse location permission for nearby search, defaults to the deployed HTTPS API, and bundles the updated local-earning interface. A cloud build workflow compiles and uploads the debug APK from checked-in source; see GitHub Actions for the latest result. The app compiles against Android API 36. The debug APK is for beta/device testing and is not a Play Store production-signed release.
 
 ## Start EarnRoute on a Mac with one double-click
 
