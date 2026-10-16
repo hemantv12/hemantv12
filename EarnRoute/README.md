@@ -2,7 +2,7 @@
 
 EarnRoute is an India-first, mobile-first hyperlocal earning marketplace for finding genuine paid shifts within a selectable 1 km, 3 km or 5 km radius, plus expanded 8 km, 10 km and 15 km options. This repository is a runnable launch candidate: it includes a responsive public website, worker/business/admin workspaces, API, PostgreSQL-compatible schema, migration, tests, and deployment assets. It must **not** be represented as a fully production-verified marketplace until the remaining integrations and operating procedures in this README are completed.
 
-## Version 1.4.0 — mobile fit, language and sharing
+## Version 1.4.0 — mobile fit, language, sharing and live maps
 
 - App-first welcome and workspace layouts have narrower-device constraints, Devanagari font/line-height treatment, safe-area handling, wrapping controls, and horizontal overflow prevention.
 - English/Hindi preference is persisted locally. The UI localization pass covers the welcome screen, role navigation, forms, dynamic labels, job statuses, common prompts, and notifications. Device/browser rendering still needs physical-device QA to catch any remaining string or font differences.
@@ -11,10 +11,13 @@ EarnRoute is an India-first, mobile-first hyperlocal earning marketplace for fin
 
 ## What works in this release
 
+**Map availability note:** The map needs an internet connection to load Leaflet and OpenStreetMap tiles. OpenStreetMap attribution is shown in the map. If the interactive map provider cannot load, the app keeps the job list available and offers an external OpenStreetMap link. A workplace pin is public with a published shift; worker GPS remains temporary and device-local.
+
 - Worker/business registration and login; workers confirm they are 18+ and accept terms before joining; passwords are hashed with PBKDF2-SHA256, and role permissions are enforced server-side.
 - Business profile editing and a human-reviewed verification queue; publishing is blocked until an administrator approves a profile.
 - Job drafts and publishing with shift times, city, responsibilities, skills, pay basis, payment terms, cancellation terms, breaks, equipment, and safety instructions.
 - Hyperlocal nearby discovery that requires device location and calculates real straight-line distance from a business-set workplace pin. Workers can choose 1 km, 3 km or 5 km, then expand More to 8 km, 10 km or 15 km; results are distance-sorted and unpinned listings are excluded from nearby mode. Worker GPS stays in the browser session and is not saved to the profile.
+- Interactive nearby map built on Leaflet and OpenStreetMap tiles: shows the temporary worker location, selected-radius circle, and markers for published workplace pins returned by the nearby API. Marker popups include shift/pay summaries, a jump to the matching shift card, and external directions. Business shift posting also offers tap-to-place workplace coordinates with an optional device-location shortcut.
 - Published job discovery, category/city/pay filtering, pagination, explainable match scores, required-skill and experience checks, explicit availability checks, and a schedule-conflict safety buffer.
 - Application status, business applicant review, offers, worker offer acceptance/decline, capacity checks, assignments, attendance timestamps, completion review, disputes, one review per participant after resolved completion, rating aggregates, notifications, and audit events.
 - Transparent compensation estimates: hourly rates are multiplied by shift duration; gross shift estimate, configured platform fee, and estimated net are shown separately before applying.
