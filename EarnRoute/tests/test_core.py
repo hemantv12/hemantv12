@@ -417,6 +417,23 @@ def test_nearby_jobs_are_distance_filtered_and_sorted(client, register_business,
     assert client.get("/api/jobs?latitude=28.6139&radius_km=3").status_code == 422
 
 
+
+def test_worker_profile_accepts_more_radius_presets(client, register_worker):
+    _, headers = register_worker()
+    payload = {
+        "city": "Delhi", "skills": [], "preferred_categories": [],
+        "availability": [], "min_pay": 0, "experience_years": 0,
+    }
+    for radius in (8, 10, 15):
+        response = client.patch(
+            "/api/worker/profile",
+            headers=headers,
+            json={**payload, "travel_radius_km": radius},
+        )
+        assert response.status_code == 200, response.text
+        assert response.json()["user"]["profile"]["travel_radius_km"] == radius
+
+
 def test_published_job_requires_workplace_pin(client, register_business, create_admin):
     business, business_headers = register_business()
     verify_business(client, create_admin, business["user"]["id"])
