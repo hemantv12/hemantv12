@@ -1,19 +1,19 @@
 # EarnRoute
 
-EarnRoute is an India-first, mobile-first hyperlocal earning marketplace for finding genuine paid shifts within a strict 1 km, 3 km or 5 km radius. This repository is a runnable launch candidate: it includes a responsive public website, worker/business/admin workspaces, API, PostgreSQL-compatible schema, migration, tests, and deployment assets. It must **not** be represented as a fully production-verified marketplace until the remaining integrations and operating procedures in this README are completed.
+EarnRoute is an India-first, mobile-first hyperlocal earning marketplace for finding genuine paid shifts within a a selectable 1 km, 3 km or 5 km radius, plus expanded 8 km, 10 km and 15 km options. This repository is a runnable launch candidate: it includes a responsive public website, worker/business/admin workspaces, API, PostgreSQL-compatible schema, migration, tests, and deployment assets. It must **not** be represented as a fully production-verified marketplace until the remaining integrations and operating procedures in this README are completed.
 
 ## What works in this release
 
 - Worker/business registration and login; workers confirm they are 18+ and accept terms before joining; passwords are hashed with PBKDF2-SHA256, and role permissions are enforced server-side.
 - Business profile editing and a human-reviewed verification queue; publishing is blocked until an administrator approves a profile.
 - Job drafts and publishing with shift times, city, responsibilities, skills, pay basis, payment terms, cancellation terms, breaks, equipment, and safety instructions.
-- Hyperlocal nearby discovery that requires device location and calculates real straight-line distance from a business-set workplace pin. Workers can choose 1 km, 3 km or 5 km only; results are distance-sorted and unpinned listings are excluded from nearby mode. Worker GPS stays in the browser session and is not saved to the profile.
+- Hyperlocal nearby discovery that requires device location and calculates real straight-line distance from a business-set workplace pin. Workers can choose 1 km, 3 km or 5 km, then expand More to 8 km, 10 km or 15 km; results are distance-sorted and unpinned listings are excluded from nearby mode. Worker GPS stays in the browser session and is not saved to the profile.
 - Published job discovery, category/city/pay filtering, pagination, explainable match scores, required-skill and experience checks, explicit availability checks, and a schedule-conflict safety buffer.
 - Application status, business applicant review, offers, worker offer acceptance/decline, capacity checks, assignments, attendance timestamps, completion review, disputes, one review per participant after resolved completion, rating aggregates, notifications, and audit events.
 - Transparent compensation estimates: hourly rates are multiplied by shift duration; gross shift estimate, configured platform fee, and estimated net are shown separately before applying.
 - Earnings separate completed work, pending settlement, and provider-verified paid status. **No UI action can mark a payout paid.**
 - Admin overview, business verification, job moderation, dispute review, audit history, and operational metrics based on recorded database activity.
-- Responsive hyperlocal-first UI with forest-green/ivory/electric-lime palette, clear distance/pay cards, one-tap 1/3/5 km radius controls, category chips, mobile bottom navigation, English/Hindi language toggle, PWA support, public terms/privacy/fair-work pages, and security headers.
+- Responsive hyperlocal-first UI with forest-green/ivory/electric-lime palette, clear distance/pay cards, compact 1/3/5 km radius controls with expandable 8/10/15 km presets, category chips, role-aware mobile bottom navigation, English/Hindi language toggle, app-first Android onboarding, Google Maps destination links for shift workplaces, PWA support, public terms/privacy/fair-work pages, and security headers.
 - SQLAlchemy schema with a five-revision Alembic migration chain, `.env.example`, Dockerfile, founder-admin provisioning script, and automated API tests.
 
 ## Important limitations before public launch
@@ -152,7 +152,7 @@ Use your production Postgres provider's SSL requirements and credentials. Do not
 
 ## Hyperlocal release behaviour
 
-- Worker home opens to a local feed and offers 1 km, 3 km and 5 km radius controls. Nearby mode only returns jobs with a saved workplace pin within that radius.
+- Worker home opens to a native-first local feed and offers 1 km, 3 km and 5 km radius controls plus More for 8 km, 10 km and 15 km. Nearby mode only returns jobs with a saved workplace pin within that radius.
 - Worker location is stored in a short-lived browser session entry only and expires after 30 minutes; it is not sent to the worker profile.
 - Businesses must set an accurate pin at the actual work location to publish. They can add pins to old jobs from job management. Distances shown are straight-line distances.
 - Estimated take-home is an estimate based on the configured platform fee, not a guarantee or payment confirmation.
