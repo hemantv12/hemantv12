@@ -86,6 +86,10 @@ test('PostgreSQL production backend supports creator-brand collaboration workflo
   assert.equal(dmEnableBlocked.status,503,'live Auto DM must be gated without approved/configured Meta credentials');
   const brandDmBlocked=await fetch(base+'/api/instagram/automations',{headers:{authorization:'Bearer '+brand.token}});
   assert.equal(brandDmBlocked.status,403,'Auto DM rule manager must be creator-only');
+  const dmEvents=await fetch(base+'/api/instagram/automations/events',{headers:{authorization:'Bearer '+creator.token}});
+  assert.equal(dmEvents.status,200,'creator should be able to load private-reply activity');
+  assert.ok(Array.isArray((await dmEvents.json()).events),'delivery activity must be a safe array response');
+
   const dmDelete=await fetch(base+'/api/instagram/automations/'+dmRule.id,{method:'DELETE',headers:{authorization:'Bearer '+creator.token}});
   assert.equal(dmDelete.status,200,'creator should be able to delete a draft Auto DM rule');
   const applyResponse=await fetch(base+'/api/campaigns/'+campaign.id+'/apply',{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+creator.token},body:JSON.stringify({pitch:'My work fits the audience.',proposed_rate:5000})});
