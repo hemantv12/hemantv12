@@ -300,3 +300,10 @@ html.er-native-app button{touch-action:manipulation}
 @media(prefers-reduced-motion:reduce){
  .er-splash-brandmark,.er-splash-progress i,.er-map-note-card,.er-app-welcome-copy,.er-welcome-map-card,.er-welcome-actions,.er-welcome-footnote,html.er-native-app .auth-modal,html.er-native-app .job-card,html.er-native-app .er-job-card{animation:none!important}
 }
+
+
+/* Keep the marketing page clean in browsers and the app drawer consistent on tablet-sized Android screens. */
+.er-app-splash{display:none}
+html.er-native-app .workspace{display:block}
+html.er-native-app .sidebar{position:fixed;left:-270px;top:0;bottom:0;height:100dvh;width:250px;transition:left .22s ease;box-shadow:none;z-index:100}
+html.er-native-app .sidebar.mobile-open{left:0;box-shadow:20px 0 50px rgba(16,50,29,.17)}
