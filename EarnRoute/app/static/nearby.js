@@ -222,33 +222,103 @@ submitJob = async function(form) {
   } finally { loadingButtons(button, false); }
 };
 function erEnsureMobileNav() {
-  const isWorker = !!currentUser && currentUser.role === 'worker';
-  document.body.classList.toggle('er-nearby-worker', isWorker);
+  const role = currentUser && currentUser.role;
+  const navigation = {
+    worker: [
+      ['overview','⌂','Home'], ['discover','⌕','Nearby'], ['applications','▤','Applied'],
+      ['schedule','▦','Schedule'], ['earnings','₹','Earnings']
+    ],
+    business: [
+      ['business-overview','⌂','Home'], ['post-job','＋','Post'], ['business-jobs','▤','Shifts'],
+      ['business-applicants','◎','People'], ['business-assignments','✓','Work']
+    ],
+    admin: [
+      ['admin-overview','⌂','Home'], ['admin-verifications','✓','Verify'], ['admin-jobs','▤','Jobs'],
+      ['admin-disputes','⚑','Issues'], ['admin-audit','◷','Audit']
+    ]
+  };
+  const items = navigation[role];
+  document.body.classList.toggle('er-nearby-worker', role === 'worker');
+  document.body.classList.toggle('er-nearby-business', role === 'business');
   let nav = $('#er-mobile-nav');
-  if (!isWorker) { nav && nav.remove(); return; }
+  if (!items) {
+    if (nav) nav.remove();
+    return;
+  }
   if (!nav) {
-    document.body.insertAdjacentHTML('beforeend', '<nav id="er-mobile-nav" class="er-mobile-nav" aria-label="Worker navigation">' +
-      '<button type="button" data-screen="overview"><span>⌂</span><small>Home</small></button>' +
-      '<button type="button" data-screen="discover"><span>⌕</span><small>Nearby</small></button>' +
-      '<button type="button" data-screen="applications"><span>▤</span><small>Applied</small></button>' +
-      '<button type="button" data-screen="schedule"><span>▦</span><small>Schedule</small></button>' +
-      '<button type="button" data-screen="earnings"><span>₹</span><small>Earnings</small></button></nav>');
+    document.body.insertAdjacentHTML('beforeend', '<nav id="er-mobile-nav" class="er-mobile-nav" aria-label="App navigation"></nav>');
     nav = $('#er-mobile-nav');
   }
-  nav.querySelectorAll('[data-screen]').forEach(function(button){button.classList.toggle('is-active', button.dataset.screen === activeScreen);});
+  if (nav.dataset.role !== role) {
+    nav.innerHTML = items.map(function(item) {
+      return '<button type="button" data-screen="' + item[0] + '" aria-label="' + item[2] + '">' +
+        '<span aria-hidden="true">' + item[1] + '</span><small>' + item[2] + '</small></button>';
+    }).join('');
+    nav.dataset.role = role;
+  }
+  nav.querySelectorAll('[data-screen]').forEach(function(button) {
+    const active = button.dataset.screen === activeScreen;
+    button.classList.toggle('is-active', active);
+    button.setAttribute('aria-current', active ? 'page' : 'false');
+  });
   $('#page-title').textContent = ['overview','discover'].includes(activeScreen) ? 'Nearby work' : (TITLES[activeScreen] || 'Your work');
 }
 renderPage = async function() {
   await erBaseRenderPage();
   erEnsureMobileNav();
 };
+
+function erIsNativeApp() {
+  return document.documentElement.classList.contains('er-native-app');
+}
+function erDismissSplash() {
+  const splash = $('#er-app-splash');
+  if (!splash || !erIsNativeApp()) return;
+  splash.classList.add('is-dismissed');
+  window.setTimeout(function(){ splash.hidden = true; }, 260);
+}
+function erSyncWelcomeRadius() {
+  const radius = erRadius();
+  document.querySelectorAll('[data-er-welcome-radius]').forEach(function(button) {
+    const active = Number(button.dataset.erWelcomeRadius) === radius;
+    button.classList.toggle('is-active', active);
+    button.setAttribute('aria-pressed', active ? 'true' : 'false');
+  });
+  const label = $('#er-welcome-radius-label');
+  if (label) label.textContent = radius + ' km radius';
+}
 const erBaseSetLanding = setLanding;
 setLanding = function() {
   erBaseSetLanding();
-  document.body.classList.remove('er-nearby-worker');
+  document.body.classList.remove('er-nearby-worker','er-nearby-business');
   const nav = $('#er-mobile-nav');
   if (nav) nav.remove();
+  if (!erIsNativeApp()) return;
+  document.documentElement.classList.remove('er-authenticated');
+  $('#landing').hidden = true;
+  $('#workspace').hidden = true;
+  $('#er-app-welcome').hidden = false;
+  erSyncWelcomeRadius();
+  erDismissSplash();
 };
+const erBaseSetWorkspace = setWorkspace;
+setWorkspace = function(user) {
+  erBaseSetWorkspace(user);
+  if (!erIsNativeApp()) return;
+  $('#er-app-welcome').hidden = true;
+  document.documentElement.classList.add('er-authenticated');
+  erDismissSplash();
+};
+
+document.addEventListener('click', function(event) {
+  const button = event.target.closest('[data-er-welcome-radius]');
+  if (!button) return;
+  const radius = Number(button.dataset.erWelcomeRadius);
+  if (!ER_RADIUS_OPTIONS.includes(radius)) return;
+  sessionStorage.setItem('earnroute_nearby_radius', String(radius));
+  erSyncWelcomeRadius();
+});
+
 document.addEventListener('click', async function(event) {
   const target = event.target.closest('button');
   if (!target) return;
