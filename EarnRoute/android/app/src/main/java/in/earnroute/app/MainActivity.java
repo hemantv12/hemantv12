@@ -61,6 +61,7 @@ public final class MainActivity extends Activity {
     private String pendingGeoOrigin;
     private SharedPreferences preferences;
     private final ExecutorService ioExecutor = Executors.newSingleThreadExecutor();
+    private volatile int systemBottomInsetDp = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -70,6 +71,8 @@ public final class MainActivity extends Activity {
 
         webView = new WebView(this);
         webView.setBackgroundColor(Color.rgb(18, 45, 33));
+        webView.setVerticalScrollBarEnabled(false);
+        webView.setHorizontalScrollBarEnabled(false);
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
         settings.setGeolocationEnabled(true);
@@ -119,6 +122,12 @@ public final class MainActivity extends Activity {
             }
 
             @Override
+            public void onPageFinished(WebView view, String url) {
+                super.onPageFinished(view, url);
+                applyCssSystemBottomInset(view);
+            }
+
+            @Override
             public void onReceivedSslError(WebView view, SslErrorHandler handler, android.net.http.SslError error) {
                 handler.cancel();
             }
@@ -164,6 +173,8 @@ public final class MainActivity extends Activity {
         settings.setJavaScriptCanOpenWindowsAutomatically(false);
         settings.setMediaPlaybackRequiresUserGesture(true);
         view.setBackgroundColor(Color.rgb(18, 45, 33));
+        view.setVerticalScrollBarEnabled(false);
+        view.setHorizontalScrollBarEnabled(false);
         applyInsets(view);
         view.addJavascriptInterface(new EarnRouteBridge(), "EarnRouteNative");
         WebViewAssetLoader loader = new WebViewAssetLoader.Builder()
@@ -181,6 +192,7 @@ public final class MainActivity extends Activity {
                 try { startActivity(new Intent(Intent.ACTION_VIEW, u)); } catch (Exception ignored) { }
                 return true;
             }
+            @Override public void onPageFinished(WebView v, String url) { super.onPageFinished(v, url); applyCssSystemBottomInset(v); }
             @Override public void onReceivedSslError(WebView v, SslErrorHandler h, android.net.http.SslError e) { h.cancel(); }
         });
     }
@@ -233,14 +245,24 @@ public final class MainActivity extends Activity {
     private void applyInsets(WebView view) {
         ViewCompat.setOnApplyWindowInsetsListener(view, (target, windowInsets) -> {
             Insets bars = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars());
+            Insets navigationBars = windowInsets.getInsets(WindowInsetsCompat.Type.navigationBars());
+            systemBottomInsetDp = Math.max(0, Math.round(navigationBars.bottom / getResources().getDisplayMetrics().density));
             target.setPadding(bars.left, bars.top, bars.right, bars.bottom);
+            applyCssSystemBottomInset(target);
             return windowInsets;
         });
+    }
+
+    private void applyCssSystemBottomInset(WebView target) {
+        if (target == null) return;
+        final int inset = Math.max(0, systemBottomInsetDp);
+        target.evaluateJavascript("(function(){if(document.documentElement.classList.contains(\\\"er-native-app\\\")){document.documentElement.style.setProperty(\\\"--er-system-bottom-inset\\\",\\\"" + inset + "px\\\");}})();", null);
     }
 
     private final class EarnRouteBridge {
         @JavascriptInterface public boolean isAndroidApp() { return true; }
         @JavascriptInterface public String getApiBaseUrl() { return preferences.getString(API_BASE_KEY, DEFAULT_API_BASE_URL); }
+        @JavascriptInterface public int getSystemBottomInsetDp() { return systemBottomInsetDp; }
         @JavascriptInterface public void openServerSettings() { runOnUiThread(() -> showServerSettings()); }
 
         /** Share work/shift details using Android's native share sheet. */
