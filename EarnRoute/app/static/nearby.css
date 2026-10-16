@@ -719,3 +719,83 @@ html.er-native-app .er-nearby-empty {
  .er-live-map { height:255px; }
  .er-workplace-map-card .er-live-map { height:255px; }
 }
+
+
+/* India-first shortlist, discovery controls, safety guidance and motion polish */
+.er-job-action-row { flex-wrap:wrap; }
+.er-save-shift {
+  display:inline-flex; align-items:center; justify-content:center; gap:6px;
+  min-height:40px; padding:9px 12px; border:1px solid #dfe8d7;
+  border-radius:11px; background:#fff; color:#31513a; font-size:11px;
+  font-weight:850; white-space:nowrap; transition:background .18s ease,border-color .18s ease,color .18s ease,transform .18s ease;
+}
+.er-save-shift>span { color:#6d9133; font-size:17px; line-height:1; }
+.er-save-shift.is-saved { background:#f1f8dc; border-color:#cfe5a1; color:#24492f; }
+.er-save-shift.is-saved>span { color:#477b2c; }
+.er-save-shift:disabled { opacity:.65; cursor:wait; }
+.er-saved-summary {
+  display:flex; align-items:center; flex-wrap:wrap; gap:10px; margin:0 0 16px;
+  padding:13px 15px; border:1px solid #e3eadb; border-radius:15px; background:#fff;
+  color:#284332; font-size:12px; font-weight:800;
+}
+.er-saved-count { display:grid; place-items:center; width:32px; height:32px; flex:0 0 auto; border-radius:10px; background:#eff6dc; color:#315b2e; font-size:15px; }
+.er-saved-summary small { margin-left:auto; color:#7c8878; font-size:10px; font-weight:600; }
+.er-saved-note { margin:13px 2px 4px; color:#788576; font-size:11px; line-height:1.65; }
+.er-saved-empty { margin:12px 0 22px; }
+.er-sort-field { display:flex; flex-direction:column; gap:6px; min-width:170px; }
+.er-sort-field select {
+  width:100%; min-width:0; min-height:42px; padding:10px 34px 10px 12px;
+  border:1px solid #dfe6d9; border-radius:11px; background:#fff; color:#25392a;
+  font:inherit; font-size:11px; font-weight:750;
+}
+.er-sort-field select:focus,.er-search-row input:focus { outline:3px solid rgba(201,244,81,.3); outline-offset:1px; border-color:#89a947; }
+.er-safety-panel {
+  display:flex; align-items:flex-start; gap:14px; margin:16px 0 28px; padding:19px;
+  border:1px solid #dbe8c8; border-radius:20px;
+  background:linear-gradient(120deg,#f9fbed 0%,#fff 75%);
+  box-shadow:0 10px 25px rgba(24,59,43,.04);
+}
+.er-safety-mark { display:grid; place-items:center; flex:0 0 auto; width:42px; height:42px; border-radius:14px; background:#eaf4d6; color:#31552c; font-size:22px; font-weight:950; }
+.er-safety-copy { min-width:0; flex:1; }
+.er-safety-copy h3 { margin:5px 0 7px; color:#1f3828; font-size:16px; line-height:1.35; letter-spacing:-.25px; }
+.er-safety-copy p { margin:0 0 12px; color:#657566; font-size:11px; line-height:1.65; }
+.er-safety-actions { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+.er-safety-call,.er-safety-link { display:inline-flex; justify-content:center; align-items:center; min-height:35px; padding:8px 11px; border-radius:10px; font-size:10px; font-weight:850; text-decoration:none; }
+.er-safety-call { background:#183b2b; border:1px solid #183b2b; color:#fff; }
+.er-safety-link { background:#fff; border:1px solid #dfe7d7; color:#36533b; }
+.er-safety-call:hover,.er-safety-link:hover { transform:translateY(-1px); }
+@media (prefers-reduced-motion: no-preference) {
+  .er-job-card { animation:er-card-enter .32s cubic-bezier(.2,.7,.2,1) both; transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease; }
+  .er-job-grid .er-job-card:nth-child(2) { animation-delay:35ms; }
+  .er-job-grid .er-job-card:nth-child(3) { animation-delay:70ms; }
+  .er-job-grid .er-job-card:nth-child(4) { animation-delay:105ms; }
+  .er-job-card:hover { transform:translateY(-2px); box-shadow:0 15px 31px rgba(18,45,33,.09); }
+  .er-save-shift:active { transform:scale(.97); }
+  .er-quick-links>button { transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease; }
+  .er-quick-links>button:hover { transform:translateY(-2px); border-color:#d1e0b8; box-shadow:0 8px 22px rgba(24,59,43,.055); }
+  @keyframes er-card-enter { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+}
+@media(max-width:1000px) {
+  .er-search-row { grid-template-columns:minmax(0,1fr) 125px minmax(165px,.8fr) auto auto; }
+}
+@media(max-width:720px) {
+  .er-job-action-row { gap:7px; }
+  .er-job-action-row .er-save-shift { order:0; flex:1 1 100%; }
+  .er-job-action-row .er-apply { order:1; flex:1 1 40%; }
+  .er-job-action-row .er-share-shift { order:2; flex:1 1 30%; }
+  .er-job-action-row .er-job-details { order:3; flex:1 1 100%; }
+  .er-search-row { grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:8px; }
+  .er-search-row input[name="search"] { grid-column:1 / -1; }
+  .er-search-row .er-sort-field { grid-column:1 / -1; min-width:0; }
+  .er-search-row button[type="submit"],.er-search-row button[type="reset"] { width:100%; }
+  .er-saved-summary { gap:8px; padding:11px; }
+  .er-saved-summary small { flex-basis:100%; margin-left:40px; }
+  .er-safety-panel { padding:14px; gap:10px; border-radius:16px; }
+  .er-safety-mark { width:35px; height:35px; border-radius:11px; font-size:18px; }
+  .er-safety-copy h3 { font-size:14px; }
+  .er-safety-actions { gap:6px; }
+  .er-safety-call,.er-safety-link { min-height:33px; padding:7px 9px; font-size:9px; }
+}
+@media(prefers-reduced-motion:reduce) {
+  .er-job-card,.er-save-shift,.er-quick-links>button { animation:none!important; transition:none!important; }
+}
