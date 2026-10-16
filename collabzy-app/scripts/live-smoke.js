@@ -73,8 +73,11 @@ async function waitForDeployment() {
     }
     check('public web pages including privacy, terms, deletion, support and recovery');
 
+    const adminSetup = await expectStatus('/api/admin/setup-status', {}, 200, 'admin setup status');
+    assert.equal(typeof adminSetup.setup_required, 'boolean');
+    assert.equal(typeof adminSetup.bootstrap_available, 'boolean');
     await expectStatus('/api/admin/overview', {}, 401, 'admin API must reject unauthenticated access');
-    check('admin dashboard is served and admin API rejects anonymous requests');
+    check('admin page, safe setup-status endpoint, and unauthenticated API boundary');
 
     const launchBlockers = [];
     if (health.integrations.instagram !== 'configured') launchBlockers.push('Meta Instagram Login credentials / permission review');
