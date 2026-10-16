@@ -640,6 +640,12 @@ async function start(PORT,SECRET){
     s.json({handle:account.instagram_handle,headline:String(report.headline||'Your creator growth report').slice(0,180),summary:String(report.summary||'').slice(0,1600),strengths:cleanList(report.strengths),opportunities:cleanList(report.opportunities),next_7_days:cleanList(report.next_7_days),generated_at:new Date().toISOString(),model});
   }));
 
+
+  app.get('/api/instagram/automations/events',auth,asyncRoute(async(q,s)=>{
+    if(q.user.role!=='creator')return s.status(403).json({error:'Instagram Auto DM activity is available to creator accounts.'});
+    const r=await pool.query("SELECT e.id,e.status,e.response_code,e.created_at,e.processed_at,COALESCE(rule.keyword,'Removed rule') AS keyword,CASE WHEN e.status='failed' THEN 'Meta did not accept the private reply.' ELSE '' END AS message FROM instagram_dm_events e LEFT JOIN instagram_dm_rules rule ON rule.id=e.rule_id WHERE e.user_id=$1 ORDER BY e.created_at DESC LIMIT 50",[q.user.id]);
+    s.json({events:r.rows});
+  }));
   app.get('/api/instagram/automations',auth,asyncRoute(async(q,s)=>{
     if(q.user.role!=='creator')return s.status(403).json({error:'Instagram Auto DM is available to creator accounts.'});
     const r=await pool.query('SELECT id,keyword,match_type,reply_text,cta_url,enabled,created_at,updated_at FROM instagram_dm_rules WHERE user_id=$1 ORDER BY id DESC',[q.user.id]);
