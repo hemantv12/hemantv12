@@ -2,7 +2,7 @@
 
 EarnRoute is an India-first, mobile-first hyperlocal earning marketplace for finding genuine paid shifts within a selectable 1 km, 3 km or 5 km radius, plus expanded 8 km, 10 km and 15 km options. This repository is a runnable launch candidate: it includes a responsive public website, worker/business/admin workspaces, API, PostgreSQL-compatible schema, migration, tests, and deployment assets. It must **not** be represented as a fully production-verified marketplace until the remaining integrations and operating procedures in this README are completed.
 
-## Version 1.4.0 — mobile fit, language, sharing and live maps
+## Version 1.5.0 — saved shifts, discovery sorting, safety and live maps
 
 - App-first welcome and workspace layouts have narrower-device constraints, Devanagari font/line-height treatment, safe-area handling, wrapping controls, and horizontal overflow prevention.
 - English/Hindi preference is persisted locally. The UI localization pass covers the welcome screen, role navigation, forms, dynamic labels, job statuses, common prompts, and notifications. Device/browser rendering still needs physical-device QA to catch any remaining string or font differences.
@@ -17,6 +17,9 @@ EarnRoute is an India-first, mobile-first hyperlocal earning marketplace for fin
 - Business profile editing and a human-reviewed verification queue; publishing is blocked until an administrator approves a profile.
 - Job drafts and publishing with shift times, city, responsibilities, skills, pay basis, payment terms, cancellation terms, breaks, equipment, and safety instructions.
 - Hyperlocal nearby discovery that requires device location and calculates real straight-line distance from a business-set workplace pin. Workers can choose 1 km, 3 km or 5 km, then expand More to 8 km, 10 km or 15 km; results are distance-sorted and unpinned listings are excluded from nearby mode. Worker GPS stays in the browser session and is not saved to the profile.
+- Private saved-shift shortlist: signed-in workers can save and remove published shifts, revisit them from a dedicated screen, and keep the shortlist on their account across devices. Saving is idempotent; expired/closed shifts are not returned as active saved opportunities.
+- Nearby discovery sorting by closest, highest estimated take-home, soonest shift start or most open spots. Sorting rearranges fetched published results in the UI and does not create any jobs or change eligibility.
+- India-specific safety panel with official ERSS 112 emergency guidance, the 1930 cyber-fraud helpline and National Career Service job-seeker advice. These are dial/browser shortcuts only; EarnRoute does not send an SOS, dispatch emergency help or certify a shift as safe.
 - Interactive nearby map built on Leaflet and OpenStreetMap tiles: shows the temporary worker location, selected-radius circle, and markers for published workplace pins returned by the nearby API. Marker popups include shift/pay summaries, a jump to the matching shift card, and external directions. Business shift posting also offers tap-to-place workplace coordinates with an optional device-location shortcut.
 - Published job discovery, category/city/pay filtering, pagination, explainable match scores, required-skill and experience checks, explicit availability checks, and a schedule-conflict safety buffer.
 - Application status, business applicant review, offers, worker offer acceptance/decline, capacity checks, assignments, attendance timestamps, completion review, disputes, one review per participant after resolved completion, rating aggregates, notifications, and audit events.
@@ -24,7 +27,7 @@ EarnRoute is an India-first, mobile-first hyperlocal earning marketplace for fin
 - Earnings separate completed work, pending settlement, and provider-verified paid status. **No UI action can mark a payout paid.**
 - Admin overview, business verification, job moderation, dispute review, audit history, and operational metrics based on recorded database activity.
 - Responsive hyperlocal-first UI with forest-green/ivory/electric-lime palette, clear distance/pay cards, compact 1/3/5 km radius controls with expandable 8/10/15 km presets, category chips, role-aware mobile bottom navigation, English/Hindi language toggle, app-first Android onboarding, Google Maps destination links for shift workplaces, PWA support, public terms/privacy/fair-work pages, and security headers.
-- SQLAlchemy schema with a five-revision Alembic migration chain, `.env.example`, Dockerfile, founder-admin provisioning script, and automated API tests.
+- SQLAlchemy schema with a six-revision Alembic migration chain, `.env.example`, Dockerfile, founder-admin provisioning script, and automated API tests.
 
 ## Important limitations before public launch
 
