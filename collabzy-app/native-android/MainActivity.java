@@ -2463,7 +2463,7 @@ public final class MainActivity extends Activity {
                 if (error != null) toast(error);
                 else {
                     toast("Campaign published.");
-                    showShell("explore");
+                    showShell("my_campaigns");
                 }
             });
         });

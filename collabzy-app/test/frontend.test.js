@@ -83,6 +83,7 @@ test('Native Android app covers core creator, brand and account workflows',()=>{
  assert.equal(native.includes('android.webkit.WebView'),false,'native main Activity must not embed the website in a WebView');
  assert.ok(workflow.includes('cp native-android/MainActivity.java android/app/src/main/java/com/collabzy/creator/MainActivity.java'),'APK build must install the native Activity source');
  assert.ok(workflow.includes('com.squareup.okhttp3:okhttp:4.12.0'),'native HTTP dependency must be installed at build time');
+ assert.ok(workflow.includes('Verify native launcher in APK'),'build must verify that the native Android Activity is packaged');
  assert.ok(configScript.includes('android:launchMode="singleTask"'),'OAuth deep link must return to the existing Android Activity safely');
  assert.ok(configScript.includes('android:scheme="collabzy"'),'OAuth callback must be registered as an Android deep link');
 });

@@ -100,6 +100,27 @@ jobs:
           EOF
       - name: Build debug APK
         run: cd android && chmod +x gradlew && ./gradlew assembleDebug --no-daemon
+      - name: Verify native launcher in APK
+        shell: bash
+        run: |
+          APK=android/app/build/outputs/apk/debug/app-debug.apk
+          test -s "$APK"
+          unzip -t "$APK" >/dev/null
+          found=false
+          while IFS= read -r dex; do
+            if unzip -p "$APK" "$dex" | strings | grep -Fq 'Lcom/collabzy/creator/MainActivity;'; then
+              found=true
+              break
+            fi
+          done < <(unzip -Z1 "$APK" | grep -E '^classes[0-9]*\\.dex        uses: actions/upload-artifact@v4
+        with:
+          name: Collabzy-Android-APK
+          path: collabzy-app/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+)
+          test "$found" = true
+          echo "Verified native MainActivity is compiled into the APK."
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
