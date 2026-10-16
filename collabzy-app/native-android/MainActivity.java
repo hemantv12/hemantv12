@@ -785,9 +785,27 @@ public final class MainActivity extends Activity {
             }
         }
         gap(card, 15);
-        TextView apply = smallButton("View & apply  →");
+        LinearLayout actions = row();
+        TextView apply = smallButton("View & apply");
+        TextView save = smallButton(screen.equals("saved") ? "Remove saved" : "Save");
+        actions.addView(apply, new LinearLayout.LayoutParams(0, -2, 1));
+        LinearLayout.LayoutParams saveParams = new LinearLayout.LayoutParams(0, -2, 1);
+        saveParams.leftMargin = dp(8);
+        actions.addView(save, saveParams);
         apply.setOnClickListener(v -> showApplyDialog(c));
-        card.addView(apply, new LinearLayout.LayoutParams(-1, -2));
+        save.setOnClickListener(v -> {
+            boolean remove = screen.equals("saved");
+            String method = remove ? "DELETE" : "POST";
+            api(method, "/api/campaigns/" + c.optLong("id") + "/save", json("saved", "true"), (data, error) -> {
+                if (error != null) toast(error);
+                else {
+                    toast(remove ? "Removed from saved campaigns." : "Campaign saved.");
+                    dashboardLoaded = false;
+                    if (remove) showShell("saved");
+                }
+            });
+        });
+        card.addView(actions, new LinearLayout.LayoutParams(-1, -2));
         content.addView(card);
         gap(content, 12);
     }
@@ -1460,7 +1478,7 @@ public final class MainActivity extends Activity {
                 rp.leftMargin = dp(8);
                 actions.addView(remove, rp);
                 c.addView(actions);
-                toggle.setOnClickListener(v -> api("PATCH", "/api/instagram/automations/" + rule.optLong("id"), json("enabled", rule.optBoolean("enabled") ? "false" : "true"), (d, e) -> {
+                toggle.setOnClickListener(v -> api("PATCH", "/api/instagram/automations/" + rule.optLong("id"), jsonBoolean("enabled", !rule.optBoolean("enabled")), (d, e) -> {
                     if (e != null) toast(e); else { toast(d.optString("message", "Rule updated.")); showShell("autodm"); }
                 }));
                 remove.setOnClickListener(v -> new android.app.AlertDialog.Builder(this)
@@ -1938,6 +1956,12 @@ public final class MainActivity extends Activity {
     }
 
     private JSONObject json(String key, String value) {
+        JSONObject o = new JSONObject();
+        try { o.put(key, value); } catch (Exception ignored) {}
+        return o;
+    }
+
+    private JSONObject jsonBoolean(String key, boolean value) {
         JSONObject o = new JSONObject();
         try { o.put(key, value); } catch (Exception ignored) {}
         return o;
