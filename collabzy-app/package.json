@@ -10,7 +10,8 @@
     "test": "node --test test/*.test.js",
     "test:postgres": "node --test test/postgres-smoke.test.js",
     "postinstall": "npm run build:capacitor",
-    "build:capacitor": "node scripts/copy-capacitor-modules.js"
+    "build:capacitor": "node scripts/copy-capacitor-modules.js",
+    "admin:hash": "node scripts/hash-admin-password.js"
   },
   "engines": {
     "node": "22.x"
