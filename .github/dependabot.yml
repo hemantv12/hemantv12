@@ -1,0 +1,14 @@
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: "/EarnRoute"
+    schedule:
+      interval: weekly
+    target-branch: earnroute-production
+    labels: ["dependencies", "security"]
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    target-branch: earnroute-production
+    labels: ["dependencies", "security"]
