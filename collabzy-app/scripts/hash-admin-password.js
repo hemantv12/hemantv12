@@ -34,8 +34,9 @@ function readHiddenPassword() {
         }
         if (byte === 8 || byte === 127) {
           if (bytes.length) {
-            do { bytes.pop(); } while (bytes.length && (bytes[bytes.length - 1] & 0xc0) === 0x80);
-            if (bytes.length && (bytes[bytes.length - 1] & 0x80) !== 0) bytes.pop();
+            bytes.pop();
+            while (bytes.length && (bytes[bytes.length - 1] & 0xc0) === 0x80) bytes.pop();
+            if (bytes.length && ((bytes[bytes.length - 1] & 0xe0) === 0xc0 || (bytes[bytes.length - 1] & 0xf0) === 0xe0 || (bytes[bytes.length - 1] & 0xf8) === 0xf0)) bytes.pop();
           }
           continue;
         }
