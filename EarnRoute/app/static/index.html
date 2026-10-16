@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <script>try{if(window.EarnRouteNative&&window.EarnRouteNative.isAndroidApp())document.documentElement.classList.add("er-native-app");}catch(_){}</script>
   <meta name="theme-color" content="#183b2b">
-  <meta name="description" content="Find genuine nearby paid shifts within 1 km, 3 km or 5 km. EarnRoute helps workers earn close to home with clear pay and simple apply.">
+  <meta name="description" content="Find genuine nearby paid shifts within 1 km, 3 km, 5 km or more, up to 15 km. EarnRoute helps workers earn close to home with clear pay and simple apply.">
   <title>EarnRoute — earn nearby</title>
   <link rel="manifest" href="/static/manifest.webmanifest">
   <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
@@ -52,6 +52,12 @@
         <button type="button" data-er-welcome-radius="1" aria-pressed="false"><b>1</b><small>km</small></button>
         <button type="button" data-er-welcome-radius="3" class="is-active" aria-pressed="true"><b>3</b><small>km</small><span>POPULAR</span></button>
         <button type="button" data-er-welcome-radius="5" aria-pressed="false"><b>5</b><small>km</small></button>
+        <button type="button" data-er-welcome-more aria-expanded="false"><b>More</b><small>options</small></button>
+      </div>
+      <div id="er-welcome-more-options" class="er-welcome-more-options" hidden role="group" aria-label="More work distances">
+        <button type="button" data-er-welcome-radius="8" aria-pressed="false"><b>8</b><small>km</small></button>
+        <button type="button" data-er-welcome-radius="10" aria-pressed="false"><b>10</b><small>km</small></button>
+        <button type="button" data-er-welcome-radius="15" aria-pressed="false"><b>15</b><small>km</small></button>
       </div>
     </section>
 
