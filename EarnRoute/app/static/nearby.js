@@ -105,6 +105,7 @@ function erNearbyCard(job) {
     '<div class="er-job-facts"><span>◷ ' + escapeHtml(formatDate(job.start_at)) + '</span><span>◴ ' + escapeHtml(job.duration_hours) + ' hrs</span><span>◎ ' + slots + ' spot' + (slots === 1 ? '' : 's') + '</span></div>' +
     (mismatch ? '<p class="er-match-note">Review your skills and availability before applying.</p>' : '') +
     '<div class="er-job-action-row"><button type="button" class="btn btn-primary er-apply" data-apply-job="' + job.id + '" ' + (mismatch ? 'disabled' : '') + '>' + (mismatch ? 'Profile needed' : 'Apply now') + ' <span>→</span></button>' +
+    '<button type="button" class="btn btn-outline er-share-shift" data-share-nearby-job="' + job.id + '">Share shift ↗</button>' +
     '<details class="er-job-details"><summary>Details</summary><p>' + escapeHtml(job.description || '') + '</p>' +
     (job.address ? '<p><b>Workplace:</b> ' + escapeHtml(job.address) + '</p>' : '') + mapsLink +
     (job.requirements && job.requirements.length ? '<p><b>Skills:</b> ' + escapeHtml(job.requirements.join(', ')) + '</p>' : '') +
@@ -390,6 +391,38 @@ document.addEventListener('click', async function(event) {
   if (target.hasAttribute('data-er-category')) {
     sessionStorage.setItem('earnroute_nearby_category', target.dataset.erCategory);
     await renderPage();
+    return;
+  }
+  if (target.hasAttribute('data-share-nearby-job')) {
+    const oldText = target.textContent;
+    target.disabled = true;
+    target.textContent = 'Preparing shift details…';
+    try {
+      const result = await api('/api/jobs/' + encodeURIComponent(target.dataset.shareNearbyJob));
+      const job = result.job;
+      if (!job) throw new Error('This shift is no longer available.');
+      const locationText = [job.address, job.city].filter(Boolean).join(', ');
+      const mapLink = job.address ? 'Directions: https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(locationText) : '';
+      const message = [
+        'EarnRoute shift details',
+        'Shift: ' + (job.title || 'Local paid shift'),
+        'Business: ' + (job.business_name || 'Local business'),
+        'Category: ' + (job.category || 'Local work'),
+        'Distance: ' + (typeof job.distance_km === 'number' ? job.distance_km.toFixed(1) + ' km (straight-line)' : 'Check in EarnRoute'),
+        'Workplace: ' + (locationText || 'Confirm the workplace with the business'),
+        'Start: ' + formatDate(job.start_at),
+        'Gross shift pay: ' + formatMoney(job.gross_shift_pay_estimate !== undefined ? job.gross_shift_pay_estimate : job.pay_amount),
+        'Estimated take-home: ' + formatMoney(job.estimated_net_pay),
+        mapLink,
+        'Shared from EarnRoute. Confirm the published details before travelling.'
+      ].filter(Boolean).join('\n');
+      await shareEarnRouteText('EarnRoute shift details', message);
+    } catch (error) {
+      showToast(friendlyError(error), 'error');
+    } finally {
+      target.disabled = false;
+      target.textContent = oldText;
+    }
     return;
   }
   if (target.hasAttribute('data-er-capture-pin') || target.hasAttribute('data-er-pin-existing')) {
