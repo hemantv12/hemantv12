@@ -1,0 +1,10 @@
+{
+  "name": "EarnRoute — work that fits your life",
+  "short_name": "EarnRoute",
+  "description": "Find genuine paid shifts with clear terms and schedule-aware matching.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f5f7f4",
+  "theme_color": "#176b52",
+  "icons": [{"src":"/static/icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]
+}
