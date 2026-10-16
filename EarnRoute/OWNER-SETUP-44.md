@@ -12,8 +12,8 @@ Updated 16 October 2026. This reflects the repository and connected hosting/data
 | 2 | Backend | FastAPI deployed on Render; health endpoint checks database connectivity. |
 | 3 | Admin Dashboard | Admin workflows cover business verification, job moderation, disputes, audit history and metrics. |
 | 4 | GitHub | Source branch earnroute-production. |
-| 5 | Render | earnroute-nearby-api live at https://earnroute-nearby-api.onrender.com. |
-| 6 | Neon PostgreSQL | Database earnroute on project earnroute-production, branch production. Credentials remain private. |
+| 5 | Render | Two live Render web services currently exist: https://earnroute-nearby-api.onrender.com and https://earnroute-api.onrender.com, both tracking earnroute-production. Treat as a duplicate until the actual Android/server URL use is verified; do not delete either blindly. Root Render Blueprint now requires Neon DATABASE_URL instead of provisioning a second Render PostgreSQL database. |
+| 6 | Neon PostgreSQL | PostgreSQL 16 project earnroute-production, production branch, database earnroute and application/support tables confirmed. Private earnroute-backups bucket and one manual baseline snapshot exist. Neon's API reports automatic snapshot scheduling is not enabled on this project, so daily encrypted backups must be verified through the GitHub Actions workflow. |
 | 7 | Flutter SDK | Mac installer included; local install must be run by owner. |
 | 8 | Dart SDK | Bundled with Flutter; installer checks Dart version. |
 | 9 | Android Studio | Installer installs the app; first-run wizard and emulator/device setup are local actions. |
@@ -39,11 +39,11 @@ Updated 16 October 2026. This reflects the repository and connected hosting/data
 | 29 | Domain Name | No custom domain supplied; Render subdomain is working. |
 | 30 | SSL Certificate | Render HTTPS works on the provided subdomain; custom-domain certificate follows domain setup/validation. |
 | 31 | Google Play Console | Owner must create/verify the publisher account and complete Play account registration. |
-| 32 | GitHub Actions | Test/build and live API smoke workflows exist; security/dependency scans and a signed-release workflow are being added. |
+| 32 | GitHub Actions | APK/test build and live API smoke workflows exist. Added CodeQL for Python/JavaScript/Actions, pip-audit and API/frontend regression checks, plus weekly Dependabot updates for Python, Gradle, Docker and Actions. Signed APK/AAB release workflow exists but requires owner-managed signing secrets. Verify new security workflow run results in Actions. |
 | 33 | Docker | Production API uses Docker; a separate backup Dockerfile is included. Script can install Docker Desktop. |
 | 34 | Error Monitoring Tool | Sentry SDK integration is wired but remains disabled until SENTRY_DSN is configured. |
 | 35 | Analytics Tool | Not connected. Choose a provider and review privacy/consent before enabling client analytics. |
-| 36 | Database Backup System | Baseline Neon snapshot exists, private bucket created and backup-container source included. Scheduled Render Cron Job is not active; owner must add database/storage secrets in Render and verify a successful run before relying on automatic backups. |
+| 36 | Database Backup System | Backup container and scheduled GitHub Actions workflow are present; however, daily backup is NOT yet verified/running until four owner-managed Actions secrets are set and a manual workflow run succeeds. Neon automatic snapshots cannot be enabled via the current project API; an earlier manual snapshot exists. Off-site copy is in the same Neon provider/region. |
 | 37 | Security Testing Tools | CodeQL and Python dependency audit workflow are included; scans are not a third-party security audit. |
 | 38 | Automated Testing Framework | Pytest API/business-rule tests and JavaScript syntax checks run in CI. |
 | 39 | APK/AAB Signing Key | No production keystore is committed. Signed-release workflow expects owner-managed GitHub Actions secrets. Keep an offline backup. |
@@ -83,11 +83,16 @@ Before running the signed-release workflow, add these repository Actions secrets
 
 Do not commit the keystore. Keep an encrypted offline backup; losing the key can block app updates. The release workflow deliberately fails if any secret is missing.
 
-## Scheduled backup configuration
+## Daily encrypted backup configuration
 
-The intended schedule is daily at 20:30 UTC (02:00 Asia/Kolkata), but the Render Cron Job is not active yet. To activate it, create a Docker Cron Job in Render for this repository/branch using EarnRoute/deployment/Backup.Dockerfile, then add DATABASE_URL, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_ENDPOINT_URL_S3, AWS_REGION, BACKUP_BUCKET, BACKUP_ENCRYPTION_PASSPHRASE and BACKUP_RETENTION_DAYS as secret environment variables. Use private bucket earnroute-backups, endpoint https://br-snowy-paper-b3u8r564.storage.c-4.ap-southeast-1.aws.neon.tech, region ap-southeast-1, retention 14, and schedule 30 20 * * * UTC. Generate a new, narrowly scoped Neon storage credential through the Neon console and store the key/secret directly in Render; never paste those values into chat or commit them. Verify the first successful backup log before relying on the scheduler. It uses PostgreSQL custom-format dumps, GPG/AES-256 encryption, a private storage bucket, verifies the downloaded copy with pg_restore --list, and prunes old objects under its dedicated prefix. Retention is 14 days, and at least the newest backup is kept. The encryption passphrase must stay outside the bucket and be recorded securely by the owner.
+The workflow `.github/workflows/earnroute-backup.yml` is scheduled for 20:30 UTC (02:00 Asia/Kolkata); GitHub-hosted runners avoid creating a separate paid Render Cron service. The workflow is not operational until its secrets exist. In GitHub repository Settings → Secrets and variables → Actions, add:
 
-This bucket is in the same Neon project and region; configure a second-provider copy before treating this as disaster-proof off-site backup. Verify successful scheduled execution in Render logs and rehearse restore to a non-production database.
+- `EARNROUTE_DATABASE_URL`: SSL-enabled Neon connection string to the `earnroute` database using a role that can read all app tables.
+- `NEON_STORAGE_ACCESS_KEY_ID`: token ID from a fresh Neon production-branch credential with `storage:read` and `storage:write`.
+- `NEON_STORAGE_SECRET_ACCESS_KEY`: secret for that credential; copy it when first shown and never commit it.
+- `EARNROUTE_BACKUP_PASSPHRASE`: a password-manager-generated secret of 32+ characters. Preserve an offline recovery copy; losing it makes encrypted backups unreadable.
+
+The workflow uses private bucket `earnroute-backups`, endpoint `https://br-snowy-paper-b3u8r564.storage.c-4.ap-southeast-1.aws.neon.tech`, region `ap-southeast-1`, and 14-day retention. After adding secrets, manually run the workflow once and confirm the upload, re-download, decryption, archive and checksum verification succeeds before relying on the schedule. Do not use any credential that was revoked. The bucket is in the same Neon project and region; configure a second-provider copy before treating it as disaster-proof backup and rehearse restore to a non-production database. A manual baseline snapshot exists, but Neon automatic snapshot scheduling is unavailable for this project via the current API.
 
 ## External accounts that cannot be fabricated
 
