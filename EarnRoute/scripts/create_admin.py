@@ -30,7 +30,7 @@ def main() -> int:
     password = getpass.getpass("New admin password (min 14 characters): ")
     confirm = getpass.getpass("Repeat admin password: ")
 
-    if not re.fullmatch(r"[^\\s@]+@[^\\s@]+\\.[^\\s@]+", email):
+    if not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", email):
         print("Invalid email address.")
         return 2
     if len(full_name) < 2 or len(full_name) > 100:
