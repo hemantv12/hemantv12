@@ -1,4 +1,4 @@
-FROM postgres:16-bookworm
+FROM postgres:18-bookworm
 ENV DEBIAN_FRONTEND=noninteractive PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 RUN apt-get update && apt-get install -y --no-install-recommends python3 python3-boto3 gnupg ca-certificates \
     && rm -rf /var/lib/apt/lists/* \
