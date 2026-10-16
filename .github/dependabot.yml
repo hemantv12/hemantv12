@@ -1,0 +1,51 @@
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: "/EarnRoute"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "03:15"
+    target-branch: earnroute-production
+    labels: ["dependencies", "security"]
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: gradle
+    directory: "/EarnRoute/android"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "03:30"
+    target-branch: earnroute-production
+    labels: ["dependencies", "security"]
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: docker
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: tuesday
+      time: "03:15"
+    target-branch: earnroute-production
+    labels: ["dependencies", "security"]
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: docker
+    directory: "/EarnRoute/deployment"
+    schedule:
+      interval: weekly
+      day: tuesday
+      time: "03:30"
+    target-branch: earnroute-production
+    labels: ["dependencies", "security"]
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: wednesday
+      time: "03:15"
+    target-branch: earnroute-production
+    labels: ["dependencies", "security"]
+    open-pull-requests-limit: 5
