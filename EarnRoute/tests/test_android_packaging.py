@@ -68,3 +68,20 @@ def test_native_app_header_and_system_navigation_inset_fixes_are_present():
     assert "getSystemBottomInsetDp()" in activity
     assert "applyCssSystemBottomInset" in activity
     assert "setVerticalScrollBarEnabled(false)" in activity
+
+
+def test_nearby_live_map_and_workplace_pin_picker_are_present():
+    main = (ROOT / "app/main.py").read_text()
+    html = (ROOT / "app/static/index.html").read_text()
+    nearby_js = (ROOT / "app/static/nearby.js").read_text()
+    nearby_css = (ROOT / "app/static/nearby.css").read_text()
+    assert "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" in nearby_js
+    assert "OpenStreetMap contributors" in nearby_js
+    assert "function erLiveMapSectionMarkup(options)" in nearby_js
+    assert "erLiveMapSectionMarkup({id:'er-nearby-map'" in nearby_js
+    assert "erLiveMapSectionMarkup({id:'er-workplace-map'" in nearby_js
+    assert "data-er-map-focus-job" in nearby_js
+    assert "data-er-map-geolocate" in nearby_js
+    assert ".er-live-map-card" in nearby_css
+    assert '"latitude": job.latitude, "longitude": job.longitude' in main
+    assert 'aria-label="Interactive nearby shift map"' in nearby_js
