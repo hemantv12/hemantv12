@@ -681,8 +681,9 @@ async function start(PORT,SECRET){
     if(!metaAutoDmReady())return s.status(503).json({error:'Live Auto DM is not enabled on the server. Configure Meta App Review, the webhook verification token and META_AUTO_DM_ENABLED=true after testing.'});
     const found=await pool.query('SELECT instagram_user_id,instagram_access_token_enc,instagram_token_expires_at FROM users WHERE id=$1',[q.user.id]),account=found.rows[0];
     if(!account?.instagram_access_token_enc)return s.status(409).json({error:'Connect your Instagram professional account first.'});
-    const access=await accessForInstagram(q.user.id,account),url='https://graph.instagram.com/'+metaGraphVersion()+'/'+encodeURIComponent(account.instagram_user_id)+'/subscribed_apps';
-    const response=await fetch(url,{method:'POST',headers:{Authorization:'Bearer '+access,'Content-Type':'application/json'},body:JSON.stringify({subscribed_fields:['comments']}),signal:AbortSignal.timeout(15000)});
+    const access=await accessForInstagram(q.user.id,account),url=new URL('https://graph.instagram.com/'+metaGraphVersion()+'/me/subscribed_apps');
+    url.searchParams.set('subscribed_fields','comments');
+    const response=await fetch(url,{method:'POST',headers:{Authorization:'Bearer '+access},signal:AbortSignal.timeout(15000)});
     const result=await response.json().catch(()=>({}));
     if(!response.ok||result.success===false)return s.status(502).json({error:'Meta did not confirm the comment webhook subscription. Confirm the app webhook and approved permissions in Meta for Developers.'});
     s.json({ok:true,message:'Comment webhook subscription accepted by Meta. Confirm the Instagram webhook object and comments field are configured in the Meta app.'});
