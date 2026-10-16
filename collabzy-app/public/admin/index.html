@@ -25,6 +25,19 @@
     <div id="login-error" class="notice" role="alert"></div>
     <div class="secure"><span aria-hidden="true">◈</span><span>Protected with a server-side password hash, rate limiting and 2-hour admin sessions.</span></div>
   </form>
+  <form id="setup-form" class="login-card hidden" autocomplete="off">
+    <div class="brand"><div class="logo">C</div><div>collabzy<span style="color:var(--purple)">.</span><div class="muted" style="font-size:10px;font-weight:700;letter-spacing:1.6px;text-transform:uppercase;margin-top:3px">Control center</div></div></div>
+    <div class="eyebrow" style="margin-top:31px">ONE-TIME OWNER SETUP</div>
+    <h1>Secure your<br>admin access.</h1>
+    <p class="sub">Create the owner login for this Collabzy installation. This setup code works only until the first owner account is created.</p>
+    <label class="field-label" for="setup-email">Your owner email</label><input class="field" id="setup-email" name="email" type="email" autocomplete="email" maxlength="254" required placeholder="you@company.com">
+    <label class="field-label" for="setup-password">Create a strong password</label><input class="field" id="setup-password" name="password" type="password" autocomplete="new-password" minlength="14" maxlength="72" required placeholder="At least 14 characters">
+    <label class="field-label" for="setup-password-confirm">Confirm password</label><input class="field" id="setup-password-confirm" name="password_confirm" type="password" autocomplete="new-password" minlength="14" maxlength="72" required placeholder="Enter the same password again">
+    <label class="field-label" for="setup-code">One-time setup code</label><input class="field" id="setup-code" name="bootstrap_token" type="password" autocomplete="off" minlength="48" maxlength="256" required placeholder="Paste the private setup code">
+    <button class="btn" id="setup-button" type="submit">Create owner account ↗</button>
+    <div id="setup-error" class="notice" role="alert"></div>
+    <div class="secure"><span aria-hidden="true">◈</span><span>Password is hashed on the server and is never stored in the browser. Setup permanently closes after the first owner account is created.</span></div>
+  </form>
 </div>
 <div id="app" class="shell hidden">
   <aside class="sidebar">
@@ -160,17 +173,55 @@ function bindScreenEvents(){
  const exportButton=$('export-users');if(exportButton)exportButton.onclick=()=>{api('/users?page='+state.usersPage+'&search='+encodeURIComponent(state.usersSearch)+'&role='+state.usersRole+'&status='+state.usersStatus).then(d=>{const columns=['id','name','email','role','niche','location','instagram_handle','followers','account_status','email_verified','created_at'];const quote=v=>'"'+String(v===null||v===undefined?'':v).replace(/"/g,'""')+'"';const csv=[columns.join(','),...d.users.map(x=>columns.map(k=>quote(x[k])).join(','))].join('\r\n');const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download='collabzy-accounts-page-'+d.page+'.csv';a.click();URL.revokeObjectURL(url)}).catch(e=>toast(e.message))};
  document.querySelectorAll('[data-reload-view]').forEach(b=>b.addEventListener('click',()=>loadView(state.view)));
 }
+async function updateSetupMode(){
+ try{
+  const status=await api('/setup-status');
+  const setupVisible=status.setup_required===true&&status.bootstrap_available===true;
+  $('login-form').classList.toggle('hidden',setupVisible);
+  $('setup-form').classList.toggle('hidden',!setupVisible);
+  if(status.setup_required&&!status.bootstrap_available){
+   const notice=$('login-error');
+   notice.textContent='Owner setup has not been enabled on the server yet. Keep public admin access closed until the deployment owner configures it.';
+   notice.classList.add('show');
+  }
+ }catch(error){
+  const notice=$('login-error');notice.textContent=error.message;notice.classList.add('show');
+ }
+}
+function startAdminSession(data){
+ state.token=data.token;state.email=data.admin.email;
+ sessionStorage.setItem('collabzy_admin_token',state.token);
+ sessionStorage.setItem('collabzy_admin_email',state.email);
+ $('admin-email-label').textContent=state.email;
+ $('login').classList.add('hidden');$('app').classList.remove('hidden');
+ loadView('overview');
+}
 $('login-form').addEventListener('submit',async e=>{
  e.preventDefault();const button=$('login-button'),email=$('admin-email').value.trim().toLowerCase(),password=$('admin-password').value;
  button.disabled=true;button.textContent='Verifying securely…';$('login-error').classList.remove('show');
- try{const data=await api('/login',{method:'POST',body:JSON.stringify({email,password})});state.token=data.token;state.email=data.admin.email;sessionStorage.setItem('collabzy_admin_token',state.token);sessionStorage.setItem('collabzy_admin_email',state.email);$('admin-password').value='';$('admin-email-label').textContent=state.email;$('login').classList.add('hidden');$('app').classList.remove('hidden');await loadView('overview')}
+ try{const data=await api('/login',{method:'POST',body:JSON.stringify({email,password})});$('admin-password').value='';startAdminSession(data)}
  catch(e){const notice=$('login-error');notice.textContent=e.message;notice.classList.add('show')}
  finally{button.disabled=false;button.innerHTML='Secure sign in <span aria-hidden="true">↗</span>'}
+});
+$('setup-form').addEventListener('submit',async e=>{
+ e.preventDefault();
+ const button=$('setup-button'),email=$('setup-email').value.trim().toLowerCase(),password=$('setup-password').value,confirmation=$('setup-password-confirm').value,bootstrap_token=$('setup-code').value.trim();
+ const notice=$('setup-error');notice.classList.remove('show');
+ if(password!==confirmation){notice.textContent='The passwords do not match. Please re-enter them.';notice.classList.add('show');return}
+ if(password.length<14||new TextEncoder().encode(password).length>72){notice.textContent='Use at least 14 characters and no more than 72 UTF-8 bytes.';notice.classList.add('show');return}
+ button.disabled=true;button.textContent='Creating secure owner account…';
+ try{
+  const data=await api('/bootstrap',{method:'POST',body:JSON.stringify({email,password,bootstrap_token})});
+  $('setup-password').value='';$('setup-password-confirm').value='';$('setup-code').value='';
+  startAdminSession(data);toast('Owner account created. Save your password in a password manager.');
+ }catch(error){notice.textContent=error.message;notice.classList.add('show')}
+ finally{button.disabled=false;button.innerHTML='Create owner account ↗'}
 });
 document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>loadView(b.dataset.view)));
 $('refresh-button').addEventListener('click',()=>loadView(state.view));
 $('logout-button').addEventListener('click',()=>showLogin('You have signed out.'));
 if(state.token){$('login').classList.add('hidden');$('app').classList.remove('hidden');$('admin-email-label').textContent=state.email||'Owner';loadView(state.view)}
+else{updateSetupMode()}
 })();
 </script>
 </body>
