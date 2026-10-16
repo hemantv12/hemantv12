@@ -1120,10 +1120,6 @@ public final class MainActivity extends Activity {
         TextView invite = smallButton("Invite to campaign");
         card.addView(invite);
         invite.setOnClickListener(v -> showInviteDialog(c));
-        gap(card, 12);
-        TextView invite = smallButton("Invite to campaign");
-        card.addView(invite);
-        invite.setOnClickListener(v -> showInviteDialog(c));
         content.addView(card);
         gap(content, 12);
     }
