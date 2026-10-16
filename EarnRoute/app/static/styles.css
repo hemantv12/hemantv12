@@ -26,3 +26,20 @@
 .review-list { display: grid; gap: 8px; margin: 10px 0; }
 .review-line { padding: 9px 12px; border-radius: 10px; background: #fffaf0; border: 1px solid #f1e6cb; color: #5b4b2f; font-size: 12px; line-height: 1.5; }
 .review-line small { color: #81765f; }
+
+
+/* Dedicated admin sign-in portal */
+body.admin-portal-mode{min-height:100vh;background:radial-gradient(ellipse at 18% 15%,rgba(42,119,82,.16),transparent 35%),radial-gradient(ellipse at 90% 85%,rgba(201,244,81,.12),transparent 30%),#10271e}
+body.admin-portal-mode #landing,body.admin-portal-mode #workspace{display:none!important}
+body.admin-portal-mode #auth-modal{display:grid!important;position:fixed;inset:0;z-index:1000;background:linear-gradient(135deg,rgba(10,29,21,.91),rgba(17,56,40,.82));backdrop-filter:blur(12px);padding:22px}
+body.admin-portal-mode .auth-modal{width:min(480px,100%);padding:34px 33px 26px;border:1px solid rgba(226,241,229,.9);border-radius:22px;box-shadow:0 36px 110px rgba(0,0,0,.34)}
+body.admin-portal-mode .auth-eyebrow{display:inline-flex;align-items:center;gap:8px;letter-spacing:1.7px;color:#22704f}
+body.admin-portal-mode .auth-eyebrow:before{content:"";width:7px;height:7px;border-radius:99px;background:#9fcf3a;box-shadow:0 0 0 4px #eef6dc}
+body.admin-portal-mode .auth-modal h2{font-size:29px;letter-spacing:-1.1px}
+body.admin-portal-mode .auth-subheading{line-height:1.8;max-width:360px}
+body.admin-portal-mode .auth-modal .form-field input{height:47px;background:#fbfdfb}
+body.admin-portal-mode #auth-submit{min-height:47px;margin-top:3px}
+body.admin-portal-mode .auth-safe{line-height:1.7}
+body.admin-portal-mode .modal-close{display:none!important}
+body.admin-portal-mode #auth-mode-tabs[hidden]{display:none!important}
+@media(max-width:520px){body.admin-portal-mode #auth-modal{padding:14px}body.admin-portal-mode .auth-modal{padding:27px 21px 21px;border-radius:17px}body.admin-portal-mode .auth-modal h2{font-size:25px}}
