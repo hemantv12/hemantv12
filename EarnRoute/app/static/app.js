@@ -97,7 +97,8 @@ async function api(path, options = {}) {
     if (response.status === 401 && currentUser) {
       sessionStorage.removeItem('earnroute_token');
       currentUser = null;
-      setLanding();
+      if (isAdminPortal) showAdminSignIn('Your session expired. Sign in again to open the admin console.');
+      else setLanding();
     }
     const detail = data.detail;
     if (Array.isArray(detail)) throw new Error(detail.map(x => x.msg).join(' · ') || `Request failed (${response.status})`);
@@ -688,7 +689,7 @@ document.addEventListener('click', async event => {
   if(!target)return;
   if(target.dataset.openAuth){event.preventDefault();openAuth(target.dataset.openAuth,target.dataset.role||'worker');return;}
   if(target.dataset.authMode){setAuthMode(target.dataset.authMode);return;}
-  if(target.id==='close-auth' || (target.classList.contains('modal-backdrop')&&target.id==='auth-modal')){closeAuth();return;}
+  if((target.id==='close-auth' || (target.classList.contains('modal-backdrop')&&target.id==='auth-modal')) && !isAdminPortal){closeAuth();return;}
   if(target.id==='logout-btn') {
     sessionStorage.removeItem('earnroute_token'); currentUser=null;
     if (isAdminPortal) showAdminSignIn('You have signed out. Sign in again to continue to the admin console.');
