@@ -775,6 +775,55 @@ async function start(PORT,SECRET){
     s.json({title:String(draft.title||spec.title).slice(0,160),output:String(draft.output||'').slice(0,10000),steps:Array.isArray(draft.steps)?draft.steps.slice(0,8).map(x=>String(x).slice(0,300)):[],mode:'ai',model});
   }));
 
+
+  app.get('/api/matches',auth,asyncRoute(async(q,s)=>{
+    const words=value=>Array.from(new Set(String(value||'').toLowerCase().replace(/https?:\/\/\S+/g,' ').replace(/[^a-z0-9 ]/g,' ').split(/\s+/).filter(word=>word.length>2&&!['and','the','for','with','from','your','you','our','are','this','that','have','will','can','not','all','any','into','about','brand','creator','campaign','looking','make','more','best','india','indian'].includes(word))));
+    const overlaps=(left,right)=>left.filter(word=>right.includes(word));
+    const clamp=value=>Math.max(20,Math.min(99,Math.round(value)));
+    if(q.user.role==='creator'){
+      const profileResult=await pool.query('SELECT niche,bio,location,followers,engagement FROM users WHERE id=$1',[q.user.id]),profile=profileResult.rows[0]||{};
+      const nicheWords=words(profile.niche),bioWords=words(profile.bio),profileWords=Array.from(new Set([...nicheWords,...bioWords]));
+      const result=await pool.query("SELECT id,title,brand_name,description,category,collaboration_type,budget_min,budget_max,deliverables,location,created_at FROM campaigns WHERE status='active' ORDER BY created_at DESC,id DESC LIMIT 100");
+      const matches=result.rows.map(c=>{
+        const campaignWords=words([c.title,c.category,c.description,c.deliverables].join(' ')),nicheOverlap=overlaps(nicheWords,campaignWords),bioOverlap=overlaps(bioWords,campaignWords),reasons=[];
+        let score=25;
+        if(nicheOverlap.length){score+=Math.min(45,30+nicheOverlap.length*5);reasons.push('Campaign language aligns with your '+(profile.niche||'creator')+' niche')}
+        const creatorLocation=String(profile.location||'').toLowerCase(),campaignLocation=String(c.location||'').toLowerCase(),remote=/remote|anywhere|online|global|india|all locations/.test(campaignLocation)||/remote|anywhere|online|global/.test(String(c.description||'').toLowerCase());
+        if(creatorLocation&&campaignLocation&&(campaignLocation.includes(creatorLocation)||creatorLocation.includes(campaignLocation))){score+=15;reasons.push('Location fits your profile')}
+        else if(remote){score+=10;reasons.push('Campaign appears open to remote or wider-location creators')}
+        if(Number(c.budget_max)>0){score+=8;reasons.push('Campaign includes a stated budget')}
+        if(bioOverlap.length){score+=Math.min(10,bioOverlap.length*3);reasons.push('Your bio shares relevant terms with the brief')}
+        if(Number(profile.followers)>0){score+=3;reasons.push('Creator profile has audience information')}
+        const ageDays=(Date.now()-new Date(c.created_at||Date.now()).getTime())/86400000;
+        if(Number.isFinite(ageDays)&&ageDays>=0&&ageDays<=14){score+=5;reasons.push('Recently published opportunity')}
+        if(!reasons.length)reasons.push('Explore this active campaign and review the brief for fit');
+        const{brand_email,...campaign}=c;
+        return {score:clamp(score),reasons:reasons.slice(0,4),campaign};
+      }).sort((a,b)=>b.score-a.score||new Date(b.campaign.created_at||0)-new Date(a.campaign.created_at||0)).slice(0,30);
+      return s.json({role:'creator',matches,explanation:'Match scores are explainable recommendations based on profile text, category, location and campaign details—not guarantees of acceptance or earnings.'});
+    }
+    const campaignResult=await pool.query("SELECT title,category,description,deliverables,location FROM campaigns WHERE brand_id=$1 AND status='active' ORDER BY created_at DESC LIMIT 20",[q.user.id]),campaigns=campaignResult.rows;
+    const brandWords=words([q.user.niche||'',q.user.bio||'',...campaigns.map(c=>[c.title,c.category,c.description,c.deliverables].join(' '))].join(' '));
+    const brandLocation=String(q.user.location||'').toLowerCase();
+    const result=await pool.query("SELECT id,name,niche,bio,location,instagram_handle,followers,engagement,created_at,(instagram_access_token_enc<>'') AS instagram_connected FROM users WHERE role='creator' AND id<>$1 ORDER BY created_at DESC LIMIT 150",[q.user.id]);
+    const matches=result.rows.map(c=>{
+      const nicheWords=words(c.niche),profileWords=words([c.niche,c.bio].join(' ')),nicheOverlap=overlaps(nicheWords,brandWords),bioOverlap=overlaps(profileWords,brandWords),reasons=[];
+      let score=25;
+      if(nicheOverlap.length){score+=Math.min(40,25+nicheOverlap.length*5);reasons.push('Creator niche is relevant to your brand or active campaign')}
+      if(bioOverlap.length){score+=Math.min(15,bioOverlap.length*2);reasons.push('Profile description overlaps with your campaign themes')}
+      const creatorLocation=String(c.location||'').toLowerCase();
+      if(brandLocation&&creatorLocation&&(creatorLocation.includes(brandLocation)||brandLocation.includes(creatorLocation))){score+=12;reasons.push('Location matches your brand profile')}
+      if(c.instagram_connected){score+=12;reasons.push('Instagram is connected through Meta authorization')}
+      if(Number(c.engagement)>0){score+=Math.min(6,Number(c.engagement)*1.5);reasons.push('Profile includes an engagement-rate metric')}
+      if(Number(c.followers)>0){score+=Math.min(4,Math.log10(Number(c.followers)+1));reasons.push('Profile includes audience-size information')}
+      const completeness=[c.niche,c.bio,c.location,c.instagram_handle].filter(v=>String(v||'').trim()).length;
+      score+=completeness*1.5;
+      if(!reasons.length)reasons.push('Open the profile and review audience, content and campaign fit');
+      return {score:clamp(score),reasons:reasons.slice(0,4),creator:{id:c.id,name:c.name,niche:c.niche,bio:c.bio,location:c.location,instagram_handle:c.instagram_handle,followers:Number(c.followers||0),engagement:Number(c.engagement||0),instagram_connected:!!c.instagram_connected}};
+    }).sort((a,b)=>b.score-a.score).slice(0,40);
+    s.json({role:'brand',active_campaigns:campaigns.length,matches,explanation:'Match scores are explainable profile-fit suggestions. Follower and engagement numbers are self-reported unless synced from an authorized Instagram account.'});
+  }));
+
   app.get('*',(q,s)=>s.sendFile(path.join(__dirname,'..','public','index.html')));
   app.use((e,q,s,n)=>{console.error('Collabzy API error:',e.message);s.status(500).json({error:'Unexpected server error.'})});
   const server=app.listen(PORT,()=>console.log('Collabzy PostgreSQL API listening on '+PORT));
