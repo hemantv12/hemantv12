@@ -41,3 +41,16 @@ test('AI Studio and Auto DM workspaces have explicit user controls and honest se
  assert.match(backend,/app\.get\('\/api\/instagram\/automations\/events'/,'creator Auto DM activity must have an authenticated endpoint');
  assert.match(backend,/\/me\/subscribed_apps/,'Instagram Login webhook setup must use the official /me/subscribed_apps edge');
 });
+
+test('Capacitor Android uses an app-first welcome screen and mobile tab navigation',()=>{
+ const html=fs.readFileSync(path.join(root,'public','index.html'),'utf8');
+ assert.match(html,/const IS_NATIVE_APP =/,'the interface should distinguish the installed Android app from the website');
+ assert.match(html,/function renderNativeWelcome\(\)/,'the Android app should have a compact app-first welcome screen');
+ assert.match(html,/if \(IS_NATIVE_APP\) \{ renderNativeWelcome\(\); return; \}/,'the installed app should not open the long marketing landing page');
+ assert.match(html,/function renderAppNavigation\(\)/,'the signed-in shell should render app navigation');
+ assert.match(html,/data-primary="/,'primary tabs must be distinguished from secondary app tools');
+ assert.match(html,/function openMoreSheet\(\)/,'secondary destinations must open in an app-style More sheet');
+ assert.match(html,/native-app \.nav\.app-tabbar/,'Android must use a fixed bottom tab bar');
+ assert.match(html,/env\(safe-area-inset-bottom\)/,'bottom navigation must account for Android safe-area insets');
+ assert.match(html,/function closeMoreSheet\(\)/,'the More sheet must be dismissible');
+});
