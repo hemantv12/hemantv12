@@ -184,6 +184,8 @@ def test_end_to_end_apply_offer_and_assignment_lifecycle(client, register_worker
     assert business_apps_after_review.json()["items"][0]["worker_rating"] == 4.0
     assignment_view = client.get("/api/assignments/me", headers=worker_headers).json()["items"][0]
     assert assignment_view["worker_reviewed"] is True and len(assignment_view["reviews"]) == 2
+    assert assignment_view["latitude"] == 28.6139
+    assert assignment_view["longitude"] == 77.2090
     earnings = client.get("/api/worker/earnings",headers=worker_headers)
     assert earnings.status_code == 200
     assert earnings.json()["pending_settlement"] == final_assignment["net_pay"]
