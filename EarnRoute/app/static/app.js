@@ -57,7 +57,7 @@ function dateInputValue(date) {
 function statusPill(status) {
   const clean = String(status || 'unknown').toLowerCase();
   const labels = { applied:'Applied', shortlisted:'Shortlisted', offered:'Offer received', accepted:'Accepted', declined:'Declined', withdrawn:'Withdrawn', rejected:'Rejected',
-    confirmed:'Confirmed', checked_in:'Checked in', checked_out:'Checked out', completed:'Completed', cancelled:'Cancelled', disputed:'Disputed', pending:'Pending', verified:'Verified', published:'Published', draft:'Draft', paused:'Paused', closed:'Closed', paid:'Paid', not_due:'Not due' };
+    confirmed:'Confirmed', checked_in:'Checked in', checked_out:'Checked out', completed:'Completed', cancelled:'Cancelled', disputed:'Disputed', pending:'Pending', verified:'Verified', published:'Published', draft:'Draft', paused:'Paused', closed:'Closed', paid:'Paid', not_due:'Not due', open:'Open', in_progress:'In progress', waiting_user:'Waiting for user', resolved:'Resolved' };
   return `<span class="status-pill status-${escapeHtml(clean)}">${escapeHtml(labels[clean] || clean.replace(/_/g, ' '))}</span>`;
 }
 function showToast(message, type = 'success') {
@@ -991,7 +991,33 @@ const ER_HI_UI = Object.freeze({
   "Gross shift pay":"शिफ्ट का कुल भुगतान","Estimated worker pay":"वर्कर की अनुमानित कमाई",
   "Directions:":"रास्ता:","Category:":"कैटेगरी:","Business:":"बिज़नेस:","City:":"शहर:","Start:":"शुरू:","Distance:":"दूरी:",
   "straight-line":"सीधी दूरी","Expand to ":"दूरी बढ़ाएँ: ","km radius":"किमी की दूरी","km away":"किमी दूर",
-  "Share shift details with a trusted contact.":"शिफ्ट की जानकारी किसी भरोसेमंद व्यक्ति के साथ साझा करें।"
+  "Share shift details with a trusted contact.":"शिफ्ट की जानकारी किसी भरोसेमंद व्यक्ति के साथ साझा करें।",
+  "Help & support":"सहायता और सपोर्ट",
+  "Support tickets":"सपोर्ट टिकट",
+  "New support ticket":"नया सपोर्ट टिकट",
+  "Tell us what you need help with.":"बताएँ कि आपको किस चीज़ में मदद चाहिए।",
+  "Create a private support ticket, follow replies and see its status in one place.":"निजी सपोर्ट टिकट बनाएँ, जवाब देखें और उसकी स्थिति एक ही जगह पर जानें।",
+  "Your support tickets":"आपके सपोर्ट टिकट",
+  "What happened?":"क्या हुआ?",
+  "Add a reply":"जवाब जोड़ें",
+  "Send reply":"जवाब भेजें",
+  "Reply to user":"यूज़र को जवाब दें",
+  "Support ticket queue":"सपोर्ट टिकट कतार",
+  "Open ticket":"टिकट खोलें",
+  "Active ticket(s)":"सक्रिय टिकट",
+  "Open":"खुला",
+  "In progress":"काम जारी",
+  "Waiting for user":"यूज़र के जवाब का इंतज़ार",
+  "Resolved":"हल हुआ",
+  "Closed":"बंद",
+  "Payments":"भुगतान",
+  "Shift or workplace":"शिफ्ट या काम की जगह",
+  "Safety concern":"सुरक्षा संबंधी समस्या",
+  "Technical problem":"तकनीकी समस्या",
+  "A ticket is saved inside EarnRoute. Email delivery is not enabled until a real support email provider is configured.":"टिकट EarnRoute में सेव होता है। असली ईमेल सेवा जोड़ने तक ईमेल नहीं भेजे जाएँगे।",
+  "Support ticket created.":"सपोर्ट टिकट बन गया।",
+  "Support reply sent.":"सपोर्ट जवाब भेज दिया गया।",
+  "Support ticket status updated.":"सपोर्ट टिकट की स्थिति अपडेट हुई।"
 });
 
 const ER_HI_EXTRA_UI = Object.freeze({
