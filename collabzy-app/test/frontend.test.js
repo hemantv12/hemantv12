@@ -18,3 +18,21 @@ test('Collabzy frontend JavaScript parses and native OAuth bridge is bundled',()
   assert.ok(fs.existsSync(bridge),'postinstall should bundle the native bridge before tests');
   assert.ok(fs.statSync(bridge).size>1000,'bundled Capacitor bridge should not be empty');
 });
+
+test('AI Studio and Auto DM workspaces have explicit user controls and honest setup states',()=>{
+ const html=fs.readFileSync(path.join(root,'public','index.html'),'utf8');
+ const backend=fs.readFileSync(path.join(root,'src','server-postgres.js'),'utf8');
+ assert.match(html,/go\('ai'\)/,'AI Studio must be reachable from the signed-in workspace');
+ assert.match(html,/go\('autodm'\)/,'Auto DM must be reachable from the signed-in creator workspace');
+ assert.match(html,/Generate draft/,'AI Studio must offer a real draft-generation form');
+ assert.match(html,/starter_template/,'AI template fallback must remain explicitly labelled');
+ assert.match(html,/Save reply rule/,'creator must be able to save a keyword reply');
+ assert.match(html,/Pause rule|Pause/,'creator must be able to pause an automation');
+ assert.match(backend,/app\.post\('\/api\/ai\/studio'/,'AI Studio backend route must exist');
+ assert.match(backend,/app\.get\('\/api\/instagram\/automations'/,'automation list route must exist');
+ assert.match(backend,/app\.post\('\/api\/instagram\/automations'/,'automation create route must exist');
+ assert.match(backend,/META_AUTO_DM_ENABLED==='true'/,'live auto-replies must require an explicit server-side switch');
+ assert.match(backend,/x-hub-signature-256/i,'Instagram webhook must validate signed Meta events');
+ assert.match(backend,/ON CONFLICT\(comment_id\) DO NOTHING/,'webhook event processing must deduplicate comment IDs');
+ assert.match(backend,/confirmed_ai_disclosure/,'AI generation must require the in-app data-use acknowledgement');
+});
