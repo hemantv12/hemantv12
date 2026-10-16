@@ -378,6 +378,45 @@ def test_unconfigured_payment_webhook_does_not_mark_payout_paid(client):
 
 
 
+def test_worker_can_save_list_and_unsave_published_shifts(client, register_worker, register_business, create_admin):
+    _, worker_headers = register_worker()
+    business, business_headers = register_business()
+    verify_business(client, create_admin, business["user"]["id"])
+    job = client.post("/api/jobs", headers=business_headers, json=future_job_payload(title="Saved weekend retail shift"))
+    assert job.status_code == 201, job.text
+    job_id = job.json()["job"]["id"]
+
+    saved = client.post(f"/api/jobs/{job_id}/save", headers=worker_headers)
+    assert saved.status_code == 200, saved.text
+    assert saved.json() == {"saved": True, "job_id": job_id}
+    # Repeated saves remain safe and do not create duplicate rows.
+    assert client.post(f"/api/jobs/{job_id}/save", headers=worker_headers).json()["saved"] is True
+    items = client.get("/api/worker/saved-shifts", headers=worker_headers)
+    assert items.status_code == 200, items.text
+    assert items.json()["total"] == 1
+    assert items.json()["items"][0]["id"] == job_id
+    assert items.json()["items"][0]["title"] == "Saved weekend retail shift"
+    assert "saved_at" in items.json()["items"][0]
+
+    other_worker, other_headers = register_worker(email="another-worker@example.com")
+    assert client.get("/api/worker/saved-shifts", headers=other_headers).json()["items"] == []
+    assert client.delete(f"/api/jobs/{job_id}/save", headers=other_headers).json()["saved"] is False
+    assert client.get("/api/worker/saved-shifts", headers=worker_headers).json()["total"] == 1
+
+    removed = client.delete(f"/api/jobs/{job_id}/save", headers=worker_headers)
+    assert removed.status_code == 200
+    assert removed.json() == {"saved": False, "job_id": job_id}
+    assert client.get("/api/worker/saved-shifts", headers=worker_headers).json()["items"] == []
+    assert client.delete(f"/api/jobs/{job_id}/save", headers=worker_headers).json()["saved"] is False
+
+
+def test_only_workers_can_use_saved_shift_endpoints(client, register_business):
+    business, headers = register_business()
+    assert client.get("/api/worker/saved-shifts", headers=headers).status_code == 403
+    assert client.post("/api/jobs/999/save", headers=headers).status_code == 403
+    assert client.delete("/api/jobs/999/save", headers=headers).status_code == 403
+
+
 def test_nearby_jobs_are_distance_filtered_and_sorted(client, register_business, create_admin):
     business, business_headers = register_business()
     verify_business(client, create_admin, business["user"]["id"])
