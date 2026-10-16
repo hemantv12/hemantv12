@@ -5,6 +5,7 @@ from __future__ import annotations
 import getpass
 import os
 import re
+import sys
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -12,6 +13,12 @@ from dotenv import load_dotenv
 ROOT = Path(__file__).resolve().parents[1]
 load_dotenv(ROOT / ".env")
 os.chdir(ROOT)
+
+# Running a script by filename puts its scripts/ directory (not the project
+# root) first on sys.path. Add the project root so "app.main" resolves reliably.
+root_text = str(ROOT)
+if root_text not in sys.path:
+    sys.path.insert(0, root_text)
 
 # Import only after loading the configured DB URL / APP_ENV.
 from app.main import APP_ENV, Base, SessionLocal, User, hash_password, log_event  # noqa: E402
@@ -23,7 +30,7 @@ def main() -> int:
     password = getpass.getpass("New admin password (min 14 characters): ")
     confirm = getpass.getpass("Repeat admin password: ")
 
-    if not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", email):
+    if not re.fullmatch(r"[^\\s@]+@[^\\s@]+\\.[^\\s@]+", email):
         print("Invalid email address.")
         return 2
     if len(full_name) < 2 or len(full_name) > 100:
