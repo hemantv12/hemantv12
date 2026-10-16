@@ -418,6 +418,113 @@ async function renderAdminAudit() {
   return `${pageHeading('ACCOUNTABILITY','Audit history','Sensitive changes and lifecycle transitions are recorded with the actor and entity reference.', '<button class="btn btn-outline" data-screen="admin-overview">Back to overview →</button>')}
   <div class="panel"><div class="panel-header"><div><h2 class="panel-title">Recent audit events</h2><div class="panel-subtitle">Latest ${items.length} events.</div></div></div><div class="table-wrap"><table class="data-table"><thead><tr><th>When</th><th>Actor</th><th>Action</th><th>Entity</th><th>Details</th></tr></thead><tbody>${items.length?items.map(e=>`<tr><td>${escapeHtml(formatDate(e.created_at))}</td><td>${escapeHtml(e.actor_user_id ?? 'Provider / system')}</td><td><b>${escapeHtml(e.action)}</b></td><td>${escapeHtml(e.entity_type)} #${escapeHtml(e.entity_id)}</td><td><small>${escapeHtml(JSON.stringify(e.detail||{}))}</small></td></tr>`).join(''):'<tr><td colspan="5">No events recorded yet.</td></tr>'}</tbody></table></div></div>`;
 }
+async function renderSupport() {
+  const result = await api('/api/support/tickets/me');
+  const items = result.items || [];
+  let thread = '';
+  if (activeSupportTicketId) {
+    try {
+      const response = await api('/api/support/tickets/' + activeSupportTicketId);
+      const ticket = response.ticket;
+      const messages = (ticket.messages || []).map(function(message) {
+        return '<article class="er-support-message"><div class="er-support-message-head"><b>' +
+          escapeHtml(message.sender_name) + '</b><small>' + escapeHtml(message.sender_role) + ' · ' +
+          escapeHtml(formatDate(message.created_at)) + '</small></div><p>' +
+          escapeHtml(message.message) + '</p></article>';
+      }).join('');
+      thread = '<section class="panel er-support-thread"><div class="panel-header"><div><h2 class="panel-title">Ticket #' +
+        ticket.id + ' · ' + escapeHtml(ticket.subject) + '</h2><div class="panel-subtitle">' +
+        statusPill(ticket.status) + '</div></div><button type="button" class="btn btn-outline btn-sm" data-support-open="' +
+        ticket.id + '">Refresh thread ↻</button></div><div class="panel-body"><div class="er-support-messages">' +
+        messages + '</div>' + (ticket.status !== 'closed'
+          ? '<form id="support-reply-form" class="form-panel"><input type="hidden" name="ticket_id" value="' +
+            ticket.id + '"><div class="form-field"><label for="support-reply-message">Add a reply</label><textarea id="support-reply-message" name="message" minlength="2" maxlength="4000" required placeholder="Write your reply or additional details"></textarea></div><div class="form-actions"><button class="btn btn-primary" type="submit">Send reply ↗</button></div></form>'
+          : '<p class="form-help">This ticket is closed. Create a new ticket if you still need help.</p>') +
+        '</div></section>';
+    } catch (error) {
+      thread = '<div class="callout-warning">' + escapeHtml(friendlyError(error)) + '</div>';
+    }
+  }
+  const cards = items.length ? items.map(function(ticket) {
+    return '<article class="job-card"><div class="job-card-head"><div class="job-brand-icon">?</div><div class="job-head-main"><div class="job-title">' +
+      escapeHtml(ticket.subject) + '</div><div class="job-business">#' + ticket.id + ' · ' +
+      escapeHtml(ticket.category) + ' · Updated ' + escapeHtml(formatDate(ticket.updated_at)) +
+      '</div></div>' + statusPill(ticket.status) + '</div><p class="application-note">' +
+      escapeHtml(ticket.latest_message || 'No messages yet.') + '</p><div class="job-card-bottom"><span class="job-business">' +
+      ticket.message_count + ' message(s)</span><button type="button" class="btn btn-primary btn-sm" data-support-open="' +
+      ticket.id + '">Open ticket →</button></div></article>';
+  }).join('') : emptyState('No support tickets yet',
+    'Create a ticket and the support team will respond in your account. Notifications will appear here when status changes.', '?');
+
+  return pageHeading('HELP & SUPPORT', 'Tell us what you need help with.',
+    'Create a private support ticket, follow replies and see its status in one place.',
+    '<button class="btn btn-outline" data-screen="overview">Back to work →</button>') +
+    '<form id="support-ticket-form" class="form-panel"><h2>New support ticket</h2><p>Do not include passwords, OTPs, full payment-card details or other highly sensitive information.</p><div class="form-grid">' +
+    '<div class="form-field"><label for="support-subject">Subject *</label><input id="support-subject" name="subject" minlength="5" maxlength="140" required placeholder="Briefly describe the issue"></div>' +
+    '<div class="form-field"><label for="support-category">Category</label><select id="support-category" name="category"><option value="account">Account</option><option value="payments">Payments</option><option value="shift">Shift or workplace</option><option value="safety">Safety concern</option><option value="technical">Technical problem</option><option value="other">Other</option></select></div>' +
+    '<div class="form-field span-2"><label for="support-message">What happened? *</label><textarea id="support-message" name="message" minlength="20" maxlength="4000" required placeholder="Describe the issue and the steps already tried."></textarea><small class="form-help">A ticket is saved inside EarnRoute. Email delivery is not enabled until a real support email provider is configured.</small></div>' +
+    '</div><div class="form-actions"><button class="btn btn-primary btn-large" type="submit">Create ticket ↗</button></div></form>' +
+    thread + '<div class="panel"><div class="panel-header"><div><h2 class="panel-title">Your support tickets</h2><div class="panel-subtitle">' +
+    items.length + ' ticket(s) · Latest activity first</div></div></div><div class="panel-body"><div class="job-list">' + cards + '</div></div></div>';
+}
+
+async function renderAdminSupport() {
+  const result = await api('/api/admin/support/tickets');
+  const items = result.items || [];
+  let thread = '';
+  if (activeAdminSupportTicketId) {
+    try {
+      const response = await api('/api/support/tickets/' + activeAdminSupportTicketId);
+      const ticket = response.ticket;
+      const messages = (ticket.messages || []).map(function(message) {
+        return '<article class="er-support-message"><div class="er-support-message-head"><b>' +
+          escapeHtml(message.sender_name) + '</b><small>' + escapeHtml(message.sender_role) + ' · ' +
+          escapeHtml(formatDate(message.created_at)) + '</small></div><p>' +
+          escapeHtml(message.message) + '</p></article>';
+      }).join('');
+      const statuses = ['open','in_progress','waiting_user','resolved','closed'].map(function(value) {
+        return '<button type="button" class="btn btn-outline btn-sm" data-support-status="' + value +
+          '" data-support-ticket-id="' + ticket.id + '">' + escapeHtml(value.replace(/_/g, ' ')) + '</button>';
+      }).join('');
+      thread = '<section class="panel er-support-thread"><div class="panel-header"><div><h2 class="panel-title">Ticket #' +
+        ticket.id + ' · ' + escapeHtml(ticket.subject) + '</h2><div class="panel-subtitle">' +
+        escapeHtml(ticket.requester_name) + ' · ' + escapeHtml(ticket.requester_email) + ' · ' +
+        escapeHtml(ticket.requester_role) + ' · ' + statusPill(ticket.status) +
+        '</div></div><button type="button" class="btn btn-outline btn-sm" data-admin-support-open="' +
+        ticket.id + '">Refresh ↻</button></div><div class="panel-body"><div class="er-support-status-actions">' +
+        statuses + '</div><div class="er-support-messages">' + messages + '</div>' +
+        (ticket.status !== 'closed'
+          ? '<form id="support-reply-form" class="form-panel"><input type="hidden" name="ticket_id" value="' +
+            ticket.id + '"><div class="form-field"><label for="support-reply-message">Reply to user</label><textarea id="support-reply-message" name="message" minlength="2" maxlength="4000" required placeholder="Write the official support response"></textarea></div><div class="form-actions"><button class="btn btn-primary" type="submit">Send reply ↗</button></div></form>'
+          : '<p class="form-help">This ticket is closed.</p>') + '</div></section>';
+    } catch (error) {
+      thread = '<div class="callout-warning">' + escapeHtml(friendlyError(error)) + '</div>';
+    }
+  }
+  const openCount = items.filter(function(ticket) {
+    return ['open','in_progress','waiting_user'].includes(ticket.status);
+  }).length;
+  const cards = items.length ? items.map(function(ticket) {
+    return '<article class="job-card"><div class="job-card-head"><div class="job-brand-icon">?</div><div class="job-head-main"><div class="job-title">' +
+      escapeHtml(ticket.subject) + '</div><div class="job-business">' + escapeHtml(ticket.requester_name) +
+      ' · ' + escapeHtml(ticket.requester_email) + ' · #' + ticket.id + '</div></div>' +
+      statusPill(ticket.status) + '</div><p class="application-note">' +
+      escapeHtml(ticket.latest_message || 'No messages yet.') + '</p><div class="job-card-bottom"><span class="job-business">' +
+      escapeHtml(ticket.category) + ' · ' + ticket.message_count + ' message(s)</span><button type="button" class="btn btn-primary btn-sm" data-admin-support-open="' +
+      ticket.id + '">Open ticket →</button></div></article>';
+  }).join('') : emptyState('No support tickets',
+    'Tickets created by workers and businesses will appear here.', '?');
+
+  return pageHeading('FOUNDER CONTROL', 'Support ticket queue',
+    'Reply in-thread, change status and keep a record of every support interaction.',
+    '<button class="btn btn-outline" data-screen="admin-overview">Back to admin →</button>') +
+    '<div class="admin-banner"><span class="admin-banner-icon">?</span><div><h3>' + openCount +
+    ' active ticket(s)</h3><p>These replies are in-app only. Configure an email provider before promising email delivery or response-time SLAs.</p></div></div>' +
+    thread + '<div class="panel"><div class="panel-header"><div><h2 class="panel-title">All tickets</h2><div class="panel-subtitle">' +
+    items.length + ' ticket(s) · Latest activity first</div></div></div><div class="panel-body"><div class="job-list">' +
+    cards + '</div></div></div>';
+}
+
 function loadingButtons(button, isLoading) {
   if (!button) return;
   button.disabled = isLoading;
