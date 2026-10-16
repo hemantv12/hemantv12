@@ -186,14 +186,17 @@ function jobCard(job, action = 'apply') {
 }
 async function shareEarnRouteText(title, text) {
   const body = String(text || '').slice(0, 5000);
+  const safeTitle = selectedLanguage === 'hi'
+    ? translateEarnRouteText(String(title || 'Share shift details'))
+    : String(title || 'Share shift details');
   try {
     if (window.EarnRouteNative && typeof window.EarnRouteNative.shareText === 'function') {
-      window.EarnRouteNative.shareText(body, String(title || 'Share shift details'));
+      window.EarnRouteNative.shareText(body, safeTitle);
       showToast('Choose an app to share these shift details.');
       return true;
     }
     if (navigator.share) {
-      await navigator.share({title: String(title || 'EarnRoute shift'), text: body});
+      await navigator.share({title: safeTitle || 'EarnRoute shift', text: body});
       return true;
     }
     if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
