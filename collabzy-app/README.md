@@ -13,7 +13,7 @@ Collabzy is a mobile-first creator–brand collaboration marketplace. The live e
 - Account password change, self-service data export and password-confirmed deletion.
 - Official Instagram Login OAuth, encrypted access-token storage, expiry handling, insights, recent media and disconnect. Requires Meta app credentials and approved permissions before it can be used with real accounts.
 - AI Studio with creator bio optimization, Reel hooks, captions/hashtags, content planning, brand pitches, brand campaign brief generation, creator outreach drafts and UGC scripts. With no OpenAI key, the UI deliberately labels output as starter templates rather than live AI.
-- Creator Instagram Auto DM workspace with keyword-match rules, private-reply drafts, enable/pause/delete controls, signed webhook validation and duplicate-event protection. Real sending stays disabled until the owner configures the official Meta permissions, webhook and explicit server-side enable switch.
+- Creator Instagram Auto DM workspace with keyword-match rules, private-reply drafts, enable/pause/delete controls, delivery activity, signed webhook validation and duplicate-event protection. Real sending stays disabled until the owner configures the official Meta permissions, webhook and explicit server-side enable switch.
 - Match-safe campaign workflows: brands post paid/barter/hybrid campaigns and creators apply, track status, chat, save opportunities and download media kits.
 - Privacy and Terms pages.
 
