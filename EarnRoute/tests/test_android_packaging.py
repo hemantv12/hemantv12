@@ -54,3 +54,17 @@ def test_frontend_connect_server_button_and_base_url_routing_exist():
     assert "getApiBaseUrl()" in html
     assert "earnroute_api_base" in js
     assert "const requestUrl = apiBase" in js
+
+
+def test_native_app_header_and_system_navigation_inset_fixes_are_present():
+    nearby_css = (ROOT / "app/static/nearby.css").read_text()
+    html = (ROOT / "app/static/index.html").read_text()
+    activity = (ANDROID / "app/src/main/java/in/earnroute/app/MainActivity.java").read_text()
+    assert "Android polish: keep the native shell clear" in nearby_css
+    assert "bottom: var(--er-system-bottom-inset, 0px) !important" in nearby_css
+    assert "font-size: 0 !important" in nearby_css
+    assert 'aria-label="Connect server"' in html
+    assert 'id="notifications-btn" class="icon-btn notification-btn" aria-label="Notifications" title="Notifications"><svg' in html
+    assert "getSystemBottomInsetDp()" in activity
+    assert "applyCssSystemBottomInset" in activity
+    assert "setVerticalScrollBarEnabled(false)" in activity
