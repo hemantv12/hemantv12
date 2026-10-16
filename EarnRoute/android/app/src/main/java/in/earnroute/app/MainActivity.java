@@ -82,7 +82,7 @@ public final class MainActivity extends Activity {
         settings.setJavaScriptCanOpenWindowsAutomatically(false);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         settings.setMediaPlaybackRequiresUserGesture(true);
-        settings.setUserAgentString(settings.getUserAgentString() + " EarnRouteAndroid/1.2.0");
+        settings.setUserAgentString(settings.getUserAgentString() + " EarnRouteAndroid/1.3.0");
 
         WebViewAssetLoader assetLoader = new WebViewAssetLoader.Builder()
                 .setDomain(ASSET_HOST)
