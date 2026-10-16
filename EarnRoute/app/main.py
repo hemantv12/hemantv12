@@ -367,6 +367,13 @@ class WorkerProfileBody(BaseModel):
     min_pay: float = Field(default=0, ge=0, le=1_000_000)
     experience_years: int = Field(default=0, ge=0, le=60)
 
+    @field_validator("travel_radius_km")
+    @classmethod
+    def validate_travel_radius(cls, value: int) -> int:
+        if value not in {1, 3, 5, 8, 10, 15}:
+            raise ValueError("Choose 1, 3, 5, 8, 10 or 15 km.")
+        return value
+
     @field_validator("skills", "preferred_categories")
     @classmethod
     def clean_list(cls, values: list[str]) -> list[str]:
@@ -498,7 +505,7 @@ def serialize_user(user: User, db: Session) -> dict[str, Any]:
         p = db.get(WorkerProfile, user.id)
         if p:
             profile = {"city": p.city, "skills": p.skills or [], "preferred_categories": p.preferred_categories or [],
-                       "availability": p.availability or [], "travel_radius_km": min(15, max(1, int(p.travel_radius_km or 3))),
+                       "availability": p.availability or [], "travel_radius_km": min((1, 3, 5, 8, 10, 15), key=lambda radius: (abs(radius - int(p.travel_radius_km or 3)), radius != 3, radius)),
                        "min_pay": p.min_pay, "experience_years": p.experience_years}
     elif user.role == "business":
         p = db.get(BusinessProfile, user.id)
