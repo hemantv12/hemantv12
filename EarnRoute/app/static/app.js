@@ -22,7 +22,8 @@ const TRANSLATIONS = {
     signOut: 'Sign out', overviewSub: 'Your work, organized around your life.', findShifts: 'Find shifts', profileSettings: 'Edit profile', recommended: 'Recommended for you', upcoming: 'Upcoming assignments',
     applied: 'Applications', confirmed: 'Confirmed shifts', completed: 'Completed work', pending: 'Pending settlement',
     noJobs: 'No published opportunities yet', noJobsCopy: 'New, verified opportunities will appear here when businesses publish genuine shifts. Try another category or check back later.',
-    language: 'हि', myAccount: 'My account', workerRole: 'Worker', businessRole: 'Business', adminRole: 'Admin', support: 'Help & support', adminSupport: 'Support tickets'
+    language: 'हि', myAccount: 'My account', workerRole: 'Worker', businessRole: 'Business', adminRole: 'Admin', support: 'Help & support', adminSupport: 'Support tickets',
+    savedShifts: 'Saved shifts', savedShiftsSub: 'Keep promising shifts in one private list and compare them before you apply.', saveShift: 'Save shift', savedShift: 'Saved', removeSaved: 'Remove', noSavedShifts: 'No saved shifts yet', noSavedShiftsCopy: 'Save a published shift while browsing and it will appear here for later.', jobSafety: 'Work safely. Get paid fairly.', safetyIntro: 'A few checks can help you avoid common job scams and stay prepared while travelling to a shift.', safetyRule: 'Never pay a recruiter or employer to get a job, registration, or an interview.', emergency112: 'Emergency help · 112', cyberHelp: 'Cyber fraud helpline · 1930', officialSafety: 'Official safety guidance'
   },
   hi: {
     workspace: 'आपका वर्कस्पेस', overview: 'डैशबोर्ड', discover: 'काम खोजें', applications: 'आवेदन', schedule: 'मेरा शेड्यूल', earnings: 'कमाई', profile: 'मेरी प्रोफ़ाइल',
@@ -30,7 +31,8 @@ const TRANSLATIONS = {
     signOut: 'साइन आउट', overviewSub: 'आपका काम, आपकी ज़िंदगी के हिसाब से।', findShifts: 'शिफ्ट खोजें', profileSettings: 'प्रोफ़ाइल एडिट करें', recommended: 'आपके लिए सही काम', upcoming: 'आने वाले असाइनमेंट',
     applied: 'आवेदन', confirmed: 'कन्फ़र्म शिफ्ट', completed: 'पूरा किया काम', pending: 'पेमेंट लंबित',
     noJobs: 'अभी कोई प्रकाशित अवसर नहीं', noJobsCopy: 'बिज़नेस द्वारा वास्तविक शिफ्ट प्रकाशित होने पर अवसर यहाँ दिखेंगे। फ़िल्टर बदलकर देखें या बाद में वापस आएँ।',
-    language: 'EN', myAccount: 'मेरा अकाउंट', workerRole: 'वर्कर', businessRole: 'बिज़नेस', adminRole: 'एडमिन', support: 'सहायता', adminSupport: 'सपोर्ट टिकट'
+    language: 'EN', myAccount: 'मेरा अकाउंट', workerRole: 'वर्कर', businessRole: 'बिज़नेस', adminRole: 'एडमिन', support: 'सहायता', adminSupport: 'सपोर्ट टिकट',
+    savedShifts: 'सेव की गई शिफ्ट', savedShiftsSub: 'अच्छी शिफ्ट को एक निजी सूची में रखें और आवेदन से पहले तुलना करें।', saveShift: 'शिफ्ट सेव करें', savedShift: 'सेव है', removeSaved: 'हटाएँ', noSavedShifts: 'अभी कोई सेव की गई शिफ्ट नहीं', noSavedShiftsCopy: 'ब्राउज़ करते समय किसी प्रकाशित शिफ्ट को सेव करें, वह यहाँ दिखेगी।', jobSafety: 'सुरक्षित काम करें। सही भुगतान पाएँ।', safetyIntro: 'कुछ सावधानियाँ आम जॉब स्कैम से बचने और शिफ्ट पर जाते समय तैयारी में मदद कर सकती हैं।', safetyRule: 'नौकरी, रजिस्ट्रेशन या इंटरव्यू पाने के लिए किसी रिक्रूटर या नियोक्ता को पैसे न दें।', emergency112: 'आपातकालीन मदद · 112', cyberHelp: 'साइबर धोखाधड़ी हेल्पलाइन · 1930', officialSafety: 'आधिकारिक सुरक्षा जानकारी'
   }
 };
 const t = key => (TRANSLATIONS[selectedLanguage] && TRANSLATIONS[selectedLanguage][key]) || TRANSLATIONS.en[key] || key;
@@ -136,7 +138,7 @@ function navItems() {
     { group:'FOUNDER CONTROL', items:[['admin-overview','overview','◫'],['admin-verifications','verify','✓'],['admin-jobs','manageJobs','▤'],['admin-disputes','disputes','⚑'],['admin-support','adminSupport','✉'],['admin-audit','audit','≋']] }
   ];
   return [
-    { group:'WORKSPACE', items:[['overview','overview','◫'],['discover','discover','⌕'],['applications','applications','▤'],['schedule','schedule','▦'],['earnings','earnings','₹']] },
+    { group:'WORKSPACE', items:[['overview','overview','◫'],['discover','discover','⌕'],['saved-shifts','savedShifts','♡'],['applications','applications','▤'],['schedule','schedule','▦'],['earnings','earnings','₹']] },
     { group:'ACCOUNT', items:[['profile','profile','○'],['support','support','?']] }
   ];
 }
@@ -153,7 +155,7 @@ function setLanguageButton() {
   applyEarnRouteLocale(document.body);
 }
 const TITLES = {
-  overview:'Overview', discover:'Discover work', applications:'Applications', schedule:'My schedule', earnings:'Earnings', profile:'My profile',
+  overview:'Overview', discover:'Discover work', 'saved-shifts':'Saved shifts', applications:'Applications', schedule:'My schedule', earnings:'Earnings', profile:'My profile',
   'business-overview':'Business overview','post-job':'Post a shift','business-jobs':'Manage jobs','business-applicants':'Applicants','business-assignments':'Assignments',
   'admin-overview':'Founder overview','admin-verifications':'Business verification','admin-jobs':'Job moderation','admin-disputes':'Dispute review','admin-support':'Support tickets','support':'Help & support','admin-audit':'Audit history'
 };
@@ -260,6 +262,7 @@ async function renderPage() {
     switch (activeScreen) {
       case 'overview': html = await renderWorkerOverview(); break;
       case 'discover': html = await renderDiscover(); break;
+      case 'saved-shifts': html = await renderSavedShifts(); break;
       case 'applications': html = await renderApplications(); break;
       case 'schedule': html = await renderSchedule(false); break;
       case 'earnings': html = await renderEarnings(); break;
