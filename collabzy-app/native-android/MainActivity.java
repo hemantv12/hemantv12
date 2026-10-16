@@ -837,8 +837,7 @@ public final class MainActivity extends Activity {
     }
 
     private void renderCampaignCardInto(LinearLayout target, JSONObject c, boolean withScore, JSONObject match) {
-    private void renderCampaignCard(JSONObject c, boolean withScore, JSONObject match) {
-        LinearLayout card = card();
+        LinearLayout campaignCard = card();
         LinearLayout meta = row();
         TextView type = text(c.optString("collaboration_type", "COLLAB"), 10, MINT, true);
         type.setPadding(dp(9), dp(6), dp(9), dp(6));
@@ -846,31 +845,28 @@ public final class MainActivity extends Activity {
         meta.addView(type);
         View spacer = new View(this);
         meta.addView(spacer, new LinearLayout.LayoutParams(0, 1, 1));
-        if (withScore && match != null) {
-            TextView score = text(match.optInt("score", 0) + "% match", 11, VIOLET, true);
-            meta.addView(score);
-        }
-        card.addView(meta);
-        gap(card, 12);
-        card.addView(text(c.optString("title", "Campaign opportunity"), 18, WHITE, true));
-        gap(card, 4);
-        card.addView(text(c.optString("brand_name", "Brand"), 12, MUTED, true));
-        gap(card, 10);
-        card.addView(text(budget(c), 14, MINT, true));
-        gap(card, 9);
-        card.addView(text(c.optString("description", "Open the brief to review collaboration details."), 13, Color.rgb(204, 212, 234), false));
+        if (withScore && match != null) meta.addView(text(match.optInt("score", 0) + "% match", 11, VIOLET, true));
+        campaignCard.addView(meta);
+        gap(campaignCard, 12);
+        campaignCard.addView(text(c.optString("title", "Campaign opportunity"), 18, WHITE, true));
+        gap(campaignCard, 4);
+        campaignCard.addView(text(c.optString("brand_name", "Brand"), 12, MUTED, true));
+        gap(campaignCard, 10);
+        campaignCard.addView(text(budget(c), 14, MINT, true));
+        gap(campaignCard, 9);
+        campaignCard.addView(text(c.optString("description", "Open the brief to review collaboration details."), 13, Color.rgb(204, 212, 234), false));
         if (match != null) {
             JSONArray reasons = match.optJSONArray("reasons");
             if (reasons != null && reasons.length() > 0) {
-                gap(card, 10);
-                card.addView(text("WHY IT MATCHES", 10, VIOLET, true));
+                gap(campaignCard, 10);
+                campaignCard.addView(text("WHY IT MATCHES", 10, VIOLET, true));
                 for (int i = 0; i < Math.min(2, reasons.length()); i++) {
-                    gap(card, 4);
-                    card.addView(text("• " + reasons.optString(i), 11, MUTED, false));
+                    gap(campaignCard, 4);
+                    campaignCard.addView(text("• " + reasons.optString(i), 11, MUTED, false));
                 }
             }
         }
-        gap(card, 15);
+        gap(campaignCard, 15);
         LinearLayout actions = row();
         TextView apply = smallButton("View & apply");
         TextView save = smallButton(screen.equals("saved") ? "Remove saved" : "Save");
@@ -881,8 +877,7 @@ public final class MainActivity extends Activity {
         apply.setOnClickListener(v -> showApplyDialog(c));
         save.setOnClickListener(v -> {
             boolean remove = screen.equals("saved");
-            String method = remove ? "DELETE" : "POST";
-            api(method, "/api/campaigns/" + c.optLong("id") + "/save", json("saved", "true"), (data, error) -> {
+            api(remove ? "DELETE" : "POST", "/api/campaigns/" + c.optLong("id") + "/save", json("saved", "true"), (data, error) -> {
                 if (error != null) toast(error);
                 else {
                     toast(remove ? "Removed from saved campaigns." : "Campaign saved.");
@@ -891,16 +886,21 @@ public final class MainActivity extends Activity {
                 }
             });
         });
-        card.addView(actions, new LinearLayout.LayoutParams(-1, -2));
-        content.addView(card);
-        gap(content, 12);
+        campaignCard.addView(actions, new LinearLayout.LayoutParams(-1, -2));
+        target.addView(campaignCard);
+        gap(target, 12);
     }
 
     private void renderCreatorCard(JSONObject c) {
-        LinearLayout card = card();
+        renderCreatorCardInto(content, c);
+    }
+
+    private void renderCreatorCardInto(LinearLayout target, JSONObject c) {
+        LinearLayout creatorCard = card();
         LinearLayout r = row();
         String name = c.optString("name", "Creator");
-        TextView avatar = text(name.isEmpty() ? "C" : name.substring(0, 1).toUpperCase(Locale.ROOT), 18, BG, true);
+        String initial = name.isEmpty() ? "C" : name.substring(0, 1).toUpperCase(Locale.ROOT);
+        TextView avatar = text(initial, 18, BG, true);
         avatar.setGravity(Gravity.CENTER);
         avatar.setBackground(rounded(VIOLET, 16, 0));
         r.addView(avatar, new LinearLayout.LayoutParams(dp(47), dp(47)));
@@ -912,59 +912,17 @@ public final class MainActivity extends Activity {
         gap(copy, 3);
         copy.addView(text(c.optString("niche", "Creator"), 12, MUTED, false));
         r.addView(copy);
-        card.addView(r);
-        gap(card, 12);
-        card.addView(text(compact(c.optLong("followers", 0)) + " followers  ·  " + (c.optDouble("engagement", 0) > 0 ? String.format(Locale.US, "%.1f%% engagement", c.optDouble("engagement", 0)) : "Engagement not added"), 12, MINT, true));
-        gap(card, 8);
-        card.addView(text(c.optString("bio", "Creator profile"), 12, MUTED, false));
-        gap(card, 12);
+        creatorCard.addView(r);
+        gap(creatorCard, 12);
+        creatorCard.addView(text(compact(c.optLong("followers", 0)) + " followers  ·  " + (c.optDouble("engagement", 0) > 0 ? String.format(Locale.US, "%.1f%% engagement", c.optDouble("engagement", 0)) : "Engagement not added"), 12, MINT, true));
+        gap(creatorCard, 8);
+        creatorCard.addView(text(c.optString("bio", "Creator profile"), 12, MUTED, false));
+        gap(creatorCard, 12);
         TextView invite = smallButton("Invite to a campaign  →");
-        card.addView(invite);
+        creatorCard.addView(invite);
         invite.setOnClickListener(v -> showInviteDialog(c));
-        content.addView(card);
-        gap(content, 12);
-    }
-
-    private void showInviteDialog(JSONObject creator) {
-        api("GET", "/api/my-campaigns", null, (data, error) -> {
-            if (error != null) { toast(error); return; }
-            JSONArray campaigns = data.optJSONArray("campaigns");
-            java.util.ArrayList<JSONObject> active = new java.util.ArrayList<>();
-            java.util.ArrayList<String> labels = new java.util.ArrayList<>();
-            if (campaigns != null) {
-                for (int i = 0; i < campaigns.length(); i++) {
-                    JSONObject campaign = campaigns.optJSONObject(i);
-                    if (campaign != null && "active".equals(campaign.optString("status"))) {
-                        active.add(campaign);
-                        labels.add(campaign.optString("title", "Campaign") + "  ·  " + budget(campaign));
-                    }
-                }
-            }
-            if (active.isEmpty()) {
-                new android.app.AlertDialog.Builder(this).setTitle("Create a campaign first")
-                    .setMessage("Publish an active campaign before inviting a creator.")
-                    .setPositiveButton("Create campaign", (d, w) -> showShell("create_campaign"))
-                    .setNegativeButton("Cancel", null).show();
-                return;
-            }
-            new android.app.AlertDialog.Builder(this)
-                .setTitle("Invite " + creator.optString("name", "creator"))
-                .setItems(labels.toArray(new String[0]), (dialog, which) -> {
-                    JSONObject campaign = active.get(which);
-                    JSONObject payload = new JSONObject();
-                    try {
-                        payload.put("creator_id", creator.optLong("id"));
-                        payload.put("message", "We would like to invite you to collaborate on " + campaign.optString("title", "our campaign") + ".");
-                    } catch (Exception ignored) {}
-                    api("POST", "/api/campaigns/" + campaign.optLong("id") + "/invite", payload, (result, problem) -> {
-                        if (problem != null) toast(problem);
-                        else {
-                            toast("Invitation sent.");
-                            dashboardLoaded = false;
-                        }
-                    });
-                }).setNegativeButton("Cancel", null).show();
-        });
+        target.addView(creatorCard);
+        gap(target, 12);
     }
 
     private void showApplyDialog(JSONObject campaign) {
