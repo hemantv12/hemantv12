@@ -584,3 +584,292 @@ async function init() {
   catch {sessionStorage.removeItem('earnroute_token');setLanding();}
 }
 window.addEventListener('load', init, { once: true });
+
+
+/* FULL-SCREEN HINDI LOCALIZATION
+   Translate rendered interface text, form hints, accessible labels, dynamic empty states,
+   notifications and prompts while leaving user-entered content and business/job names intact. */
+const ER_HI_UI = Object.freeze({
+  "WORKSPACE":"कार्य क्षेत्र","ACCOUNT":"अकाउंट","FOUNDER CONTROL":"संस्थापक कंट्रोल",
+  "Overview":"डैशबोर्ड","Discover work":"काम खोजें","Applications":"आवेदन","My schedule":"मेरा शेड्यूल",
+  "Earnings":"कमाई","My profile":"मेरी प्रोफ़ाइल","Post a shift":"शिफ्ट पोस्ट करें","Manage jobs":"काम मैनेज करें",
+  "Applicants":"आवेदक","Assignments":"असाइनमेंट","Business verification":"बिज़नेस वेरिफ़िकेशन",
+  "Disputes":"विवाद","Audit history":"ऑडिट हिस्ट्री","Sign out":"लॉग आउट",
+  "Your work, organized around your life.":"आपका काम, आपकी ज़िंदगी के हिसाब से।",
+  "Find shifts":"शिफ्ट खोजें","Edit profile":"प्रोफ़ाइल बदलें","Recommended for you":"आपके लिए सुझाया गया काम",
+  "Upcoming assignments":"आने वाली शिफ्ट","Confirmed shifts":"पक्की हुई शिफ्ट","Completed work":"पूरा किया काम",
+  "Pending settlement":"भुगतान लंबित","No published opportunities yet":"अभी कोई शिफ्ट प्रकाशित नहीं हुई",
+  "New, verified opportunities will appear here when businesses publish genuine shifts. Try another category or check back later.":"बिज़नेस के असली काम प्रकाशित होने पर वे यहाँ दिखेंगे। दूसरी कैटेगरी चुनें या बाद में फिर देखें।",
+  "My account":"मेरा अकाउंट","Worker":"वर्कर","Business":"बिज़नेस","Admin":"एडमिन",
+  "Founder console":"संस्थापक कंसोल","Your work profile":"आपकी वर्क प्रोफ़ाइल","Your work profile, organized around your life.":"आपका काम, आपकी ज़िंदगी के हिसाब से।",
+  "Home":"होम","Nearby":"आस-पास","Applied":"आवेदन","Schedule":"शेड्यूल","Post":"पोस्ट करें",
+  "Shifts":"शिफ्ट","People":"लोग","Work":"काम","Verify":"वेरिफ़ाई","Issues":"समस्याएँ","Audit":"ऑडिट",
+  "Your work":"आपका काम","Nearby work":"आस-पास का काम","Your workspace":"आपका कार्य क्षेत्र","Overview":"डैशबोर्ड",
+  "Page not found":"यह पेज नहीं मिला","Use the navigation to open a workspace section.":"किसी दूसरे सेक्शन को खोलने के लिए नीचे दिए नेविगेशन का इस्तेमाल करें।",
+  "We couldn’t load this page":"यह पेज लोड नहीं हो पाया","Try again ↻":"दोबारा कोशिश करें ↻",
+  "Loading your workspace…":"आपका वर्कस्पेस लोड हो रहा है…","Searching published opportunities…":"प्रकाशित काम खोजे जा रहे हैं…",
+  "Notifications":"सूचनाएँ","Recorded status updates for your account.":"आपके अकाउंट के काम और स्टेटस की सूचनाएँ।",
+  "No notifications":"अभी कोई सूचना नहीं","Application, offer, attendance and payment updates will be shown here.":"आवेदन, ऑफ़र, उपस्थिति और भुगतान से जुड़ी सूचनाएँ यहाँ दिखेंगी।",
+  "Close notifications":"सूचनाएँ बंद करें","Change language":"भाषा बदलें","Open navigation":"नेविगेशन खोलें",
+  "Work close.":"पास में काम।","Earn with confidence.":"भरोसे के साथ कमाएँ।",
+  "Find genuine paid shifts near you. Check the distance, hours and estimated take-home before you apply.":"अपने पास असली भुगतान वाली शिफ्ट खोजें। आवेदन से पहले दूरी, समय और अनुमानित कमाई देखें।",
+  "MADE FOR YOUR NEIGHBOURHOOD":"आपके आस-पास के काम के लिए","NEARBY WORK":"आस-पास काम",
+  "WORK, CLOSER TO HOME":"घर के पास काम","How far can you travel?":"आप कितनी दूर तक जा सकते हैं?",
+  "Start small. Stay close to home.":"कम दूरी से शुरू करें, घर के पास रहें।",
+  "Find nearby work":"पास का काम खोजें","I’m hiring for a shift":"मुझे शिफ्ट के लिए लोग चाहिए",
+  "Already on EarnRoute?":"पहले से EarnRoute पर हैं?","Log in":"लॉग इन करें",
+  "Opportunities depend on jobs actually published in your area. Earnings and work are not guaranteed.":"काम तभी दिखेगा जब आपके इलाके में शिफ्ट प्रकाशित होगी। काम या कमाई की गारंटी नहीं है।",
+  "Illustration only · Real shifts load after sign-in":"सिर्फ़ उदाहरण · असली शिफ्ट लॉग इन के बाद दिखेंगी",
+  "your chosen area":"आपका चुना हुआ इलाका","See pay upfront":"भुगतान पहले देखें","Clear terms. Your choice.":"शर्तें साफ़, फैसला आपका।",
+  "options":"विकल्प","More":"और दूरी","km":"किमी","POPULAR":"लोकप्रिय",
+  "LOCAL GIGS · CLEAR PAY":"पास का काम · साफ़ भुगतान","YOUR NEIGHBOURHOOD":"आपका आस-पास का इलाका",
+  "Work around you":"आपके आस-पास काम","Closest first. Pay shown up front. One-tap apply.":"पहले सबसे नज़दीक की शिफ्ट। भुगतान साफ़। एक टैप में आवेदन।",
+  "How far can you go?":"आप कितनी दूर जा सकते हैं?","Choose work type":"काम का प्रकार चुनें",
+  "Choose category":"कैटेगरी चुनें","Browse nearby →":"पास का काम देखें →",
+  "Find work close to you.":"अपने पास काम खोजें।","Find a gig close to you.":"अपने पास काम खोजें।",
+  "Hi ":"नमस्ते ","Let’s earn nearby.":"चलिए, पास में कमाई करें।",
+  "Short shifts, local gigs and paid help up to 15 km away. Less travel, more time back.":"15 किमी तक की छोटी शिफ्ट और स्थानीय काम। कम सफ़र, अपने लिए ज़्यादा समय।",
+  "START WITH YOUR AREA":"अपने इलाके से शुरू करें","Earn closer to home.":"घर के पास कमाएँ।",
+  "Turn on location to find real paid shifts within 1 km, 3 km, 5 km or more (up to 15 km). Your live position stays on this device and expires after 30 minutes.":"1, 3, 5 किमी या अधिक (15 किमी तक) की असली भुगतान वाली शिफ्ट खोजने के लिए लोकेशन चालू करें। आपकी लोकेशन इसी डिवाइस पर रहती है और 30 मिनट में हट जाती है।",
+  "Use my location":"मेरी लोकेशन इस्तेमाल करें","Finding your location…":"आपकी लोकेशन ढूँढ रहे हैं…",
+  "Location ready. Showing only nearby shifts.":"लोकेशन मिल गई। अब सिर्फ़ आस-पास की शिफ्ट दिखेंगी।",
+  "Refresh location":"लोकेशन फिर से लें","Refresh my location":"लोकेशन अपडेट करें","Find jobs near me":"मेरे पास काम खोजें",
+  "Your location is only used to find nearby work":"आपकी लोकेशन सिर्फ़ पास का काम ढूँढने के लिए इस्तेमाल होती है",
+  "Location is only used to find nearby work":"लोकेशन सिर्फ़ पास का काम ढूँढने के लिए इस्तेमाल होती है",
+  "Your live position stays on this device and expires after 30 minutes.":"आपकी लोकेशन इसी डिवाइस पर रहती है और 30 मिनट में हट जाती है।",
+  "Location permission was denied. Enable location permission for EarnRoute, then try again.":"लोकेशन की अनुमति नहीं मिली। EarnRoute की सेटिंग में लोकेशन अनुमति चालू करके फिर कोशिश करें।",
+  "Your location is unavailable. Turn on device location services and try again.":"लोकेशन उपलब्ध नहीं है। डिवाइस की लोकेशन चालू करके फिर कोशिश करें।",
+  "Location took too long. Move near a window or try again.":"लोकेशन मिलने में देर हुई। खिड़की के पास जाकर या फिर से कोशिश करें।",
+  "This device cannot share its location. Open EarnRoute in a location-enabled browser.":"यह डिवाइस लोकेशन साझा नहीं कर पा रहा। लोकेशन चालू ब्राउज़र में EarnRoute खोलें।",
+  "Could not get your location. Please try again.":"आपकी लोकेशन नहीं मिल सकी। फिर कोशिश करें।",
+  "No shifts inside ":"के अंदर कोई शिफ्ट नहीं मिली: ",
+  "No shifts inside 1 km yet":"1 किमी के अंदर अभी कोई शिफ्ट नहीं है",
+  "No shifts in this radius yet":"इस दूरी के अंदर अभी कोई शिफ्ट नहीं है",
+  "Try a wider radius using More (up to 15 km). Jobs without a workplace pin stay hidden rather than showing a made-up distance.":"More से दूरी बढ़ाकर 15 किमी तक देखें। सही वर्कप्लेस पिन न होने पर काम छिपा रहेगा, गलत दूरी नहीं दिखाई जाएगी।",
+  "Only jobs with a real workplace pin are shown. Expand the distance or try another category.":"सिर्फ़ असली वर्कप्लेस पिन वाली शिफ्ट दिखती हैं। दूरी बढ़ाएँ या दूसरी कैटेगरी चुनें।",
+  "Try a wider range or another category.":"दूरी बढ़ाकर या दूसरी कैटेगरी चुनकर देखें।",
+  "You’re already at the widest radius. Try another work category or check back later.":"आप सबसे ज़्यादा दूरी पर हैं। दूसरी कैटेगरी चुनें या बाद में फिर देखें।",
+  "Look within ":"इस दूरी में देखें: ","Expand to ":"दूरी बढ़ाएँ: ",
+  "Browse nearby":"पास का काम देखें","No shifts yet":"अभी कोई शिफ्ट नहीं",
+  "GROSS / SHIFT":"कुल भुगतान / शिफ्ट","EST. YOU RECEIVE":"आपको अनुमानित मिलेगा",
+  "before platform fee":"प्लेटफ़ॉर्म शुल्क से पहले","after estimated fee":"अनुमानित शुल्क के बाद",
+  "Apply now":"अभी आवेदन करें","Profile needed":"प्रोफ़ाइल पूरी करें","Details":"विवरण",
+  "Workplace:":"काम की जगह:","Skills:":"ज़रूरी कौशल:","Apply by:":"आवेदन की आख़िरी तारीख:","Payment:":"भुगतान:","Confirm terms before accepting.":"स्वीकार करने से पहले शर्तें पक्की करें।",
+  "Distance is straight-line GPS distance, not driving distance or ETA. Take-home pay is an estimate, not payment confirmation.":"दूरी सीधे GPS के हिसाब से है, सड़क की दूरी या पहुँचने का समय नहीं। कमाई अनुमान है, भुगतान की पुष्टि नहीं।",
+  "Open workplace in Maps ↗":"मैप में काम की जगह खोलें ↗","Search workplace in Maps ↗":"मैप में काम की जगह खोजें ↗","Navigate to workplace ↗":"काम की जगह का रास्ता देखें ↗",
+  "Delivery":"डिलीवरी","Retail":"रिटेल","Events":"इवेंट","Warehouse":"गोदाम","Hospitality":"हॉस्पिटैलिटी","Other":"अन्य",
+  "All":"सभी","Search a local gig":"पास का काम खोजें","Min pay ₹":"न्यूनतम भुगतान ₹","Search":"खोजें","Clear":"हटाएँ",
+  "Distance limit":"दूरी की सीमा","Work type":"काम का प्रकार","Using device location · ":"डिवाइस लोकेशन इस्तेमाल हो रही है · ",
+  " shifts · closest first":" शिफ्ट · पहले नज़दीकी काम"," shift":" शिफ्ट"," shifts":" शिफ्ट",
+  "Your city *":"आपका शहर *","Preferred travel radius":"पसंदीदा दूरी","Your skills (comma-separated)":"आपके कौशल (कॉमा से अलग करें)",
+  "Preferred work categories (comma-separated)":"पसंदीदा काम की कैटेगरी (कॉमा से अलग करें)",
+  "Minimum preferred gross pay per shift (INR)":"हर शिफ्ट का न्यूनतम कुल भुगतान (₹)",
+  "Relevant experience (years)":"संबंधित अनुभव (वर्ष)","Weekly availability windows *":"हफ़्ते में उपलब्ध समय *",
+  "Save preferences ↗":"पसंद सेव करें ↗","Save preferences":"पसंद सेव करें","Save business details ↗":"बिज़नेस की जानकारी सेव करें ↗",
+  "Business / legal name *":"बिज़नेस / कानूनी नाम *","Business category":"बिज़नेस की कैटेगरी","Business phone":"बिज़नेस फ़ोन",
+  "Business address":"बिज़नेस का पता","Description":"विवरण","City *":"शहर *","Business details":"बिज़नेस की जानकारी",
+  "Work preferences":"काम की पसंद","Help the matcher understand you.":"अपने बारे में सही जानकारी दें।",
+  "Keep your preferences honest and up to date. You choose whether to apply for or accept any opportunity.":"अपनी जानकारी सही और अपडेट रखें। किस काम के लिए आवेदन करना है, इसका फैसला आपका है।",
+  "These details are used for explainable recommendations. Do not include Aadhaar, bank credentials or other unnecessary sensitive information.":"इन जानकारियों से काम सुझाए जाते हैं। आधार, बैंक पासवर्ड या दूसरी ज़रूरत से ज़्यादा निजी जानकारी न डालें।",
+  "Use Mon, Tue, Wed, Thu, Fri, Sat or Sun followed by a start and end time in 24-hour format. Example: Wed,09:00,16:00. A window must cover the full shift.":"Mon, Tue, Wed, Thu, Fri, Sat या Sun के साथ 24-घंटे का शुरू और खत्म होने का समय लिखें। उदाहरण: Wed,09:00,16:00। समय पूरी शिफ्ट को कवर करना चाहिए।",
+  "Save a draft or publish a genuine paid shift once the business profile is verified.":"बिज़नेस वेरिफ़ाई होने के बाद असली भुगतान वाली शिफ्ट का ड्राफ़्ट सेव या प्रकाशित करें।",
+  "Exact workplace pin":"काम की जगह का सटीक पिन","Required to publish":"प्रकाशित करने के लिए ज़रूरी",
+  "Workplace location not set":"काम की जगह की लोकेशन सेट नहीं है","Set pin from here":"यहाँ का पिन सेट करें",
+  "Set workplace pin":"वर्कप्लेस पिन सेट करें","Publish":"प्रकाशित करें","Pause":"रोकें","Close":"बंद करें",
+  "Post your first shift →":"अपनी पहली शिफ्ट पोस्ट करें →","Shift management":"शिफ्ट मैनेजमेंट",
+  "Your local shifts.":"आपकी स्थानीय शिफ्ट।","Jobs and drafts":"शिफ्ट और ड्राफ़्ट",
+  "No shifts yet":"अभी कोई शिफ्ट नहीं","Post a genuine paid shift and set its workplace pin so local workers can find it.":"असली भुगतान वाली शिफ्ट पोस्ट करें और उसका वर्कप्लेस पिन सेट करें ताकि पास के लोग उसे देख सकें।",
+  "Applicants for selected job":"चुनी हुई शिफ्ट के आवेदक","All applicants":"सभी आवेदक","Shortlist":"शॉर्टलिस्ट करें","Reject":"रिजेक्ट करें","Send offer":"ऑफ़र भेजें",
+  "No applications in this view":"यहाँ कोई आवेदन नहीं","Skills not added yet":"अभी कौशल नहीं जोड़े","No reviews yet":"अभी कोई रिव्यू नहीं",
+  "Received ":"मिला: ","Created ":"बनाया गया: ","Deadline ":"आख़िरी तारीख: ","Created on ":"बनने की तारीख: ",
+  "Apply":"आवेदन करें","Withdraw":"वापस लें","Withdraw application":"आवेदन वापस लें",
+  "Withdraw this application? You cannot withdraw it after an offer is sent.":"क्या आवेदन वापस लेना है? ऑफ़र आने के बाद आवेदन वापस नहीं लिया जा सकता।",
+  "Rate the other participant from 1 to 5 stars:":"दूसरे व्यक्ति को 1 से 5 स्टार दें:",
+  "Enter a whole-number rating from 1 to 5.":"1 से 5 के बीच पूरा अंक चुनें।",
+  "Cancellation note (optional):":"रद्द करने का कारण (ज़रूरी नहीं):",
+  "Enter the reason for rejection (at least 8 characters):":"रिजेक्शन का कारण लिखें (कम-से-कम 8 अक्षर):",
+  "Please provide a clear rejection reason.":"कृपया रिजेक्शन का साफ़ कारण दें।",
+  "Please document your decision.":"कृपया अपना फैसला दर्ज करें।",
+  "Document why this dispute will be ":"लिखें कि इस विवाद का फैसला क्यों किया जा रहा है: ",
+  "Report a problem":"समस्या रिपोर्ट करें","Check in":"शिफ्ट शुरू करें","Check out":"शिफ्ट खत्म करें",
+  "Cancel":"रद्द करें","Cancel assignment":"असाइनमेंट रद्द करें","Cancel shift":"शिफ्ट रद्द करें",
+  "Approve completion":"काम पूरा होने की पुष्टि करें","Rate business":"बिज़नेस को रेट करें","Rate worker":"वर्कर को रेट करें",
+  "Workplace, instructions and terms":"काम की जगह, निर्देश और शर्तें","Location:":"लोकेशन:",
+  "Review shift instructions before arrival":"पहुँचने से पहले शिफ्ट के निर्देश पढ़ें",
+  "Waiting for worker check-out":"वर्कर के शिफ्ट खत्म करने का इंतज़ार है",
+  "Assigned":"असाइन हुआ","Applied":"आवेदन किया","Shortlisted":"शॉर्टलिस्ट हुआ","Offer received":"ऑफ़र मिला",
+  "Accepted":"स्वीकार किया","Declined":"मना किया","Withdrawn":"वापस लिया","Rejected":"रिजेक्ट हुआ",
+  "Confirmed":"पुष्टि हुई","Checked in":"शिफ्ट शुरू","Checked out":"शिफ्ट खत्म","Completed":"पूरा हुआ",
+  "Cancelled":"रद्द","Disputed":"विवाद में","Pending":"लंबित","Verified":"वेरिफ़ाइड","Published":"प्रकाशित",
+  "Draft":"ड्राफ़्ट","Paused":"रोका गया","Closed":"बंद","Paid":"भुगतान हो गया","Not due":"अभी देय नहीं",
+  "Completed assignment":"पूरा हुआ असाइनमेंट","Pending settlement":"भुगतान लंबित","Verified paid":"भुगतान की पुष्टि",
+  "Recognized platform revenue":"प्लेटफ़ॉर्म की दर्ज कमाई","Active workers":"सक्रिय वर्कर",
+  "Verified businesses":"वेरिफ़ाइड बिज़नेस","Published jobs":"प्रकाशित शिफ्ट","Assignments":"असाइनमेंट",
+  "Open disputes":"खुले विवाद","Business accounts":"बिज़नेस अकाउंट","What to review":"क्या जाँचना है",
+  "Metric definitions":"मेट्रिक की जानकारी","Revenue is not transaction volume":"कमाई और कुल लेन-देन अलग हैं",
+  "Pending verification":"वेरिफ़िकेशन बाकी","Verification queue is clear":"वेरिफ़िकेशन की कतार खाली है",
+  "New business accounts appear here until a founder reviews the profile. No fake verification records are seeded.":"नए बिज़नेस अकाउंट यहाँ दिखेंगे जब तक संस्थापक उनकी जाँच नहीं करते। कोई नकली वेरिफ़िकेशन रिकॉर्ड नहीं है।",
+  "Review job listings":"काम की लिस्टिंग जाँचें","Job inventory":"शिफ्ट की सूची","No job records yet.":"अभी कोई शिफ्ट रिकॉर्ड नहीं है।",
+  "Dispute desk":"विवाद डेस्क","Assignment disputes":"असाइनमेंट से जुड़े विवाद","No disputes recorded":"अभी कोई विवाद दर्ज नहीं",
+  "Recent audit events":"हाल की ऑडिट गतिविधियाँ","No events recorded yet.":"अभी कोई गतिविधि दर्ज नहीं",
+  "Resolve":"हल करें","Close without change":"बिना बदलाव बंद करें","View audit history →":"ऑडिट हिस्ट्री देखें →",
+  "Back to overview →":"डैशबोर्ड पर वापस जाएँ →","Back to jobs →":"शिफ्ट पर वापस जाएँ →",
+  "Open queue →":"कतार खोलें →","Review →":"जाँचें →","Open jobs →":"शिफ्ट खोलें →",
+  "Application sent.":"आवेदन भेज दिया गया।","Application withdrawn.":"आवेदन वापस ले लिया गया।",
+  "Assignment cancellation recorded and the other party notified.":"असाइनमेंट रद्द हुआ और दूसरे व्यक्ति को सूचना भेज दी गई।",
+  "Job published and visible to eligible workers.":"शिफ्ट प्रकाशित कर दी गई है और योग्य वर्कर इसे देख सकते हैं।",
+  "Job paused.":"शिफ्ट रोक दी गई।","Job closed.":"शिफ्ट बंद कर दी गई।",
+  "Offer sent to the worker.":"वर्कर को ऑफ़र भेज दिया गया।","Business marked verified.":"बिज़नेस वेरिफ़ाइड मार्क किया गया।",
+  "Business verification rejected with a recorded reason.":"कारण दर्ज करके बिज़नेस वेरिफ़िकेशन अस्वीकार किया गया।",
+  "Dispute decision recorded in the audit history.":"विवाद का फैसला ऑडिट हिस्ट्री में दर्ज हो गया।",
+  "Notification marked as read.":"सूचना पढ़ी गई मार्क कर दी गई।",
+  "Updated successfully.":"सफलतापूर्वक अपडेट हुआ।","Please wait…":"कृपया इंतज़ार करें…",
+  "Something went wrong. Please try again.":"कुछ गड़बड़ हुई। कृपया फिर कोशिश करें।",
+  "Cannot reach EarnRoute right now. Check your connection and try again.":"अभी EarnRoute से संपर्क नहीं हो पा रहा। इंटरनेट जाँचकर फिर कोशिश करें।",
+  "Connect the deployed EarnRoute server before creating an account or loading live work.":"अकाउंट बनाने या असली काम देखने से पहले EarnRoute सर्वर कनेक्ट करें।",
+  "Unexpected server response.":"सर्वर से अनपेक्षित जवाब मिला।",
+  "Email or password is incorrect.":"ईमेल या पासवर्ड गलत है।",
+  "This opportunity is not available.":"यह काम अब उपलब्ध नहीं है।",
+  "Business verification is required before publishing jobs. Save it as a draft while verification is pending.":"शिफ्ट प्रकाशित करने से पहले बिज़नेस वेरिफ़िकेशन ज़रूरी है। जाँच पूरी होने तक ड्राफ़्ट सेव करें।",
+  "Set the workplace pin first. Workers only see shifts inside their selected radius, up to 15 km of the real pin.":"पहले काम की जगह का पिन सेट करें। वर्कर असली पिन के आस-पास चुनी दूरी (15 किमी तक) में ही शिफ्ट देखेंगे।",
+  "Set the workplace pin first. Workers only see shifts inside 1 km, 3 km or 5 km of the real pin.":"पहले काम की जगह का पिन सेट करें। वर्कर असली पिन के पास की शिफ्ट ही देखेंगे।",
+  "Set the workplace pin first.":"पहले काम की जगह का पिन सेट करें।",
+  "Please enter valid dates and times.":"कृपया सही तारीख और समय भरें।",
+  "The workplace pin is required to publish this shift.":"यह शिफ्ट प्रकाशित करने के लिए वर्कप्लेस पिन ज़रूरी है।",
+  "Server not connected":"सर्वर कनेक्ट नहीं है","Could not load nearby jobs":"आस-पास का काम लोड नहीं हो पाया",
+  "Nearby work did not load":"आस-पास का काम लोड नहीं हुआ","Could not load this page":"यह पेज लोड नहीं हुआ",
+  "Try another category or check back later.":"दूसरी कैटेगरी चुनें या बाद में फिर देखें।",
+  "Please provide a valid reason.":"कृपया सही कारण लिखें।","Page not found":"पेज नहीं मिला",
+  "A role cannot view this resource.":"इस भूमिका को यह जानकारी देखने की अनुमति नहीं है।",
+  "Founder access is active":"संस्थापक का एक्सेस चालू है",
+  "Founder access":"संस्थापक एक्सेस","FOUNDER CONTROL PANEL":"संस्थापक कंट्रोल पैनल",
+  "Know what needs your attention.":"जानें कि किस पर ध्यान देना है।",
+  "Review platform operations, verification requests, reported issues and settlement exceptions without changing data from a client-side role toggle.":"प्लेटफ़ॉर्म, वेरिफ़िकेशन, रिपोर्ट की गई समस्याएँ और भुगतान की जाँच करें। सिर्फ़ स्क्रीन से भूमिका बदलकर डेटा में बदलाव नहीं किया जा सकता।",
+  "Only mark a business verified after checks appropriate to your actual process. A profile being verified by this platform is not a government endorsement or a safety guarantee.":"अपने जाँच-प्रक्रिया के अनुसार जाँच करने के बाद ही बिज़नेस वेरिफ़ाइड करें। प्लेटफ़ॉर्म वेरिफ़िकेशन सरकारी मंज़ूरी या सुरक्षा की गारंटी नहीं है।",
+  "Review the relevant skills and work preferences shared by applicants. Send offers only when shift terms and capacity are still correct.":"आवेदक के कौशल और काम की पसंद देखें। शर्तें और सीटें पक्की होने पर ही ऑफ़र भेजें।",
+  "Keep business contact and location details accurate. Documents and private verification uploads are not enabled in this starter release.":"बिज़नेस की संपर्क और लोकेशन जानकारी सही रखें। इस रिलीज़ में दस्तावेज़ अपलोड और निजी वेरिफ़िकेशन उपलब्ध नहीं हैं।",
+  "Verification status:":"वेरिफ़िकेशन स्थिति:",
+  "Help the matcher understand you.":"अपने बारे में सही जानकारी दें।",
+  "Profile needed":"प्रोफ़ाइल पूरी करें","Skills not added yet":"कौशल अभी नहीं जोड़े गए","City not added":"शहर नहीं जोड़ा गया",
+  "No applications in this view":"यहाँ कोई आवेदन नहीं","No shifts in this radius yet":"इस दूरी के भीतर कोई शिफ्ट नहीं",
+  "Show more":"और दिखाएँ","Show less":"कम दिखाएँ","Open in Maps":"मैप में खोलें",
+  "Application status":"आवेदन की स्थिति","Shift details":"शिफ्ट की जानकारी","Workplace pin":"वर्कप्लेस पिन",
+  "Exact workplace pin":"काम की जगह का सही पिन","Workplace location not set":"काम की जगह सेट नहीं है",
+  "Set pin from here":"यहाँ का पिन सेट करें","Publishing is locked until an admin verifies the business.":"एडमिन वेरिफ़ाई करने तक शिफ्ट प्रकाशित नहीं की जा सकती।",
+  "No shifts yet":"अभी कोई शिफ्ट नहीं","Post a shift":"शिफ्ट पोस्ट करें","Use your device location":"डिवाइस की लोकेशन इस्तेमाल करें",
+  "Gross pay":"कुल भुगतान","Net payable":"देय कमाई","Payment:":"भुगतान:",
+  "Apply by:":"आवेदन की आख़िरी तारीख:","GROSS / SHIFT":"कुल भुगतान / शिफ्ट",
+  "EST. YOU RECEIVE":"आपको अनुमानित मिलेगा","Open workplace in Maps ↗":"मैप में काम की जगह खोलें ↗",
+  "Not set":"तय नहीं","All applicants":"सभी आवेदक","Account":"अकाउंट",
+  "Are you sure?":"क्या आप पक्का करना चाहते हैं?","Withdraw this application?":"क्या आवेदन वापस लेना है?",
+  "No jobs yet":"अभी कोई काम नहीं","Try again":"फिर कोशिश करें","Reset":"रीसेट करें","Save":"सेव करें","Update":"अपडेट करें",
+  "Next":"आगे","Back":"वापस","Continue":"जारी रखें","Finish":"पूरा करें","Required":"ज़रूरी",
+  "Optional":"वैकल्पिक","Loading…":"लोड हो रहा है…","Loading your workspace…":"आपका वर्कस्पेस लोड हो रहा है…",
+  "Request failed":"अनुरोध पूरा नहीं हुआ","Account created.":"अकाउंट बन गया।","You have signed out.":"आप लॉग आउट हो गए हैं।",
+  "Application status updated.":"आवेदन की स्थिति अपडेट हुई।","Shift posted.":"शिफ्ट पोस्ट हो गई।"
+});
+
+const ER_HI_PHRASES = Object.entries(ER_HI_UI)
+  .filter(([english]) => english.length >= 8 && english.includes(' '))
+  .sort((a, b) => b[0].length - a[0].length);
+
+function translateEarnRouteText(input) {
+  if (typeof input !== 'string' || selectedLanguage !== 'hi' || !input.trim()) return input;
+  const source = input;
+  const trimmed = source.trim();
+  const exact = ER_HI_UI[trimmed];
+  if (exact) return source.replace(trimmed, exact);
+  let output = source;
+  for (const [english, hindi] of ER_HI_PHRASES) {
+    if (output.includes(english)) output = output.split(english).join(hindi);
+  }
+  output = output
+    .replace(/^No shifts inside\s+(\d+(?:\.\d+)?)\s*km yet$/i, 'अभी $1 किमी के अंदर कोई शिफ्ट नहीं है')
+    .replace(/^(\d+)\s+applications?$/i, '$1 आवेदन')
+    .replace(/^(\d+)\s+shifts?$/i, '$1 शिफ्ट')
+    .replace(/^(\d+)\s+applicants?$/i, '$1 आवेदक')
+    .replace(/^Hi\s+(.+?)[.!]?$/i, 'नमस्ते $1')
+    .replace(/^Gross pay\s*/i, 'कुल भुगतान ')
+    .replace(/^Net payable\s*/i, 'देय कमाई ')
+    .replace(/^Payment:\s*/i, 'भुगतान: ')
+    .replace(/^Location:\s*/i, 'लोकेशन: ')
+    .replace(/^Deadline\s*/i, 'आख़िरी तारीख ')
+    .replace(/^Created\s*/i, 'बनाया गया ')
+    .replace(/^Received\s*/i, 'मिला ')
+    .replace(/^(\s*)km(\s*)$/i, '$1किमी$2')
+    .replace(/^(\s*)More(\s*)$/i, '$1और$2');
+  return output;
+}
+
+const erLocaleTextRecords = new WeakMap();
+const erLocaleAttributeRecords = new WeakMap();
+const ER_LOCALE_ATTRIBUTES = ['placeholder', 'title', 'aria-label', 'aria-description', 'alt'];
+
+function translateEarnRouteTextNode(node) {
+  if (!node || !node.parentElement) return;
+  const parent = node.parentElement;
+  if (parent.closest('script,style,noscript,textarea,[contenteditable="true"],[data-i18n],#lang-btn,[data-er-language-toggle]')) return;
+  const current = node.nodeValue || '';
+  const previous = erLocaleTextRecords.get(node);
+  let english = previous && current === previous.applied ? previous.original : current;
+  if (!previous || current !== previous.applied) {
+    erLocaleTextRecords.set(node, {original: english, applied: current});
+  }
+  const localized = selectedLanguage === 'hi' ? translateEarnRouteText(english) : english;
+  if (node.nodeValue !== localized) node.nodeValue = localized;
+  erLocaleTextRecords.set(node, {original: english, applied: localized});
+}
+
+function translateEarnRouteAttributes(element) {
+  if (!(element instanceof Element)) return;
+  if (element.matches('#lang-btn,[data-er-language-toggle],[data-i18n]')) return;
+  let records = erLocaleAttributeRecords.get(element);
+  if (!records) { records = new Map(); erLocaleAttributeRecords.set(element, records); }
+  for (const attr of ER_LOCALE_ATTRIBUTES) {
+    if (!element.hasAttribute(attr)) continue;
+    const current = element.getAttribute(attr) || '';
+    const previous = records.get(attr);
+    const english = previous && current === previous.applied ? previous.original : current;
+    const localized = selectedLanguage === 'hi' ? translateEarnRouteText(english) : english;
+    if (localized !== current) element.setAttribute(attr, localized);
+    records.set(attr, {original: english, applied: localized});
+  }
+}
+
+function applyEarnRouteLocale(root = document.body) {
+  if (!root || typeof document.createTreeWalker !== 'function') return;
+  document.documentElement.lang = selectedLanguage === 'hi' ? 'hi-IN' : 'en-IN';
+  if (root instanceof Element) translateEarnRouteAttributes(root);
+  const textWalker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      if (!node.parentElement || !node.nodeValue || !node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+      if (node.parentElement.closest('script,style,noscript,textarea,[contenteditable="true"],[data-i18n],#lang-btn,[data-er-language-toggle]')) return NodeFilter.FILTER_REJECT;
+      return NodeFilter.FILTER_ACCEPT;
+    }
+  });
+  const nodes = [];
+  while (textWalker.nextNode()) nodes.push(textWalker.currentNode);
+  for (const node of nodes) translateEarnRouteTextNode(node);
+  if (root.querySelectorAll) root.querySelectorAll(ER_LOCALE_ATTRIBUTES.map(attr => '[' + attr + ']').join(',')).forEach(translateEarnRouteAttributes);
+}
+
+let erLocalePassQueued = false;
+function queueEarnRouteLocalePass() {
+  if (erLocalePassQueued) return;
+  erLocalePassQueued = true;
+  Promise.resolve().then(() => {
+    erLocalePassQueued = false;
+    applyEarnRouteLocale(document.body);
+  });
+}
+
+if (typeof MutationObserver !== 'undefined' && document.body) {
+  const erLocaleObserver = new MutationObserver(() => queueEarnRouteLocalePass());
+  erLocaleObserver.observe(document.body, {
+    childList: true, subtree: true, characterData: true, attributes: true,
+    attributeFilter: ER_LOCALE_ATTRIBUTES
+  });
+}
+window.addEventListener('beforeunload', () => {
+  try { localStorage.setItem('earnroute_language', selectedLanguage); } catch (_) {}
+});
