@@ -67,6 +67,9 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r EarnRoute/requirements.txt
+      - name: Sync current frontend into Android assets
+        working-directory: EarnRoute/android
+        run: ./sync-assets.sh
       - name: Run API tests
         working-directory: EarnRoute
         run: pytest -q
@@ -76,4 +79,5 @@ jobs:
       - name: Check frontend JavaScript
         run: |
           node --check EarnRoute/app/static/app.js
+          node --check EarnRoute/app/static/nearby.js
           node --check EarnRoute/app/static/nearby.js
