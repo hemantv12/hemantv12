@@ -52,6 +52,7 @@ async function start(PORT,SECRET){
   await pool.query("CREATE TABLE IF NOT EXISTS support_requests(id BIGSERIAL PRIMARY KEY,name TEXT NOT NULL,email TEXT NOT NULL,category TEXT NOT NULL,subject TEXT NOT NULL,message TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'open',created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP)");
   await pool.query("CREATE TABLE IF NOT EXISTS admin_audit_log(id BIGSERIAL PRIMARY KEY,actor_email TEXT NOT NULL,action TEXT NOT NULL,target_type TEXT NOT NULL,target_id BIGINT,details JSONB NOT NULL DEFAULT '{}'::jsonb,created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP)");
   await pool.query('CREATE INDEX IF NOT EXISTS admin_audit_log_created_idx ON admin_audit_log(created_at DESC,id DESC)');
+  await pool.query("CREATE TABLE IF NOT EXISTS admin_credentials(id SMALLINT PRIMARY KEY CHECK(id=1),email TEXT NOT NULL UNIQUE,password_hash TEXT NOT NULL,created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP)");
   await pool.query("CREATE TABLE IF NOT EXISTS billing_orders(id BIGSERIAL PRIMARY KEY,provider TEXT NOT NULL DEFAULT 'razorpay',order_id TEXT NOT NULL UNIQUE,user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,amount_paise INTEGER NOT NULL,currency TEXT NOT NULL DEFAULT 'INR',plan_code TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'created',payment_id TEXT UNIQUE,created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,paid_at TIMESTAMPTZ)");
   await pool.query("CREATE INDEX IF NOT EXISTS billing_orders_user_idx ON billing_orders(user_id,created_at DESC)");
   await pool.query("CREATE TABLE IF NOT EXISTS user_subscriptions(user_id BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,plan_code TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'active',starts_at TIMESTAMPTZ NOT NULL,expires_at TIMESTAMPTZ NOT NULL,provider TEXT NOT NULL DEFAULT 'razorpay',provider_payment_id TEXT NOT NULL,updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP)");
@@ -104,6 +105,7 @@ async function start(PORT,SECRET){
   app.use(express.json({limit:'1mb',verify:(req,res,buf)=>{req.rawBody=Buffer.from(buf)}}));
   app.use('/api/auth',rateLimit({windowMs:900000,limit:20,standardHeaders:true,legacyHeaders:false}));
   const adminLoginLimiter=rateLimit({windowMs:900000,limit:5,standardHeaders:true,legacyHeaders:false,message:{error:'Too many admin login attempts. Wait 15 minutes and try again.'}});
+  const adminSetupLimiter=rateLimit({windowMs:900000,limit:3,standardHeaders:true,legacyHeaders:false,message:{error:'Too many admin setup attempts. Wait 15 minutes and try again.'}});
   app.use('/api/support',rateLimit({windowMs:3600000,limit:5,standardHeaders:true,legacyHeaders:false}));
   app.use('/api',rateLimit({windowMs:60000,limit:240,standardHeaders:true,legacyHeaders:false,skip:req=>req.path==='/health'}));
   app.use(express.static(path.join(__dirname,'..','public')));
@@ -195,13 +197,26 @@ async function start(PORT,SECRET){
   const adminEmail=()=>validEmail(process.env.COLLABZY_ADMIN_EMAIL);
   const adminPasswordHash=()=>String(process.env.COLLABZY_ADMIN_PASSWORD_HASH||'');
   const adminConfigured=()=>!!adminEmail()&&/^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/.test(adminPasswordHash());
+  const getAdminCredentials=async()=>{
+    if(adminConfigured())return {email:adminEmail(),password_hash:adminPasswordHash(),source:'environment'};
+    const r=await pool.query('SELECT email,password_hash FROM admin_credentials WHERE id=1');
+    return r.rows[0]||null;
+  };
+  const adminSetupRequired=async()=>!(await getAdminCredentials());
+  const adminBootstrapTokenMatches=(candidate)=>{
+    const expected=String(process.env.COLLABZY_ADMIN_BOOTSTRAP_TOKEN||'');
+    if(expected.length<48||typeof candidate!=='string'||candidate.length<48||candidate.length>256)return false;
+    const a=crypto.createHash('sha256').update(candidate,'utf8').digest();
+    const b=crypto.createHash('sha256').update(expected,'utf8').digest();
+    return crypto.timingSafeEqual(a,b);
+  };
   const adminAuth=asyncRoute(async(q,s,n)=>{
     const raw=String(q.headers.authorization||'').replace(/^Bearer\s+/i,'');
     if(!raw)return s.status(401).json({error:'Admin sign-in required.'});
     let decoded;try{decoded=jwt.verify(raw,SECRET,{issuer:'collabzy-api'})}catch{return s.status(401).json({error:'Admin session expired. Please sign in again.'})}
-    const expectedEmail=adminEmail();
-    if(!adminConfigured()||decoded.sub!=='collabzy-admin'||decoded.role!=='admin'||decoded.admin!==true||decoded.email!==expectedEmail)return s.status(403).json({error:'This session is not authorized for the Collabzy admin dashboard.'});
-    q.adminEmail=expectedEmail;n();
+    const credentials=await getAdminCredentials();
+    if(!credentials||decoded.sub!=='collabzy-admin'||decoded.role!=='admin'||decoded.admin!==true||decoded.email!==credentials.email)return s.status(403).json({error:'This session is not authorized for the Collabzy admin dashboard.'});
+    q.adminEmail=credentials.email;n();
   });
   const recordAdminAction=(q,action,targetType,targetId,details={})=>pool.query('INSERT INTO admin_audit_log(actor_email,action,target_type,target_id,details) VALUES($1,$2,$3,$4,$5::jsonb)',[q.adminEmail,action,targetType,targetId===undefined?null:targetId,JSON.stringify(details)]);
   const auth=asyncRoute(async(q,s,n)=>{
@@ -218,12 +233,31 @@ async function start(PORT,SECRET){
     q.user=publicUser(r.rows[0]);n();
   });
 
-  // Owner-only admin console. Credentials are configured only on the server.
-  app.post('/api/admin/login',adminLoginLimiter,asyncRoute(async(q,s)=>{
-    if(!adminConfigured())return s.status(503).json({error:'Admin access is not configured. Set COLLABZY_ADMIN_EMAIL and COLLABZY_ADMIN_PASSWORD_HASH in the server environment.'});
+  // Owner-only admin console. First use is activated once with a high-entropy deployment token.
+  app.get('/api/admin/setup-status',asyncRoute(async(q,s)=>{
+    const required=await adminSetupRequired();
+    s.setHeader('Cache-Control','no-store');
+    s.json({setup_required:required,bootstrap_available:required&&String(process.env.COLLABZY_ADMIN_BOOTSTRAP_TOKEN||'').length>=48});
+  }));
+  app.post('/api/admin/bootstrap',adminSetupLimiter,asyncRoute(async(q,s)=>{
+    if(!(await adminSetupRequired()))return s.status(409).json({error:'Admin owner account has already been created. Use the sign-in form.'});
+    if(!adminBootstrapTokenMatches(q.body?.bootstrap_token))return s.status(403).json({error:'The one-time setup code is invalid or unavailable.'});
     const email=validEmail(q.body?.email),password=String(q.body?.password||'');
-    let passwordOk=false;try{passwordOk=await bcrypt.compare(password,adminPasswordHash())}catch{}
-    if(!email||email!==adminEmail()||!passwordOk)return s.status(401).json({error:'Invalid admin email or password.'});
+    if(!email)return s.status(400).json({error:'Enter a valid owner email address.'});
+    if(password.length<14||Buffer.byteLength(password,'utf8')>72)return s.status(400).json({error:'Use a password of at least 14 characters and no more than 72 UTF-8 bytes.'});
+    const passwordHash=await bcrypt.hash(password,12);
+    const inserted=await pool.query('INSERT INTO admin_credentials(id,email,password_hash) VALUES(1,$1,$2) ON CONFLICT(id) DO NOTHING RETURNING email',[email,passwordHash]);
+    if(!inserted.rows.length)return s.status(409).json({error:'Admin owner setup has already been completed. Sign in instead.'});
+    await pool.query("INSERT INTO admin_audit_log(actor_email,action,target_type,target_id,details) VALUES($1,'bootstrap_admin','admin',1,'{}'::jsonb)",[email]);
+    const token=jwt.sign({sub:'collabzy-admin',email,role:'admin',admin:true},SECRET,{expiresIn:'2h',issuer:'collabzy-api'});
+    s.status(201).json({token,expires_in:7200,admin:{email},message:'Owner admin account created. Keep your password private.'});
+  }));
+  app.post('/api/admin/login',adminLoginLimiter,asyncRoute(async(q,s)=>{
+    const credentials=await getAdminCredentials();
+    if(!credentials)return s.status(503).json({error:'Admin setup is not enabled yet. Open the one-time owner setup form or configure the server-side admin identity.'});
+    const email=validEmail(q.body?.email),password=String(q.body?.password||'');
+    let passwordOk=false;try{passwordOk=await bcrypt.compare(password,credentials.password_hash)}catch{}
+    if(!email||email!==credentials.email||!passwordOk)return s.status(401).json({error:'Invalid admin email or password.'});
     const token=jwt.sign({sub:'collabzy-admin',email,role:'admin',admin:true},SECRET,{expiresIn:'2h',issuer:'collabzy-api'});
     s.json({token,expires_in:7200,admin:{email}});
   }));
