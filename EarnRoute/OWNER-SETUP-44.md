@@ -10,7 +10,7 @@ Updated 16 October 2026. This reflects the repository and connected hosting/data
 |---:|---|---|
 | 1 | Frontend | Responsive HTML/CSS/JavaScript frontend; native mobile shell present. Full Flutter re-platform is not complete. |
 | 2 | Backend | FastAPI deployed on Render; health endpoint checks database connectivity. |
-| 3 | Admin Dashboard | Admin workflows cover business verification, job moderation, disputes, audit history and metrics. |
+| 3 | Admin Dashboard | Dedicated `/admin` route and admin-only sign-in have been added; dashboard screens cover business verification, job moderation, disputes, support tickets, audit history and metrics. Production database currently has no admin account, so owner must securely provision the first founder account using the interactive script with the production `DATABASE_URL` before live dashboard data can load. |
 | 4 | GitHub | Source branch earnroute-production. |
 | 5 | Render | Two live Render web services currently exist: https://earnroute-nearby-api.onrender.com and https://earnroute-api.onrender.com, both tracking earnroute-production. Treat as a duplicate until the actual Android/server URL use is verified; do not delete either blindly. Root Render Blueprint now requires Neon DATABASE_URL instead of provisioning a second Render PostgreSQL database. |
 | 6 | Neon PostgreSQL | PostgreSQL 16 project earnroute-production, production branch, database earnroute and application/support tables confirmed. Private earnroute-backups bucket and one manual baseline snapshot exist. Neon's API reports automatic snapshot scheduling is not enabled on this project, so daily encrypted backups must be verified through the GitHub Actions workflow. |
