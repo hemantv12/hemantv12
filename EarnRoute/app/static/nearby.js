@@ -86,6 +86,49 @@ function erLocationPrompt() {
     '<p>Turn on location to find real paid shifts within <b>1 km, 3 km, 5 km or more</b> (up to 15 km). Your live position stays on this device and expires after 30 minutes.</p>' +
     '<button class="btn btn-primary btn-large" type="button" data-er-enable-location>⌖ Use my location</button></div></section>';
 }
+let erSavedShiftIds = new Set();
+let erSavedShiftIdsAvailable = false;
+
+async function erRefreshSavedShiftIds() {
+  try {
+    const response = await api('/api/worker/saved-shifts');
+    erSavedShiftIds = new Set((response.items || []).map(function(job) { return Number(job.id); }).filter(Number.isFinite));
+    erSavedShiftIdsAvailable = true;
+    return true;
+  } catch (_) {
+    // Discovery should still work if the saved-shifts endpoint is briefly deploying or offline.
+    erSavedShiftIdsAvailable = false;
+    return false;
+  }
+}
+function erDistanceKm(aLat, aLon, bLat, bLon) {
+  const rad = function(deg) { return deg * Math.PI / 180; };
+  const lat1 = rad(Number(aLat)), lat2 = rad(Number(bLat));
+  const dLat = rad(Number(bLat) - Number(aLat)), dLon = rad(Number(bLon) - Number(aLon));
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  return 6371.0088 * 2 * Math.asin(Math.sqrt(Math.min(1, Math.max(0, a))));
+}
+function erSortJobs(jobs, mode) {
+  const items = (jobs || []).slice();
+  if (mode === 'take-home') items.sort(function(a,b) {
+    return Number(b.estimated_net_pay || b.pay_amount || 0) - Number(a.estimated_net_pay || a.pay_amount || 0) ||
+      Number(a.distance_km ?? Infinity) - Number(b.distance_km ?? Infinity);
+  });
+  else if (mode === 'soonest') items.sort(function(a,b) {
+    return new Date(a.start_at).getTime() - new Date(b.start_at).getTime();
+  });
+  else if (mode === 'open-spots') items.sort(function(a,b) {
+    return (Number(b.slots || 0) - Number(b.positions_filled || 0)) -
+      (Number(a.slots || 0) - Number(a.positions_filled || 0));
+  });
+  else items.sort(function(a,b) {
+    return Number(a.distance_km ?? Infinity) - Number(b.distance_km ?? Infinity) ||
+      new Date(a.start_at).getTime() - new Date(b.start_at).getTime();
+  });
+  return items;
+}
+
 function erNearbyCard(job) {
   const gross = Number(job.gross_shift_pay_estimate !== undefined ? job.gross_shift_pay_estimate : job.pay_amount || 0);
   const net = Number(job.estimated_net_pay !== undefined ? job.estimated_net_pay : gross - Number(job.estimated_platform_fee || 0));
@@ -93,9 +136,19 @@ function erNearbyCard(job) {
   const distance = Number.isFinite(dist) ? (dist < 0.1 ? 'Under 100 m' : dist.toFixed(1) + ' km away') : 'Nearby';
   const slots = Math.max(0, Number(job.slots || 0) - Number(job.positions_filled || 0));
   const mismatch = job.match && job.match.eligible === false;
+  const hasCoordinates = job.latitude !== null && job.latitude !== undefined && job.longitude !== null && job.longitude !== undefined &&
+    Number.isFinite(Number(job.latitude)) && Number.isFinite(Number(job.longitude));
   const mapQuery = job.address ? encodeURIComponent([job.address, job.city].filter(Boolean).join(', ')) : '';
-  const mapsLink = mapQuery ? '<a class="er-map-link" href="https://www.google.com/maps/search/?api=1&amp;query=' + mapQuery +
-    '" target="_blank" rel="noopener noreferrer">Search workplace in Maps ↗</a>' : '';
+  const mapUrl = hasCoordinates
+    ? 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(Number(job.latitude) + ',' + Number(job.longitude))
+    : (mapQuery ? 'https://www.google.com/maps/search/?api=1&query=' + mapQuery : '');
+  const mapsLink = mapUrl ? '<a class="er-map-link" href="' + mapUrl + '" target="_blank" rel="noopener noreferrer">Directions to workplace ↗</a>' : '';
+  const isSaved = erSavedShiftIds.has(Number(job.id));
+  const saveButton = currentUser && currentUser.role === 'worker'
+    ? '<button type="button" class="btn btn-outline er-save-shift ' + (isSaved ? 'is-saved' : '') +
+      '" data-er-save-shift="' + Number(job.id) + '" aria-pressed="' + (isSaved ? 'true' : 'false') + '">' +
+      '<span aria-hidden="true">' + (isSaved ? '♥' : '♡') + '</span> ' + escapeHtml(t(isSaved ? 'savedShift' : 'saveShift')) + '</button>'
+    : '';
   return '<article class="er-job-card" data-er-job-id="' + Number(job.id) + '">' +
     '<div class="er-job-card-top"><span class="er-job-icon">' + erCategoryIcon(job.category) + '</span><span class="er-distance-pill">⌖ ' + escapeHtml(distance) + '</span></div>' +
     '<div class="er-job-title-wrap"><div><h3>' + escapeHtml(job.title) + '</h3><p>' + escapeHtml(job.business_name || 'Local business') +
@@ -104,11 +157,15 @@ function erNearbyCard(job) {
     '<div class="er-net-pay"><small>EST. YOU RECEIVE</small><strong>' + formatMoney(net) + '</strong><em>after estimated fee</em></div></div>' +
     '<div class="er-job-facts"><span>◷ ' + escapeHtml(formatDate(job.start_at)) + '</span><span>◴ ' + escapeHtml(job.duration_hours) + ' hrs</span><span>◎ ' + slots + ' spot' + (slots === 1 ? '' : 's') + '</span></div>' +
     (mismatch ? '<p class="er-match-note">Review your skills and availability before applying.</p>' : '') +
-    '<div class="er-job-action-row"><button type="button" class="btn btn-primary er-apply" data-apply-job="' + job.id + '" ' + (mismatch ? 'disabled' : '') + '>' + (mismatch ? 'Profile needed' : 'Apply now') + ' <span>→</span></button>' +
+    '<div class="er-job-action-row">' + saveButton +
+    '<button type="button" class="btn btn-primary er-apply" data-apply-job="' + job.id + '" ' + (mismatch ? 'disabled' : '') + '>' + (mismatch ? 'Profile needed' : 'Apply now') + ' <span>→</span></button>' +
     '<button type="button" class="btn btn-outline er-share-shift" data-share-nearby-job="' + job.id + '">Share shift ↗</button>' +
     '<details class="er-job-details"><summary>Details</summary><p>' + escapeHtml(job.description || '') + '</p>' +
     (job.address ? '<p><b>Workplace:</b> ' + escapeHtml(job.address) + '</p>' : '') + mapsLink +
     (job.requirements && job.requirements.length ? '<p><b>Skills:</b> ' + escapeHtml(job.requirements.join(', ')) + '</p>' : '') +
+    (job.breaks_info ? '<p><b>Breaks:</b> ' + escapeHtml(job.breaks_info) + '</p>' : '') +
+    (job.equipment_info ? '<p><b>Equipment / dress:</b> ' + escapeHtml(job.equipment_info) + '</p>' : '') +
+    (job.safety_info ? '<p><b>Safety instructions:</b> ' + escapeHtml(job.safety_info) + '</p>' : '') +
     '<p><b>Apply by:</b> ' + escapeHtml(formatDate(job.application_deadline)) + '</p><p><b>Payment:</b> ' + escapeHtml(job.payment_terms || 'Confirm terms before accepting.') + '</p>' +
     '<small>Distance is straight-line GPS distance, not driving distance or ETA. Take-home pay is an estimate, not payment confirmation.</small></details></div></article>';
 }
