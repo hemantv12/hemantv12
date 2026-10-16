@@ -69,8 +69,112 @@ body{background:radial-gradient(ellipse at 8% -12%,rgba(187,164,255,.24),transpa
 .match-grid{align-items:stretch}.match-card{min-width:0;overflow-wrap:anywhere}.match-card h3{margin:9px 0 3px}.match-score{font-weight:800;background:#e9fff6;color:#176b55;border:1px solid #b9f0df}
 .match-reasons{display:flex;flex-wrap:wrap;gap:7px;margin-top:12px}.reason-chip{display:inline-flex;align-items:center;border-radius:10px;padding:7px 9px;background:#f3f0ff;color:#51457b;font-size:12px;line-height:1.4}
 .event-row{min-width:0}.event-row h3{margin:6px 0}.event-row .desc{overflow-wrap:anywhere}
+
+/* Android app shell: only activated inside the installed Capacitor app. */
+.native-app{--app-ink:#201632;--app-muted:#837991;--app-violet:#7047f2;--app-mint:#73ead4;background:#f7f5fb;overscroll-behavior-y:contain;-webkit-tap-highlight-color:transparent}
+.native-app body{background:#f7f5fb}
+.native-app .top{position:sticky;top:0;z-index:45;min-height:calc(60px + env(safe-area-inset-top));padding:calc(8px + env(safe-area-inset-top)) 17px 8px;justify-content:flex-start;gap:10px;border-radius:0;box-shadow:0 7px 24px rgba(30,19,50,.15)}
+.native-app .top .brand{font-size:22px;letter-spacing:-1.1px;display:flex;align-items:center;gap:2px}
+.native-app .top small{display:none}
+.native-app .top #accountBtn{display:none!important}
+.native-app .top #signInBtn{margin-left:auto}
+.native-app .wrap{width:100%;max-width:none;margin:0;padding:10px 15px calc(100px + env(safe-area-inset-bottom));min-height:calc(100dvh - 60px - env(safe-area-inset-top))}
+.native-app .wrap>.hero{display:none}
+.native-app .wrap>.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:6px 0 14px}
+.native-app .stat{padding:11px 9px;border-radius:16px;box-shadow:0 5px 18px rgba(47,28,76,.045)}
+.native-app .stat strong{font-size:21px;line-height:1.1}
+.native-app .stat span{font-size:10px;line-height:1.3;display:block;margin-top:5px}
+.native-app .quick-grid{display:none}
+.native-app .nav.app-tabbar{position:fixed;z-index:70;left:0;right:0;bottom:0;margin:0;padding:7px 7px calc(7px + env(safe-area-inset-bottom));gap:2px;display:flex;flex-wrap:nowrap;align-items:stretch;justify-content:space-around;border-top:1px solid rgba(229,222,240,.94);border-radius:19px 19px 0 0;background:rgba(255,255,255,.96);backdrop-filter:blur(22px);-webkit-backdrop-filter:blur(22px);box-shadow:0 -9px 32px rgba(33,22,54,.09)}
+.native-app .nav.app-tabbar button{display:none;flex:1 1 20%;min-width:0;max-width:25%;padding:6px 2px 4px;gap:4px;min-height:50px;white-space:normal;border:0;border-radius:13px;background:transparent;color:#82788f;font-size:10px;line-height:1.05;font-weight:750;box-shadow:none;flex-direction:column;align-items:center;justify-content:center}
+.native-app .nav.app-tabbar button[data-primary="true"]{display:flex}
+.native-app .nav.app-tabbar button .tab-icon{height:22px;min-width:25px;display:grid;place-items:center;font-size:21px;line-height:1;font-weight:700}
+.native-app .nav.app-tabbar button .tab-label{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;letter-spacing:-.1px}
+.native-app .nav.app-tabbar button.active{background:#f0ebff;color:#5f3bdb;border:0;box-shadow:inset 0 0 0 1px rgba(112,71,242,.06)}
+.native-app #view{padding-top:5px}
+.native-app #view>h2{font-size:23px;letter-spacing:-.8px;margin:9px 0 5px}
+.native-app #view>p{font-size:13px;line-height:1.55;margin-bottom:12px}
+.native-app .grid,.native-app .ai-layout,.native-app .quick-grid{grid-template-columns:minmax(0,1fr)!important;gap:12px}
+.native-app .card{min-height:unset;padding:16px;border-radius:20px;gap:12px;box-shadow:0 7px 24px rgba(37,22,62,.045)}
+.native-app .card:hover,.native-app .stat:hover{transform:none;box-shadow:0 7px 24px rgba(37,22,62,.045)}
+.native-app .panel{margin-top:12px;padding:17px;border-radius:20px;box-shadow:0 7px 25px rgba(37,22,62,.045)}
+.native-app .toolbar{display:grid;grid-template-columns:minmax(0,1fr);gap:9px;margin:13px 0}
+.native-app .toolbar input,.native-app .toolbar select{width:100%;min-width:0;min-height:46px;border-radius:14px}
+.native-app .field{gap:7px;margin:14px 0}
+.native-app .field input,.native-app .field textarea,.native-app .field select{min-height:46px;padding:12px 13px;border-radius:14px;font-size:16px}
+.native-app .field textarea{min-height:100px}
+.native-app .btn{min-height:45px;border-radius:14px;padding:12px 16px;touch-action:manipulation}
+.native-app .btn:hover{transform:none}
+.native-app .actions{gap:9px}
+.native-app .actions>.btn{flex:1 1 auto}
+.native-app .auth{max-width:none;width:100%;margin:14px auto 20px;padding:20px 17px;border-radius:24px;border:1px solid #eee8f7;box-shadow:0 12px 35px rgba(42,27,68,.07)}
+.native-app .auth h1{font-size:31px;letter-spacing:-1.2px}
+.native-app .auth .field input{min-height:49px;font-size:16px}
+.native-app .auth .btn{min-height:48px}
+.native-app .switch{padding:5px;border-radius:14px}
+.native-app .switch button{min-height:42px}
+.native-app .modal{align-items:end;padding:0 0 env(safe-area-inset-bottom);background:rgba(23,15,39,.52)}
+.native-app .modalcard{width:100%;max-width:none;max-height:90dvh;border-radius:25px 25px 0 0;padding:27px 18px calc(22px + env(safe-area-inset-bottom));animation:app-sheet-in .22s ease-out}
+.native-app .chat-thread{max-height:55dvh;min-height:160px;border-radius:18px}
+.native-app .chat-compose{flex-direction:row;align-items:flex-end}
+.native-app .chat-compose button{width:auto}
+.native-app .toast{bottom:calc(78px + env(safe-area-inset-bottom));border-radius:15px;max-width:calc(100vw - 28px)}
+.native-app .foot{display:none}
+.native-app .landing{max-width:none}
+.native-app .landing .hero{min-height:unset;padding:25px 19px;border-radius:23px;margin:12px 0 15px}
+.native-app .landing h1{font-size:38px;letter-spacing:-1.5px}
+.native-app .landing .hero p{font-size:14px}
+.native-app .landingstats{grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin:13px 0 25px}
+.native-app .landingstats>div{padding:11px 9px;border-radius:15px}
+.native-app .landingstats strong{font-size:13px}
+.native-app .landingstats span{font-size:10px;line-height:1.35}
+.native-app .landingsection{margin:28px 0}
+.native-app .campaignslanding{padding:16px;border-radius:20px}
+.native-app .pricing{padding:22px 0}
+.native-app .pricecard{padding:21px;border-radius:22px}
+.native-app .native-welcome{width:100%;max-width:460px;min-height:calc(100dvh - 60px - env(safe-area-inset-top));margin:0 auto;display:flex;flex-direction:column;justify-content:center;gap:13px;padding:22px 9px calc(30px + env(safe-area-inset-bottom))}
+.native-app .welcome-mark{width:78px;height:78px;position:relative;display:grid;place-items:center;border-radius:25px;background:linear-gradient(145deg,#2b1d46,#6842db);box-shadow:0 16px 35px rgba(96,61,207,.23);font-size:43px;font-weight:900;letter-spacing:-4px;color:#fff;margin-bottom:13px}
+.native-app .welcome-mark b{color:#73ead4}.native-app .welcome-mark i{position:absolute;right:8px;top:7px;font-size:14px;color:#73ead4;font-style:normal}
+.native-app .native-welcome .eyebrow{font-size:10px;letter-spacing:1.8px;color:#7652e8}
+.native-app .native-welcome h1{font-size:clamp(39px,10vw,48px);line-height:1.02;letter-spacing:-2px;margin:0;color:#241735}
+.native-app .native-welcome>p{font-size:15px;line-height:1.7;max-width:370px;margin:0 0 8px;color:#766b85}
+.native-app .welcome-highlights{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin:5px 0 13px}
+.native-app .welcome-highlights>div{background:#fff;border:1px solid #ebe5f5;border-radius:15px;padding:13px 8px;display:flex;flex-direction:column;gap:7px;box-shadow:0 5px 17px rgba(38,22,60,.04)}
+.native-app .welcome-highlights span{font-size:20px;color:#7047f2}.native-app .welcome-highlights b{font-size:11px;color:#514463}
+.native-app .welcome-actions{display:grid;gap:9px}.native-app .welcome-actions .btn{min-height:51px;display:flex;justify-content:space-between;align-items:center;padding:0 17px}
+.native-app .welcome-primary{background:linear-gradient(115deg,#7147f2,#5130bf);box-shadow:0 12px 22px rgba(103,67,224,.21)}
+.native-app .welcome-brand{background:white!important;color:#47345e!important;border:1px solid #e7e0f1!important}
+.native-app .welcome-login{background:transparent;color:#786d89;padding:13px 8px 8px;font-size:13px}.native-app .welcome-login b{color:#6845d9}
+.native-app .welcome-beta{display:flex;align-items:center;justify-content:center;gap:7px;color:#8b8298;font-size:11px;margin-top:1px}
+.native-app .beta-dot{width:6px;height:6px;background:#4bbd98;border-radius:50%;box-shadow:0 0 0 4px #e3f9f1}
+.native-app .app-sheet-backdrop{position:fixed;inset:0;z-index:100;background:rgba(25,16,40,.46);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);display:flex;align-items:end;padding:0 0 env(safe-area-inset-bottom);animation:sheet-fade-in .16s ease-out}
+.native-app .app-sheet{width:100%;max-height:88dvh;overflow:auto;background:#faf9fd;border-radius:27px 27px 0 0;padding:10px 18px calc(18px + env(safe-area-inset-bottom));box-shadow:0 -18px 55px rgba(20,12,35,.18);animation:app-sheet-in .22s ease-out}
+.native-app .sheet-handle{height:4px;width:38px;border-radius:999px;background:#d9d2e4;margin:0 auto 17px}
+.native-app .sheet-header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:14px}
+.native-app .sheet-header h2{font-size:25px;letter-spacing:-.9px;margin:4px 0}.native-app .sheet-header p{font-size:12px;line-height:1.4}
+.native-app .sheet-close{width:35px;height:35px;background:#eee9f5;border-radius:50%;font-size:23px;color:#524361}
+.native-app .sheet-links{display:grid;grid-template-columns:minmax(0,1fr);gap:7px}
+.native-app .sheet-link{display:flex;align-items:center;text-align:left;gap:12px;width:100%;padding:12px;background:white;border:1px solid #eee8f6;border-radius:16px;color:#2d2140;min-height:62px}
+.native-app .sheet-link-icon{width:39px;height:39px;border-radius:13px;display:grid;place-items:center;flex-shrink:0;background:#f0ebff;color:#6744da;font-size:21px}
+.native-app .sheet-link-copy{display:flex;flex-direction:column;gap:4px;flex:1;min-width:0}.native-app .sheet-link-copy b{font-size:13px}.native-app .sheet-link-copy small{font-size:11px;color:#867b94;line-height:1.3}
+.native-app .sheet-chevron{font-size:24px;color:#a69ab7}
+.native-app .sheet-signout{margin-top:12px;width:100%;background:#fff;border:1px solid #f0d9df;color:#a33c51;min-height:45px;border-radius:14px;font-weight:800}
+.native-app .app-screen-enter{animation:screen-in .18s ease-out}
+.native-app .match-card,.native-app .rule-card,.native-app .event-row{overflow:hidden}
+.native-app .cardtop{align-items:flex-start}
+.native-app .cardtop .pill{max-width:50%;white-space:normal;text-align:center}
+.native-app .ig-media-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+.native-app input[type="checkbox"]{accent-color:#7047f2;width:18px;height:18px;min-width:18px}
+.native-app button,.native-app select,.native-app a{-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+@keyframes sheet-fade-in{from{opacity:0}to{opacity:1}}
+@keyframes app-sheet-in{from{transform:translateY(22px);opacity:.7}to{transform:translateY(0);opacity:1}}
+@keyframes screen-in{from{opacity:.7;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+@media(max-width:370px){.native-app .wrap{padding-left:11px;padding-right:11px}.native-app .nav.app-tabbar{padding-left:4px;padding-right:4px}.native-app .nav.app-tabbar button .tab-label{font-size:9px}.native-app .native-welcome h1{font-size:36px}.native-app .welcome-highlights b{font-size:10px}}
+@media(prefers-reduced-motion:reduce){.native-app .app-screen-enter,.native-app .app-sheet,.native-app .app-sheet-backdrop,.native-app .modalcard{animation:none!important}}
 </style></head><body><header class="top"><div class="brand">collab<b>zy</b> ✦</div><small>Creator partnerships. Real opportunities.</small><button type="button" id="signInBtn" class="btn alt" data-collabzy-action="show-login">Sign in</button><button id="accountBtn" class="btn alt hidden" onclick="logout()">Sign out</button></header><main id="root" class="wrap"><div class="empty">Loading Collabzy…</div></main><div id="toast" class="toast hidden"></div><script src="/vendor/capacitor-bridge.js"></script><script>
 const API=(window.COLLABZY_API_BASE||((location.protocol==='capacitor:'||(location.hostname==='localhost'&&!location.port))?'https://collabzy-api.onrender.com/api':'/api')).replace(/\/$/,'');
+const IS_NATIVE_APP = location.protocol === 'capacitor:' || (location.hostname === 'localhost' && !location.port) || !!(window.Capacitor && typeof window.Capacitor.isNativePlatform === 'function' && window.Capacitor.isNativePlatform());
+if (IS_NATIVE_APP) document.body.classList.add('native-app');
 function safeStorageGet(key){try{return localStorage.getItem(key)||''}catch{return ''}}
 function safeStorageSet(key,value){try{localStorage.setItem(key,value)}catch{}}
 function safeStorageRemove(key){try{localStorage.removeItem(key)}catch{}}
@@ -78,7 +182,22 @@ let token=safeStorageGet('collabzy_token'),me=null,role='creator',mode='login',c
 const $=s=>document.querySelector(s), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 async function api(path,opts={}){const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),25000);try{const r=await fetch(API+path,{...opts,signal:controller.signal,headers:{'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{}),...(opts.headers||{})}});let d={};try{d=await r.json()}catch{}if(!r.ok)throw Error(d.error||'Request failed. Please try again.');return d}catch(error){if(error?.name==='AbortError')throw Error('Collabzy server is taking too long to respond. Please try again.');if(error instanceof TypeError)throw Error('Cannot reach Collabzy right now. Check your internet connection and try again.');throw error}finally{clearTimeout(timer)}}
 function toast(t){$('#toast').textContent=t;$('#toast').classList.remove('hidden');setTimeout(()=>$('#toast').classList.add('hidden'),2600)}
+
+function renderNativeWelcome(){
+  $('#accountBtn').classList.add('hidden');$('#signInBtn').classList.add('hidden');
+  $('#root').innerHTML=`<section class="native-welcome">
+    <div class="welcome-mark"><span>c</span><b>z</b><i>✦</i></div>
+    <div class="eyebrow">CREATORS × BRANDS</div>
+    <h1>Your next big<br>collab starts here.</h1>
+    <p>Meet the right brands, discover campaigns and create better content with your AI-powered creator workspace.</p>
+    <div class="welcome-highlights"><div><span>✦</span><b>Smart Match</b></div><div><span>✧</span><b>AI Studio</b></div><div><span>↗</span><b>Campaigns</b></div></div>
+    <div class="welcome-actions"><button type="button" class="btn welcome-primary" data-collabzy-action="join-creator">Continue as creator <span>→</span></button><button type="button" class="btn alt welcome-brand" data-collabzy-action="join-brand">I'm a brand <span>→</span></button></div>
+    <button type="button" class="welcome-login" data-collabzy-action="show-login">Already have an account? <b>Sign in</b></button>
+    <div class="welcome-beta"><span class="beta-dot"></span> Private beta · No payment collected</div>
+  </section>`;
+}
 function renderLanding(){
+  if (IS_NATIVE_APP) { renderNativeWelcome(); return; }
   $('#accountBtn').classList.add('hidden');$('#signInBtn').classList.remove('hidden');
   $('#root').innerHTML='<section class="landing"><div class="hero"><div><div class="eyebrow">CREATORS × BRANDS × OPPORTUNITY</div><h1>Turn your creativity<br>into collaborations.</h1><p>One place to discover brand campaigns, pitch your ideas, and manage every collaboration from first hello to final deliverable.</p><div class="actions" style="margin-top:18px"><button type="button" class="btn" data-collabzy-action="join-creator">Join as a creator →</button><button type="button" class="btn alt" data-collabzy-action="join-brand">I\'m a brand</button></div><p style="font-size:12px;margin-top:12px">Invite-only early access. No payment details are collected during private beta.</p></div><div class="heroart"><div class="artbadge">✦ Creator opportunities</div><div class="artmetric"><span>Campaign types</span><strong>Paid · Barter · Hybrid</strong></div><div class="artmetric"><span>Built for both sides</span><strong>Creators + Brands</strong></div><div class="artshine">collab<span>zy</span></div></div></div><div class="landingstats"><div><strong>Discover</strong><span>Find campaigns that fit your niche</span></div><div><strong>Pitch</strong><span>Apply with your own proposal</span></div><div><strong>Manage</strong><span>Track every application status</span></div></div><section class="landingsection"><div class="eyebrow">HOW IT WORKS</div><h2>Good partnerships start here.</h2><div class="grid"><article class="card feature"><div class="avatar">01</div><h3>Discover opportunities</h3><p class="desc">Explore brand campaigns by category, collaboration type and budget.</p></article><article class="card feature"><div class="avatar">02</div><h3>Make your pitch</h3><p class="desc">Share your idea and proposed rate directly with the brand.</p></article><article class="card feature"><div class="avatar">03</div><h3>Build relationships</h3><p class="desc">Brands review applicants and manage acceptance from one workspace.</p></article></div></section><section class="landingsection"><div class="eyebrow">ONE WORKSPACE. BOTH SIDES.</div><h2>Everything around the collaboration.</h2><p>From the first discovery to the first message, keep the work moving in one place.</p><div class="grid"><article class="card feature"><div class="avatar">⌕</div><h3>Campaign search</h3><p class="desc">Filter opportunities by niche, category, collaboration type and budget.</p></article><article class="card feature"><div class="avatar">↗</div><h3>Creator discovery</h3><p class="desc">Brands can browse creator profiles and send tailored campaign invitations.</p></article><article class="card feature"><div class="avatar">✉</div><h3>Direct collaboration chat</h3><p class="desc">Keep campaign questions and deliverable details connected to each application.</p></article><article class="card feature"><div class="avatar">✓</div><h3>Application tracker</h3><p class="desc">Follow pitches, proposed rates, acceptance and status updates.</p></article><article class="card feature"><div class="avatar">◎</div><h3>Instagram insights</h3><p class="desc">Connect an eligible professional account through Meta for available insights and recent content.</p></article><article class="card feature"><div class="avatar">↻</div><h3>Campaign management</h3><p class="desc">Edit briefs, budgets and deliverables; pause or reopen campaigns as plans change.</p></article></div><p class="note">Instagram metrics depend on official Meta account access. Paid membership checkout is not active yet.</p></section><section class="landingsection campaignslanding"><div class="eyebrow">REAL OPPORTUNITIES</div><h2>Explore the marketplace</h2><p>Browse opportunities now. Create an account to apply or publish a campaign.</p><div id="publicCampaigns" class="grid"><div class="empty">Loading campaigns…</div></div></section><section class="pricing"><div class="eyebrow">COLLABZY PRO</div><h2>A clear annual plan. No surprise renewals.</h2><p>The creator Pro plan is planned at ₹299 for 365 days, including authorized Instagram insights and personalized AI growth reports after provider setup.</p><div class="pricecard"><span class="pill">ANNUAL PLAN</span><div class="pricenum">₹299 <small>per 365 days</small></div><ul><li>Creator collaboration workspace and messaging</li><li>Official Instagram profile and metrics after Meta approval</li><li>AI Growth Coach after user consent and OpenAI setup</li><li>Verified Pro entitlement after a successful ₹299 payment</li></ul><button type="button" class="btn" data-collabzy-action="join-creator">Creator setup</button><p style="font-size:11px">Checkout and new registrations are not active until the operator finishes Meta, email, AI, payment and legal setup. No payment is collected unless verified checkout is enabled.</p></div></section><section class="cta"><div><h2>Your next collaboration could start today.</h2><p>Join Collabzy and take the next step in your creator journey.</p></div><button type="button" class="btn" data-collabzy-action="join-creator">Get started →</button></section><div class="foot">© 2026 Collabzy · <a href="/privacy.html">Privacy</a> · <a href="/terms.html">Terms</a> · <a href="/delete-account.html">Delete account</a> · <a href="/support.html">Support</a><br>Instagram features depend on official Meta permissions. Campaign examples may be illustrative.</div></section>';
   api('/health').then(h=>{if(h.integrations?.publicRegistration!=='open'){const alert=document.createElement('div');alert.className='note';alert.style.margin='0 0 18px';alert.textContent=h.integrations?.privateBetaRegistration==='invite_only'?'Collabzy private beta is invite-only. Enter the access code you received to create a test account. Public registration and paid checkout remain disabled.':'New account registration is paused while required production integrations are being configured. Existing accounts can still sign in. See Support for account-help options.';$('#root').prepend(alert)}}).catch(()=>{});
@@ -132,8 +251,63 @@ async function markNotificationsRead(){try{await api('/notifications/read-all',{
 async function toggleCampaignStatus(id,status){try{await api('/campaigns/'+id+'/manage',{method:'PATCH',body:JSON.stringify({status})});await Promise.all([loadMyCampaigns(),loadCampaigns(),loadDashboard()]);renderPage();toast(status==='closed'?'Campaign closed.':'Campaign is live again.')}catch(e){toast(e.message)}}
 async function toggleSaved(id){const saved=savedCampaigns.some(x=>Number(x.id)===Number(id));try{await api('/campaigns/'+id+'/save',{method:saved?'DELETE':'POST'});await loadSaved();if(page==='saved')renderPage();else renderPage();toast(saved?'Removed from saved campaigns.':'Campaign saved for later.')}catch(e){toast(e.message)}}
 function profileProgress(){const items=[['Niche',me.niche],['Bio',me.bio],['Location',me.location],['Instagram handle',me.instagram_handle]],done=items.filter(x=>String(x[1]||'').trim()).length;return {percent:Math.round(done/items.length*100),missing:items.filter(x=>!String(x[1]||'').trim()).map(x=>x[0])}}
-function shell(){ $('#accountBtn').classList.remove('hidden');$('#root').innerHTML=`<div class="hero"><div><div class="eyebrow">YOUR NEXT COLLAB STARTS HERE</div>${me.role==='brand'?'<h1>Find your next<br>great creator.</h1><p>Publish briefs, discover talent and manage partnerships in one workspace.</p>':'<h1>Make your influence<br>work for you.</h1><p>Discover paid campaigns, barter deals and long-term brand partnerships.</p>'}</div><div class="actions">${me.role==='brand'?'<button class="btn" onclick="newCampaign()">＋ Post a campaign</button>':''}<button class="btn alt" onclick="go('profile')">My profile</button></div></div><div class="stats">${me.role==='brand'?'<div class="stat"><strong>'+Number(dashboard.myCampaigns||0)+'</strong><span>My campaigns</span></div><div class="stat"><strong>'+Number(dashboard.receivedApplications||0)+'</strong><span>Creator applications</span></div><div class="stat"><strong>'+Number(dashboard.unreadMessages||0)+'</strong><span>Unread messages</span></div>':'<div class="stat"><strong>'+Number(dashboard.activeCampaigns||campaigns.length)+'</strong><span>Active campaigns</span></div><div class="stat"><strong>'+Number(dashboard.myApplications||apps.length)+'</strong><span>My applications</span></div><div class="stat"><strong>'+Number(dashboard.accepted||apps.filter(a=>a.status==='accepted').length)+'</strong><span>Accepted</span></div>'}</div><section class="quick-grid">${me.role==='brand'?'<button class="quick-card" onclick="newCampaign()"><span class="quick-kicker">CREATE</span><strong>Post a campaign</strong><p>Share a brief, budget and deliverables with creators.</p><span class="quick-link">Create campaign →</span></button><button class="quick-card" onclick="go(\'creators\')"><span class="quick-kicker">DISCOVER</span><strong>Find creators</strong><p>Search profiles and send personal invitations.</p><span class="quick-link">Browse creators →</span></button><button class="quick-card" onclick="go(\'mycampaigns\')"><span class="quick-kicker">MANAGE</span><strong>Your campaigns</strong><p>Edit briefs, close listings and review applicant totals.</p><span class="quick-link">Manage campaigns →</span></button>':'<div class="quick-card profile-progress"><div class="progress-row"><span class="quick-kicker">YOUR PROFILE</span><b>'+profileProgress().percent+'% complete</b></div><strong>Make your profile stand out</strong><p>'+(profileProgress().missing.length?'Add '+profileProgress().missing.slice(0,2).join(' and ').toLowerCase()+' to help brands discover you.':'Your basic profile is complete. Keep it current for brands.')+'</p><div class="progress-track"><span style="width:'+profileProgress().percent+'%"></span></div><button class="quick-link" onclick="go(\'profile\')">Improve profile →</button></div><button class="quick-card" onclick="go(\'discover\')"><span class="quick-kicker">OPPORTUNITIES</span><strong>Explore campaigns</strong><p>Search by category, collaboration type and budget.</p><span class="quick-link">Browse campaigns →</span></button><button class="quick-card" onclick="go(\'saved\')"><span class="quick-kicker">SHORTLIST</span><strong>Saved campaigns</strong><p>Keep interesting opportunities close at hand.</p><span class="quick-link">View saved →</span></button>'}</section><nav class="nav"><button class="${page==='discover'?'active':''}" onclick="go('discover')">Discover</button><button class="${page==='matches'?'active':''}" onclick="go('matches')">Smart Match</button>${me.role==='brand'?'<button class="'+(page==='mycampaigns'?'active':'')+'" onclick="go(\'mycampaigns\')">My campaigns</button>':''}${me.role==='brand'?'<button class="'+(page==='creators'?'active':'')+'" onclick="go(\'creators\')">Find creators</button>':''}<button class="${page==='applications'?'active':''}" onclick="go('applications')">Applications</button><button class="${page==='invitations'?'active':''}" onclick="go('invitations')">Invitations</button><button class="${page==='saved'?'active':''}" onclick="go('saved')">Saved</button><button class="${page==='messages'?'active':''}" onclick="go('messages')">Messages ${Number(dashboard.unreadMessages||0)?'('+Number(dashboard.unreadMessages||0)+')':''}</button><button class="${page==='notifications'?'active':''}" onclick="go('notifications')">Alerts ${Number(dashboard.unreadNotifications||0)?'('+Number(dashboard.unreadNotifications||0)+')':''}</button><button class="${page==='instagram'?'active':''}" onclick="go('instagram')">Instagram</button><button class="${page==='ai'?'active':''}" onclick="go('ai')">AI Studio</button><button class="${page==='autodm'?'active':''}" style="${me.role==='brand'?'display:none':''}" onclick="go('autodm')">Auto DM</button><button class="${page==='profile'?'active':''}" onclick="go('profile')">Profile</button></nav><section id="view"></section><div class="foot">Collabzy · Built for creators and brands · Be genuine. Create impact.</div>`;renderPage()}
-async function go(p){page=p;renderPage()}
+
+function renderAppNavigation(){
+  const core=[
+    {key:'discover',label:'Explore',icon:'⌂',primary:true},
+    {key:'matches',label:'Match',icon:'✦',primary:true},
+    {key:'messages',label:'Inbox',icon:'◉',primary:true},
+    {key:'more',label:'More',icon:'•••',primary:true},
+    {key:'profile',label:'Profile',icon:'◎',primary:true}
+  ];
+  const extra=[
+    {key:'applications',label:'Applications',icon:'▤'},
+    {key:'invitations',label:'Invitations',icon:'↗'},
+    {key:'saved',label:'Saved campaigns',icon:'☆'},
+    {key:'notifications',label:'Alerts',icon:'♧'},
+    {key:'instagram',label:'Instagram insights',icon:'◎'},
+    {key:'ai',label:'AI Studio',icon:'✧'}
+  ];
+  if(me.role==='creator')extra.push({key:'autodm',label:'Instagram Auto DM',icon:'↗'});
+  if(me.role==='brand'){extra.push({key:'mycampaigns',label:'My campaigns',icon:'▣'},{key:'creators',label:'Find creators',icon:'♙'});}
+  const moreActive=!['discover','matches','messages','profile'].includes(page);
+  return '<nav class="nav app-tabbar" aria-label="Collabzy navigation">'+[...core,...extra].map(item=>{
+    const active=page===item.key||(item.key==='more'&&moreActive);
+    const click=item.key==='more'?'openMoreSheet()':"go('"+item.key+"')";
+    const label=item.key==='messages'?(Number(dashboard.unreadMessages||0)?'Inbox · '+Number(dashboard.unreadMessages):'Inbox'):item.label;
+    return '<button type="button" class="'+(active?'active':'')+'" data-nav-key="'+item.key+'" data-primary="'+(item.primary?'true':'false')+'" aria-label="'+item.label+'" onclick="'+click+'"><span class="tab-icon">'+item.icon+'</span><span class="tab-label">'+label+'</span></button>';
+  }).join('')+'</nav>';
+}
+function closeMoreSheet(){const sheet=$('#appMoreSheet');if(sheet)sheet.remove();document.body.classList.remove('more-sheet-open')}
+function openMoreSheet(){
+  if($('#appMoreSheet')){closeMoreSheet();return}
+  const links=[
+    {key:'applications',label:'Applications',icon:'▤',desc:'Track pitches and campaign progress'},
+    {key:'invitations',label:'Invitations',icon:'↗',desc:'Brand and creator invitations'},
+    {key:'saved',label:'Saved campaigns',icon:'☆',desc:'Your collaboration shortlist'},
+    {key:'notifications',label:'Notifications',icon:'♧',desc:'Updates and activity'},
+    {key:'instagram',label:'Instagram insights',icon:'◎',desc:'Official connected-account data'},
+    {key:'ai',label:'AI Studio',icon:'✧',desc:'Ideas, briefs, pitches and content'}
+  ];
+  if(me.role==='creator')links.push({key:'autodm',label:'Auto DM',icon:'↗',desc:'Keyword replies and delivery activity'});
+  if(me.role==='brand')links.push({key:'mycampaigns',label:'My campaigns',icon:'▣',desc:'Manage briefs and applicants'},{key:'creators',label:'Find creators',icon:'♙',desc:'Discover talent for your brand'});
+  const sheet=document.createElement('div');sheet.id='appMoreSheet';sheet.className='app-sheet-backdrop';
+  sheet.innerHTML='<section class="app-sheet" role="dialog" aria-modal="true" aria-label="More tools"><div class="sheet-handle"></div><div class="sheet-header"><div><span class="eyebrow">YOUR WORKSPACE</span><h2>More tools</h2><p>Everything you need for the next collaboration.</p></div><button type="button" class="sheet-close" aria-label="Close" onclick="closeMoreSheet()">×</button></div><div class="sheet-links">'+links.map(item=>'<button type="button" class="sheet-link" onclick="go(\''+item.key+'\')"><span class="sheet-link-icon">'+item.icon+'</span><span class="sheet-link-copy"><b>'+item.label+'</b><small>'+item.desc+'</small></span><span class="sheet-chevron">›</span></button>').join('')+'</div><button type="button" class="sheet-signout" onclick="closeMoreSheet();logout()">Sign out of Collabzy</button></section>';
+  sheet.addEventListener('click',event=>{if(event.target===sheet)closeMoreSheet()});
+  document.body.appendChild(sheet);document.body.classList.add('more-sheet-open');
+}
+function shell(){ $('#accountBtn').classList.remove('hidden');$('#root').innerHTML=`<div class="hero"><div><div class="eyebrow">YOUR NEXT COLLAB STARTS HERE</div>${me.role==='brand'?'<h1>Find your next<br>great creator.</h1><p>Publish briefs, discover talent and manage partnerships in one workspace.</p>':'<h1>Make your influence<br>work for you.</h1><p>Discover paid campaigns, barter deals and long-term brand partnerships.</p>'}</div><div class="actions">${me.role==='brand'?'<button class="btn" onclick="newCampaign()">＋ Post a campaign</button>':''}<button class="btn alt" onclick="go('profile')">My profile</button></div></div><div class="stats">${me.role==='brand'?'<div class="stat"><strong>'+Number(dashboard.myCampaigns||0)+'</strong><span>My campaigns</span></div><div class="stat"><strong>'+Number(dashboard.receivedApplications||0)+'</strong><span>Creator applications</span></div><div class="stat"><strong>'+Number(dashboard.unreadMessages||0)+'</strong><span>Unread messages</span></div>':'<div class="stat"><strong>'+Number(dashboard.activeCampaigns||campaigns.length)+'</strong><span>Active campaigns</span></div><div class="stat"><strong>'+Number(dashboard.myApplications||apps.length)+'</strong><span>My applications</span></div><div class="stat"><strong>'+Number(dashboard.accepted||apps.filter(a=>a.status==='accepted').length)+'</strong><span>Accepted</span></div>'}</div><section class="quick-grid">${me.role==='brand'?'<button class="quick-card" onclick="newCampaign()"><span class="quick-kicker">CREATE</span><strong>Post a campaign</strong><p>Share a brief, budget and deliverables with creators.</p><span class="quick-link">Create campaign →</span></button><button class="quick-card" onclick="go(\'creators\')"><span class="quick-kicker">DISCOVER</span><strong>Find creators</strong><p>Search profiles and send personal invitations.</p><span class="quick-link">Browse creators →</span></button><button class="quick-card" onclick="go(\'mycampaigns\')"><span class="quick-kicker">MANAGE</span><strong>Your campaigns</strong><p>Edit briefs, close listings and review applicant totals.</p><span class="quick-link">Manage campaigns →</span></button>':'<div class="quick-card profile-progress"><div class="progress-row"><span class="quick-kicker">YOUR PROFILE</span><b>'+profileProgress().percent+'% complete</b></div><strong>Make your profile stand out</strong><p>'+(profileProgress().missing.length?'Add '+profileProgress().missing.slice(0,2).join(' and ').toLowerCase()+' to help brands discover you.':'Your basic profile is complete. Keep it current for brands.')+'</p><div class="progress-track"><span style="width:'+profileProgress().percent+'%"></span></div><button class="quick-link" onclick="go(\'profile\')">Improve profile →</button></div><button class="quick-card" onclick="go(\'discover\')"><span class="quick-kicker">OPPORTUNITIES</span><strong>Explore campaigns</strong><p>Search by category, collaboration type and budget.</p><span class="quick-link">Browse campaigns →</span></button><button class="quick-card" onclick="go(\'saved\')"><span class="quick-kicker">SHORTLIST</span><strong>Saved campaigns</strong><p>Keep interesting opportunities close at hand.</p><span class="quick-link">View saved →</span></button>'}</section>${renderAppNavigation()}<section id="view"></section><div class="foot">Collabzy · Built for creators and brands · Be genuine. Create impact.</div>`;renderPage()}
+async function go(p){
+  closeMoreSheet();page=p;
+  document.querySelectorAll('[data-nav-key]').forEach(button=>{
+    const key=button.getAttribute('data-nav-key');
+    button.classList.toggle('active',key===p||(key==='more'&&!['discover','matches','messages','profile'].includes(p)));
+  });
+  renderPage();
+  const view=$('#view');
+  if(view){view.classList.remove('app-screen-enter');void view.offsetWidth;view.classList.add('app-screen-enter')}
+  if(IS_NATIVE_APP)window.scrollTo({top:0,behavior:'auto'});
+}
 
 
 async function loadSmartMatches(){
