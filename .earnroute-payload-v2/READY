@@ -1,1 +1,1 @@
-Fresh source bundle: API 36 compile target and direct default connection to the deployed EarnRoute API. Trigger cloud tests and APK build.
+Source bundle intact; pin AndroidX core to API 36 compatible version and rebuild APK.

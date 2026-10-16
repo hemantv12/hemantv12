@@ -29,6 +29,10 @@ jobs:
           mkdir -p EarnRoute
           cp -a /tmp/earnroute-source/EarnRoute/. EarnRoute/
 
+      - name: Pin AndroidX Core to API 36 compatible release
+        shell: bash
+        run: sed -i "s/androidx.core:core:1.19.1/androidx.core:core:1.17.0/" EarnRoute/android/app/build.gradle
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
