@@ -1,6 +1,13 @@
 # EarnRoute
 
-EarnRoute is an India-first, mobile-first hyperlocal earning marketplace for finding genuine paid shifts within a a selectable 1 km, 3 km or 5 km radius, plus expanded 8 km, 10 km and 15 km options. This repository is a runnable launch candidate: it includes a responsive public website, worker/business/admin workspaces, API, PostgreSQL-compatible schema, migration, tests, and deployment assets. It must **not** be represented as a fully production-verified marketplace until the remaining integrations and operating procedures in this README are completed.
+EarnRoute is an India-first, mobile-first hyperlocal earning marketplace for finding genuine paid shifts within a selectable 1 km, 3 km or 5 km radius, plus expanded 8 km, 10 km and 15 km options. This repository is a runnable launch candidate: it includes a responsive public website, worker/business/admin workspaces, API, PostgreSQL-compatible schema, migration, tests, and deployment assets. It must **not** be represented as a fully production-verified marketplace until the remaining integrations and operating procedures in this README are completed.
+
+## Version 1.4.0 — mobile fit, language and sharing
+
+- App-first welcome and workspace layouts have narrower-device constraints, Devanagari font/line-height treatment, safe-area handling, wrapping controls, and horizontal overflow prevention.
+- English/Hindi preference is persisted locally. The UI localization pass covers the welcome screen, role navigation, forms, dynamic labels, job statuses, common prompts, and notifications. Device/browser rendering still needs physical-device QA to catch any remaining string or font differences.
+- Workers can use the OS share sheet/browser sharing to send nearby or accepted-shift details, compensation estimates, workplace information, and a Maps destination link. It does not track the other party live.
+- More nearby distance choices are 8 km, 10 km and 15 km beyond 1/3/5 km presets; the UI and API validate supported values.
 
 ## What works in this release
 
