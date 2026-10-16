@@ -184,8 +184,44 @@ function jobCard(job, action = 'apply') {
   const estimatedNet = Number(job.estimated_net_pay ?? (Number(job.gross_shift_pay_estimate || job.pay_amount) - estimatedFee));
   return `<article class="job-card"><div class="job-card-head"><div class="job-brand-icon">${escapeHtml((job.business_name || job.title || 'E').slice(0,1).toUpperCase())}</div><div class="job-head-main"><div class="job-title">${escapeHtml(job.title)}</div><div class="job-business">${escapeHtml(job.business_name || 'Business')}${job.business_verified ? '<span class="verified-chip">✓ VERIFIED</span>' : ''}${job.business_rating ? `<span class="job-rating">★ ${Number(job.business_rating).toFixed(1)} (${Number(job.business_review_count||0)})</span>` : ''}</div></div><div class="job-pay"><b>${formatMoney(job.pay_amount)}</b><small>per ${escapeHtml(job.pay_basis || 'shift')}</small><small class="net-estimate">~${formatMoney(estimatedNet)} net / shift</small></div></div><div class="job-meta"><span class="meta-chip">⌖ ${escapeHtml(job.city)}</span><span class="meta-chip">◷ ${escapeHtml(formatDate(job.start_at))}</span><span class="meta-chip">◴ ${escapeHtml(job.duration_hours)} hrs</span><span class="meta-chip">${remaining} position${remaining === 1 ? '' : 's'} open</span><span class="meta-chip">${escapeHtml(job.category)}</span></div><div class="compensation-disclosure"><b>Pay transparency:</b> Estimated gross for the full shift ${formatMoney(job.gross_shift_pay_estimate ?? job.pay_amount)} · worker platform fee (${Number(job.platform_fee_percent || 0)}%) ${formatMoney(estimatedFee)} · estimated worker net ${formatMoney(estimatedNet)}. Actual payment depends on accepted terms and approved completion.</div>${match ? `<div class="match-reasons" style="margin-top:10px">${reasons}${match.score ? `<span class="reason-chip">${match.score}% match</span>` : ''}</div>` : ''}<div class="job-card-bottom"><span class="job-business">Apply by ${escapeHtml(formatDate(job.application_deadline))} · ${escapeHtml(job.payment_terms || 'Terms listed in job details')}</span>${actionHtml}</div>${job.description ? `<details class="job-description-details"><summary>Role details and requirements</summary><p>${escapeHtml(job.description)}</p>${job.requirements?.length ? `<p><b>Skills:</b> ${escapeHtml(job.requirements.join(', '))}</p>` : ''}${job.address ? `<p><b>Location:</b> ${escapeHtml(job.address)}</p>` : ''}${job.breaks_info ? `<p><b>Breaks:</b> ${escapeHtml(job.breaks_info)}</p>` : ''}${job.equipment_info ? `<p><b>Equipment / dress:</b> ${escapeHtml(job.equipment_info)}</p>` : ''}${job.safety_info ? `<p><b>Safety:</b> ${escapeHtml(job.safety_info)}</p>` : ''}${job.cancellation_policy ? `<p><b>Cancellation:</b> ${escapeHtml(job.cancellation_policy)}</p>` : ''}</details>` : ''}</article>`;
 }
+async function shareEarnRouteText(title, text) {
+  const body = String(text || '').slice(0, 5000);
+  try {
+    if (window.EarnRouteNative && typeof window.EarnRouteNative.shareText === 'function') {
+      window.EarnRouteNative.shareText(body, String(title || 'Share shift details'));
+      showToast('Choose an app to share these shift details.');
+      return true;
+    }
+    if (navigator.share) {
+      await navigator.share({title: String(title || 'EarnRoute shift'), text: body});
+      return true;
+    }
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+      await navigator.clipboard.writeText(body);
+      showToast('Shift details copied. You can paste them into a message.');
+      return true;
+    }
+    const field = document.createElement('textarea');
+    field.value = body;
+    field.setAttribute('readonly', 'readonly');
+    field.style.position = 'fixed';
+    field.style.opacity = '0';
+    document.body.appendChild(field);
+    field.select();
+    const copied = document.execCommand('copy');
+    field.remove();
+    if (!copied) throw new Error('Copy was not available on this device.');
+    showToast('Shift details copied. You can paste them into a message.');
+    return true;
+  } catch (error) {
+    if (error && error.name === 'AbortError') return false;
+    showToast(friendlyError(error) || 'Could not share these shift details.', 'error');
+    return false;
+  }
+}
 function assignmentCard(assignment, isBusiness = false) {
   let actions = '';
+  actions += `<button class="btn btn-outline btn-sm" data-share-assignment="${assignment.id}">Share shift ↗</button>`;
   const hasPinnedCoordinates = assignment.latitude !== null && assignment.latitude !== undefined &&
     assignment.longitude !== null && assignment.longitude !== undefined &&
     Number.isFinite(Number(assignment.latitude)) && Number.isFinite(Number(assignment.longitude));
@@ -532,6 +568,33 @@ document.addEventListener('click', async event => {
   if(target.dataset.closeNotifications!==undefined){$('#notification-panel')?.remove();return;}
   if(target.dataset.screen){event.preventDefault();setActiveScreen(target.dataset.screen);return;}
   if(target.dataset.retry!==undefined){renderPage();return;}
+  if(target.dataset.shareAssignment){
+    try {
+      const path = currentUser && currentUser.role === 'business' ? '/api/business/assignments' : '/api/assignments/me';
+      const result = await api(path);
+      const assignment = (result.items || []).find(item => String(item.id) === String(target.dataset.shareAssignment));
+      if (!assignment) { showToast('This shift could not be found in your assignments.', 'error'); return; }
+      const coordinates = assignment.latitude != null && assignment.longitude != null
+        ? String(assignment.latitude) + ',' + String(assignment.longitude)
+        : [assignment.address, assignment.city].filter(Boolean).join(', ');
+      const directions = coordinates ? 'Directions: https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(coordinates) : '';
+      const payment = currentUser && currentUser.role === 'business' ? assignment.gross_pay : assignment.net_pay;
+      const payLabel = currentUser && currentUser.role === 'business' ? 'Gross shift pay' : 'Estimated worker pay';
+      const message = [
+        'EarnRoute shift details',
+        'Shift: ' + (assignment.job_title || 'Local paid shift'),
+        'Business: ' + (assignment.business_name || 'Local business'),
+        'City: ' + (assignment.city || 'Not set'),
+        'Workplace: ' + (assignment.address || 'Address to be confirmed'),
+        'Start: ' + formatDate(assignment.start_at),
+        payLabel + ': ' + formatMoney(payment),
+        directions,
+        'Shared from EarnRoute. Confirm the shift details with the other party before travelling.'
+      ].filter(Boolean).join('\\n');
+      await shareEarnRouteText('EarnRoute shift details', message);
+    } catch(error) { showToast(friendlyError(error), 'error'); }
+    return;
+  }
   if(target.dataset.applyJob){await applyToJob(Number(target.dataset.applyJob),target);return;}
   if(target.dataset.respondOffer){await offerResponse(Number(target.dataset.respondOffer),target.dataset.decision,target);return;}
   if(target.dataset.withdrawApp){if(!window.confirm('Withdraw this application? You cannot withdraw it after an offer is sent.'))return;await actionApi(`/api/applications/${target.dataset.withdrawApp}/withdraw`,'POST',undefined,'Application withdrawn.');return;}
