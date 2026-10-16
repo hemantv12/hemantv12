@@ -25,13 +25,12 @@ import android.widget.Toast;
 import android.text.InputType;
 import org.json.JSONArray;
 import org.json.JSONObject;
-import java.io.BufferedReader;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.OutputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
-import java.nio.charset.StandardCharsets;
+import okhttp3.MediaType;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.RequestBody;
+import okhttp3.Response;
+import java.util.concurrent.TimeUnit;
 import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -48,6 +47,8 @@ public final class MainActivity extends Activity {
     private static final int RED = Color.rgb(255, 133, 151);
 
     private final ExecutorService network = Executors.newSingleThreadExecutor();
+    private final OkHttpClient httpClient = new OkHttpClient.Builder().connectTimeout(18, TimeUnit.SECONDS).readTimeout(22, TimeUnit.SECONDS).build();
+    private static final MediaType JSON_MEDIA = MediaType.get("application/json; charset=utf-8");
     private SharedPreferences storage;
     private FrameLayout frame;
     private LinearLayout content;
@@ -1321,57 +1322,30 @@ public final class MainActivity extends Activity {
     }
 
     private void api(String method, String path, JSONObject payload, ApiCallback callback) {
-        if (screen.equals("welcome") || screen.equals("register") || screen.equals("login")) {
-            // Authentication calls deliberately remain public; other calls attach a bearer token when present.
-        }
         network.execute(() -> {
             JSONObject result = null;
             String error = null;
-            HttpURLConnection connection = null;
             try {
-                URL url = new URL(API + path);
-                connection = (HttpURLConnection) url.openConnection();
-                connection.setRequestMethod(method);
-                connection.setConnectTimeout(18000);
-                connection.setReadTimeout(22000);
-                connection.setRequestProperty("Accept", "application/json");
-                if (!token.isEmpty()) connection.setRequestProperty("Authorization", "Bearer " + token);
-                if (payload != null) {
-                    connection.setDoOutput(true);
-                    connection.setRequestProperty("Content-Type", "application/json; charset=utf-8");
-                    byte[] bytes = payload.toString().getBytes(StandardCharsets.UTF_8);
-                    try (OutputStream output = connection.getOutputStream()) {
-                        output.write(bytes);
+                Request.Builder builder = new Request.Builder().url(API + path).header("Accept", "application/json");
+                if (!token.isEmpty()) builder.header("Authorization", "Bearer " + token);
+                RequestBody body = payload == null ? null : RequestBody.create(payload.toString(), JSON_MEDIA);
+                builder.method(method, body);
+                try (Response response = httpClient.newCall(builder.build()).execute()) {
+                    String responseText = response.body() == null ? "" : response.body().string();
+                    if (!responseText.isEmpty()) {
+                        try { result = new JSONObject(responseText); }
+                        catch (Exception notJson) { result = new JSONObject().put("message", responseText); }
                     }
-                }
-                int status = connection.getResponseCode();
-                InputStream stream = status >= 200 && status < 400 ? connection.getInputStream() : connection.getErrorStream();
-                StringBuilder response = new StringBuilder();
-                if (stream != null) {
-                    try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
-                        String line;
-                        while ((line = reader.readLine()) != null) response.append(line);
-                    }
-                }
-                if (response.length() > 0) {
-                    try { result = new JSONObject(response.toString()); }
-                    catch (Exception notJson) { result = new JSONObject().put("message", response.toString()); }
-                }
-                if (status < 200 || status >= 300) {
-                    error = result != null ? result.optString("error", result.optString("message", "Request failed (" + status + ").")) : "Request failed (" + status + ").";
-                } else if (result == null) {
-                    result = new JSONObject();
+                    if (!response.isSuccessful()) {
+                        error = result != null ? result.optString("error", result.optString("message", "Request failed (" + response.code() + ").")) : "Request failed (" + response.code() + ").";
+                    } else if (result == null) result = new JSONObject();
                 }
             } catch (Exception ex) {
                 error = "Could not reach Collabzy. Check your internet connection and try again.";
-            } finally {
-                if (connection != null) connection.disconnect();
             }
             final JSONObject data = result;
             final String problem = error;
-            runOnUiThread(() -> {
-                if (!isFinishing()) callback.complete(data, problem);
-            });
+            runOnUiThread(() -> { if (!isFinishing()) callback.complete(data, problem); });
         });
     }
 

@@ -60,6 +60,9 @@ jobs:
           test -f native-android/MainActivity.java
           mkdir -p android/app/src/main/java/com/collabzy/creator
           cp native-android/MainActivity.java android/app/src/main/java/com/collabzy/creator/MainActivity.java
+      - name: Add native HTTP client dependency
+        run: |
+          grep -q 'com.squareup.okhttp3:okhttp:4.12.0' android/app/build.gradle || sed -i '/dependencies {/a\    implementation "com.squareup.okhttp3:okhttp:4.12.0"' android/app/build.gradle
       - name: Apply Collabzy Android launcher branding
         shell: bash
         run: |
