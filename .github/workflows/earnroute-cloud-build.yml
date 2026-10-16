@@ -5,33 +5,22 @@ on:
   push:
     branches: [earnroute-production]
     paths:
-      - '.earnroute-payload-v2/READY'
+      - 'EarnRoute/**'
+      - '.github/workflows/earnroute-cloud-build.yml'
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   verify-test-build:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
-      - name: Checkout branch
+      - name: Checkout source
         uses: actions/checkout@v4
 
-      - name: Restore source bundle
-        shell: bash
-        run: |
-          mkdir -p /tmp/earnroute-source
-          cat .earnroute-payload-v2/part-*.b64 | base64 --decode > /tmp/earnroute-source.tar.gz
-          tar -xzf /tmp/earnroute-source.tar.gz -C /tmp/earnroute-source
-          test -f /tmp/earnroute-source/EarnRoute/app/main.py
-          rm -rf EarnRoute
-          mkdir -p EarnRoute
-          cp -a /tmp/earnroute-source/EarnRoute/. EarnRoute/
-
-      - name: Pin AndroidX Core to API 36 compatible release
-        shell: bash
-        run: sed -i "s/androidx.core:core:1.19.1/androidx.core:core:1.17.0/" EarnRoute/android/app/build.gradle
+      - name: Verify checked-in application source
+        run: test -f EarnRoute/app/main.py && test -f EarnRoute/app/static/nearby.js && test -f EarnRoute/android/app/src/main/java/in/earnroute/app/MainActivity.java
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -42,7 +31,7 @@ jobs:
         working-directory: EarnRoute/android
         run: ./sync-assets.sh
 
-      - name: Run backend tests and checks
+      - name: Run tests and source checks
         working-directory: EarnRoute
         run: |
           python -m pip install --upgrade pip
@@ -50,6 +39,7 @@ jobs:
           pytest -q
           python -m compileall -q app tests scripts
           node --check app/static/app.js
+          node --check app/static/nearby.js
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -79,14 +69,7 @@ jobs:
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: EarnRoute-debug-apk
+          name: EarnRoute-nearby-debug-apk
           path: EarnRoute/android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 14
-
-      - name: Commit extracted source directory
-        uses: stefanzweifel/git-auto-commit-action@v5
-        with:
-          commit_message: 'Add extracted EarnRoute application source'
-          file_pattern: 'EarnRoute/**'
-          branch: earnroute-production
