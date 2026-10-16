@@ -379,6 +379,7 @@ def test_nearby_jobs_are_distance_filtered_and_sorted(client, register_business,
         ("Corner shop helper", 28.6170, 77.2090),
         ("Cafe stock assistant", 28.6409, 77.2090),
         ("Far warehouse shift", 28.7000, 77.2090),
+        ("Outer retail shift", 28.7480, 77.2090),
     ]
     for title, latitude, longitude in listings:
         response = client.post("/api/jobs", headers=business_headers, json={
@@ -398,7 +399,21 @@ def test_nearby_jobs_are_distance_filtered_and_sorted(client, register_business,
     assert five_km.json()["total"] == 2
     assert [item["title"] for item in five_km.json()["items"]] == ["Corner shop helper", "Cafe stock assistant"]
     assert all(item["distance_km"] <= 5 for item in five_km.json()["items"])
-    assert client.get("/api/jobs?latitude=28.6139&longitude=77.2090&radius_km=10").status_code == 422
+
+    ten_km = client.get("/api/jobs?latitude=28.6139&longitude=77.2090&radius_km=10&page_size=20")
+    assert ten_km.status_code == 200
+    assert [item["title"] for item in ten_km.json()["items"]] == [
+        "Corner shop helper", "Cafe stock assistant", "Far warehouse shift",
+    ]
+    assert all(item["distance_km"] <= 10 for item in ten_km.json()["items"])
+
+    fifteen_km = client.get("/api/jobs?latitude=28.6139&longitude=77.2090&radius_km=15&page_size=20")
+    assert fifteen_km.status_code == 200
+    assert [item["title"] for item in fifteen_km.json()["items"]] == [
+        "Corner shop helper", "Cafe stock assistant", "Far warehouse shift", "Outer retail shift",
+    ]
+    assert all(item["distance_km"] <= 15 for item in fifteen_km.json()["items"])
+    assert client.get("/api/jobs?latitude=28.6139&longitude=77.2090&radius_km=20").status_code == 422
     assert client.get("/api/jobs?latitude=28.6139&radius_km=3").status_code == 422
 
 
