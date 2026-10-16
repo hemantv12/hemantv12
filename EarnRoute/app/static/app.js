@@ -1,5 +1,6 @@
 'use strict';
 
+const isAdminPortal = /^\/admin\/?$/.test(window.location.pathname);
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
 let currentUser = null;
@@ -112,6 +113,7 @@ function setLanding() {
   document.body.classList.remove('app-open');
 }
 function setWorkspace(user) {
+  if (isAdminPortal && user?.role === 'admin') document.body.classList.remove('admin-portal-mode');
   currentUser = user;
   $('#landing').hidden = true;
   $('#workspace').hidden = false;
@@ -534,7 +536,17 @@ function loadingButtons(button, isLoading) {
 }
 
 // Authentication modal
+function showAdminSignIn(message = '') {
+  document.body.classList.add('admin-portal-mode');
+  setLanding();
+  openAuth('login', 'worker');
+  if (message) {
+    $('#auth-error').textContent = message;
+    $('#auth-error').hidden = false;
+  }
+}
 function openAuth(mode = 'login', role = 'worker') {
+  if (isAdminPortal) mode = 'login';
   if (role) {
     const roleEl = $(`#auth-form input[name="role"][value="${role}"]`);
     if (roleEl) roleEl.checked = true;
@@ -550,9 +562,13 @@ function closeAuth() {
   $('#auth-error').hidden = true;
 }
 function setAuthMode(mode) {
+  if (isAdminPortal) mode = 'login';
   authMode = mode;
-  $('#auth-heading').textContent = mode === 'login' ? 'Welcome back.' : 'Build your next step.';
-  $('#auth-subheading').textContent = mode === 'login' ? 'Sign in to continue to your workspace.' : 'Create a profile to discover or publish work.';
+  $('.auth-eyebrow').textContent = isAdminPortal ? 'EARNROUTE ADMIN CONSOLE' : 'A BETTER WAY TO WORK';
+  $('#auth-heading').textContent = isAdminPortal ? 'Founder sign-in' : mode === 'login' ? 'Welcome back.' : 'Build your next step.';
+  $('#auth-subheading').textContent = isAdminPortal ? 'Sign in with your authorised administrator account to manage the platform.' : mode === 'login' ? 'Sign in to continue to your workspace.' : 'Create a profile to discover or publish work.';
+  $('#auth-mode-tabs').hidden = isAdminPortal;
+  $('#close-auth').hidden = isAdminPortal;
   $('#name-field').hidden = mode === 'login';
   $('#role-field').hidden = mode === 'login';
   $('#terms-field').hidden = mode === 'login';
@@ -584,6 +600,9 @@ async function submitAuth(form) {
       ? { email:data.get('email'), password:data.get('password') }
       : { email:data.get('email'), full_name:data.get('full_name'), password:data.get('password'), role:data.get('role'), terms_accepted:Boolean(data.get('terms_accepted')), adult_confirmed:Boolean(data.get('adult_confirmed')) };
     const result = await api(authMode === 'login' ? '/api/auth/login' : '/api/auth/register', {method:'POST',body:payload});
+    if (isAdminPortal && result.user?.role !== 'admin') {
+      throw new Error('This account does not have administrator access. Sign in with the authorised founder account.');
+    }
     sessionStorage.setItem('earnroute_token', result.access_token);
     currentUser = result.user;
     closeAuth(); setWorkspace(currentUser);
@@ -670,7 +689,12 @@ document.addEventListener('click', async event => {
   if(target.dataset.openAuth){event.preventDefault();openAuth(target.dataset.openAuth,target.dataset.role||'worker');return;}
   if(target.dataset.authMode){setAuthMode(target.dataset.authMode);return;}
   if(target.id==='close-auth' || (target.classList.contains('modal-backdrop')&&target.id==='auth-modal')){closeAuth();return;}
-  if(target.id==='logout-btn') {sessionStorage.removeItem('earnroute_token');currentUser=null;setLanding();showToast('You have signed out.');return;}
+  if(target.id==='logout-btn') {
+    sessionStorage.removeItem('earnroute_token'); currentUser=null;
+    if (isAdminPortal) showAdminSignIn('You have signed out. Sign in again to continue to the admin console.');
+    else setLanding();
+    showToast('You have signed out.'); return;
+  }
   if(target.id==='mobile-menu'){ $('#sidebar').classList.toggle('mobile-open'); return; }
   if(target.id==='lang-btn' || target.hasAttribute('data-er-language-toggle')) {
     selectedLanguage=selectedLanguage==='en'?'hi':'en';
@@ -783,7 +807,7 @@ document.addEventListener('submit', async event => {
 });
 document.addEventListener('change',event=>{if(event.target.matches('#auth-form input[name="role"]'))setAuthMode(authMode);});
 document.addEventListener('reset',event=>{if(event.target.id==='discover-filter-form')window.setTimeout(()=>setActiveScreen('discover'),10);});
-document.addEventListener('keydown',event=>{if(event.key==='Escape'){closeAuth();$('#notification-panel')?.remove();$('#sidebar').classList.remove('mobile-open');}});
+document.addEventListener('keydown',event=>{if(event.key==='Escape'){if(!isAdminPortal)closeAuth();$('#notification-panel')?.remove();$('#sidebar').classList.remove('mobile-open');}});
 
 async function init() {
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
@@ -794,9 +818,24 @@ async function init() {
   if (nativeAndroid) $$('[data-connect-server]').forEach(button => { button.hidden = false; });
   $$('[data-connect-server]').forEach(button => button.addEventListener('click', () => { try { window.EarnRouteNative?.openServerSettings?.(); } catch (_) { showToast('Open server settings from the app.', 'error'); } }));
   const token=sessionStorage.getItem('earnroute_token');
-  if(!token){setLanding();return;}
-  try {const data=await api('/api/auth/me');setWorkspace(data.user);}
-  catch {sessionStorage.removeItem('earnroute_token');setLanding();}
+  if(!token){
+    if(isAdminPortal) showAdminSignIn();
+    else setLanding();
+    return;
+  }
+  try {
+    const data=await api('/api/auth/me');
+    if(isAdminPortal && data.user?.role !== 'admin') {
+      sessionStorage.removeItem('earnroute_token');
+      showAdminSignIn('Your current account is not an administrator. Use the founder/admin account to continue.');
+      return;
+    }
+    setWorkspace(data.user);
+  } catch {
+    sessionStorage.removeItem('earnroute_token');
+    if(isAdminPortal) showAdminSignIn('Your session expired. Sign in again to open the admin console.');
+    else setLanding();
+  }
 }
 window.addEventListener('load', init, { once: true });
 
