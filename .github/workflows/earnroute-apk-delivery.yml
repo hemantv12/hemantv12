@@ -40,6 +40,12 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
 
+      - name: Bundle the latest frontend into the Android app
+        working-directory: EarnRoute/android
+        run: |
+          chmod +x ./sync-assets.sh
+          ./sync-assets.sh
+
       - name: Run automated backend and packaging tests
         working-directory: EarnRoute
         run: pytest -q
@@ -70,12 +76,6 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '9.8.1'
-
-      - name: Bundle the latest frontend into the Android app
-        working-directory: EarnRoute/android
-        run: |
-          chmod +x ./sync-assets.sh
-          ./sync-assets.sh
 
       - name: Build installable debug APK
         working-directory: EarnRoute/android
