@@ -45,7 +45,7 @@ def main() -> int:
             return 3
         user = User(
             email=email, full_name=full_name, password_hash=hash_password(password),
-            role="admin", active=True, email_verified=True,
+            role="admin", active=True, email_verified=False,
         )
         db.add(user)
         db.flush()
