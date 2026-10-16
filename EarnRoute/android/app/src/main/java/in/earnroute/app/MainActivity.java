@@ -253,10 +253,11 @@ public final class MainActivity extends Activity {
         });
     }
 
-    private void applyCssSystemBottomInset(WebView target) {
-        if (target == null) return;
+    private void applyCssSystemBottomInset(View target) {
+        if (!(target instanceof WebView)) return;
+        WebView targetWebView = (WebView) target;
         final int inset = Math.max(0, systemBottomInsetDp);
-        target.evaluateJavascript("(function(){if(document.documentElement.classList.contains('er-native-app')){document.documentElement.style.setProperty('--er-system-bottom-inset','" + inset + "px');}})();", null);
+        targetWebView.evaluateJavascript("(function(){if(document.documentElement.classList.contains('er-native-app')){document.documentElement.style.setProperty('--er-system-bottom-inset','" + inset + "px');}})();", null);
     }
 
     private final class EarnRouteBridge {
