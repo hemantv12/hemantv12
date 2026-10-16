@@ -27,7 +27,7 @@ jobs:
           grep -q 'id="er-app-welcome"' EarnRoute/app/static/index.html
           grep -q 'classList.add("er-native-app")' EarnRoute/app/static/index.html
           grep -q 'NATIVE-FIRST APP SHELL' EarnRoute/app/static/nearby.css
-          grep -q "versionName '1.2.0'" EarnRoute/android/app/build.gradle
+          grep -q "versionName '1.3.0'" EarnRoute/android/app/build.gradle
 
       - name: Set up Python
         uses: actions/setup-python@v5
