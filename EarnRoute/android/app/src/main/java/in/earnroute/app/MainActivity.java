@@ -144,9 +144,9 @@ public final class MainActivity extends Activity {
 
     private void configureSystemBars() {
         Window window = getWindow();
-        window.setStatusBarColor(Color.rgb(247, 250, 247));
-        window.setNavigationBarColor(Color.rgb(247, 250, 247));
-        window.getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
+        window.setStatusBarColor(Color.rgb(18, 45, 33));
+        window.setNavigationBarColor(Color.rgb(18, 45, 33));
+        window.getDecorView().setSystemUiVisibility(0);
         window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
     }
 
