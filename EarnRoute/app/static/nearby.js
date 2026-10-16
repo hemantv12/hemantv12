@@ -391,6 +391,20 @@ function erInitializeLiveMap(el) {
   }
   window.requestAnimationFrame(function() { if (document.body.contains(el) && el._erMapInstance) map.invalidateSize(); });
 }
+function erDisposeLiveMaps(root) {
+  root = root || document;
+  const maps = [];
+  if (root.matches && root.matches('.er-live-map[data-er-map-kind]')) maps.push(root);
+  if (root.querySelectorAll) maps.push.apply(maps, Array.from(root.querySelectorAll('.er-live-map[data-er-map-kind]')));
+  maps.forEach(function(el) {
+    if (el._erMapInstance && typeof el._erMapInstance.remove === 'function') {
+      try { el._erMapInstance.remove(); } catch (_) { /* The view may already be detached. */ }
+    }
+    el._erMapInstance = null;
+    el._erPinMarker = null;
+    el.dataset.erMapLoading = '';
+  });
+}
 function erEnhanceLiveMaps() {
   const maps = Array.from(document.querySelectorAll('.er-live-map[data-er-map-kind]')).filter(function(el) {
     return !el._erMapInstance && el.dataset.erMapLoading !== '1';
@@ -569,6 +583,7 @@ function erEnsureMobileNav() {
   $('#page-title').textContent = ['overview','discover'].includes(activeScreen) ? 'Nearby work' : (TITLES[activeScreen] || 'Your work');
 }
 renderPage = async function() {
+  erDisposeLiveMaps($('#view-root'));
   await erBaseRenderPage();
   erEnsureMobileNav();
   erEnhanceLiveMaps();
@@ -776,6 +791,7 @@ document.addEventListener('submit', async function(event) {
   if (form && form.id === 'er-nearby-filter') {
     event.preventDefault();
     const data = formObject(form);
+    erDisposeLiveMaps($('#view-root'));
     $('#view-root').innerHTML = '<div class="loading-surface"><span class="loading-spinner"></span><span>Finding the closest shifts…</span></div>';
     try {
       $('#view-root').innerHTML = await renderDiscover(Object.assign({}, data, {radius_km:erRadius(), category:erCategory()}));
