@@ -266,7 +266,7 @@ html.er-native-app .auth-modal h2{font-size:29px;letter-spacing:-1.1px}
 html.er-native-app .auth-mode-tabs{border-radius:12px}
 html.er-native-app .auth-mode{font-size:12px}
 html.er-native-app .auth-mode.active{border-radius:9px}
-html.er-native-app .er-mobile-nav{padding:8px 7px calc(8px + env(safe-area-inset-bottom));border-top:1px solid #e4eadb;background:rgba(250,251,246,.96);box-shadow:0 -8px 25px rgba(20,47,25,.07)}
+html.er-native-app .er-mobile-nav{position:fixed;z-index:80;left:0;right:0;bottom:0;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:2px;padding:8px 7px calc(8px + env(safe-area-inset-bottom));border-top:1px solid #e4eadb;background:rgba(250,251,246,.96);backdrop-filter:blur(18px);box-shadow:0 -8px 25px rgba(20,47,25,.07)}
 html.er-native-app .er-mobile-nav button{gap:4px}
 html.er-native-app .er-mobile-nav button span{font-size:20px}
 html.er-native-app .er-mobile-nav button small{font-size:9px}
