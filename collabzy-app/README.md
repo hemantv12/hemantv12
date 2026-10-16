@@ -7,6 +7,7 @@ Collabzy is a mobile-first creator–brand collaboration marketplace. The live e
 - Creator and brand accounts with password hashing, signed sessions, validation and auth rate limits.
 - Creator profile with niche, bio, location, Instagram handle, follower count, engagement rate, profile completion guidance and a downloadable media kit.
 - Campaign marketplace with paid/barter/hybrid listings, category/type filters, budget sorting, application pitches, accepted/completed status tracking and saved campaigns.
+- Smart Match Center for creators and brands, with explainable match scores based on profile/campaign relevance and practical fit signals.
 - Brand campaign management, creator discovery, campaign invitations and accept/decline response.
 - In-app conversations/messages, unread-message counts and activity notifications.
 - Account password change, self-service data export and password-confirmed deletion.
