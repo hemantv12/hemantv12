@@ -111,7 +111,7 @@ def test_end_to_end_apply_offer_and_assignment_lifecycle(client, register_worker
     business, business_headers = register_business()
     worker, worker_headers = register_worker()
     worker_id = worker["user"]["id"]
-    client.patch("/api/worker/profile", headers=worker_headers, json={"city":"Delhi","skills":["customer service","event support"],"preferred_categories":["Events"],"availability":[{"day":0,"start":"00:00","end":"23:59"},{"day":1,"start":"00:00","end":"23:59"},{"day":2,"start":"00:00","end":"23:59"},{"day":3,"start":"00:00","end":"23:59"},{"day":4,"start":"00:00","end":"23:59"},{"day":5,"start":"00:00","end":"23:59"},{"day":6,"start":"00:00","end":"23:59"}],"travel_radius_km":15,"min_pay":800,"experience_years":1})
+    client.patch("/api/worker/profile", headers=worker_headers, json={"city":"Delhi","skills":["customer service","event support"],"preferred_categories":["Events"],"availability":[{"day":0,"start":"00:00","end":"23:59"},{"day":1,"start":"00:00","end":"23:59"},{"day":2,"start":"00:00","end":"23:59"},{"day":3,"start":"00:00","end":"23:59"},{"day":4,"start":"00:00","end":"23:59"},{"day":5,"start":"00:00","end":"23:59"},{"day":6,"start":"00:00","end":"23:59"}],"travel_radius_km":5,"min_pay":800,"experience_years":1})
     admin = create_admin()
     admin_headers = token_headers(client,"admin@earnroute.test","StrongAdminPass123")
     verified = client.patch(f"/api/admin/businesses/{business['user']['id']}/verification",headers=admin_headers,json={"status":"verified","reason":"Business details reviewed by founder."})
