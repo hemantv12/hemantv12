@@ -169,6 +169,19 @@ function erNearbyCard(job) {
     '<p><b>Apply by:</b> ' + escapeHtml(formatDate(job.application_deadline)) + '</p><p><b>Payment:</b> ' + escapeHtml(job.payment_terms || 'Confirm terms before accepting.') + '</p>' +
     '<small>Distance is straight-line GPS distance, not driving distance or ETA. Take-home pay is an estimate, not payment confirmation.</small></details></div></article>';
 }
+function erSortSelectMarkup(selected) {
+  const options = [
+    ['closest', 'Closest first'],
+    ['take-home', 'Highest estimated take-home'],
+    ['soonest', 'Soonest start'],
+    ['open-spots', 'Most open spots']
+  ];
+  return '<label class="er-sort-field"><span class="er-control-label">Sort shifts by</span><select name="sort_by" aria-label="Sort nearby shifts">' +
+    options.map(function(option) {
+      return '<option value="' + option[0] + '"' + (selected === option[0] ? ' selected' : '') + '>' + option[1] + '</option>';
+    }).join('') + '</select></label>';
+}
+
 async function erFetchNearby(options) {
   options = options || {};
   const location = erGetLocation();
@@ -557,10 +570,14 @@ renderWorkerOverview = async function() {
 };
 renderDiscover = async function(filters) {
   filters = filters || {};
+  await erRefreshSavedShiftIds();
   const location = erGetLocation();
   const requestedRadius = Number(filters.radius_km || erRadius());
   const radius = ER_RADIUS_OPTIONS.includes(requestedRadius) ? requestedRadius : erRadius();
   const category = filters.category || erCategory();
+  const allowedSorts = ['closest','take-home','soonest','open-spots'];
+  const requestedSort = String(filters.sort_by || sessionStorage.getItem('earnroute_nearby_sort') || 'closest');
+  const sortBy = allowedSorts.includes(requestedSort) ? requestedSort : 'closest';
   if (!location) {
     return pageHeading('NEARBY WORK','Find a gig close to you.','Choose 1 km, 3 km, 5 km or open More for 8 km, 10 km and 15 km. EarnRoute shows only jobs with a real workplace pin inside that distance.','') +
       '<div class="er-discover-toolbar"><div><span class="er-control-label">Distance limit</span>' + erRadiusButtons(radius) + '</div></div>' + erLocationPrompt();
@@ -570,13 +587,19 @@ renderDiscover = async function(filters) {
   catch (error) {
     return pageHeading('NEARBY WORK','Jobs around you.','Only real nearby shifts are listed here.','') + '<div class="er-nearby-empty"><h3>Could not load nearby jobs</h3><p>' + escapeHtml(friendlyError(error)) + '</p><button class="btn btn-outline" data-er-enable-location>Try again</button></div>';
   }
+  const visibleJobs = erSortJobs(result.items || [], sortBy);
+  const sortDescription = {
+    closest:'closest first', 'take-home':'highest estimated take-home first',
+    soonest:'soonest start first', 'open-spots':'most open spots first'
+  }[sortBy];
   return pageHeading('NEARBY WORK','Find work close to you.','No far-away listings. Compare distance, shift time and estimated take-home before applying.','<button type="button" class="btn btn-outline" data-er-enable-location>↻ Refresh location</button>') +
-    '<div class="er-discover-toolbar"><div><span class="er-control-label">Distance limit</span>' + erRadiusButtons(radius) + '</div><div><span class="er-control-label">Work type</span>' + erCategoryButtons(category) + '</div><span class="er-location-note">⌖ Using device location · ' + radius + ' km maximum</span></div>' +
+    '<div class="er-discover-toolbar"><div><span class="er-control-label">Distance limit</span>' + erRadiusButtons(radius) + '</div><div><span class="er-control-label">Work type</span>' + erCategoryButtons(category) + '</div><span class="er-location-note">⌖ Using device location · ' + radius + ' km maximum</span>' + erSortSelectMarkup(sortBy) + '</div>' +
     '<form id="er-nearby-filter" class="er-search-row"><input name="search" placeholder="Search a local gig" aria-label="Search nearby jobs" value="' + escapeHtml(filters.search || '') + '">' +
-    '<input name="min_pay" type="number" min="0" step="50" placeholder="Min pay ₹" value="' + escapeHtml(filters.min_pay || '') + '" aria-label="Minimum pay"><button class="btn btn-primary" type="submit">Search</button><button class="btn btn-outline" type="reset">Clear</button></form>' +
-    '<div class="er-results-note"><b>' + (result.total || 0) + '</b> shift' + (result.total === 1 ? '' : 's') + ' within ' + radius + ' km · closest first</div>' +
-    erLiveMapSectionMarkup({id:'er-nearby-map',kind:'nearby',location:location,radius:radius,jobs:result.items || []}) +
-    (result.items && result.items.length ? '<div class="er-job-grid">' + result.items.map(erNearbyCard).join('') + '</div>' :
+    '<input name="min_pay" type="number" min="0" step="50" placeholder="Min pay ₹" value="' + escapeHtml(filters.min_pay || '') + '" aria-label="Minimum pay">' +
+    '<button class="btn btn-primary" type="submit">Search</button><button class="btn btn-outline" type="reset">Clear</button></form>' +
+    '<div class="er-results-note"><b>' + (result.total || 0) + '</b> shift' + (result.total === 1 ? '' : 's') + ' within ' + radius + ' km · ' + sortDescription + '</div>' +
+    erLiveMapSectionMarkup({id:'er-nearby-map',kind:'nearby',location:location,radius:radius,jobs:visibleJobs}) +
+    (visibleJobs.length ? '<div class="er-job-grid">' + visibleJobs.map(erNearbyCard).join('') + '</div>' :
     '<div class="er-nearby-empty"><div class="er-empty-icon">⌖</div><h3>No shifts in this radius yet</h3><p>Only jobs with a real workplace pin are shown. Expand the distance or try another category.</p>' + erRadiusNextAction(radius, 'Expand to ') + '</div>');
 };
 renderPostJob = function() {
@@ -642,7 +665,7 @@ function erEnsureMobileNav() {
   const role = currentUser && currentUser.role;
   const navigation = {
     worker: [
-      ['overview','⌂','Home'], ['discover','⌕','Nearby'], ['applications','▤','Applied'],
+      ['overview','⌂','Home'], ['discover','⌕','Nearby'], ['saved-shifts','♡','Saved'],
       ['schedule','▦','Schedule'], ['earnings','₹','Earnings']
     ],
     business: [
@@ -757,6 +780,24 @@ document.addEventListener('click', function(event) {
 document.addEventListener('click', async function(event) {
   const target = event.target.closest('button');
   if (!target) return;
+  if (target.hasAttribute('data-er-save-shift')) {
+    const jobId = Number(target.dataset.erSaveShift);
+    const wasSaved = erSavedShiftIds.has(jobId);
+    target.disabled = true;
+    try {
+      const response = await api('/api/jobs/' + encodeURIComponent(jobId) + '/save', {
+        method:wasSaved ? 'DELETE' : 'POST'
+      });
+      if (response.saved) erSavedShiftIds.add(jobId);
+      else erSavedShiftIds.delete(jobId);
+      showToast(response.saved ? 'Shift saved to your private shortlist.' : 'Shift removed from your saved list.');
+      await renderPage();
+    } catch (error) {
+      showToast(friendlyError(error), 'error');
+      target.disabled = false;
+    }
+    return;
+  }
   if (target.hasAttribute('data-er-map-retry')) {
     erLeafletLoadPromise = null;
     erEnhanceLiveMaps();
@@ -889,6 +930,9 @@ document.addEventListener('submit', async function(event) {
   if (form && form.id === 'er-nearby-filter') {
     event.preventDefault();
     const data = formObject(form);
+    if (['closest','take-home','soonest','open-spots'].includes(String(data.sort_by || ''))) {
+      sessionStorage.setItem('earnroute_nearby_sort', String(data.sort_by));
+    }
     erDisposeLiveMaps($('#view-root'));
     $('#view-root').innerHTML = '<div class="loading-surface"><span class="loading-spinner"></span><span>Finding the closest shifts…</span></div>';
     try {
@@ -902,6 +946,7 @@ document.addEventListener('reset', function(event) {
   if (event.target && event.target.id === 'er-nearby-filter') {
     event.preventDefault();
     sessionStorage.removeItem('earnroute_nearby_category');
+    sessionStorage.removeItem('earnroute_nearby_sort');
     setTimeout(function(){renderPage();}, 0);
   }
 });
