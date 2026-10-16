@@ -307,3 +307,154 @@ html.er-native-app button{touch-action:manipulation}
 html.er-native-app .workspace{display:block}
 html.er-native-app .sidebar{position:fixed;left:-270px;top:0;bottom:0;height:100dvh;width:250px;transition:left .22s ease;box-shadow:none;z-index:100}
 html.er-native-app .sidebar.mobile-open{left:0;box-shadow:20px 0 50px rgba(16,50,29,.17)}
+
+
+/* MOBILE FIT AND WRAPPING FIXES
+   Keep every card, form field, navigation label and action inside the available viewport. */
+html.er-native-app{font-size:16px;-webkit-text-size-adjust:100%;text-size-adjust:100%;overflow-x:clip}
+html.er-native-app body{width:100%;max-width:100%;overflow-x:clip;line-height:1.48}
+html.er-native-app body *{box-sizing:border-box;min-width:0}
+html.er-native-app img,html.er-native-app svg,html.er-native-app video,html.er-native-app canvas{max-width:100%}
+html.er-native-app button,html.er-native-app input,html.er-native-app select,html.er-native-app textarea{max-width:100%;font-family:inherit}
+html.er-native-app button{overflow-wrap:anywhere}
+html.er-native-app .view-root>*{width:100%;max-width:100%;min-width:0}
+html.er-native-app .page-heading{display:flex;align-items:flex-start;flex-wrap:wrap;gap:12px;width:100%;min-width:0}
+html.er-native-app .page-heading>div:first-child{flex:1 1 220px;min-width:0;max-width:100%}
+html.er-native-app .page-heading h1,html.er-native-app .page-heading h2,html.er-native-app .page-heading p{max-width:100%;overflow-wrap:anywhere;word-break:normal}
+html.er-native-app .page-heading h1{font-size:clamp(23px,6.3vw,28px);line-height:1.17;letter-spacing:-.6px}
+html.er-native-app .page-heading p{font-size:12px;line-height:1.58}
+html.er-native-app .heading-actions{flex:1 1 100%;display:flex;flex-wrap:wrap;justify-content:flex-start;gap:7px;min-width:0;max-width:100%}
+html.er-native-app .heading-actions>*{max-width:100%}
+html.er-native-app .dashboard-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+html.er-native-app .metric-card{min-width:0;padding:13px 12px;border-radius:15px}
+html.er-native-app .metric-top{align-items:flex-start;gap:7px;flex-wrap:wrap;font-size:9px;line-height:1.4}
+html.er-native-app .metric-top>span:first-child{flex:1 1 70px}
+html.er-native-app .metric-value{margin-top:11px;font-size:clamp(19px,5.8vw,24px);letter-spacing:-.55px;overflow-wrap:anywhere}
+html.er-native-app .metric-note{font-size:10px;line-height:1.45;overflow-wrap:anywhere}
+html.er-native-app .panel,html.er-native-app .form-panel,html.er-native-app .metric-card,html.er-native-app .job-card,html.er-native-app .er-job-card,html.er-native-app .er-business-job{max-width:100%;min-width:0}
+html.er-native-app .panel-header{align-items:flex-start;flex-wrap:wrap;gap:8px;padding:15px 14px}
+html.er-native-app .panel-title,html.er-native-app .panel-subtitle{max-width:100%;overflow-wrap:anywhere}
+html.er-native-app .panel-body{padding:13px}
+html.er-native-app .job-card-head{flex-wrap:wrap}
+html.er-native-app .job-head-main{flex:1 1 130px;min-width:0}
+html.er-native-app .job-title{font-size:13px;line-height:1.35;overflow-wrap:anywhere}
+html.er-native-app .job-business{white-space:normal;overflow-wrap:anywhere;line-height:1.5}
+html.er-native-app .job-pay{flex:0 1 auto;text-align:left;white-space:normal;max-width:100%}
+html.er-native-app .job-pay b{font-size:clamp(15px,4.5vw,19px);overflow-wrap:anywhere}
+html.er-native-app .job-meta{gap:6px}
+html.er-native-app .meta-chip{font-size:10px;white-space:normal;overflow-wrap:anywhere;line-height:1.45}
+html.er-native-app .job-card-bottom{align-items:flex-start;flex-wrap:wrap}
+html.er-native-app .job-management-actions{max-width:100%;flex-wrap:wrap}
+html.er-native-app .job-management-actions .btn{white-space:normal}
+html.er-native-app .form-panel{padding:15px 13px}
+html.er-native-app .form-grid{grid-template-columns:minmax(0,1fr);gap:14px}
+html.er-native-app .form-grid>*{grid-column:1/-1;min-width:0;max-width:100%}
+html.er-native-app .form-field{width:100%;min-width:0}
+html.er-native-app .form-field label,html.er-native-app .form-label{line-height:1.45;overflow-wrap:anywhere}
+html.er-native-app .form-field input,html.er-native-app .form-field select,html.er-native-app .form-field textarea,html.er-native-app .filter-bar input,html.er-native-app .filter-bar select{width:100%;min-width:0;max-width:100%;font-size:16px;line-height:1.35}
+html.er-native-app .form-actions{justify-content:stretch;flex-wrap:wrap}
+html.er-native-app .form-actions>*{flex:1 1 120px;max-width:100%}
+html.er-native-app .btn{min-height:44px;max-width:100%;padding:10px 13px;font-size:12px;line-height:1.25;white-space:normal;text-align:center}
+html.er-native-app .btn-large{min-height:48px;padding:12px 15px;font-size:13px;white-space:normal}
+html.er-native-app .auth-modal{overflow-x:hidden;overflow-y:auto}
+html.er-native-app .auth-modal #auth-form{min-width:0}
+html.er-native-app .auth-modal .role-choice{grid-template-columns:repeat(2,minmax(0,1fr))}
+html.er-native-app .auth-modal .role-choice>label{min-width:0;padding:9px;gap:6px}
+html.er-native-app .auth-modal .role-choice b,html.er-native-app .auth-modal .role-choice small{overflow-wrap:anywhere}
+html.er-native-app .auth-modal .terms-check{align-items:flex-start;font-size:11px;line-height:1.5}
+html.er-native-app .auth-modal .terms-check span{min-width:0}
+html.er-native-app .data-table{min-width:570px}
+html.er-native-app .table-wrap{max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+html.er-native-app .notification-panel{right:10px;left:10px;width:auto;max-width:none}
+html.er-native-app .toast-region{left:12px;right:12px;max-width:none}
+html.er-native-app .toast{font-size:12px;line-height:1.45;overflow-wrap:anywhere}
+html.er-native-app .er-nearby-hero,html.er-native-app .er-filter-panel,html.er-native-app .er-location-prompt,html.er-native-app .er-nearby-empty,html.er-native-app .er-discover-toolbar,html.er-native-app .er-search-row,html.er-native-app .er-workplace-pin{width:100%;max-width:100%;min-width:0}
+html.er-native-app .er-nearby-hero h1{font-size:clamp(28px,8vw,36px);line-height:1.08;letter-spacing:-1px;overflow-wrap:anywhere}
+html.er-native-app .er-nearby-hero p,html.er-native-app .er-section-head p,html.er-native-app .er-location-copy p{font-size:12px;line-height:1.58}
+html.er-native-app .er-hero-actions>.btn{white-space:normal}
+html.er-native-app .er-section-head{gap:12px;flex-wrap:wrap}
+html.er-native-app .er-section-head>div{flex:1 1 180px;min-width:0}
+html.er-native-app .er-section-head>.btn{flex:0 1 auto;max-width:100%;white-space:normal}
+html.er-native-app .er-job-title-wrap{min-height:0;flex-wrap:wrap}
+html.er-native-app .er-job-title-wrap>div{flex:1 1 150px;min-width:0}
+html.er-native-app .er-job-title-wrap h3{font-size:16px;line-height:1.3;overflow-wrap:anywhere}
+html.er-native-app .er-job-title-wrap p{line-height:1.5;overflow-wrap:anywhere}
+html.er-native-app .er-work-type{white-space:normal;max-width:100%}
+html.er-native-app .er-pay-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px}
+html.er-native-app .er-pay-row>div{min-width:0}
+html.er-native-app .er-pay-row strong{font-size:clamp(18px,5.4vw,23px);overflow-wrap:anywhere}
+html.er-native-app .er-pay-row small,html.er-native-app .er-pay-row em{font-size:9px;line-height:1.4;white-space:normal}
+html.er-native-app .er-job-facts{display:flex;flex-wrap:wrap;gap:7px 10px}
+html.er-native-app .er-job-facts span{max-width:100%;font-size:10px;line-height:1.45;overflow-wrap:anywhere}
+html.er-native-app .er-job-action-row{display:flex;flex-wrap:wrap;align-items:flex-start;gap:8px}
+html.er-native-app .er-job-action-row>*{flex:1 1 110px;min-width:0}
+html.er-native-app .er-job-details{min-width:0;overflow-wrap:anywhere}
+html.er-native-app .er-job-details summary{font-size:11px;line-height:1.5;overflow-wrap:anywhere}
+html.er-native-app .er-job-details a{display:inline-block;max-width:100%;overflow-wrap:anywhere}
+html.er-native-app .er-business-job-actions{width:100%;justify-content:flex-start}
+html.er-native-app .er-workplace-pin>div{flex:1 1 150px;min-width:0}
+html.er-native-app .er-workplace-pin .btn{margin-left:0}
+html.er-native-app .er-radius-control{width:100%;min-width:0}
+html.er-native-app .er-radius-picker{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;width:100%}
+html.er-native-app .er-radius-btn{display:flex;align-items:center;justify-content:center;gap:3px;min-width:0;width:100%;padding:10px 3px;border-radius:11px;white-space:normal;overflow-wrap:anywhere}
+html.er-native-app .er-radius-btn b{font-size:clamp(14px,4vw,17px);line-height:1.1}
+html.er-native-app .er-radius-btn small{font-size:9px;line-height:1.1}
+html.er-native-app .er-radius-more b{font-size:12px}
+html.er-native-app .er-radius-more-options{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:7px}
+html.er-native-app .er-radius-extra{min-height:39px;padding:9px 4px}
+html.er-native-app .er-radius-extra.is-active{outline:2px solid #c9f451;outline-offset:1px}
+html.er-native-app .er-category-row{display:flex;max-width:100%;overflow-x:auto;flex-wrap:nowrap;padding:2px 2px 8px;scrollbar-width:thin;-webkit-overflow-scrolling:touch}
+html.er-native-app .er-category-chip{flex:0 0 auto;min-height:38px;font-size:11px;line-height:1.2}
+html.er-native-app .er-location-copy h2{font-size:clamp(21px,6vw,25px);line-height:1.2}
+html.er-native-app .er-search-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}
+html.er-native-app .er-search-row>*{min-width:0;max-width:100%}
+html.er-native-app .er-search-row input:first-child{grid-column:1/-1}
+html.er-native-app .er-search-row .btn{padding:10px 8px}
+html.er-native-app .er-mobile-nav button{min-width:0;max-width:100%;padding:6px 1px}
+html.er-native-app .er-mobile-nav button small{font-size:clamp(8px,2.4vw,10px);line-height:1.2;white-space:normal;overflow-wrap:anywhere}
+html.er-native-app #er-app-welcome{width:100%;max-width:660px;min-height:100dvh;min-height:100vh;padding-top:calc(env(safe-area-inset-top) + 10px);padding-bottom:calc(env(safe-area-inset-bottom) + 22px)}
+html.er-native-app .er-app-welcome-header{gap:8px;margin-bottom:17px}
+html.er-native-app .er-app-brand{gap:7px;font-size:clamp(16px,4.8vw,20px);letter-spacing:-.45px}
+html.er-native-app .er-app-brandmark{width:37px;height:37px;flex:0 0 37px}
+html.er-native-app .er-app-brand small{font-size:7px;letter-spacing:.7px}
+html.er-native-app .er-app-live{gap:5px;padding:7px 8px;font-size:7px;letter-spacing:.25px}
+html.er-native-app .er-app-welcome-copy h1{font-size:clamp(29px,8.5vw,40px);line-height:1.08;letter-spacing:-1.25px;overflow-wrap:normal}
+html.er-native-app .er-app-welcome-copy p{font-size:12px;line-height:1.58}
+html.er-native-app .er-welcome-map-card{height:clamp(155px,49vw,210px);margin:17px 0 13px}
+html.er-native-app .er-map-range-pill{left:9px;top:9px;padding:7px 8px;gap:7px}
+html.er-native-app .er-map-range-pill b{font-size:10px}
+html.er-native-app .er-map-range-pill small{font-size:8px}
+html.er-native-app .er-map-note-card{right:8px;bottom:25px;padding:8px;gap:6px;max-width:calc(100% - 16px)}
+html.er-native-app .er-map-note-card b{font-size:9px}
+html.er-native-app .er-map-note-card small{font-size:8px}
+html.er-native-app .er-map-disclaimer{left:9px;bottom:9px;font-size:7px}
+html.er-native-app .er-welcome-radius-card{grid-template-columns:minmax(0,1fr);gap:11px;padding:13px;border-radius:16px}
+html.er-native-app .er-radius-copy h2{font-size:13px;line-height:1.35}
+html.er-native-app .er-radius-copy p{font-size:10px}
+html.er-native-app .er-welcome-radius-options{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;width:100%}
+html.er-native-app .er-welcome-radius-options button{height:44px;min-width:0;width:100%;align-items:center;gap:3px;padding:6px 2px;white-space:normal}
+html.er-native-app .er-welcome-radius-options button b{font-size:clamp(13px,4.1vw,16px)}
+html.er-native-app .er-welcome-radius-options button small{font-size:9px}
+html.er-native-app .er-welcome-radius-options button span{font-size:5px;bottom:-5px}
+html.er-native-app .er-welcome-more-options{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:9px}
+html.er-native-app .er-welcome-more-options[hidden]{display:none!important}
+html.er-native-app .er-welcome-more-options button{min-height:40px;display:flex;align-items:center;justify-content:center;gap:4px;border:1px solid #dfe7d8;border-radius:11px;background:#fff;color:#294832}
+html.er-native-app .er-welcome-more-options button b{font-size:14px}
+html.er-native-app .er-welcome-more-options button small{font-size:9px}
+html.er-native-app .er-welcome-more-options button.is-active{background:#1a3d2a;color:#eff8da;border-color:#294b2d}
+html.er-native-app .er-welcome-actions{margin-top:13px;gap:8px}
+html.er-native-app .er-welcome-primary,html.er-native-app .er-welcome-secondary{min-height:48px;border-radius:13px;font-size:12px}
+html.er-native-app .er-welcome-footnote{font-size:9px;line-height:1.45;margin-top:11px;padding:0 5px}
+@media(max-width:360px){
+ html.er-native-app .view-root{padding-left:12px;padding-right:12px}
+ html.er-native-app .workspace-topbar{padding-left:11px;padding-right:11px}
+ html.er-native-app .topbar-actions{gap:5px}
+ html.er-native-app .language-btn{padding:6px}
+ html.er-native-app .er-app-welcome{padding-left:13px;padding-right:13px}
+ html.er-native-app .er-app-live{font-size:6px;padding:6px}
+ html.er-native-app .er-welcome-map-card{height:157px}
+ html.er-native-app .er-welcome-radius-options button{height:41px}
+ html.er-native-app .er-pay-row{gap:7px}
+ html.er-native-app .er-pay-row strong{font-size:18px}
+ html.er-native-app .er-mobile-nav button span{font-size:18px}
+}
