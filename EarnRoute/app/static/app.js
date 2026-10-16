@@ -828,7 +828,18 @@ const ER_HI_UI = Object.freeze({
   "Next":"आगे","Back":"वापस","Continue":"जारी रखें","Finish":"पूरा करें","Required":"ज़रूरी",
   "Optional":"वैकल्पिक","Loading…":"लोड हो रहा है…","Loading your workspace…":"आपका वर्कस्पेस लोड हो रहा है…",
   "Request failed":"अनुरोध पूरा नहीं हुआ","Account created.":"अकाउंट बन गया।","You have signed out.":"आप लॉग आउट हो गए हैं।",
-  "Application status updated.":"आवेदन की स्थिति अपडेट हुई।","Shift posted.":"शिफ्ट पोस्ट हो गई।"
+  "Application status updated.":"आवेदन की स्थिति अपडेट हुई।","Shift posted.":"शिफ्ट पोस्ट हो गई।",
+  "Share shift ↗":"शिफ्ट साझा करें ↗","Share shift details":"शिफ्ट की जानकारी साझा करें","Share shift":"शिफ्ट साझा करें",
+  "Choose an app to share these shift details.":"शिफ्ट की जानकारी साझा करने के लिए ऐप चुनें।",
+  "Shift details copied. You can paste them into a message.":"शिफ्ट की जानकारी कॉपी हो गई। इसे संदेश में पेस्ट कर सकते हैं।",
+  "Could not share these shift details.":"शिफ्ट की जानकारी साझा नहीं हो सकी।",
+  "EarnRoute shift details":"EarnRoute शिफ्ट की जानकारी","Preparing shift details…":"शिफ्ट की जानकारी तैयार हो रही है…",
+  "This shift is no longer available.":"यह शिफ्ट अब उपलब्ध नहीं है।",
+  "Confirm the shift details with the other party before travelling.":"सफ़र से पहले दूसरे पक्ष से शिफ्ट की जानकारी पक्की कर लें।",
+  "Gross shift pay":"शिफ्ट का कुल भुगतान","Estimated worker pay":"वर्कर की अनुमानित कमाई",
+  "Directions:":"रास्ता:","Category:":"कैटेगरी:","Business:":"बिज़नेस:","City:":"शहर:","Start:":"शुरू:","Distance:":"दूरी:",
+  "straight-line":"सीधी दूरी","Expand to ":"दूरी बढ़ाएँ: ","km radius":"किमी की दूरी","km away":"किमी दूर",
+  "Share shift details with a trusted contact.":"शिफ्ट की जानकारी किसी भरोसेमंद व्यक्ति के साथ साझा करें।"
 });
 
 const ER_HI_PHRASES = Object.entries(ER_HI_UI)
@@ -859,7 +870,14 @@ function translateEarnRouteText(input) {
     .replace(/^Created\s*/i, 'बनाया गया ')
     .replace(/^Received\s*/i, 'मिला ')
     .replace(/^(\s*)km(\s*)$/i, '$1किमी$2')
-    .replace(/^(\s*)More(\s*)$/i, '$1और$2');
+    .replace(/^(\s*)More(\s*)$/i, '$1और$2')
+    .replace(/^(\d+(?:\.\d+)?)\s*km\s+radius$/i, '$1 किमी की दूरी')
+    .replace(/^(\d+(?:\.\d+)?)\s*km\s+away$/i, '$1 किमी दूर')
+    .replace(/^(\d+(?:\.\d+)?)\s*hrs?$/i, '$1 घंटे')
+    .replace(/^(\d+)\s+spots?$/i, '$1 जगह')
+    .replace(/^(\d+)\s+positions?\s+open$/i, '$1 जगह खाली')
+    .replace(/^Under 100 m$/i, '100 मीटर से कम')
+    .replace(/^Location ready\s*·\s*approx\.\s*±(\d+) m$/i, 'लोकेशन तैयार · अनुमानित सटीकता ±$1 मीटर');
   return output;
 }
 
