@@ -845,7 +845,55 @@ const ER_HI_UI = Object.freeze({
   "Share shift details with a trusted contact.":"शिफ्ट की जानकारी किसी भरोसेमंद व्यक्ति के साथ साझा करें।"
 });
 
-const ER_HI_PHRASES = Object.entries(ER_HI_UI)
+const ER_HI_EXTRA_UI = Object.freeze({
+  "A BETTER WAY TO WORK":"काम करने का बेहतर तरीका","Welcome back.":"वापस स्वागत है।",
+  "Sign in to continue to your workspace.":"अपने कार्य क्षेत्र में जाने के लिए लॉग इन करें।",
+  "Sign in":"लॉग इन करें","Log in":"लॉग इन करें","Create account":"अकाउंट बनाएँ",
+  "Create your account":"अपना अकाउंट बनाएँ","Full name":"पूरा नाम","Email address":"ईमेल पता",
+  "Password":"पासवर्ड","e.g. Aanya Sharma":"जैसे: आर्या शर्मा","you@example.com":"आपका ईमेल",
+  "At least 10 characters":"कम-से-कम 10 अक्षर","Use at least 10 characters.":"कम-से-कम 10 अक्षर इस्तेमाल करें।",
+  "I’m joining as":"मैं इस रूप में जुड़ रहा/रही हूँ","Find paid shifts":"भुगतान वाली शिफ्ट खोजें",
+  "Hire for shifts":"शिफ्ट के लिए लोग रखें","Find work":"काम खोजें","Post a shift":"शिफ्ट पोस्ट करें",
+  "I confirm that I am 18 or older. EarnRoute does not guarantee work or income.":"मैं पुष्टि करता/करती हूँ कि मेरी उम्र 18 वर्ष या उससे अधिक है। EarnRoute काम या कमाई की गारंटी नहीं देता।",
+  "I agree to the":"मैं सहमत हूँ:",
+  "Terms":"नियम","Privacy Policy":"प्राइवेसी पॉलिसी",
+  "Your account details stay protected. Never share your password or OTP.":"आपके अकाउंट की जानकारी सुरक्षित रखें। अपना पासवर्ड या OTP किसी से साझा न करें।",
+  "Close dialog":"डायलॉग बंद करें","Connect server":"सर्वर कनेक्ट करें",
+  "Need a hand?":"मदद चाहिए?","Clear answers for your next step.":"अगले कदम के लिए साफ़ जानकारी।",
+  "Contact support":"सपोर्ट से संपर्क करें","How it works":"यह कैसे काम करता है","For workers":"वर्कर के लिए",
+  "For businesses":"बिज़नेस के लिए","Policies":"नीतियाँ",
+  "BUILT AROUND CLARITY":"स्पष्टता के लिए बनाया गया","Work should come":"काम के साथ होना चाहिए",
+  "with":"साथ","no surprises.":"कोई अनजान शर्त नहीं।",
+  "Transparent terms before applying":"आवेदन से पहले साफ़ शर्तें","Confirmed shifts, not assumed schedules":"पक्की शिफ्ट, अंदाज़े वाला शेड्यूल नहीं",
+  "Payment status that reflects recorded events":"भुगतान की वही स्थिति जो रिकॉर्ड में दर्ज है",
+  "YOUR NEXT STEP STARTS HERE":"आपका अगला कदम यहाँ से","Find a better fit":"अपने लिए बेहतर काम खोजें",
+  "for your":"अपने अगले","next few hours.":"कुछ घंटों के लिए।",
+  "Make a profile, set your availability and explore the opportunities that are actually published in your area.":"अपनी प्रोफ़ाइल बनाएँ, उपलब्ध समय तय करें और अपने इलाके में प्रकाशित असली काम देखें।",
+  "Real opportunities. Clear terms. Better use of your time.":"असली अवसर। साफ़ शर्तें। आपके समय का बेहतर इस्तेमाल।",
+  "FIND YOUR NEXT SHIFT":"अपनी अगली शिफ्ट खोजें","Policies":"नीतियाँ","Terms and Privacy Policy":"नियम और प्राइवेसी पॉलिसी",
+  "Shift published to nearby workers.":"शिफ्ट आसपास के वर्कर के लिए प्रकाशित कर दी गई।",
+  "Draft saved. Add the workplace pin before publishing.":"ड्राफ़्ट सेव हो गया। प्रकाशित करने से पहले वर्कप्लेस पिन जोड़ें।",
+  "Workplace pin saved. Nearby workers can now find this shift.":"वर्कप्लेस पिन सेव हो गया। अब पास के वर्कर यह शिफ्ट खोज सकते हैं।",
+  "Workplace pin added to this shift.":"इस शिफ्ट में वर्कप्लेस पिन जोड़ दिया गया।",
+  "Setting pin…":"पिन सेट हो रहा है…","Pin set ✓":"पिन सेट हो गया ✓",
+  "Coordinates are set from this device. Publish only while you are at the actual workplace.":"लोकेशन इस डिवाइस से ली गई है। शिफ्ट तभी प्रकाशित करें जब आप असली वर्कप्लेस पर हों।",
+  "Workplace pin ready":"वर्कप्लेस पिन तैयार है","Clear pay":"साफ़ भुगतान","Pay transparency:":"भुगतान की पारदर्शिता:",
+  "Verified business":"वेरिफ़ाइड बिज़नेस","VERIFIED":"वेरिफ़ाइड","Checked":"जाँचा गया",
+  "positions open":"जगह खाली","spot":"जगह","spots":"जगहें","hr":"घंटा","hrs":"घंटे",
+  "Find jobs near me":"मेरे पास काम खोजें","Workplace not set":"काम की जगह सेट नहीं है",
+  "No workplace pin":"वर्कप्लेस पिन नहीं है","Add workplace pin":"वर्कप्लेस पिन जोड़ें",
+  "Verify business":"बिज़नेस वेरिफ़ाई करें","Save business details":"बिज़नेस की जानकारी सेव करें",
+  "Share shift ↗":"शिफ्ट साझा करें ↗","Share shift details":"शिफ्ट की जानकारी साझा करें",
+  "Share shift":"शिफ्ट साझा करें","Choose an app to share these shift details.":"शिफ्ट की जानकारी साझा करने के लिए ऐप चुनें।",
+  "Shift details copied. You can paste them into a message.":"शिफ्ट की जानकारी कॉपी हो गई। इसे संदेश में पेस्ट कर सकते हैं।",
+  "Could not share these shift details.":"शिफ्ट की जानकारी साझा नहीं हो सकी।",
+  "EarnRoute shift details":"EarnRoute शिफ्ट की जानकारी","Preparing shift details…":"शिफ्ट की जानकारी तैयार हो रही है…",
+  "This shift is no longer available.":"यह शिफ्ट अब उपलब्ध नहीं है।",
+  "Gross shift pay":"शिफ्ट का कुल भुगतान","Estimated worker pay":"वर्कर की अनुमानित कमाई",
+  "Directions:":"रास्ता:","Category:":"कैटेगरी:","Business:":"बिज़नेस:","City:":"शहर:","Start:":"शुरू:","Distance:":"दूरी:",
+  "straight-line":"सीधी दूरी","Expand to ":"दूरी बढ़ाएँ: ","km radius":"किमी की दूरी","km away":"किमी दूर"
+});
+const ER_HI_PHRASES = Object.entries({...ER_HI_UI, ...ER_HI_EXTRA_UI})
   .filter(([english]) => english.length >= 8 && english.includes(' '))
   .sort((a, b) => b[0].length - a[0].length);
 
@@ -853,7 +901,7 @@ function translateEarnRouteText(input) {
   if (typeof input !== 'string' || selectedLanguage !== 'hi' || !input.trim()) return input;
   const source = input;
   const trimmed = source.trim();
-  const exact = ER_HI_UI[trimmed];
+  const exact = ER_HI_UI[trimmed] || ER_HI_EXTRA_UI[trimmed];
   if (exact) return source.replace(trimmed, exact);
   let output = source;
   for (const [english, hindi] of ER_HI_PHRASES) {
@@ -883,6 +931,15 @@ function translateEarnRouteText(input) {
     .replace(/^Location ready\s*·\s*approx\.\s*±(\d+) m$/i, 'लोकेशन तैयार · अनुमानित सटीकता ±$1 मीटर');
   return output;
 }
+
+const erOriginalConfirm = window.confirm.bind(window);
+const erOriginalPrompt = window.prompt.bind(window);
+window.confirm = function(message) {
+  return erOriginalConfirm(translateEarnRouteText(String(message || '')));
+};
+window.prompt = function(message, defaultValue) {
+  return erOriginalPrompt(translateEarnRouteText(String(message || '')), defaultValue);
+};
 
 const erLocaleTextRecords = new WeakMap();
 const erLocaleAttributeRecords = new WeakMap();
