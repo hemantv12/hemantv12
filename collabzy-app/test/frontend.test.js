@@ -22,8 +22,8 @@ test('Collabzy frontend JavaScript parses and native OAuth bridge is bundled',()
 test('AI Studio and Auto DM workspaces have explicit user controls and honest setup states',()=>{
  const html=fs.readFileSync(path.join(root,'public','index.html'),'utf8');
  const backend=fs.readFileSync(path.join(root,'src','server-postgres.js'),'utf8');
- assert.match(html,/go\('ai'\)/,'AI Studio must be reachable from the signed-in workspace');
- assert.match(html,/go\('autodm'\)/,'Auto DM must be reachable from the signed-in creator workspace');
+ assert.match(html,/key:'ai'/,'AI Studio must be included in signed-in navigation');
+ assert.match(html,/key:'autodm'/,'Auto DM must be included in creator navigation');
  assert.match(html,/Generate draft/,'AI Studio must offer a real draft-generation form');
  assert.match(html,/starter_template/,'AI template fallback must remain explicitly labelled');
  assert.match(html,/Save reply rule/,'creator must be able to save a keyword reply');
@@ -35,7 +35,7 @@ test('AI Studio and Auto DM workspaces have explicit user controls and honest se
  assert.match(backend,/x-hub-signature-256/i,'Instagram webhook must validate signed Meta events');
  assert.match(backend,/ON CONFLICT\(comment_id\) DO NOTHING/,'webhook event processing must deduplicate comment IDs');
  assert.match(backend,/confirmed_ai_disclosure/,'AI generation must require the in-app data-use acknowledgement');
- assert.match(html,/go\('matches'\)/,'Smart Match Center must be reachable from the signed-in workspace');
+ assert.match(html,/key:'matches'/,'Smart Match Center must be included in signed-in navigation');
  assert.match(backend,/app\.get\('\/api\/matches'/,'the authenticated matching endpoint must exist');
  assert.match(html,/Recent reply activity/,'Auto DM workspace must show recent delivery status');
  assert.match(backend,/app\.get\('\/api\/instagram\/automations\/events'/,'creator Auto DM activity must have an authenticated endpoint');
