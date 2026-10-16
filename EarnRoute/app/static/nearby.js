@@ -482,7 +482,47 @@ function erEnhanceLiveMaps() {
   });
 }
 
+function erWorkerSafetyPanel() {
+  return '<section class="er-safety-panel">' +
+    '<div class="er-safety-mark" aria-hidden="true">✓</div><div class="er-safety-copy"><span class="er-overline">' + escapeHtml(t('jobSafety')) + '</span>' +
+    '<h3>' + escapeHtml(t('safetyIntro')) + '</h3><p>' + escapeHtml(t('safetyRule')) + '</p>' +
+    '<div class="er-safety-actions"><a class="er-safety-call" href="tel:112">☎ ' + escapeHtml(t('emergency112')) + '</a>' +
+    '<a class="er-safety-link" href="tel:1930">' + escapeHtml(t('cyberHelp')) + '</a>' +
+    '<a class="er-safety-link" href="https://112.gov.in/" target="_blank" rel="noopener noreferrer">' + escapeHtml(t('officialSafety')) + ' ↗</a>' +
+    '<a class="er-safety-link" href="https://www.ncs.gov.in/" target="_blank" rel="noopener noreferrer">National Career Service ↗</a></div></div></section>';
+}
+
+renderSavedShifts = async function() {
+  let result;
+  try {
+    result = await api('/api/worker/saved-shifts');
+  } catch (error) {
+    return pageHeading('YOUR SHORTLIST', t('savedShifts'), t('savedShiftsSub'), '<button type="button" class="btn btn-outline" data-retry>Try again ↻</button>') +
+      '<div class="er-nearby-empty"><div class="er-empty-icon">♡</div><h3>' + escapeHtml(friendlyError(error)) + '</h3><p>Your saved list could not load right now. Your saved shifts remain tied to your account.</p></div>';
+  }
+  const items = (result.items || []).map(function(job) {
+    const location = erGetLocation();
+    const copy = Object.assign({}, job);
+    if (location && Number.isFinite(Number(job.latitude)) && Number.isFinite(Number(job.longitude))) {
+      copy.distance_km = erDistanceKm(location.latitude, location.longitude, job.latitude, job.longitude);
+    }
+    return copy;
+  });
+  erSavedShiftIds = new Set(items.map(function(job) { return Number(job.id); }));
+  erSavedShiftIdsAvailable = true;
+  const cards = items.length
+    ? '<div class="er-job-grid">' + items.map(erNearbyCard).join('') + '</div>'
+    : '<div class="er-nearby-empty er-saved-empty"><div class="er-empty-icon">♡</div><h3>' + escapeHtml(t('noSavedShifts')) + '</h3><p>' +
+      escapeHtml(t('noSavedShiftsCopy')) + '</p><button type="button" class="btn btn-primary" data-screen="discover">Find nearby work →</button></div>';
+  return pageHeading('YOUR SHORTLIST', t('savedShifts'), t('savedShiftsSub'),
+    '<button type="button" class="btn btn-primary" data-screen="discover">Find more shifts ↗</button>') +
+    '<div class="er-saved-summary"><span class="er-saved-count">' + items.length + '</span><span>' + items.length + ' saved shift' + (items.length === 1 ? '' : 's') +
+    '</span><small>Private to your account · Updated from the server</small></div>' + cards +
+    '<p class="er-saved-note">A saved shift is a shortlist, not an application or a reservation. Check pay, time, workplace and availability again before you apply.</p>';
+}
+
 renderWorkerOverview = async function() {
+  await erRefreshSavedShiftIds();
   const location = erGetLocation();
   const radius = erRadius();
   const category = erCategory();
@@ -511,8 +551,9 @@ renderWorkerOverview = async function() {
     '<section class="er-nearby-section"><div class="er-section-head"><div><span class="er-overline">YOUR NEIGHBOURHOOD</span><h2>Work around you</h2><p>Closest first. Pay shown up front. One-tap apply.</p></div><button type="button" class="btn btn-outline" data-screen="discover">Browse nearby →</button></div>' +
     '<div class="er-filter-panel"><div><span class="er-control-label">How far can you go?</span>' + erRadiusButtons(radius) + '</div><div class="er-categories"><span class="er-control-label">Choose work type</span>' + erCategoryButtons(category) + '</div></div>' + (location ? erLiveMapSectionMarkup({id:'er-nearby-map',kind:'nearby',location:location,radius:radius,jobs:result && result.items ? result.items : []}) : '') + list + '</section>' +
     '<section class="er-quick-links"><button type="button" data-screen="applications"><span class="er-quick-icon">▤</span><span><b>Applications</b><small>' + applications.length + ' sent</small></span><i>→</i></button>' +
+    '<button type="button" data-screen="saved-shifts"><span class="er-quick-icon">♡</span><span><b>' + escapeHtml(t('savedShifts')) + '</b><small>' + erSavedShiftIds.size + ' saved</small></span><i>→</i></button>' +
     '<button type="button" data-screen="schedule"><span class="er-quick-icon">▦</span><span><b>My schedule</b><small>' + confirmed.length + ' confirmed</small></span><i>→</i></button>' +
-    '<button type="button" data-screen="earnings"><span class="er-quick-icon">₹</span><span><b>My earnings</b><small>' + formatMoney(earnings.pending_settlement || 0) + ' pending</small></span><i>→</i></button></section>';
+    '<button type="button" data-screen="earnings"><span class="er-quick-icon">₹</span><span><b>My earnings</b><small>' + formatMoney(earnings.pending_settlement || 0) + ' pending</small></span><i>→</i></button></section>' + erWorkerSafetyPanel();
 };
 renderDiscover = async function(filters) {
   filters = filters || {};
