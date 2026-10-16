@@ -593,10 +593,10 @@ renderDiscover = async function(filters) {
     soonest:'soonest start first', 'open-spots':'most open spots first'
   }[sortBy];
   return pageHeading('NEARBY WORK','Find work close to you.','No far-away listings. Compare distance, shift time and estimated take-home before applying.','<button type="button" class="btn btn-outline" data-er-enable-location>↻ Refresh location</button>') +
-    '<div class="er-discover-toolbar"><div><span class="er-control-label">Distance limit</span>' + erRadiusButtons(radius) + '</div><div><span class="er-control-label">Work type</span>' + erCategoryButtons(category) + '</div><span class="er-location-note">⌖ Using device location · ' + radius + ' km maximum</span>' + erSortSelectMarkup(sortBy) + '</div>' +
+    '<div class="er-discover-toolbar"><div><span class="er-control-label">Distance limit</span>' + erRadiusButtons(radius) + '</div><div><span class="er-control-label">Work type</span>' + erCategoryButtons(category) + '</div><span class="er-location-note">⌖ Using device location · ' + radius + ' km maximum</span></div>' +
     '<form id="er-nearby-filter" class="er-search-row"><input name="search" placeholder="Search a local gig" aria-label="Search nearby jobs" value="' + escapeHtml(filters.search || '') + '">' +
     '<input name="min_pay" type="number" min="0" step="50" placeholder="Min pay ₹" value="' + escapeHtml(filters.min_pay || '') + '" aria-label="Minimum pay">' +
-    '<button class="btn btn-primary" type="submit">Search</button><button class="btn btn-outline" type="reset">Clear</button></form>' +
+    erSortSelectMarkup(sortBy) + '<button class="btn btn-primary" type="submit">Search</button><button class="btn btn-outline" type="reset">Clear</button></form>' +
     '<div class="er-results-note"><b>' + (result.total || 0) + '</b> shift' + (result.total === 1 ? '' : 's') + ' within ' + radius + ' km · ' + sortDescription + '</div>' +
     erLiveMapSectionMarkup({id:'er-nearby-map',kind:'nearby',location:location,radius:radius,jobs:visibleJobs}) +
     (visibleJobs.length ? '<div class="er-job-grid">' + visibleJobs.map(erNearbyCard).join('') + '</div>' :
