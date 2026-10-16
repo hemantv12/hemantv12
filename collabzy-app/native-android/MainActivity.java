@@ -1385,19 +1385,106 @@ public final class MainActivity extends Activity {
                 c.addView(text(campaign.optInt("application_count", 0) + " applications  ·  " + campaign.optString("status", "active"), 12, MUTED, false));
                 gap(c, 12);
                 boolean active = "active".equals(campaign.optString("status"));
-                TextView toggle = button(active ? "Close campaign" : "Reopen campaign", false);
-                c.addView(toggle);
+                LinearLayout actions = row();
+                TextView edit = button("Edit brief", false);
+                TextView toggle = button(active ? "Close" : "Reopen", true);
+                actions.addView(edit, new LinearLayout.LayoutParams(0, -2, 1));
+                LinearLayout.LayoutParams toggleP = new LinearLayout.LayoutParams(0, -2, 1);
+                toggleP.leftMargin = dp(8);
+                actions.addView(toggle, toggleP);
+                c.addView(actions);
+                edit.setOnClickListener(v -> showEditCampaignDialog(campaign));
                 toggle.setOnClickListener(v -> {
                     toggle.setEnabled(false);
                     api("PATCH", "/api/campaigns/" + campaign.optLong("id") + "/manage", json("status", active ? "closed" : "active"), (d, e) -> {
                         if (e != null) { toggle.setEnabled(true); toast(e); }
-                        else { toast(active ? "Campaign closed." : "Campaign reopened."); showShell("my_campaigns"); }
+                        else { toast(active ? "Campaign closed." : "Campaign reopened."); dashboardLoaded = false; showShell("my_campaigns"); }
                     });
                 });
                 content.addView(c);
                 gap(content, 11);
             }
         });
+    }
+
+    private void showEditCampaignDialog(JSONObject campaign) {
+        android.app.Dialog dialog = new android.app.Dialog(this);
+        LinearLayout box = column();
+        box.setPadding(dp(20), dp(20), dp(20), dp(20));
+        box.setBackground(rounded(PANEL, 22, Color.rgb(57, 70, 99)));
+        box.addView(text("Edit campaign brief", 20, WHITE, true));
+        gap(box, 12);
+        EditText title = field("Campaign title", InputType.TYPE_CLASS_TEXT, campaign.optString("title", ""));
+        EditText description = field("Campaign description", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE, campaign.optString("description", ""));
+        description.setSingleLine(false); description.setMinLines(4); description.setGravity(Gravity.TOP | Gravity.START);
+        EditText category = field("Category", InputType.TYPE_CLASS_TEXT, campaign.optString("category", ""));
+        EditText low = field("Minimum budget in ₹", InputType.TYPE_CLASS_NUMBER, String.valueOf(campaign.optLong("budget_min", 0)));
+        EditText high = field("Maximum budget in ₹", InputType.TYPE_CLASS_NUMBER, String.valueOf(campaign.optLong("budget_max", 0)));
+        EditText deliverables = field("Deliverables", InputType.TYPE_CLASS_TEXT, campaign.optString("deliverables", ""));
+        EditText location = field("Location", InputType.TYPE_CLASS_TEXT, campaign.optString("location", "India"));
+        addField(box, "TITLE", title); addField(box, "BRIEF", description); addField(box, "CATEGORY", category);
+        addField(box, "MINIMUM BUDGET", low); addField(box, "MAXIMUM BUDGET", high);
+        addField(box, "DELIVERABLES", deliverables); addField(box, "LOCATION", location);
+        final String[] collabType = new String[]{campaign.optString("collaboration_type", "Paid")};
+        box.addView(text("COLLABORATION TYPE", 11, MUTED, true)); gap(box, 7);
+        LinearLayout types = row();
+        for (String value : new String[]{"Paid", "Barter", "Hybrid"}) {
+            TextView chip = button(value, value.equals(collabType[0]));
+            LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0, -2, 1);
+            cp.rightMargin = dp(4);
+            types.addView(chip, cp);
+            chip.setOnClickListener(v -> {
+                collabType[0] = value;
+                for (int i = 0; i < types.getChildCount(); i++) {
+                    TextView item = (TextView) types.getChildAt(i);
+                    boolean selected = item.getText().toString().equals(value);
+                    item.setBackground(rounded(selected ? MINT : PANEL_ALT, 15, selected ? 0 : Color.rgb(54, 63, 91)));
+                    item.setTextColor(selected ? BG : WHITE);
+                }
+            });
+        }
+        box.addView(types); gap(box, 12);
+        TextView save = button("Save campaign changes", true);
+        box.addView(save);
+        save.setOnClickListener(v -> {
+            long min, max;
+            try {
+                min = Long.parseLong(low.getText().toString().trim());
+                max = Long.parseLong(high.getText().toString().trim());
+            } catch (Exception ex) { toast("Enter valid minimum and maximum budget values."); return; }
+            if (title.getText().toString().trim().isEmpty() || description.getText().toString().trim().isEmpty()
+                || category.getText().toString().trim().isEmpty() || max < min) {
+                toast("Check the title, brief, category and budget range.");
+                return;
+            }
+            JSONObject payload = new JSONObject();
+            try {
+                payload.put("title", title.getText().toString().trim());
+                payload.put("description", description.getText().toString().trim());
+                payload.put("category", category.getText().toString().trim());
+                payload.put("collaboration_type", collabType[0]);
+                payload.put("budget_min", min); payload.put("budget_max", max);
+                payload.put("deliverables", deliverables.getText().toString().trim());
+                payload.put("location", location.getText().toString().trim());
+            } catch (Exception ignored) {}
+            save.setEnabled(false);
+            api("PATCH", "/api/campaigns/" + campaign.optLong("id"), payload, (data, error) -> {
+                save.setEnabled(true);
+                if (error != null) toast(error);
+                else {
+                    dialog.dismiss();
+                    toast("Campaign updated.");
+                    dashboardLoaded = false;
+                    showShell("my_campaigns");
+                }
+            });
+        });
+        dialog.setContentView(box);
+        dialog.show();
+        if (dialog.getWindow() != null) {
+            dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
+            dialog.getWindow().setLayout(getResources().getDisplayMetrics().widthPixels - dp(32), -1);
+        }
     }
 
     private void renderInstagram() {
