@@ -9,6 +9,8 @@ on:
       - 'collabzy-app/scripts/live-smoke.js'
       - 'collabzy-app/native-android/MainActivity.java'
       - 'collabzy-app/public/index.html'
+      - 'collabzy-app/public/admin/index.html'
+      - 'collabzy-app/test/admin-dashboard.test.js'
       - '.github/workflows/collabzy-android.yml'
       - '.github/workflows/collabzy-live-smoke.yml'
   workflow_dispatch:
