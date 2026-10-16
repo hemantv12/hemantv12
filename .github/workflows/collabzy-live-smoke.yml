@@ -7,6 +7,9 @@ on:
       - 'collabzy-app/src/server.js'
       - 'collabzy-app/src/server-postgres.js'
       - 'collabzy-app/scripts/live-smoke.js'
+      - 'collabzy-app/native-android/MainActivity.java'
+      - 'collabzy-app/public/index.html'
+      - '.github/workflows/collabzy-android.yml'
       - '.github/workflows/collabzy-live-smoke.yml'
   workflow_dispatch:
   schedule:
