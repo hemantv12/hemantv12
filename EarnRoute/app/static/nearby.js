@@ -93,9 +93,9 @@ function erNearbyCard(job) {
   const distance = Number.isFinite(dist) ? (dist < 0.1 ? 'Under 100 m' : dist.toFixed(1) + ' km away') : 'Nearby';
   const slots = Math.max(0, Number(job.slots || 0) - Number(job.positions_filled || 0));
   const mismatch = job.match && job.match.eligible === false;
-  const mapQuery = encodeURIComponent([job.address, job.city].filter(Boolean).join(', '));
+  const mapQuery = job.address ? encodeURIComponent([job.address, job.city].filter(Boolean).join(', ')) : '';
   const mapsLink = mapQuery ? '<a class="er-map-link" href="https://www.google.com/maps/search/?api=1&amp;query=' + mapQuery +
-    '" target="_blank" rel="noopener noreferrer">Open workplace in Maps ↗</a>' : '';
+    '" target="_blank" rel="noopener noreferrer">Search workplace in Maps ↗</a>' : '';
   return '<article class="er-job-card">' +
     '<div class="er-job-card-top"><span class="er-job-icon">' + erCategoryIcon(job.category) + '</span><span class="er-distance-pill">⌖ ' + escapeHtml(distance) + '</span></div>' +
     '<div class="er-job-title-wrap"><div><h3>' + escapeHtml(job.title) + '</h3><p>' + escapeHtml(job.business_name || 'Local business') +
