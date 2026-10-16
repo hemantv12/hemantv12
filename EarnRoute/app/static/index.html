@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <script>try{if(window.EarnRouteNative&&window.EarnRouteNative.isAndroidApp())document.documentElement.classList.add("er-native-app");}catch(_){}</script>
   <meta name="theme-color" content="#183b2b">
   <meta name="description" content="Find genuine nearby paid shifts within 1 km, 3 km or 5 km. EarnRoute helps workers earn close to home with clear pay and simple apply.">
   <title>EarnRoute — earn nearby</title>
@@ -12,6 +13,55 @@
   <link rel="stylesheet" href="/static/nearby.css">
 </head>
 <body>
+  <div id="er-app-splash" class="er-app-splash" role="status" aria-label="Opening EarnRoute">
+    <div class="er-splash-brandmark" aria-hidden="true"><svg viewBox="0 0 48 48"><path d="M9 35V13h7l16 16V13h7v22h-7L16 19v16z" fill="currentColor"/><circle cx="38" cy="9" r="4" fill="#c9f451"/></svg></div>
+    <div class="er-splash-wordmark">Earn<span>Route</span></div>
+    <p>Nearby work. Clear pay.</p>
+    <div class="er-splash-progress"><i></i></div>
+  </div>
+
+  <main id="er-app-welcome" class="er-app-welcome" hidden>
+    <header class="er-app-welcome-header">
+      <a class="er-app-brand" href="#welcome" aria-label="EarnRoute home">
+        <span class="er-app-brandmark" aria-hidden="true"><svg viewBox="0 0 36 36"><path d="M7 26.5V9.5h5.7l10.6 11V9.5H29v17h-5.6l-10.7-11v11z" fill="currentColor"/><circle cx="28.7" cy="7.3" r="3.2" fill="#f6bd60"/></svg></span>
+        <span>Earn<span>Route</span><small>WORK, CLOSER TO HOME</small></span>
+      </a>
+      <span class="er-app-live"><i></i> NEARBY WORK</span>
+    </header>
+
+    <section class="er-app-welcome-copy">
+      <div class="er-welcome-eyebrow"><span>⌖</span> MADE FOR YOUR NEIGHBOURHOOD</div>
+      <h1>Work close.<br><em>Earn with confidence.</em></h1>
+      <p>Find genuine paid shifts near you. Check the distance, hours and estimated take-home before you apply.</p>
+    </section>
+
+    <section class="er-welcome-map-card" aria-label="Illustration of nearby work, not live job listings">
+      <div class="er-map-road er-road-a"></div><div class="er-map-road er-road-b"></div><div class="er-map-road er-road-c"></div>
+      <div class="er-map-grid"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+      <div class="er-map-halo er-halo-a"></div><div class="er-map-halo er-halo-b"></div>
+      <div class="er-map-pin er-pin-main"><span>⌖</span></div>
+      <div class="er-map-pin er-pin-side er-pin-one"><span>＋</span></div><div class="er-map-pin er-pin-side er-pin-two"><span>✓</span></div>
+      <div class="er-map-range-pill"><span class="er-range-dot"></span><span><b id="er-welcome-radius-label">3 km radius</b><small>your chosen area</small></span></div>
+      <div class="er-map-note-card"><span class="er-map-note-icon">₹</span><span><b>See pay upfront</b><small>Clear terms. Your choice.</small></span></div>
+      <span class="er-map-disclaimer">Illustration only · Real shifts load after sign-in</span>
+    </section>
+
+    <section class="er-welcome-radius-card">
+      <div class="er-radius-copy"><h2>How far can you travel?</h2><p>Start small. Stay close to home.</p></div>
+      <div class="er-welcome-radius-options" role="group" aria-label="Choose your preferred work radius">
+        <button type="button" data-er-welcome-radius="1" aria-pressed="false"><b>1</b><small>km</small></button>
+        <button type="button" data-er-welcome-radius="3" class="is-active" aria-pressed="true"><b>3</b><small>km</small><span>POPULAR</span></button>
+        <button type="button" data-er-welcome-radius="5" aria-pressed="false"><b>5</b><small>km</small></button>
+      </div>
+    </section>
+
+    <section class="er-welcome-actions" aria-label="Get started">
+      <button class="er-welcome-primary" type="button" data-open-auth="register" data-role="worker"><span>Find nearby work</span><b aria-hidden="true">↗</b></button>
+      <button class="er-welcome-secondary" type="button" data-open-auth="register" data-role="business"><span class="er-business-symbol" aria-hidden="true">＋</span> I’m hiring for a shift</button>
+    </section>
+    <div class="er-welcome-account"><span>Already on EarnRoute?</span> <button type="button" data-open-auth="login">Log in</button></div>
+    <p class="er-welcome-footnote">Opportunities depend on jobs actually published in your area. Earnings and work are not guaranteed.</p>
+  </main>
   <div class="announcement"><span class="announcement-dot"></span> Nearby work. Clear pay. More earning. <span class="announcement-right">India-first · Worker-first</span></div>
 
   <section id="landing" class="landing">
