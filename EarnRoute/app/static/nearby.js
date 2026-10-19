@@ -676,6 +676,21 @@ submitJob = async function(form) {
     errorEl.hidden = false;
   } finally { loadingButtons(button, false); }
 };
+function erMobileNavLabel(screen, fallback) {
+  const english = {
+    'overview':'Home','discover':'Nearby','saved-shifts':'Saved','applications':'Applied','schedule':'Schedule','earnings':'Earnings',
+    'business-overview':'Home','post-job':'Post','business-jobs':'Shifts','business-applicants':'People','business-assignments':'Work',
+    'admin-overview':'Home','admin-verifications':'Verify','admin-jobs':'Jobs','admin-disputes':'Issues','admin-audit':'Audit'
+  };
+  const hindi = {
+    'overview':'होम','discover':'पास में','saved-shifts':'सेव्ड','applications':'आवेदन','schedule':'शेड्यूल','earnings':'कमाई',
+    'business-overview':'होम','post-job':'पोस्ट','business-jobs':'शिफ्ट','business-applicants':'आवेदक','business-assignments':'काम',
+    'admin-overview':'होम','admin-verifications':'जाँच','admin-jobs':'जॉब्स','admin-disputes':'समस्याएँ','admin-audit':'ऑडिट'
+  };
+  const labels = document.documentElement.lang === 'hi-IN' ? hindi : english;
+  return labels[screen] || fallback;
+}
+
 function erEnsureMobileNav() {
   const role = currentUser && currentUser.role;
   const navigation = {
@@ -707,7 +722,7 @@ function erEnsureMobileNav() {
   if (nav.dataset.role !== role) {
     nav.innerHTML = items.map(function(item) {
       return '<button type="button" data-screen="' + item[0] + '" aria-label="' + item[2] + '">' +
-        '<span aria-hidden="true">' + item[1] + '</span><small>' + item[2] + '</small></button>';
+        '<span aria-hidden="true">' + item[1] + '</span><small>' + escapeHtml(erMobileNavLabel(item[0], item[2])) + '</small></button>';
     }).join('');
     nav.dataset.role = role;
   }
