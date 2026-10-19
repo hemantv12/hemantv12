@@ -10,6 +10,7 @@ const adminBootstrapCode=crypto.randomBytes(36).toString('base64url');
 const adminTestPassword='TestOwner_'+crypto.randomBytes(24).toString('base64url')+'!';
 const Database=require('better-sqlite3');
 const bcrypt=require('bcryptjs');
+const {Pool}=require('pg');
 
 test('PostgreSQL production backend supports creator-brand collaboration workflow',{skip:!process.env.DATABASE_URL},async(t)=>{
   assert.ok(process.env.DATABASE_URL,'PostgreSQL test DATABASE_URL must be configured');
@@ -61,6 +62,26 @@ test('PostgreSQL production backend supports creator-brand collaboration workflo
   const campaignResponse=await fetch(base+'/api/campaigns',{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+brand.token},body:JSON.stringify({title:'Postgres Launch Test',description:'A test campaign on Postgres.',category:'Lifestyle',collaboration_type:'Paid',budget_min:4000,budget_max:9000,deliverables:'1 Reel + 2 Stories',location:'India'})});
   assert.equal(campaignResponse.status,201,'brand should publish: '+await campaignResponse.clone().text());
   const campaign=(await campaignResponse.json()).campaign;
+
+  const unpaidBilling=await fetch(base+'/api/billing/status',{headers:{authorization:'Bearer '+creator.token}});
+  assert.equal(unpaidBilling.status,200);
+  assert.equal((await unpaidBilling.json()).active,false,'fresh creators have no subscription');
+  const lockedMatches=await fetch(base+'/api/matches',{headers:{authorization:'Bearer '+creator.token}});
+  assert.equal(lockedMatches.status,402,'Smart Match must be gated before Pro activates');
+  assert.equal((await lockedMatches.json()).code,'PRO_REQUIRED');
+  const lockedApply=await fetch(base+'/api/campaigns/'+campaign.id+'/apply',{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+creator.token},body:JSON.stringify({pitch:'I am a fit for this campaign.',proposed_rate:5000})});
+  assert.equal(lockedApply.status,402,'campaign application must be gated before Pro activates');
+  const lockedAi=await fetch(base+'/api/ai/studio',{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+creator.token},body:JSON.stringify({tool:'reel_hooks',brief:'Lifestyle content for creators',confirmed_ai_disclosure:true})});
+  assert.equal(lockedAi.status,402,'AI Studio must be gated before Pro activates');
+
+  // This direct row is a test fixture in the isolated CI database, not a real payment.
+  const billingTestPool=new Pool({connectionString:process.env.DATABASE_URL,ssl:process.env.PGSSLMODE==='disable'?false:undefined,max:1});
+  try {
+    const starts=new Date(),expires=new Date(Date.now()+365*24*60*60*1000);
+    await billingTestPool.query("INSERT INTO user_subscriptions(user_id,plan_code,status,starts_at,expires_at,provider,provider_payment_id) VALUES($1,'creator_annual_299','active',$2,$3,'test_verified_payment',$4) ON CONFLICT(user_id) DO UPDATE SET plan_code=EXCLUDED.plan_code,status=EXCLUDED.status,starts_at=EXCLUDED.starts_at,expires_at=EXCLUDED.expires_at,provider=EXCLUDED.provider,provider_payment_id=EXCLUDED.provider_payment_id",[creator.user.id,starts,expires,'test-payment-'+creator.user.id]);
+  } finally {
+    await billingTestPool.end();
+  }
 
   const smartCreatorResponse=await fetch(base+'/api/matches',{headers:{authorization:'Bearer '+creator.token}});
   assert.equal(smartCreatorResponse.status,200,'creator should receive Smart Match suggestions');
@@ -153,6 +174,12 @@ test('PostgreSQL production backend supports creator-brand collaboration workflo
   assert.equal(adminAd.status,'active','owner campaign should be published as active');
   const publicCampaignsAfterAdminPost=(await (await fetch(base+'/api/campaigns')).json()).campaigns;
   assert.ok(publicCampaignsAfterAdminPost.some(c=>String(c.id)===String(adminAd.id)),'admin-published ad should appear in the public creator marketplace');
+  const ownerPublished=await fetch(base+'/api/admin/campaigns',{method:'POST',headers:adminHeaders,body:JSON.stringify({brand_id:'collabzy_official',title:'Collabzy Official Creator Collab',description:'An owner-created collaboration published without creating a separate brand login.',category:'Lifestyle',collaboration_type:'Hybrid',budget_min:2000,budget_max:8000,deliverables:'1 Reel plus story frames',location:'India'})});
+  assert.equal(ownerPublished.status,201,'owner can publish as Collabzy Official without a second login: '+await ownerPublished.clone().text());
+  const ownerCampaign=(await ownerPublished.json()).campaign;
+  assert.equal(ownerCampaign.brand_name,'Collabzy Official');
+  const ownerFeed=(await (await fetch(base+'/api/campaigns')).json()).campaigns;
+  assert.ok(ownerFeed.some(c=>String(c.id)===String(ownerCampaign.id)&&c.brand_name==='Collabzy Official'),'owner-created campaign should show in creator discovery');
   const noAdminToken=await fetch(base+'/api/admin/campaigns',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({brand_id:brand.user.id,title:'Unauthorized Campaign',description:'This publication attempt should not succeed.',category:'Beauty',collaboration_type:'Paid',budget_min:100,budget_max:200})});
   assert.equal(noAdminToken.status,401,'campaign publishing must reject requests without an owner token');
   const exportResponse=await fetch(base+'/api/me/export',{headers:{authorization:'Bearer '+creator.token}});
@@ -163,8 +190,8 @@ test('PostgreSQL production backend supports creator-brand collaboration workflo
   const billingStatusResponse=await fetch(base+'/api/billing/status',{headers:{authorization:'Bearer '+creator.token}});
   assert.equal(billingStatusResponse.status,200,'subscription status is available after sign-in');
   const billingStatus=await billingStatusResponse.json();
-  assert.equal(billingStatus.active,false,'new test accounts must not receive a paid subscription by default');
-  assert.equal(billingStatus.plan_code,'','no subscription should be claimed before verified payment');
+  assert.equal(billingStatus.active,true,'Pro becomes active after a subscription entitlement exists');
+  assert.equal(billingStatus.plan_code,'creator_annual_299');
   const publicConfig=await (await fetch(base+'/api/public-config')).json();
   assert.equal(publicConfig.annualPlan?.code,'creator_annual_299');
   assert.equal(publicConfig.annualPlan?.amount,299);
