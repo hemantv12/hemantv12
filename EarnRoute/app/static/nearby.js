@@ -4,6 +4,45 @@ const ER_RADIUS_OPTIONS = [1, 3, 5, 8, 10, 15];
 const ER_RADIUS_STANDARD = [1, 3, 5];
 const ER_RADIUS_MORE = [8, 10, 15];
 const ER_WORK_CATEGORIES = ['All', 'Delivery', 'Retail', 'Events', 'Warehouse', 'Hospitality', 'Other'];
+// City centres are manual map starting points only; workers must choose their own area on the map.
+const ER_MANUAL_AREAS = [
+  {id:'delhi',name:'Delhi / New Delhi',latitude:28.6139,longitude:77.2090},
+  {id:'gurugram',name:'Gurugram',latitude:28.4595,longitude:77.0266},
+  {id:'noida',name:'Noida',latitude:28.5355,longitude:77.3910},
+  {id:'faridabad',name:'Faridabad',latitude:28.4089,longitude:77.3178},
+  {id:'jaipur',name:'Jaipur',latitude:26.9124,longitude:75.7873},
+  {id:'chandigarh',name:'Chandigarh',latitude:30.7333,longitude:76.7794},
+  {id:'lucknow',name:'Lucknow',latitude:26.8467,longitude:80.9462},
+  {id:'dehradun',name:'Dehradun',latitude:30.3165,longitude:78.0322},
+  {id:'mumbai',name:'Mumbai',latitude:19.0760,longitude:72.8777},
+  {id:'pune',name:'Pune',latitude:18.5204,longitude:73.8567},
+  {id:'ahmedabad',name:'Ahmedabad',latitude:23.0225,longitude:72.5714},
+  {id:'surat',name:'Surat',latitude:21.1702,longitude:72.8311},
+  {id:'indore',name:'Indore',latitude:22.7196,longitude:75.8577},
+  {id:'bhopal',name:'Bhopal',latitude:23.2599,longitude:77.4126},
+  {id:'bengaluru',name:'Bengaluru',latitude:12.9716,longitude:77.5946},
+  {id:'hyderabad',name:'Hyderabad',latitude:17.3850,longitude:78.4867},
+  {id:'chennai',name:'Chennai',latitude:13.0827,longitude:80.2707},
+  {id:'kolkata',name:'Kolkata',latitude:22.5726,longitude:88.3639},
+  {id:'bhubaneswar',name:'Bhubaneswar',latitude:20.2961,longitude:85.8245},
+  {id:'patna',name:'Patna',latitude:25.5941,longitude:85.1376},
+  {id:'ranchi',name:'Ranchi',latitude:23.3441,longitude:85.3096},
+  {id:'guwahati',name:'Guwahati',latitude:26.1445,longitude:91.7362},
+  {id:'coimbatore',name:'Coimbatore',latitude:11.0168,longitude:76.9558},
+  {id:'kochi',name:'Kochi',latitude:9.9312,longitude:76.2673},
+  {id:'visakhapatnam',name:'Visakhapatnam',latitude:17.6868,longitude:83.2185},
+  {id:'vijayawada',name:'Vijayawada',latitude:16.5062,longitude:80.6480},
+  {id:'nagpur',name:'Nagpur',latitude:21.1458,longitude:79.0882},
+  {id:'kanpur',name:'Kanpur',latitude:26.4499,longitude:80.3319},
+  {id:'varanasi',name:'Varanasi',latitude:25.3176,longitude:82.9739},
+  {id:'amritsar',name:'Amritsar',latitude:31.6340,longitude:74.8723},
+  {id:'ludhiana',name:'Ludhiana',latitude:30.9010,longitude:75.8573},
+  {id:'srinagar',name:'Srinagar',latitude:34.0837,longitude:74.7973},
+  {id:'jammu',name:'Jammu',latitude:32.7266,longitude:74.8570},
+  {id:'raipur',name:'Raipur',latitude:21.2514,longitude:81.6296},
+  {id:'mysuru',name:'Mysuru',latitude:12.2958,longitude:76.6394},
+  {id:'madurai',name:'Madurai',latitude:9.9252,longitude:78.1198}
+];
 const erBaseRenderPage = renderPage;
 const erBasePostJob = renderPostJob;
 
@@ -80,11 +119,23 @@ function erCategoryButtons(selected) {
     }).join('') + '</div>';
 }
 function erLocationPrompt() {
+  const cityOptions = ER_MANUAL_AREAS.map(function(area) {
+    return '<option value="' + escapeHtml(area.id) + '">' + escapeHtml(area.name) + '</option>';
+  }).join('');
   return '<section class="er-location-prompt">' +
     '<div class="er-location-art"><span class="er-location-ring er-ring-one"></span><span class="er-location-ring er-ring-two"></span><span class="er-location-marker">⌖</span></div>' +
     '<div class="er-location-copy"><span class="er-overline">START WITH YOUR AREA</span><h2>Earn closer to home.</h2>' +
     '<p>Turn on location to find real paid shifts within <b>1 km, 3 km, 5 km or more</b> (up to 15 km). Your live position stays on this device and expires after 30 minutes.</p>' +
-    '<button class="btn btn-primary btn-large" type="button" data-er-enable-location>⌖ Use my location</button></div></section>';
+    '<button class="btn btn-primary btn-large" type="button" data-er-enable-location>' + escapeHtml(t('useMyLocation')) + '</button></div>' +
+    '<details class="er-manual-area-picker" id="er-manual-area-picker"><summary>' + escapeHtml(t('manualAreaHeading')) + '</summary>' +
+    '<div class="er-manual-area-body"><p>' + escapeHtml(t('manualAreaIntro')) + '</p>' +
+    '<label class="er-manual-city-field"><span>' + escapeHtml(t('manualAreaCity')) + '</span><select id="er-manual-city"><option value="" selected disabled>' + escapeHtml(t('manualAreaChooseCity')) + '</option>' + cityOptions + '</select></label>' +
+    '<button type="button" class="btn btn-outline" data-er-manual-center disabled>' + escapeHtml(t('manualAreaChooseMap')) + '</button>' +
+    '<p class="er-manual-map-note">' + escapeHtml(t('manualAreaMapNote')) + '</p>' +
+    '<div id="er-manual-map-wrap" hidden>' + erLiveMapSectionMarkup({id:'er-manual-origin-map',kind:'origin',location:null,radius:3,jobs:[]}) + '</div>' +
+    '<div class="er-manual-location-confirm"><span id="er-manual-location-status" role="status" aria-live="polite">' + escapeHtml(t('manualAreaNotSelected')) + '</span>' +
+    '<button type="button" class="btn btn-primary" data-er-use-manual-location disabled>' + escapeHtml(t('manualAreaUseThis')) + '</button></div>' +
+    '<small>' + escapeHtml(t('manualAreaPrivacy')) + '</small></div></details></section>';
 }
 let erSavedShiftIds = new Set();
 let erSavedShiftIdsAvailable = false;
