@@ -520,6 +520,19 @@ class SupportTicketStatusBody(BaseModel):
     status: Literal["open", "in_progress", "waiting_user", "resolved", "closed"]
 
 
+class AdminUserStatusBody(BaseModel):
+    active: bool
+    reason: str = Field(min_length=5, max_length=500)
+
+    @field_validator("reason")
+    @classmethod
+    def clean_admin_reason(cls, value: str) -> str:
+        value = value.strip()
+        if len(value) < 5:
+            raise ValueError("Provide a reason of at least 5 characters.")
+        return value
+
+
 class JobBody(BaseModel):
     title: str = Field(min_length=5, max_length=140)
     description: str = Field(min_length=20, max_length=6000)
@@ -1831,6 +1844,139 @@ def create_review(assignment_id: int, body: ReviewBody, user: User = Depends(get
 
 
 # ----- Founder admin console API -----
+@app.get("/api/admin/users")
+def admin_users(
+    role_filter: Literal["all", "worker", "business", "admin"] = "all",
+    status_filter: Literal["all", "active", "inactive"] = "all",
+    search: str = Query(default="", max_length=120),
+    user: User = Depends(require_role("admin")),
+    db: Session = Depends(get_db),
+):
+    """Return a minimal, searchable account inventory for authorised admins only."""
+    query = select(User)
+    if role_filter != "all":
+        query = query.where(User.role == role_filter)
+    if status_filter == "active":
+        query = query.where(User.active.is_(True))
+    elif status_filter == "inactive":
+        query = query.where(User.active.is_(False))
+    term = search.strip().lower()
+    if term:
+        query = query.where(
+            func.lower(User.email).contains(term) | func.lower(User.full_name).contains(term)
+        )
+    total = int(db.scalar(select(func.count()).select_from(query.subquery())) or 0)
+    accounts = db.scalars(query.order_by(User.created_at.desc(), User.id.desc()).limit(200)).all()
+    items = []
+    for account in accounts:
+        item = {
+            "id": account.id,
+            "email": account.email,
+            "full_name": account.full_name,
+            "role": account.role,
+            "active": account.active,
+            "email_verified": account.email_verified,
+            "created_at": as_utc(account.created_at).isoformat(),
+        }
+        if account.role == "business":
+            profile = db.get(BusinessProfile, account.id)
+            item["business_name"] = profile.legal_name if profile else ""
+            item["city"] = profile.city if profile else ""
+            item["verification_status"] = profile.verification_status if profile else "pending"
+        elif account.role == "worker":
+            profile = db.get(WorkerProfile, account.id)
+            item["city"] = profile.city if profile else ""
+        items.append(item)
+    return {"items": items, "total": total, "limit": 200, "truncated": total > len(items)}
+
+
+@app.patch("/api/admin/users/{target_user_id}/status")
+def update_admin_user_status(
+    target_user_id: int,
+    body: AdminUserStatusBody,
+    user: User = Depends(require_role("admin")),
+    db: Session = Depends(get_db),
+):
+    """Suspend/reactivate an account without deleting it; protect the current and final admin."""
+    target = db.get(User, target_user_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="Account not found.")
+    if target.id == user.id and not body.active:
+        raise HTTPException(status_code=409, detail="You cannot suspend your own active admin session.")
+    if target.role == "admin" and target.active and not body.active:
+        active_admins = int(db.scalar(
+            select(func.count()).select_from(User).where(User.role == "admin", User.active.is_(True))
+        ) or 0)
+        if active_admins <= 1:
+            raise HTTPException(status_code=409, detail="The last active admin account cannot be suspended.")
+    if target.active == body.active:
+        return {"id": target.id, "active": target.active, "changed": False, "message": "Account already has that status."}
+
+    target.active = body.active
+    paused_jobs = 0
+    if target.role == "business" and not body.active:
+        # Prevent a suspended business's unfilled public listings from accepting more applicants.
+        active_jobs = db.scalars(select(Job).where(Job.business_id == target.id, Job.status == "published")).all()
+        for job in active_jobs:
+            job.status = "paused"
+            paused_jobs += 1
+        if paused_jobs:
+            log_event(db, user.id, "business_jobs_paused_on_suspension", "user", target.id, {"job_ids": [job.id for job in active_jobs]})
+
+    log_event(db, user.id, "account_status_changed", "user", target.id, {
+        "active": body.active,
+        "reason": body.reason,
+        "role": target.role,
+        "paused_published_jobs": paused_jobs,
+    })
+    notify(
+        db,
+        target.id,
+        "Account access updated",
+        "Your account access was restored by EarnRoute support." if body.active
+        else "Your EarnRoute account has been temporarily suspended. Contact support if you believe this is an error.",
+    )
+    db.commit()
+    return {"id": target.id, "active": target.active, "changed": True, "paused_published_jobs": paused_jobs}
+
+
+@app.get("/api/admin/system")
+def admin_system(user: User = Depends(require_role("admin")), db: Session = Depends(get_db)):
+    """Expose operational readiness without returning environment values or provider secrets."""
+    started = time.perf_counter()
+    db_status = "ok"
+    db_message = "Database query succeeded."
+    try:
+        db.execute(select(1))
+    except Exception:
+        db_status = "error"
+        db_message = "Database query failed."
+    latency_ms = round((time.perf_counter() - started) * 1000, 1)
+    count = lambda model, *conditions: int(db.scalar(select(func.count()).select_from(model).where(*conditions)) or 0)
+    open_support = count(SupportTicket, SupportTicket.status.in_(("open", "in_progress", "waiting_user")))
+    open_safety = count(
+        SupportTicket,
+        SupportTicket.category == "safety",
+        SupportTicket.status.in_(("open", "in_progress", "waiting_user")),
+    )
+    return {
+        "api": "ok",
+        "database": {"status": db_status, "latency_ms": latency_ms, "message": db_message},
+        "environment": APP_ENV,
+        "release": os.getenv("APP_RELEASE", "not set"),
+        "accounts": {"total": count(User), "active": count(User, User.active.is_(True)), "inactive": count(User, User.active.is_(False))},
+        "marketplace": {"published_jobs": count(Job, Job.status == "published"), "open_disputes": count(Dispute, Dispute.status == "open")},
+        "support": {"open_tickets": open_support, "open_safety_reports": open_safety},
+        "integrations": {
+            "razorpay_webhook": {"configured": bool(os.getenv("RAZORPAY_WEBHOOK_SECRET", "").strip()), "secret_exposed": False},
+            "error_monitoring": {"configured": bool(os.getenv("SENTRY_DSN", "").strip()), "secret_exposed": False},
+            "email_delivery": {"configured": False, "note": "No email-delivery provider is wired into the current backend."},
+            "sms_otp": {"configured": False, "note": "No SMS/OTP provider is wired into the current backend."},
+        },
+        "note": "Readiness indicators report configuration presence only; they do not prove that an external provider is approved or delivering successfully.",
+    }
+
+
 @app.get("/api/admin/overview")
 def admin_overview(user: User = Depends(require_role("admin")), db: Session = Depends(get_db)):
     count = lambda model, *conditions: int(db.scalar(select(func.count()).select_from(model).where(*conditions)) or 0)
@@ -1848,7 +1994,11 @@ def admin_overview(user: User = Depends(require_role("admin")), db: Session = De
             "open_disputes": disputed, "pending_settlements": round(float(pending_settlements), 2),
             "recognized_platform_revenue": round(float(recognized_platform_revenue), 2),
             "revenue_note": "Recognized revenue includes only completed assignments with reconciled payout status. This is not profit.",
-            "pending_business_verifications": count(BusinessProfile, BusinessProfile.verification_status == "pending")}
+            "pending_business_verifications": count(BusinessProfile, BusinessProfile.verification_status == "pending"),
+            "open_support_tickets": count(SupportTicket, SupportTicket.status.in_(("open", "in_progress", "waiting_user"))),
+            "open_safety_reports": count(SupportTicket, SupportTicket.category == "safety", SupportTicket.status.in_(("open", "in_progress", "waiting_user"))),
+            "active_accounts": count(User, User.active.is_(True)),
+            "inactive_accounts": count(User, User.active.is_(False))}
 
 
 @app.get("/api/admin/businesses")
