@@ -521,15 +521,15 @@ async function start(PORT,SECRET){
     if(high<low)return s.status(400).json({error:'Maximum budget must be at least the minimum budget.'});
     const r=await pool.query('UPDATE campaigns SET title=$1,description=$2,category=$3,collaboration_type=$4,budget_min=$5,budget_max=$6,deliverables=$7,location=$8 WHERE id=$9 AND brand_id=$10 RETURNING *',[title,description,category,type,low,high,deliverables,location,id,q.user.id]);s.json({campaign:r.rows[0]});
   }));
-  app.get('/api/saved-campaigns',auth,asyncRoute(async(q,s)=>{
+  app.get('/api/saved-campaigns',auth,creatorProAuth,asyncRoute(async(q,s)=>{
     const r=await pool.query("SELECT c.*,sc.created_at saved_at FROM saved_campaigns sc JOIN campaigns c ON c.id=sc.campaign_id WHERE sc.user_id=$1 AND c.status='active' ORDER BY sc.created_at DESC",[q.user.id]);s.json({campaigns:r.rows.map(c=>({...c,is_sample:false}))});
   }));
-  app.post('/api/campaigns/:id/save',auth,asyncRoute(async(q,s)=>{
+  app.post('/api/campaigns/:id/save',auth,creatorProAuth,asyncRoute(async(q,s)=>{
     const id=Number(q.params.id);const c=await pool.query("SELECT id FROM campaigns WHERE id=$1 AND status='active'",[id]);if(!c.rows.length)return s.status(404).json({error:'Campaign unavailable.'});
     await pool.query('INSERT INTO saved_campaigns(user_id,campaign_id) VALUES($1,$2) ON CONFLICT(user_id,campaign_id) DO NOTHING',[q.user.id,id]);s.json({ok:true,saved:true});
   }));
-  app.delete('/api/campaigns/:id/save',auth,asyncRoute(async(q,s)=>{await pool.query('DELETE FROM saved_campaigns WHERE user_id=$1 AND campaign_id=$2',[q.user.id,Number(q.params.id)]);s.json({ok:true,saved:false})}));
-  app.post('/api/campaigns/:id/apply',auth,asyncRoute(async(q,s)=>{
+  app.delete('/api/campaigns/:id/save',auth,creatorProAuth,asyncRoute(async(q,s)=>{await pool.query('DELETE FROM saved_campaigns WHERE user_id=$1 AND campaign_id=$2',[q.user.id,Number(q.params.id)]);s.json({ok:true,saved:false})}));
+  app.post('/api/campaigns/:id/apply',auth,creatorProAuth,asyncRoute(async(q,s)=>{
     if(q.user.role!=='creator')return s.status(403).json({error:'Only creator accounts can apply.'});
     const c=await pool.query("SELECT id,brand_id,title FROM campaigns WHERE id=$1 AND status='active'",[Number(q.params.id)]);if(!c.rows.length)return s.status(404).json({error:'Campaign unavailable.'});
     const b=q.body||{};
@@ -541,7 +541,7 @@ async function start(PORT,SECRET){
       s.status(201).json({application:a});
     }catch(e){if(e.code==='23505')return s.status(409).json({error:'Already applied to this campaign.'});throw e}
   }));
-  app.get('/api/applications',auth,asyncRoute(async(q,s)=>{
+  app.get('/api/applications',auth,creatorProAuth,asyncRoute(async(q,s)=>{
     const r=q.user.role==='creator'
       ?await pool.query('SELECT a.*,c.title campaign_title,c.brand_name,c.collaboration_type,c.category FROM applications a JOIN campaigns c ON c.id=a.campaign_id WHERE a.creator_id=$1 ORDER BY a.created_at DESC',[q.user.id])
       :await pool.query('SELECT a.*,c.title campaign_title,c.brand_name,u.name creator_name,u.niche,u.followers,u.engagement FROM applications a JOIN campaigns c ON c.id=a.campaign_id JOIN users u ON u.id=a.creator_id WHERE c.brand_id=$1 ORDER BY a.created_at DESC',[q.user.id]);
@@ -585,7 +585,7 @@ async function start(PORT,SECRET){
     if(q.query.location){args.push('%'+String(q.query.location).slice(0,80)+'%');sql+=' AND location ILIKE $'+args.length}
     sql+=' ORDER BY followers DESC,created_at DESC LIMIT 80';const r=await pool.query(sql,args);s.json({creators:r.rows});
   }));
-  app.get('/api/invitations',auth,asyncRoute(async(q,s)=>{
+  app.get('/api/invitations',auth,creatorProAuth,asyncRoute(async(q,s)=>{
     const r=q.user.role==='creator'
       ?await pool.query('SELECT i.*,c.title campaign_title,c.category,c.collaboration_type,c.budget_min,c.budget_max,b.name brand_name FROM campaign_invitations i JOIN campaigns c ON c.id=i.campaign_id JOIN users b ON b.id=i.brand_id WHERE i.creator_id=$1 ORDER BY i.id DESC',[q.user.id])
       :await pool.query('SELECT i.*,c.title campaign_title,c.category,c.collaboration_type,c.budget_min,c.budget_max,u.name creator_name,u.niche,u.followers,u.engagement FROM campaign_invitations i JOIN campaigns c ON c.id=i.campaign_id JOIN users u ON u.id=i.creator_id WHERE i.brand_id=$1 ORDER BY i.id DESC',[q.user.id]);
@@ -599,7 +599,7 @@ async function start(PORT,SECRET){
     try{const r=await pool.query('INSERT INTO campaign_invitations(campaign_id,brand_id,creator_id,message) VALUES($1,$2,$3,$4) RETURNING *',[c.rows[0].id,q.user.id,creator.rows[0].id,message]);await notify(creator.rows[0].id,'New campaign invitation',q.user.name+' invited you to '+c.rows[0].title+'. '+message,'invitation',r.rows[0].id);s.status(201).json({invitation:r.rows[0]})}
     catch(e){if(e.code==='23505')return s.status(409).json({error:'You already invited this creator to this campaign.'});throw e}
   }));
-  app.patch('/api/invitations/:id/respond',auth,asyncRoute(async(q,s)=>{
+  app.patch('/api/invitations/:id/respond',auth,creatorProAuth,asyncRoute(async(q,s)=>{
     if(q.user.role!=='creator')return s.status(403).json({error:'Only creator accounts can respond to invitations.'});
     const client=await pool.connect();
     try{
@@ -618,18 +618,18 @@ async function start(PORT,SECRET){
       const updated=await client.query('SELECT * FROM campaign_invitations WHERE id=$1',[i.id]);await client.query('COMMIT');s.json({invitation:updated.rows[0]});
     }catch(e){await client.query('ROLLBACK');throw e}finally{client.release()}
   }));
-  app.get('/api/notifications',auth,asyncRoute(async(q,s)=>{const r=await pool.query('SELECT id,title,body,kind,entity_id,read_at,created_at FROM notifications WHERE user_id=$1 ORDER BY id DESC LIMIT 50',[q.user.id]);s.json({notifications:r.rows,unread:r.rows.filter(x=>!x.read_at).length})}));
-  app.patch('/api/notifications/read-all',auth,asyncRoute(async(q,s)=>{await pool.query('UPDATE notifications SET read_at=CURRENT_TIMESTAMP WHERE user_id=$1 AND read_at IS NULL',[q.user.id]);s.json({ok:true})}));
-  app.get('/api/conversations',auth,asyncRoute(async(q,s)=>{
+  app.get('/api/notifications',auth,creatorProAuth,asyncRoute(async(q,s)=>{const r=await pool.query('SELECT id,title,body,kind,entity_id,read_at,created_at FROM notifications WHERE user_id=$1 ORDER BY id DESC LIMIT 50',[q.user.id]);s.json({notifications:r.rows,unread:r.rows.filter(x=>!x.read_at).length})}));
+  app.patch('/api/notifications/read-all',auth,creatorProAuth,asyncRoute(async(q,s)=>{await pool.query('UPDATE notifications SET read_at=CURRENT_TIMESTAMP WHERE user_id=$1 AND read_at IS NULL',[q.user.id]);s.json({ok:true})}));
+  app.get('/api/conversations',auth,creatorProAuth,asyncRoute(async(q,s)=>{
     const sql="SELECT c.id,c.application_id,c.creator_id,c.brand_id,c.updated_at,a.status application_status,a.campaign_id,p.title campaign_title,CASE WHEN c.creator_id=$1 THEN b.name ELSE cr.name END counterpart_name,CASE WHEN c.creator_id=$1 THEN b.id ELSE cr.id END counterpart_id,(SELECT body FROM messages m WHERE m.conversation_id=c.id ORDER BY m.id DESC LIMIT 1) last_message,(SELECT created_at FROM messages m WHERE m.conversation_id=c.id ORDER BY m.id DESC LIMIT 1) last_message_at,(SELECT COUNT(*)::int FROM messages m WHERE m.conversation_id=c.id AND m.sender_id<>$1 AND m.read_at IS NULL) unread FROM conversations c JOIN applications a ON a.id=c.application_id JOIN campaigns p ON p.id=a.campaign_id JOIN users cr ON cr.id=c.creator_id JOIN users b ON b.id=c.brand_id WHERE c.creator_id=$1 OR c.brand_id=$1 ORDER BY COALESCE((SELECT MAX(m.id) FROM messages m WHERE m.conversation_id=c.id),c.id) DESC";
     const r=await pool.query(sql,[q.user.id]);s.json({conversations:r.rows});
   }));
-  app.get('/api/conversations/:id/messages',auth,asyncRoute(async(q,s)=>{
+  app.get('/api/conversations/:id/messages',auth,creatorProAuth,asyncRoute(async(q,s)=>{
     const c=await pool.query('SELECT * FROM conversations WHERE id=$1 AND (creator_id=$2 OR brand_id=$2)',[Number(q.params.id),q.user.id]);if(!c.rows.length)return s.status(404).json({error:'Conversation not found.'});
     await pool.query('UPDATE messages SET read_at=CURRENT_TIMESTAMP WHERE conversation_id=$1 AND sender_id<>$2 AND read_at IS NULL',[c.rows[0].id,q.user.id]);
     const r=await pool.query('SELECT m.id,m.sender_id,m.body,m.created_at,m.read_at,u.name sender_name FROM messages m JOIN users u ON u.id=m.sender_id WHERE m.conversation_id=$1 ORDER BY m.id ASC LIMIT 300',[c.rows[0].id]);s.json({messages:r.rows,conversation:{id:c.rows[0].id,application_id:c.rows[0].application_id}});
   }));
-  app.post('/api/conversations/:id/messages',auth,asyncRoute(async(q,s)=>{
+  app.post('/api/conversations/:id/messages',auth,creatorProAuth,asyncRoute(async(q,s)=>{
     const c=await pool.query('SELECT * FROM conversations WHERE id=$1 AND (creator_id=$2 OR brand_id=$2)',[Number(q.params.id),q.user.id]);if(!c.rows.length)return s.status(404).json({error:'Conversation not found.'});
     const body=String(q.body?.body||'').trim();if(!body||body.length>2000)return s.status(400).json({error:'Message must contain 1–2,000 characters.'});
     const r=await pool.query('INSERT INTO messages(conversation_id,sender_id,body) VALUES($1,$2,$3) RETURNING *',[c.rows[0].id,q.user.id,body]);
@@ -647,7 +647,7 @@ async function start(PORT,SECRET){
     }catch(error){console.error('Support notification delivery failed:',error.message);return s.status(202).json({ok:true,request_id:saved.rows[0].id,message:'Your request was stored, but notification delivery failed. Please retry later if you do not receive an acknowledgement.'})}
     s.status(201).json({ok:true,request_id:saved.rows[0].id,message:'Your request was sent to Collabzy support.'});
   }));
-  app.post('/api/instagram/disconnect',auth,asyncRoute(async(q,s)=>{await pool.query("UPDATE users SET instagram_user_id='',instagram_access_token_enc='',instagram_connected_at=NULL,instagram_token_expires_at=NULL,instagram_handle='',followers=0 WHERE id=$1",[q.user.id]);s.json({ok:true,connected:false})}));
+  app.post('/api/instagram/disconnect',auth,creatorProAuth,asyncRoute(async(q,s)=>{await pool.query("UPDATE users SET instagram_user_id='',instagram_access_token_enc='',instagram_connected_at=NULL,instagram_token_expires_at=NULL,instagram_handle='',followers=0 WHERE id=$1",[q.user.id]);s.json({ok:true,connected:false})}));
   async function accessForInstagram(userId,row){
     let access=decryptToken(row.instagram_access_token_enc,SECRET),expires=Date.parse(row.instagram_token_expires_at||'');
     if(!Number.isFinite(expires)||expires-Date.now()>7*24*60*60*1000)return access;
@@ -658,7 +658,7 @@ async function start(PORT,SECRET){
     access=data.access_token;const next=new Date(Date.now()+(Number(data.expires_in)||5184000)*1000).toISOString();
     await pool.query('UPDATE users SET instagram_access_token_enc=$1,instagram_token_expires_at=$2 WHERE id=$3',[encryptToken(access,SECRET),next,userId]);return access;
   }
-  app.get('/api/instagram/connect',auth,asyncRoute(async(q,s)=>{
+  app.get('/api/instagram/connect',auth,creatorProAuth,asyncRoute(async(q,s)=>{
     if(!metaReady())return s.status(503).json({error:'Instagram connection is not configured yet. Add META_APP_ID, META_APP_SECRET and the exact META_REDIRECT_URI in hosting settings and Meta app configuration.'});
     const redirect=process.env.META_REDIRECT_URI;
     const state=jwt.sign({sub:String(q.user.id),purpose:'instagram-oauth',platform:q.query.platform==='native'?'native':'web',nonce:crypto.randomBytes(16).toString('hex')},SECRET,{expiresIn:'10m'});
@@ -687,16 +687,16 @@ async function start(PORT,SECRET){
       return done('connected');
     }catch(e){console.error('Instagram OAuth callback failed:',e.message);return done('error')}
   }));
-  app.get('/api/instagram/status',auth,asyncRoute(async(q,s)=>{
+  app.get('/api/instagram/status',auth,creatorProAuth,asyncRoute(async(q,s)=>{
     const r=await pool.query('SELECT instagram_handle,instagram_user_id,instagram_access_token_enc,instagram_connected_at,instagram_token_expires_at FROM users WHERE id=$1',[q.user.id]),u=r.rows[0];
     s.json({connected:!!u?.instagram_access_token_enc,handle:u?.instagram_handle||'',instagram_user_id:u?.instagram_user_id||'',connected_at:u?.instagram_connected_at||'',token_expires_at:u?.instagram_token_expires_at||'',mode:metaReady()?'oauth-configured':'setup-required',message:u?.instagram_access_token_enc?'Instagram account connected.':metaReady()?'Ready to connect via Meta authorization.':'Add Meta app credentials and register the exact redirect URI to enable official Instagram authorization.'});
   }));
-  app.get('/api/instagram/media',auth,asyncRoute(async(q,s)=>{
+  app.get('/api/instagram/media',auth,creatorProAuth,asyncRoute(async(q,s)=>{
     const r=await pool.query('SELECT instagram_access_token_enc,instagram_handle,instagram_token_expires_at FROM users WHERE id=$1',[q.user.id]),u=r.rows[0];if(!u?.instagram_access_token_enc)return s.status(400).json({error:'Connect your Instagram professional account first.'});
     try{const access=await accessForInstagram(q.user.id,u),url=new URL('https://graph.instagram.com/me/media');url.searchParams.set('fields','id,caption,media_type,media_url,permalink,thumbnail_url,timestamp,like_count,comments_count');url.searchParams.set('limit','12');url.searchParams.set('access_token',access);const apiRes=await fetch(url),data=await apiRes.json();if(!apiRes.ok)return s.status(502).json({error:data.error?.message||'Instagram media is unavailable for the current account or permissions.'});s.json({handle:u.instagram_handle,media:data.data||[],connected:true})}
     catch(e){s.status(502).json({error:e.message||'Could not retrieve Instagram media.'})}
   }));
-  app.get('/api/instagram/insights',auth,asyncRoute(async(q,s)=>{
+  app.get('/api/instagram/insights',auth,creatorProAuth,asyncRoute(async(q,s)=>{
     const r=await pool.query('SELECT instagram_user_id,instagram_access_token_enc,instagram_handle,instagram_token_expires_at FROM users WHERE id=$1',[q.user.id]),u=r.rows[0];if(!u?.instagram_access_token_enc)return s.status(400).json({error:'Connect your Instagram professional account first.'});
     try{const access=await accessForInstagram(q.user.id,u),url=new URL('https://graph.instagram.com/'+encodeURIComponent(u.instagram_user_id)+'/insights');url.searchParams.set('metric','views,reach,accounts_engaged,total_interactions');url.searchParams.set('period','day');url.searchParams.set('access_token',access);const apiRes=await fetch(url),data=await apiRes.json();if(!apiRes.ok)return s.status(502).json({error:data.error?.message||'Instagram insights are unavailable for the current account or permissions.'});s.json({handle:u.instagram_handle,insights:data.data||[],connected:true})}
     catch(e){s.status(502).json({error:e.message||'Could not retrieve Instagram insights.'})}
@@ -759,12 +759,9 @@ async function start(PORT,SECRET){
     }
     s.json({ok:true,received:true});
   }));
-  app.post('/api/instagram/ai-analysis',auth,asyncRoute(async(q,s)=>{
+  app.post('/api/instagram/ai-analysis',auth,creatorProAuth,asyncRoute(async(q,s)=>{
     if(q.body?.confirmed_ai_disclosure!==true)return s.status(400).json({error:'Please confirm the AI data-use notice before generating a report.'});
     if(!openAiReady())return s.status(503).json({error:'AI Growth Coach is not configured yet. Add OPENAI_API_KEY in the protected Render environment.'});
-    const entitlement=await pool.query("SELECT 1 FROM user_subscriptions WHERE user_id=$1 AND status='active' AND expires_at>CURRENT_TIMESTAMP",[q.user.id]);
-    // Private beta access never creates a paid subscription or changes payment status.
-    if(!entitlement.rows.length&&!betaAccessAllowed(q.user))return s.status(402).json({error:'Collabzy Pro is required for AI Growth Coach. Activate the ₹299/year plan to generate a report.'});
     const usage=await pool.query("SELECT COUNT(*)::int AS n FROM ai_analysis_usage WHERE user_id=$1 AND requested_at>CURRENT_TIMESTAMP-INTERVAL '24 hours'",[q.user.id]);
     if(Number(usage.rows[0]?.n||0)>=10)return s.status(429).json({error:'You have used 10 AI reports in the last 24 hours. Please try again later.'});
     const account=(await pool.query('SELECT instagram_user_id,instagram_handle,instagram_access_token_enc,instagram_token_expires_at FROM users WHERE id=$1',[q.user.id])).rows[0];
@@ -816,18 +813,18 @@ async function start(PORT,SECRET){
   }));
 
 
-  app.get('/api/instagram/automations/events',auth,asyncRoute(async(q,s)=>{
+  app.get('/api/instagram/automations/events',auth,creatorProAuth,asyncRoute(async(q,s)=>{
     if(q.user.role!=='creator')return s.status(403).json({error:'Instagram Auto DM activity is available to creator accounts.'});
     const r=await pool.query("SELECT e.id,e.status,e.response_code,e.created_at,e.processed_at,COALESCE(rule.keyword,'Removed rule') AS keyword,CASE WHEN e.status='failed' THEN 'Meta did not accept the private reply.' ELSE '' END AS message FROM instagram_dm_events e LEFT JOIN instagram_dm_rules rule ON rule.id=e.rule_id WHERE e.user_id=$1 ORDER BY e.created_at DESC LIMIT 50",[q.user.id]);
     s.json({events:r.rows});
   }));
-  app.get('/api/instagram/automations',auth,asyncRoute(async(q,s)=>{
+  app.get('/api/instagram/automations',auth,creatorProAuth,asyncRoute(async(q,s)=>{
     if(q.user.role!=='creator')return s.status(403).json({error:'Instagram Auto DM is available to creator accounts.'});
     const r=await pool.query('SELECT id,keyword,match_type,reply_text,cta_url,enabled,created_at,updated_at FROM instagram_dm_rules WHERE user_id=$1 ORDER BY id DESC',[q.user.id]);
     const account=await pool.query("SELECT (instagram_access_token_enc<>'') AS connected FROM users WHERE id=$1",[q.user.id]);
     s.json({rules:r.rows,configured:metaAutoDmReady(),connected:!!account.rows[0]?.connected,webhookUrl:'/api/instagram/webhook',message:metaAutoDmReady()?'Official Meta messaging configuration is enabled. Connect Instagram and subscribe comment webhooks before enabling rules.':'Draft rules can be saved now. Live replies require approved Meta messaging/comment permissions, a configured webhook, and the operator enable switch.'});
   }));
-  app.post('/api/instagram/automations',auth,asyncRoute(async(q,s)=>{
+  app.post('/api/instagram/automations',auth,creatorProAuth,asyncRoute(async(q,s)=>{
     if(q.user.role!=='creator')return s.status(403).json({error:'Instagram Auto DM is available to creator accounts.'});
     const b=q.body||{},keyword=String(b.keyword||'').trim().replace(/\s+/g,' ').slice(0,60),matchType=b.match_type==='exact'?'exact':'contains',replyText=String(b.reply_text||'').trim().slice(0,900),rawUrl=String(b.cta_url||'').trim().slice(0,500);
     if(keyword.length<2)return s.status(400).json({error:'Enter a keyword with at least 2 characters.'});
@@ -840,7 +837,7 @@ async function start(PORT,SECRET){
     const saved=await pool.query("INSERT INTO instagram_dm_rules(user_id,keyword,match_type,reply_text,cta_url,enabled,updated_at) VALUES($1,$2,$3,$4,$5,$6,CURRENT_TIMESTAMP) ON CONFLICT(user_id,keyword) DO UPDATE SET match_type=EXCLUDED.match_type,reply_text=EXCLUDED.reply_text,cta_url=EXCLUDED.cta_url,enabled=EXCLUDED.enabled,updated_at=CURRENT_TIMESTAMP RETURNING id,keyword,match_type,reply_text,cta_url,enabled,created_at,updated_at",[q.user.id,keyword,matchType,replyText,ctaUrl,requestedEnabled]);
     s.status(201).json({rule:saved.rows[0],message:requestedEnabled?'Auto DM rule enabled. Replies will only send for matching comment webhook events.':'Reply rule saved as a draft. No Instagram message was sent.'});
   }));
-  app.patch('/api/instagram/automations/:id',auth,asyncRoute(async(q,s)=>{
+  app.patch('/api/instagram/automations/:id',auth,creatorProAuth,asyncRoute(async(q,s)=>{
     if(q.user.role!=='creator')return s.status(403).json({error:'Instagram Auto DM is available to creator accounts.'});
     const id=Number(q.params.id),enabled=q.body?.enabled===true;
     if(!Number.isSafeInteger(id)||id<1)return s.status(400).json({error:'Invalid automation rule.'});
@@ -857,7 +854,7 @@ async function start(PORT,SECRET){
     if(!r.rows.length)return s.status(404).json({error:'Automation rule not found.'});
     s.json({ok:true,deleted:true});
   }));
-  app.post('/api/instagram/automations/setup',auth,asyncRoute(async(q,s)=>{
+  app.post('/api/instagram/automations/setup',auth,creatorProAuth,asyncRoute(async(q,s)=>{
     if(q.user.role!=='creator')return s.status(403).json({error:'Instagram Auto DM is available to creator accounts.'});
     if(!metaAutoDmReady())return s.status(503).json({error:'Live Auto DM is not enabled on the server. Configure Meta App Review, the webhook verification token and META_AUTO_DM_ENABLED=true after testing.'});
     const found=await pool.query('SELECT instagram_user_id,instagram_access_token_enc,instagram_token_expires_at FROM users WHERE id=$1',[q.user.id]),account=found.rows[0];
@@ -907,7 +904,7 @@ async function start(PORT,SECRET){
     }
     s.status(200).json({received:true,processed,automationEnabled:true});
   }));
-  app.post('/api/ai/studio',auth,asyncRoute(async(q,s)=>{
+  app.post('/api/ai/studio',auth,creatorProAuth,asyncRoute(async(q,s)=>{
     const tool=String(q.body?.tool||''),brief=String(q.body?.brief||'').trim().slice(0,4000),tone=String(q.body?.tone||'warm and confident').trim().slice(0,80),audience=String(q.body?.audience||'').trim().slice(0,300);
     const definitions={
       creator_bio:{role:'creator',title:'Creator bio optimizer'},
@@ -924,11 +921,6 @@ async function start(PORT,SECRET){
     if(!spec||spec.role!==q.user.role)return s.status(400).json({error:'Choose an AI Studio tool available for your account type.'});
     if(!brief||brief.length<4)return s.status(400).json({error:'Add a little context so the draft is useful.'});
     if(!q.body?.confirmed_ai_disclosure)return s.status(400).json({error:'Confirm the AI data-use note before generating content.'});
-    if(publicLaunchApproved()){
-      const beta=await pool.query('SELECT private_beta_access FROM users WHERE id=$1',[q.user.id]);
-      const sub=await pool.query("SELECT 1 FROM user_subscriptions WHERE user_id=$1 AND status='active' AND expires_at>CURRENT_TIMESTAMP",[q.user.id]);
-      if(!beta.rows[0]?.private_beta_access&&!sub.rows.length)return s.status(402).json({error:'The AI Studio is included in Collabzy Pro at ₹299/year. Activate the plan to continue.'});
-    }
     const niche=String(q.user.niche||'your niche').slice(0,100),context={tool,role:q.user.role,display_name:String(q.user.name||'').slice(0,80),niche,profile_bio:String(q.user.bio||'').slice(0,500),audience,tone,brief};
     if(!openAiReady()){
       let output='';
@@ -957,7 +949,7 @@ async function start(PORT,SECRET){
   }));
 
 
-  app.get('/api/matches',auth,asyncRoute(async(q,s)=>{
+  app.get('/api/matches',auth,creatorProAuth,asyncRoute(async(q,s)=>{
     const words=value=>Array.from(new Set(String(value||'').toLowerCase().replace(/https?:\/\/\S+/g,' ').replace(/[^a-z0-9 ]/g,' ').split(/\s+/).filter(word=>word.length>2&&!['and','the','for','with','from','your','you','our','are','this','that','have','will','can','not','all','any','into','about','brand','creator','campaign','looking','make','more','best','india','indian'].includes(word))));
     const overlaps=(left,right)=>left.filter(word=>right.includes(word));
     const clamp=value=>Math.max(20,Math.min(99,Math.round(value)));
