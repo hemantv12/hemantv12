@@ -46,14 +46,14 @@ import java.util.concurrent.Executors;
 
 public final class MainActivity extends Activity {
     private static final String API = "https://collabzy-api.onrender.com";
-    private static final int BG = Color.rgb(12, 15, 31);
-    private static final int PANEL = Color.rgb(23, 29, 51);
-    private static final int PANEL_ALT = Color.rgb(30, 37, 63);
-    private static final int MINT = Color.rgb(115, 234, 212);
-    private static final int VIOLET = Color.rgb(178, 151, 255);
-    private static final int WHITE = Color.rgb(246, 248, 255);
-    private static final int MUTED = Color.rgb(159, 170, 197);
-    private static final int RED = Color.rgb(255, 133, 151);
+    private static final int BG = Color.rgb(247, 248, 252);
+    private static final int PANEL = Color.rgb(255, 255, 255);
+    private static final int PANEL_ALT = Color.rgb(243, 241, 250);
+    private static final int MINT = Color.rgb(16, 149, 126);
+    private static final int VIOLET = Color.rgb(112, 82, 202);
+    private static final int WHITE = Color.rgb(39, 34, 61);
+    private static final int MUTED = Color.rgb(111, 106, 133);
+    private static final int RED = Color.rgb(192, 57, 80);
 
     private final ExecutorService network = Executors.newSingleThreadExecutor();
     private final OkHttpClient httpClient = new OkHttpClient.Builder().connectTimeout(18, TimeUnit.SECONDS).readTimeout(22, TimeUnit.SECONDS).build();
@@ -84,7 +84,7 @@ public final class MainActivity extends Activity {
         super.onCreate(state);
         getWindow().setStatusBarColor(BG);
         getWindow().setNavigationBarColor(BG);
-        getWindow().getDecorView().setSystemUiVisibility(0);
+        getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
         storage = getSharedPreferences("collabzy_native", MODE_PRIVATE);
         token = storage.getString("token", "");
         if (token.isEmpty()) {
@@ -227,7 +227,7 @@ public final class MainActivity extends Activity {
         b.setGravity(Gravity.CENTER);
         b.setPadding(dp(16), dp(15), dp(16), dp(15));
         b.setMinHeight(dp(50));
-        b.setBackground(rounded(primary ? MINT : PANEL_ALT, 17, primary ? 0 : Color.rgb(54, 63, 91)));
+        b.setBackground(rounded(primary ? MINT : PANEL_ALT, 17, primary ? 0 : Color.rgb(224, 220, 238)));
         b.setClickable(true);
         b.setFocusable(true);
         b.setAllCaps(false);
@@ -238,7 +238,7 @@ public final class MainActivity extends Activity {
         TextView b = text(title, 13, MINT, true);
         b.setGravity(Gravity.CENTER);
         b.setPadding(dp(12), dp(10), dp(12), dp(10));
-        b.setBackground(rounded(Color.rgb(28, 56, 65), 13, Color.rgb(43, 86, 91)));
+        b.setBackground(rounded(Color.rgb(225, 247, 242), 13, Color.rgb(210, 234, 229)));
         b.setClickable(true);
         b.setFocusable(true);
         return b;
@@ -247,14 +247,14 @@ public final class MainActivity extends Activity {
     private EditText field(String hint, int inputType, String value) {
         EditText e = new EditText(this);
         e.setTextColor(WHITE);
-        e.setHintTextColor(Color.rgb(121, 133, 163));
+        e.setHintTextColor(Color.rgb(137, 131, 158));
         e.setHint(hint);
         e.setTextSize(15);
         e.setSingleLine(inputType != InputType.TYPE_CLASS_TEXT || !hint.equals("Short bio (optional)"));
         e.setInputType(inputType);
         e.setPadding(dp(16), dp(12), dp(16), dp(12));
         e.setMinHeight(dp(53));
-        e.setBackground(rounded(PANEL_ALT, 15, Color.rgb(51, 61, 91)));
+        e.setBackground(rounded(PANEL_ALT, 15, Color.rgb(224, 220, 238)));
         if (value != null) e.setText(value);
         e.setSelectAllOnFocus(false);
         e.setImeOptions(EditorInfo.IME_ACTION_NEXT);
@@ -273,13 +273,13 @@ public final class MainActivity extends Activity {
     private LinearLayout card() {
         LinearLayout c = column();
         c.setPadding(dp(17), dp(17), dp(17), dp(17));
-        c.setBackground(rounded(PANEL, 22, Color.rgb(41, 49, 76)));
+        c.setBackground(rounded(PANEL, 22, Color.rgb(224, 220, 238)));
         return c;
     }
 
     private void showLoadingScreen(String message) {
         frame = new FrameLayout(this);
-        frame.setBackground(gradient(BG, Color.rgb(25, 22, 48), 0));
+        frame.setBackground(gradient(BG, Color.rgb(239, 241, 249), 0));
         LinearLayout box = column();
         box.setGravity(Gravity.CENTER);
         TextView mark = text("C", 32, BG, true);
@@ -301,7 +301,7 @@ public final class MainActivity extends Activity {
     private void showWelcome() {
         screen = "welcome";
         frame = new FrameLayout(this);
-        frame.setBackground(gradient(BG, Color.rgb(28, 22, 54), 0));
+        frame.setBackground(gradient(BG, Color.rgb(241, 238, 251), 0));
         ScrollView scroll = new ScrollView(this);
         scroll.setFillViewport(true);
         LinearLayout page = column();
@@ -335,7 +335,7 @@ public final class MainActivity extends Activity {
         page.addView(explainer);
         gap(page, 28);
         LinearLayout valueCard = card();
-        valueCard.setBackground(gradient(Color.rgb(28, 51, 67), Color.rgb(30, 30, 61), 22));
+        valueCard.setBackground(gradient(Color.rgb(223, 246, 243), Color.rgb(240, 237, 251), 22));
         addFeature(valueCard, "✦", "Smart campaign matching", "Find opportunities that fit your niche");
         gap(valueCard, 14);
         addFeature(valueCard, "↗", "Creator–brand workspace", "Applications, chats and progress together");
@@ -362,7 +362,7 @@ public final class MainActivity extends Activity {
         LinearLayout r = row();
         TextView glyph = text(icon, 22, MINT, true);
         glyph.setGravity(Gravity.CENTER);
-        glyph.setBackground(rounded(Color.rgb(32, 67, 75), 13, 0));
+        glyph.setBackground(rounded(Color.rgb(218, 244, 239), 13, 0));
         r.addView(glyph, new LinearLayout.LayoutParams(dp(43), dp(43)));
         LinearLayout copy = column();
         LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, -2, 1);
@@ -378,7 +378,7 @@ public final class MainActivity extends Activity {
     private void showAuth(boolean create) {
         screen = create ? "register" : "login";
         frame = new FrameLayout(this);
-        frame.setBackground(gradient(BG, Color.rgb(25, 22, 49), 0));
+        frame.setBackground(gradient(BG, Color.rgb(239, 241, 249), 0));
         ScrollView scroll = new ScrollView(this);
         scroll.setFillViewport(true);
         LinearLayout page = column();
@@ -466,14 +466,14 @@ public final class MainActivity extends Activity {
             selectedRole[0] = "creator";
             creatorRole.setBackground(rounded(MINT, 17, 0));
             creatorRole.setTextColor(BG);
-            brandRole.setBackground(rounded(PANEL_ALT, 17, Color.rgb(54, 63, 91)));
+            brandRole.setBackground(rounded(PANEL_ALT, 17, Color.rgb(224, 220, 238)));
             brandRole.setTextColor(WHITE);
         });
         brandRole.setOnClickListener(v -> {
             selectedRole[0] = "brand";
             brandRole.setBackground(rounded(MINT, 17, 0));
             brandRole.setTextColor(BG);
-            creatorRole.setBackground(rounded(PANEL_ALT, 17, Color.rgb(54, 63, 91)));
+            creatorRole.setBackground(rounded(PANEL_ALT, 17, Color.rgb(224, 220, 238)));
             creatorRole.setTextColor(WHITE);
         });
         submit.setOnClickListener(v -> {
@@ -556,7 +556,7 @@ public final class MainActivity extends Activity {
     private void showShell(String target) {
         screen = target;
         frame = new FrameLayout(this);
-        frame.setBackground(gradient(BG, Color.rgb(20, 20, 43), 0));
+        frame.setBackground(gradient(BG, Color.rgb(235, 238, 248), 0));
         LinearLayout shell = column();
         frame.addView(shell, new FrameLayout.LayoutParams(-1, -1));
         shell.addView(header(), new LinearLayout.LayoutParams(-1, -2));
@@ -595,7 +595,7 @@ public final class MainActivity extends Activity {
     private View header() {
         LinearLayout h = row();
         h.setPadding(dp(18), dp(13), dp(18), dp(11));
-        h.setBackgroundColor(Color.rgb(15, 18, 36));
+        h.setBackgroundColor(Color.rgb(247, 248, 252));
         TextView mark = text("C", 20, BG, true);
         mark.setGravity(Gravity.CENTER);
         mark.setBackground(rounded(MINT, 15, 0));
@@ -610,7 +610,7 @@ public final class MainActivity extends Activity {
         initial = initial.isEmpty() ? "C" : initial.substring(0, 1).toUpperCase(Locale.ROOT);
         TextView avatar = text(initial, 15, MINT, true);
         avatar.setGravity(Gravity.CENTER);
-        avatar.setBackground(rounded(Color.rgb(34, 44, 70), 16, Color.rgb(56, 75, 105)));
+        avatar.setBackground(rounded(Color.rgb(241, 239, 250), 16, Color.rgb(224, 220, 238)));
         h.addView(avatar, new LinearLayout.LayoutParams(dp(40), dp(40)));
         avatar.setOnClickListener(v -> showShell("profile"));
         return h;
@@ -619,7 +619,7 @@ public final class MainActivity extends Activity {
     private View bottomNavigation(String active) {
         LinearLayout nav = row();
         nav.setPadding(dp(7), dp(8), dp(7), dp(10));
-        nav.setBackground(rounded(Color.rgb(16, 20, 39), 0, Color.rgb(43, 49, 73)));
+        nav.setBackground(rounded(Color.rgb(255, 255, 255), 0, Color.rgb(224, 220, 238)));
         String[] labels = new String[]{"Home", "Explore", "Matches", "Inbox", "More"};
         String[] keys = new String[]{"home", "explore", "matches", "inbox", "more"};
         String[] glyphs = new String[]{"⌂", "⌕", "✦", "▤", "•••"};
@@ -640,7 +640,7 @@ public final class MainActivity extends Activity {
             TextView label = text(labels[i], 9, selected ? MINT : MUTED, selected);
             item.addView(label);
             item.setPadding(dp(2), dp(3), dp(2), dp(2));
-            item.setBackground(rounded(selected ? Color.rgb(27, 43, 58) : Color.TRANSPARENT, 13, 0));
+            item.setBackground(rounded(selected ? Color.rgb(225, 247, 242) : Color.TRANSPARENT, 13, 0));
             item.setClickable(true);
             item.setOnClickListener(v -> showShell(key));
             LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, -2, 1);
@@ -672,14 +672,14 @@ public final class MainActivity extends Activity {
 
         LinearLayout hero = column();
         hero.setPadding(dp(20), dp(20), dp(20), dp(20));
-        hero.setBackground(gradient(Color.rgb(33, 66, 76), Color.rgb(42, 36, 76), 24));
+        hero.setBackground(gradient(Color.rgb(229, 247, 244), Color.rgb(241, 236, 250), 24));
         TextView chip = text(creator ? "✦  CREATOR STUDIO" : "✦  BRAND STUDIO", 10, MINT, true);
         chip.setLetterSpacing(0.08f);
         hero.addView(chip);
         gap(hero, 12);
         hero.addView(text(creator ? "Turn your influence\ninto opportunity." : "Find creators who\nfit your brand.", 25, WHITE, true));
         gap(hero, 9);
-        hero.addView(text(creator ? "Discover relevant briefs, match with brands, and manage the conversations that matter." : "Publish a campaign, discover talent, and move every collaboration forward.", 13, Color.rgb(210, 218, 240), false));
+        hero.addView(text(creator ? "Discover relevant briefs, match with brands, and manage the conversations that matter." : "Publish a campaign, discover talent, and move every collaboration forward.", 13, Color.rgb(73, 69, 101), false));
         gap(hero, 17);
         TextView cta = button(creator ? "Explore campaigns  →" : "Open campaign studio  →", true);
         hero.addView(cta, new LinearLayout.LayoutParams(-1, -2));
@@ -753,10 +753,10 @@ public final class MainActivity extends Activity {
     private void addQuickAction(String glyph, String title, String subtitle, Runnable action) {
         LinearLayout c = row();
         c.setPadding(dp(14), dp(14), dp(14), dp(14));
-        c.setBackground(rounded(PANEL, 19, Color.rgb(43, 52, 79)));
+        c.setBackground(rounded(PANEL, 19, Color.rgb(224, 220, 238)));
         TextView icon = text(glyph, 21, MINT, true);
         icon.setGravity(Gravity.CENTER);
-        icon.setBackground(rounded(Color.rgb(32, 54, 66), 14, 0));
+        icon.setBackground(rounded(Color.rgb(225, 247, 242), 14, 0));
         c.addView(icon, new LinearLayout.LayoutParams(dp(45), dp(45)));
         LinearLayout copy = column();
         LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, -2, 1);
@@ -814,7 +814,7 @@ public final class MainActivity extends Activity {
                     for (int i = 0; i < types.getChildCount(); i++) {
                         TextView current = (TextView) types.getChildAt(i);
                         boolean active = current.getText().toString().equals(value);
-                        current.setBackground(rounded(active ? MINT : Color.rgb(28, 56, 65), 13, 0));
+                        current.setBackground(rounded(active ? MINT : Color.rgb(225, 247, 242), 13, 0));
                         current.setTextColor(active ? BG : WHITE);
                     }
                 });
@@ -900,7 +900,7 @@ public final class MainActivity extends Activity {
         LinearLayout meta = row();
         TextView type = text(c.optString("collaboration_type", "COLLAB"), 10, MINT, true);
         type.setPadding(dp(9), dp(6), dp(9), dp(6));
-        type.setBackground(rounded(Color.rgb(29, 58, 64), 10, 0));
+        type.setBackground(rounded(Color.rgb(224, 247, 242), 10, 0));
         meta.addView(type);
         View spacer = new View(this);
         meta.addView(spacer, new LinearLayout.LayoutParams(0, 1, 1));
@@ -913,7 +913,7 @@ public final class MainActivity extends Activity {
         gap(campaignCard, 10);
         campaignCard.addView(text(budget(c), 14, MINT, true));
         gap(campaignCard, 9);
-        campaignCard.addView(text(c.optString("description", "Open the brief to review collaboration details."), 13, Color.rgb(204, 212, 234), false));
+        campaignCard.addView(text(c.optString("description", "Open the brief to review collaboration details."), 13, Color.rgb(73, 69, 101), false));
         if (match != null) {
             JSONArray reasons = match.optJSONArray("reasons");
             if (reasons != null && reasons.length() > 0) {
@@ -1030,7 +1030,7 @@ public final class MainActivity extends Activity {
         android.app.Dialog dialog = new android.app.Dialog(this);
         LinearLayout box = column();
         box.setPadding(dp(22), dp(22), dp(22), dp(22));
-        box.setBackground(rounded(PANEL, 24, Color.rgb(57, 70, 99)));
+        box.setBackground(rounded(PANEL, 24, Color.rgb(224, 220, 238)));
         box.addView(text("Apply to campaign", 21, WHITE, true));
         gap(box, 8);
         box.addView(text(campaign.optString("title", "Campaign"), 13, MINT, true));
@@ -1086,7 +1086,7 @@ public final class MainActivity extends Activity {
         heading("Smart Match Center", creator ? "Relevant campaign ideas, with reasons behind each score." : "Creator profiles ranked by fit signals from your brand and campaigns.");
         TextView note = text("Match scores are guidance, not guarantees of acceptance or earnings.", 11, MUTED, false);
         note.setPadding(dp(13), dp(12), dp(13), dp(12));
-        note.setBackground(rounded(Color.rgb(31, 28, 54), 14, 0));
+        note.setBackground(rounded(Color.rgb(241, 238, 251), 14, 0));
         content.addView(note);
         gap(content, 14);
         TextView loading = text("Finding your best matches…", 13, MUTED, false);
@@ -1174,7 +1174,7 @@ public final class MainActivity extends Activity {
                 if (chat == null) continue;
                 LinearLayout item = row();
                 item.setPadding(dp(14), dp(14), dp(14), dp(14));
-                item.setBackground(rounded(PANEL, 18, Color.rgb(43, 52, 79)));
+                item.setBackground(rounded(PANEL, 18, Color.rgb(224, 220, 238)));
                 String counterpart = chat.optString("counterpart_name", "Collaboration");
                 TextView avatar = text(counterpart.isEmpty() ? "C" : counterpart.substring(0, 1).toUpperCase(Locale.ROOT), 17, BG, true);
                 avatar.setGravity(Gravity.CENTER);
@@ -1249,7 +1249,7 @@ public final class MainActivity extends Activity {
                     boolean mine = String.valueOf(user.optLong("id", -1)).equals(String.valueOf(m.optLong("sender_id", -2)));
                     LinearLayout bubble = column();
                     bubble.setPadding(dp(13), dp(11), dp(13), dp(11));
-                    bubble.setBackground(rounded(mine ? Color.rgb(35, 73, 78) : PANEL, 16, mine ? Color.rgb(51, 111, 108) : Color.rgb(49, 58, 84)));
+                    bubble.setBackground(rounded(mine ? Color.rgb(215, 244, 236) : PANEL, 16, mine ? Color.rgb(200, 228, 222) : Color.rgb(224, 220, 238)));
                     bubble.addView(text(m.optString("body", ""), 14, WHITE, false));
                     LinearLayout.LayoutParams b = new LinearLayout.LayoutParams(Math.min(getResources().getDisplayMetrics().widthPixels - dp(85), dp(300)), -2);
                     b.gravity = mine ? Gravity.RIGHT : Gravity.LEFT;
@@ -1360,7 +1360,7 @@ public final class MainActivity extends Activity {
                 c.addView(text(creator ? inv.optString("brand_name", "Brand") : inv.optString("creator_name", "Creator"), 12, MUTED, true));
                 gap(c, 7);
                 if (!inv.optString("message", "").trim().isEmpty()) {
-                    c.addView(text(inv.optString("message"), 13, Color.rgb(211, 219, 239), false));
+                    c.addView(text(inv.optString("message"), 13, Color.rgb(73, 69, 101), false));
                     gap(c, 10);
                 }
                 c.addView(text(budget(inv) + "  ·  " + inv.optString("collaboration_type", "Collaboration"), 12, MINT, true));
@@ -1368,7 +1368,7 @@ public final class MainActivity extends Activity {
                 String status = inv.optString("status", "pending");
                 TextView state = text(status.toUpperCase(Locale.ROOT), 10, MINT, true);
                 state.setPadding(dp(9), dp(6), dp(9), dp(6));
-                state.setBackground(rounded(Color.rgb(29, 58, 64), 10, 0));
+                state.setBackground(rounded(Color.rgb(224, 247, 242), 10, 0));
                 c.addView(state, new LinearLayout.LayoutParams(-2, -2));
                 if (creator && "pending".equals(status)) {
                     gap(c, 12);
@@ -1508,7 +1508,7 @@ public final class MainActivity extends Activity {
         android.app.Dialog dialog = new android.app.Dialog(this);
         LinearLayout box = column();
         box.setPadding(dp(20), dp(20), dp(20), dp(20));
-        box.setBackground(rounded(PANEL, 22, Color.rgb(57, 70, 99)));
+        box.setBackground(rounded(PANEL, 22, Color.rgb(224, 220, 238)));
         box.addView(text("Edit campaign brief", 20, WHITE, true));
         gap(box, 12);
         EditText title = field("Campaign title", InputType.TYPE_CLASS_TEXT, campaign.optString("title", ""));
@@ -1535,7 +1535,7 @@ public final class MainActivity extends Activity {
                 for (int i = 0; i < types.getChildCount(); i++) {
                     TextView item = (TextView) types.getChildAt(i);
                     boolean selected = item.getText().toString().equals(value);
-                    item.setBackground(rounded(selected ? MINT : PANEL_ALT, 15, selected ? 0 : Color.rgb(54, 63, 91)));
+                    item.setBackground(rounded(selected ? MINT : PANEL_ALT, 15, selected ? 0 : Color.rgb(224, 220, 238)));
                     item.setTextColor(selected ? BG : WHITE);
                 }
             });
@@ -1794,7 +1794,7 @@ public final class MainActivity extends Activity {
         android.app.Dialog dialog = new android.app.Dialog(this);
         LinearLayout box = column();
         box.setPadding(dp(20), dp(20), dp(20), dp(20));
-        box.setBackground(rounded(PANEL, 22, Color.rgb(57, 70, 99)));
+        box.setBackground(rounded(PANEL, 22, Color.rgb(224, 220, 238)));
         box.addView(text("New keyword rule", 21, WHITE, true));
         gap(box, 12);
         EditText keyword = field("Keyword (minimum 2 characters)", InputType.TYPE_CLASS_TEXT, "");
@@ -1924,11 +1924,11 @@ public final class MainActivity extends Activity {
         android.app.Dialog dialog = new android.app.Dialog(this);
         LinearLayout box = column();
         box.setPadding(dp(20), dp(20), dp(20), dp(20));
-        box.setBackground(rounded(PANEL, 22, Color.rgb(57, 70, 99)));
+        box.setBackground(rounded(PANEL, 22, Color.rgb(224, 220, 238)));
         box.addView(text(title, 20, WHITE, true));
         gap(box, 12);
         ScrollView scroll = new ScrollView(this);
-        TextView body = text(value, 13, Color.rgb(218, 226, 244), false);
+        TextView body = text(value, 13, Color.rgb(73, 69, 101), false);
         body.setTextIsSelectable(true);
         body.setLineSpacing(dp(4), 1f);
         scroll.addView(body);
@@ -1973,7 +1973,7 @@ public final class MainActivity extends Activity {
                 String status = a.optString("status", "pending").toUpperCase(Locale.ROOT);
                 TextView badge = text(status, 10, MINT, true);
                 badge.setPadding(dp(10), dp(7), dp(10), dp(7));
-                badge.setBackground(rounded(Color.rgb(30, 56, 64), 11, 0));
+                badge.setBackground(rounded(Color.rgb(224, 247, 242), 11, 0));
                 c.addView(badge, new LinearLayout.LayoutParams(-2, -2));
                 if ("brand".equals(user.optString("role"))) {
                     String currentStatus = a.optString("status", "pending");
@@ -2116,8 +2116,8 @@ public final class MainActivity extends Activity {
 
             Paint tag = pdfPaint(Color.rgb(112, 86, 232), 10, true);
             Paint namePaint = pdfPaint(Color.rgb(35, 27, 58), 31, true);
-            Paint body = pdfPaint(Color.rgb(67, 65, 88), 12, false);
-            Paint muted = pdfPaint(Color.rgb(119, 116, 138), 10, false);
+            Paint body = pdfPaint(Color.rgb(73, 69, 101), 12, false);
+            Paint muted = pdfPaint(Color.rgb(111, 106, 133), 10, false);
             Paint labelPaint = pdfPaint(Color.rgb(112, 86, 232), 12, true);
             Paint statPaint = pdfPaint(Color.rgb(35, 27, 58), 20, true);
             Paint cardPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -2222,7 +2222,7 @@ public final class MainActivity extends Activity {
         android.app.Dialog dialog = new android.app.Dialog(this);
         LinearLayout box = column();
         box.setPadding(dp(20), dp(20), dp(20), dp(20));
-        box.setBackground(rounded(PANEL, 22, Color.rgb(57, 70, 99)));
+        box.setBackground(rounded(PANEL, 22, Color.rgb(224, 220, 238)));
         box.addView(text("Change password", 20, WHITE, true));
         gap(box, 12);
         EditText current = field("Current password", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD, "");
@@ -2376,13 +2376,13 @@ public final class MainActivity extends Activity {
         android.app.Dialog dialog = new android.app.Dialog(this);
         LinearLayout box = column();
         box.setPadding(dp(22), dp(22), dp(22), dp(22));
-        box.setBackground(rounded(PANEL, 24, Color.rgb(57, 70, 99)));
+        box.setBackground(rounded(PANEL, 24, Color.rgb(224, 220, 238)));
         box.addView(text("Your draft is ready", 22, WHITE, true));
         gap(box, 5);
         box.addView(text(mode.isEmpty() ? "Review and refine before publishing." : mode, 11, MINT, true));
         gap(box, 12);
         ScrollView scroll = new ScrollView(this);
-        TextView result = text(output, 14, Color.rgb(223, 229, 245), false);
+        TextView result = text(output, 14, Color.rgb(73, 69, 101), false);
         result.setTextIsSelectable(true);
         result.setLineSpacing(dp(4), 1f);
         scroll.addView(result);
@@ -2430,7 +2430,7 @@ public final class MainActivity extends Activity {
                 for (int j = 0; j < typeRow.getChildCount(); j++) {
                     TextView child = (TextView) typeRow.getChildAt(j);
                     boolean chosen = child.getText().toString().equals(type);
-                    child.setBackground(rounded(chosen ? MINT : PANEL_ALT, 15, chosen ? 0 : Color.rgb(54, 63, 91)));
+                    child.setBackground(rounded(chosen ? MINT : PANEL_ALT, 15, chosen ? 0 : Color.rgb(224, 220, 238)));
                     child.setTextColor(chosen ? BG : WHITE);
                 }
             });
@@ -2490,10 +2490,10 @@ public final class MainActivity extends Activity {
 
     private void showInlineMessage(String title, String message) {
         LinearLayout c = card();
-        c.setBackground(rounded(Color.rgb(54, 33, 51), 18, Color.rgb(105, 54, 79)));
+        c.setBackground(rounded(Color.rgb(255, 236, 241), 18, Color.rgb(240, 199, 212)));
         c.addView(text(title, 15, RED, true));
         gap(c, 6);
-        c.addView(text(message, 12, Color.rgb(232, 195, 209), false));
+        c.addView(text(message, 12, Color.rgb(158, 47, 73), false));
         content.addView(c);
     }
 
