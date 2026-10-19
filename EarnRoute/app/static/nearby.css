@@ -1423,15 +1423,19 @@ html.er-native-app.er-keyboard-open #auth-modal.modal-backdrop:not([hidden]) {
 }
 html.er-native-app.er-keyboard-open #auth-modal .auth-modal {
   flex:0 1 auto !important;
+  align-self:center;
   width:100% !important;
   max-width:480px !important;
   max-height:calc(var(--er-visual-viewport-height, 100dvh) - 6px) !important;
-  margin:0 auto;
+  margin:0 auto !important;
   padding:10px 16px 10px !important;
   border-radius:18px 18px 0 0;
   overflow-x:hidden !important;
   overflow-y:auto !important;
-  scroll-padding-block:28px;
+  overscroll-behavior:contain !important;
+  -webkit-overflow-scrolling:touch;
+  scroll-padding-top:24px;
+  scroll-padding-bottom:30px;
 }
 html.er-native-app.er-keyboard-open #auth-modal .modal-brand,
 html.er-native-app.er-keyboard-open #auth-modal .auth-eyebrow,
@@ -1891,18 +1895,6 @@ html.er-native-app.er-keyboard-open #auth-modal.modal-backdrop:not([hidden]) {
   max-height:var(--er-visual-viewport-height,100dvh) !important;
   padding:0 !important;
   overflow:hidden !important;
-}
-html.er-native-app.er-keyboard-open #auth-modal .auth-modal {
-  flex:0 1 auto !important;
-  align-self:center;
-  max-height:calc(var(--er-visual-viewport-height,100dvh) - 6px) !important;
-  margin:0 auto !important;
-  overflow-x:hidden !important;
-  overflow-y:auto !important;
-  overscroll-behavior:contain !important;
-  -webkit-overflow-scrolling:touch;
-  scroll-padding-top:24px;
-  scroll-padding-bottom:30px;
 }
 html.er-native-app.er-keyboard-open #auth-modal #auth-password,
 html.er-native-app.er-keyboard-open #auth-modal #auth-email,
