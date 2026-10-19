@@ -130,6 +130,21 @@ function erCenterManualArea() {
     erEnhanceLiveMaps();
   }
 }
+function erCommitManualCityCentre() {
+  const select = document.getElementById('er-manual-city');
+  const area = ER_MANUAL_AREAS.find(function(item) { return item.id === (select && select.value); });
+  if (!area) {
+    showToast(t('manualAreaChooseCity'), 'error');
+    return false;
+  }
+  sessionStorage.setItem('earnroute_device_location', JSON.stringify({
+    latitude:area.latitude, longitude:area.longitude, accuracy_m:null, source:'manual',
+    label:area.name + ' · ' + t('manualAreaApproximateTag'), approximate:true,
+    expiresAt:Date.now() + 30 * 60 * 1000
+  }));
+  sessionStorage.removeItem('earnroute_manual_location_candidate');
+  return true;
+}
 function erCommitManualAreaCandidate() {
   let candidate;
   try { candidate = JSON.parse(sessionStorage.getItem('earnroute_manual_location_candidate') || 'null'); } catch (_) { candidate = null; }
@@ -217,7 +232,8 @@ function erLocationPrompt() {
     '<details class="er-manual-area-picker" id="er-manual-area-picker"><summary>' + escapeHtml(t('manualAreaHeading')) + '</summary>' +
     '<div class="er-manual-area-body"><p>' + escapeHtml(t('manualAreaIntro')) + '</p>' +
     '<label class="er-manual-city-field"><span>' + escapeHtml(t('manualAreaCity')) + '</span><select id="er-manual-city"><option value="" selected disabled>' + escapeHtml(t('manualAreaChooseCity')) + '</option>' + cityOptions + '</select></label>' +
-    '<button type="button" class="btn btn-outline" data-er-manual-center disabled>' + escapeHtml(t('manualAreaChooseMap')) + '</button>' +
+    '<div class="er-manual-area-actions"><button type="button" class="btn btn-outline" data-er-manual-center disabled>' + escapeHtml(t('manualAreaChooseMap')) + '</button>' +
+    '<button type="button" class="btn btn-outline btn-sm" data-er-use-city-center disabled>' + escapeHtml(t('manualAreaUseCityCentre')) + '</button></div>' +
     '<p class="er-manual-map-note">' + escapeHtml(t('manualAreaMapNote')) + '</p>' +
     '<div id="er-manual-map-wrap" hidden>' + erLiveMapSectionMarkup({id:'er-manual-origin-map',kind:'origin',location:null,radius:3,jobs:[]}) + '</div>' +
     '<div class="er-manual-location-confirm"><span id="er-manual-location-status" role="status" aria-live="polite">' + escapeHtml(t('manualAreaNotSelected')) + '</span>' +
@@ -1018,6 +1034,12 @@ document.addEventListener('click', async function(event) {
     await renderPage();
     return;
   }
+  if (target.hasAttribute('data-er-use-city-center')) {
+    if (!erCommitManualCityCentre()) return;
+    showToast(t('manualAreaApproximateNotice'));
+    await renderPage();
+    return;
+  }
   if (target.hasAttribute('data-er-report-job')) {
     const jobId = Number(target.dataset.erReportJob);
     const title = String(target.dataset.erReportTitle || 'Local shift').slice(0,140);
@@ -1196,8 +1218,10 @@ document.addEventListener('change', function(event) {
   const target = event.target;
   if (!target || target.id !== 'er-manual-city') return;
   const centerButton = document.querySelector('[data-er-manual-center]');
+  const cityButton = document.querySelector('[data-er-use-city-center]');
   const useButton = document.querySelector('[data-er-use-manual-location]');
   if (centerButton) centerButton.disabled = !target.value;
+  if (cityButton) cityButton.disabled = !target.value;
   if (useButton) useButton.disabled = true;
   sessionStorage.removeItem('earnroute_manual_location_candidate');
   const status = document.getElementById('er-manual-location-status');
