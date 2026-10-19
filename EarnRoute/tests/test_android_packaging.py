@@ -104,8 +104,8 @@ def test_saved_shifts_discovery_sorting_and_india_safety_are_wired():
     assert "async function renderSavedShifts()" in nearby_js
     assert "renderSavedShifts = async function()" not in nearby_js
     assert "data-er-save-shift" in nearby_js
-    assert "Highest estimated take-home" in nearby_js
-    assert "Best estimated take-home / hour" in nearby_js
+    assert "t('sortTakeHome')" in nearby_js
+    assert "t('sortHourlyRate')" in nearby_js
     assert "mode === 'hourly-rate'" in nearby_js
     assert "er-hourly-estimate" in nearby_js
     assert "Most open spots" in nearby_js
@@ -130,7 +130,7 @@ def test_saved_shift_and_safety_report_frontend_are_wired():
     assert "category:'safety'" in nearby_js
     assert "message:'Published shift ID: ' + jobId + '\\nShift title: '" in nearby_js
     assert "earnroute-shell-v7" in (ROOT / "app/static/sw.js").read_text()
-    assert "Best estimated take-home / hour" in nearby_js
+    assert "t('sortHourlyRate')" in nearby_js
     assert "api('/api/support/tickets'" in nearby_js
     assert "reportConcern: 'Report a concern'" in app_js
     assert "reportConcern: 'शिकायत दर्ज करें'" in app_js
