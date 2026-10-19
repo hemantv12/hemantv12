@@ -285,3 +285,18 @@ def test_auth_sheet_does_not_automatically_open_mobile_keyboard():
     assert "Do not auto-open the Android keyboard over the sign-up form." in open_auth
     assert "window.setTimeout(() => $('#auth-email').focus(), 50);" in open_auth
     assert "window.matchMedia('(pointer: fine)').matches" in open_auth
+
+
+def test_admin_user_management_and_system_health_are_server_protected():
+    app_js = (ROOT / "app/static/app.js").read_text()
+    css = (ROOT / "app/static/styles.css").read_text()
+    main = (ROOT / "app/main.py").read_text()
+    assert '@app.get("/api/admin/users")' in main
+    assert '@app.patch("/api/admin/users/{target_user_id}/status")' in main
+    assert '@app.get("/api/admin/system")' in main
+    assert "async function renderAdminUsers()" in app_js
+    assert "async function renderAdminSystem()" in app_js
+    assert "data-admin-user-status" in app_js
+    assert "Final admin console usability and Android keyboard-resize safeguards" in css
+    assert "er-visual-viewport-height" in css
+    assert "er-keyboard-open #auth-modal" in css
