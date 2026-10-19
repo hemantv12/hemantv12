@@ -317,9 +317,15 @@ def test_native_keyboard_insets_resize_forms_without_double_system_bar_padding()
     assert "function erNativeImeInsetCssPx()" in app_js
     assert "Math.min(observedHeight, nativeVisibleHeight)" in app_js
     assert "nativeImeInset > 110" in app_js
-    assert "[80, 180, 320].forEach(delay =>" in app_js
+    assert "[40, 100, 180, 300, 480, 720, 1000].forEach(delay =>" in app_js
     assert "MOBILE OVERLAP + KEYBOARD HOTFIX" in css
     assert "html.er-native-app.er-keyboard-open .view-root" in css
     assert "html.er-native-app.er-keyboard-open .er-mobile-nav" in css
     assert "max-height:calc(var(--er-visual-viewport-height, 100dvh) - 6px)" in css
+    assert "FINAL MOBILE FORM + KEYBOARD LAYER (v2)" in css
+    assert "overflow:hidden !important;\n  overscroll-behavior:none !important;" in css
+    assert "html.er-native-app.er-keyboard-open #auth-modal .auth-safe" in css
+    assert "html.er-native-app.er-keyboard-open #auth-modal .auth-subheading" in css
+    assert "grid-template-columns:minmax(0,1fr) !important" in css
+    assert "720, 1000].forEach(delay =>" in app_js
 
