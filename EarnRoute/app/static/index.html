@@ -3,7 +3,18 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
-  <script>try{if(window.EarnRouteNative&&window.EarnRouteNative.isAndroidApp()){document.documentElement.classList.add("er-native-app");var b=Number(window.EarnRouteNative.getSystemBottomInsetDp?window.EarnRouteNative.getSystemBottomInsetDp():0);document.documentElement.style.setProperty("--er-system-bottom-inset",Math.max(0,b)+"px");}}catch(_){}</script>
+  <script>
+    // The Android host wraps this page in an inset-safe native container.
+    // Fixed-position web controls must not apply the system-bar inset a second time.
+    try {
+      if (window.EarnRouteNative && window.EarnRouteNative.isAndroidApp()) {
+        document.documentElement.classList.add("er-native-app");
+        document.documentElement.style.setProperty("--er-system-bottom-inset", "0px");
+        var imeInset = Number(window.EarnRouteNative.getSystemImeInsetDp ? window.EarnRouteNative.getSystemImeInsetDp() : 0);
+        document.documentElement.style.setProperty("--er-system-ime-inset", Math.max(0, imeInset) + "px");
+      }
+    } catch (_) { /* Browser mode has no native insets bridge. */ }
+  </script>
   <meta name="theme-color" content="#183b2b">
   <meta name="description" content="Find genuine nearby paid shifts within 1 km, 3 km, 5 km or more, up to 15 km. EarnRoute helps workers earn close to home with clear pay and simple apply.">
   <meta name="earnroute-map-tile-url" content="https://tile.openstreetmap.org/{z}/{x}/{y}.png">
