@@ -1014,6 +1014,35 @@ async function showNotifications() {
   } catch(error){showToast(friendlyError(error),'error');}
 }
 
+// Keep the native drawer inside the visible app area and never leave it under the fixed header/footer.
+function erSetMobileDrawerOpen(open) {
+  const sidebar = $('#sidebar');
+  const menuButton = $('#mobile-menu');
+  if (!sidebar) return;
+  const root = document.documentElement;
+  const current = sidebar.classList.contains('mobile-open');
+  const next = Boolean(open);
+  sidebar.classList.toggle('mobile-open', next);
+  root.classList.toggle('er-drawer-open', next);
+  if (next) {
+    let scrim = $('#er-sidebar-scrim');
+    if (!scrim) {
+      document.body.insertAdjacentHTML('beforeend',
+        '<button type="button" id="er-sidebar-scrim" class="er-sidebar-scrim" aria-label="Close navigation menu"></button>');
+      scrim = $('#er-sidebar-scrim');
+    }
+    if (menuButton) menuButton.setAttribute('aria-expanded', 'true');
+  } else {
+    $('#er-sidebar-scrim')?.remove();
+    if (menuButton) menuButton.setAttribute('aria-expanded', 'false');
+  }
+}
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && document.documentElement.classList.contains('er-drawer-open')) {
+    erSetMobileDrawerOpen(false);
+  }
+});
+
 // Delegated UI actions keep controls functional after each screen renders.
 document.addEventListener('click', async event => {
   const target=event.target.closest('button,a,[data-open-auth]');
@@ -1027,7 +1056,12 @@ document.addEventListener('click', async event => {
     else setLanding();
     showToast('You have signed out.'); return;
   }
-  if(target.id==='mobile-menu'){ $('#sidebar').classList.toggle('mobile-open'); return; }
+  if(target.id==='er-sidebar-scrim'){ erSetMobileDrawerOpen(false); return; }
+  if(target.id==='mobile-menu'){
+    const sidebar=$('#sidebar');
+    erSetMobileDrawerOpen(!(sidebar && sidebar.classList.contains('mobile-open')));
+    return;
+  }
   if(target.id==='lang-btn' || target.hasAttribute('data-er-language-toggle')) {
     selectedLanguage=selectedLanguage==='en'?'hi':'en';
     try { localStorage.setItem('earnroute_language',selectedLanguage); } catch (_) {}
@@ -1039,7 +1073,12 @@ document.addEventListener('click', async event => {
   }
   if(target.id==='notifications-btn'){showNotifications();return;}
   if(target.dataset.closeNotifications!==undefined){$('#notification-panel')?.remove();return;}
-  if(target.dataset.screen){event.preventDefault();setActiveScreen(target.dataset.screen);return;}
+  if(target.dataset.screen){
+    event.preventDefault();
+    if(document.documentElement.classList.contains('er-drawer-open')) erSetMobileDrawerOpen(false);
+    setActiveScreen(target.dataset.screen);
+    return;
+  }
   if(target.dataset.supportOpen){activeSupportTicketId=Number(target.dataset.supportOpen);setActiveScreen('support');return;}
   if(target.dataset.adminUserStatus) {
     const targetId = Number(target.dataset.adminUserStatus);
