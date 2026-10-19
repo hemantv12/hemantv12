@@ -101,9 +101,13 @@ def test_saved_shifts_discovery_sorting_and_india_safety_are_wired():
     assert '@app.delete("/api/jobs/{job_id}/save")' in main
     assert "uq_saved_shift_worker_job" in main
     assert "case 'saved-shifts': html = await renderSavedShifts()" in app_js
-    assert "renderSavedShifts = async function()" in nearby_js
+    assert "async function renderSavedShifts()" in nearby_js
+    assert "renderSavedShifts = async function()" not in nearby_js
     assert "data-er-save-shift" in nearby_js
     assert "Highest estimated take-home" in nearby_js
+    assert "Best estimated take-home / hour" in nearby_js
+    assert "mode === 'hourly-rate'" in nearby_js
+    assert "er-hourly-estimate" in nearby_js
     assert "Most open spots" in nearby_js
     assert "href=\"tel:112\"" in nearby_js
     assert "href=\"tel:1930\"" in nearby_js
@@ -132,3 +136,15 @@ def test_saved_shift_and_safety_report_frontend_are_wired():
     assert "reportConcern: 'शिकायत दर्ज करें'" in app_js
     assert ".er-save-shift" in nearby_css
     assert ".er-safety-panel" in nearby_css
+
+
+def test_safety_report_uses_existing_private_ticket_workflow_and_cache_bust():
+    nearby_js = (ROOT / "app/static/nearby.js").read_text()
+    app_js = (ROOT / "app/static/app.js").read_text()
+    sw_js = (ROOT / "app/static/sw.js").read_text()
+    assert "data-er-report-job" in nearby_js
+    assert "category:'safety'" in nearby_js
+    assert "api('/api/support/tickets'" in nearby_js
+    assert "reportConcern: 'Report a concern'" in app_js
+    assert "safetyReportSent: 'आपकी सुरक्षा संबंधी शिकायत" in app_js
+    assert "earnroute-shell-v7" in sw_js
