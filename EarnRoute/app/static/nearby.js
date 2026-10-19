@@ -137,10 +137,11 @@ function erTakeHomePerHour(job) {
   const hours = Number(job.duration_hours || 0);
   return Number.isFinite(net) && Number.isFinite(hours) && hours > 0 ? net / hours : 0;
 }
-function erSortJobs(jobs, mode) {
+function erSortJobs(jobs, mode, commuteRate) {
+  const effectiveCommuteRate = erGetCommuteCostPerKm(commuteRate);
   const items = (jobs || []).slice();
   if (mode === 'after-commute') items.sort(function(a,b) {
-    const afterA = erAfterCommuteEstimate(a), afterB = erAfterCommuteEstimate(b);
+    const afterA = erAfterCommuteEstimate(a, effectiveCommuteRate), afterB = erAfterCommuteEstimate(b, effectiveCommuteRate);
     if (afterA === null && afterB === null) return Number(a.distance_km ?? Infinity) - Number(b.distance_km ?? Infinity);
     if (afterA === null) return 1;
     if (afterB === null) return -1;
@@ -168,10 +169,10 @@ function erSortJobs(jobs, mode) {
   return items;
 }
 
-function erNearbyCard(job) {
+function erNearbyCard(job, commuteRate) {
   const gross = Number(job.gross_shift_pay_estimate !== undefined ? job.gross_shift_pay_estimate : job.pay_amount || 0);
   const net = Number(job.estimated_net_pay !== undefined ? job.estimated_net_pay : gross - Number(job.estimated_platform_fee || 0));
-  const commuteRate = erGetCommuteCostPerKm();
+  commuteRate = erGetCommuteCostPerKm(commuteRate);
   const commuteCost = erEstimatedCommuteCost(job, commuteRate);
   const afterCommute = commuteCost === null ? null : net - commuteCost;
   const commuteSummary = afterCommute === null ? '' :
@@ -640,7 +641,7 @@ renderDiscover = async function(filters) {
   catch (error) {
     return pageHeading('NEARBY WORK','Jobs around you.','Only real nearby shifts are listed here.','') + '<div class="er-nearby-empty"><h3>Could not load nearby jobs</h3><p>' + escapeHtml(friendlyError(error)) + '</p><button class="btn btn-outline" data-er-enable-location>Try again</button></div>';
   }
-  const visibleJobs = erSortJobs(result.items || [], sortBy);
+  const visibleJobs = erSortJobs(result.items || [], sortBy, commuteRate);
   const sortDescription = {
     closest:t('sortClosest').toLowerCase(), 'take-home':t('sortTakeHome').toLowerCase(),
     'hourly-rate':t('sortHourlyRate').toLowerCase(), 'after-commute':t('sortAfterCommute').toLowerCase(),
@@ -654,7 +655,7 @@ renderDiscover = async function(filters) {
     erSortSelectMarkup(sortBy, commuteRate) + '<button class="btn btn-primary" type="submit">' + escapeHtml(t('search')) + '</button><button class="btn btn-outline" type="reset">' + escapeHtml(t('clear')) + '</button></form>' +
     '<div class="er-results-note"><b>' + (result.total || 0) + '</b> shift' + (result.total === 1 ? '' : 's') + ' within ' + radius + ' km · ' + sortDescription + '</div>' +
     erLiveMapSectionMarkup({id:'er-nearby-map',kind:'nearby',location:location,radius:radius,jobs:visibleJobs}) +
-    (visibleJobs.length ? '<div class="er-job-grid">' + visibleJobs.map(erNearbyCard).join('') + '</div>' :
+    (visibleJobs.length ? '<div class="er-job-grid">' + visibleJobs.map(function(job) { return erNearbyCard(job, commuteRate); }).join('') + '</div>' :
     '<div class="er-nearby-empty"><div class="er-empty-icon">⌖</div><h3>No shifts in this radius yet</h3><p>Only jobs with a real workplace pin are shown. Expand the distance or try another category.</p>' + erRadiusNextAction(radius, 'Expand to ') + '</div>');
 };
 renderPostJob = function() {
