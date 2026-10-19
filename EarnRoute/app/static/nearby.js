@@ -71,6 +71,84 @@ function erGetLocation() {
     return value;
   } catch (_) { return null; }
 }
+function erSetManualAreaCandidate(latitude, longitude) {
+  const lat = Number(latitude), lon = Number(longitude);
+  if (!Number.isFinite(lat) || lat < -90 || lat > 90 || !Number.isFinite(lon) || lon < -180 || lon > 180) {
+    showToast(t('manualAreaInvalid'), 'error');
+    return;
+  }
+  const select = document.getElementById('er-manual-city');
+  const area = ER_MANUAL_AREAS.find(function(item) { return item.id === (select && select.value); });
+  const candidate = {
+    latitude:lat, longitude:lon,
+    label:area ? area.name : t('manualAreaCustomPoint'),
+    selectedAt:Date.now()
+  };
+  sessionStorage.setItem('earnroute_manual_location_candidate', JSON.stringify(candidate));
+  const status = document.getElementById('er-manual-location-status');
+  const useButton = document.querySelector('[data-er-use-manual-location]');
+  if (status) status.textContent = t('manualAreaCandidateReady') + ' ' + lat.toFixed(5) + ', ' + lon.toFixed(5) + '.';
+  if (useButton) useButton.disabled = false;
+  const mapEl = document.getElementById('er-manual-origin-map');
+  if (mapEl && mapEl._erMapInstance) {
+    const L = window.L, map = mapEl._erMapInstance;
+    if (mapEl._erOriginMarker) mapEl._erOriginMarker.setLatLng([lat,lon]);
+    else mapEl._erOriginMarker = L.circleMarker([lat,lon], {radius:9,color:'#ffffff',weight:3,fillColor:'#244b32',fillOpacity:1}).addTo(map);
+    map.setView([lat,lon], Math.max(13,map.getZoom()));
+    erMapStatus(mapEl, t('manualAreaCandidateReady'));
+  }
+}
+function erCenterManualArea() {
+  const select = document.getElementById('er-manual-city');
+  const area = ER_MANUAL_AREAS.find(function(item) { return item.id === (select && select.value); });
+  if (!area) {
+    showToast(t('manualAreaChooseCity'), 'error');
+    return;
+  }
+  sessionStorage.removeItem('earnroute_manual_location_candidate');
+  const useButton = document.querySelector('[data-er-use-manual-location]');
+  if (useButton) useButton.disabled = true;
+  const status = document.getElementById('er-manual-location-status');
+  if (status) status.textContent = t('manualAreaTapMap');
+  const wrap = document.getElementById('er-manual-map-wrap');
+  const mapEl = document.getElementById('er-manual-origin-map');
+  if (!wrap || !mapEl) return;
+  wrap.hidden = false;
+  mapEl.dataset.erMapLat = String(area.latitude);
+  mapEl.dataset.erMapLon = String(area.longitude);
+  mapEl.dataset.erMapHasLocation = '0';
+  mapEl.dataset.erMapInitialZoom = '12';
+  if (mapEl._erMapInstance) {
+    if (mapEl._erOriginMarker) {
+      mapEl._erMapInstance.removeLayer(mapEl._erOriginMarker);
+      mapEl._erOriginMarker = null;
+    }
+    mapEl._erMapInstance.setView([area.latitude,area.longitude],12);
+    window.requestAnimationFrame(function(){ if (mapEl._erMapInstance) mapEl._erMapInstance.invalidateSize(); });
+    erMapStatus(mapEl, t('manualAreaTapMap'));
+  } else {
+    erEnhanceLiveMaps();
+  }
+}
+function erCommitManualAreaCandidate() {
+  let candidate;
+  try { candidate = JSON.parse(sessionStorage.getItem('earnroute_manual_location_candidate') || 'null'); } catch (_) { candidate = null; }
+  if (!candidate || !Number.isFinite(Number(candidate.latitude)) || !Number.isFinite(Number(candidate.longitude))) {
+    showToast(t('manualAreaTapMap'), 'error');
+    return false;
+  }
+  const selected = {
+    latitude:Number(candidate.latitude),
+    longitude:Number(candidate.longitude),
+    accuracy_m:null,
+    source:'manual',
+    label:String(candidate.label || t('manualAreaCustomPoint')),
+    expiresAt:Date.now() + 30 * 60 * 1000
+  };
+  sessionStorage.setItem('earnroute_device_location', JSON.stringify(selected));
+  sessionStorage.removeItem('earnroute_manual_location_candidate');
+  return true;
+}
 function erUseLocation() {
   return new Promise(function(resolve, reject) {
     if (!navigator.geolocation) return reject(new Error('This device cannot share its location. Open EarnRoute in a location-enabled browser.'));
@@ -90,6 +168,15 @@ function erUseLocation() {
       reject(new Error(messages[error.code] || 'Could not get your location. Please try again.'));
     }, {enableHighAccuracy:true, timeout:15000, maximumAge:20000});
   });
+}
+function erMapTileUrl() {
+  const meta = document.querySelector('meta[name="earnroute-map-tile-url"]');
+  const configured = String((meta && meta.content) || '').trim();
+  const candidate = configured || 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+  if (!/^https:\/\//i.test(candidate) || !['{z}','{x}','{y}'].every(function(token) { return candidate.includes(token); })) {
+    return 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+  }
+  return candidate;
 }
 function erRadiusButtons(selected) {
   const expanded = sessionStorage.getItem('earnroute_more_radius_open') === '1' || selected > 5;
