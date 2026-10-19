@@ -2,7 +2,7 @@
 
 EarnRoute is an India-first, mobile-first hyperlocal earning marketplace for finding genuine paid shifts within a selectable 1 km, 3 km or 5 km radius, plus expanded 8 km, 10 km and 15 km options. This repository is a runnable launch candidate: it includes a responsive public website, worker/business/admin workspaces, API, PostgreSQL-compatible schema, migration, tests, and deployment assets. It must **not** be represented as a fully production-verified marketplace until the remaining integrations and operating procedures in this README are completed.
 
-## Version 1.6.0 — admin account management, system health and Android auth fit
+## Version 1.6.1 — mobile overlap fixes and keyboard-aware forms
 
 - Account privacy controls: signed-in users can export a JSON copy of their own profile, work records, notifications, support tickets/messages, reviews and recorded policy acceptances. Password hashes and session tokens are excluded; each activity section is capped at 500 records, support-ticket exports are capped at 100 tickets, and truncation is explicitly reported.
 - New sign-ups record the exact draft Terms and Privacy notice revision IDs accepted in the audit history. Existing accounts are not retroactively assigned a revision they did not accept.
@@ -240,3 +240,11 @@ The workflow uses the existing Neon Storage endpoint in `ap-southeast-1`; creden
 
 - Product, competitor, India privacy, emergency-resource, OpenStreetMap and Android sources: docs/RESEARCH_NOTES.md.
 - Owner-facing pre-launch blockers, current implementation status and required actions: docs/LAUNCH_READINESS.md.
+
+
+### Mobile stability update
+
+- Native Android passes the current IME (software keyboard) inset into the bundled web UI, so password, sign-up and other focused fields remain reachable even on older System WebView releases that do not resize `visualViewport` for the keyboard.
+- System-bar/cutout insets are applied once at the native WebView boundary and consumed before reaching CSS, preventing duplicate safe-area padding; IME insets remain available to WebView.
+- Focused fields are re-checked during keyboard animation. Auth sheets and general modal forms are capped to the visible viewport, and the fixed mobile navigation/footer hides while the keyboard is open to avoid obscuring form fields.
+- These changes are regression-tested in source and Android packaging tests. Actual visual verification still requires testing on representative physical Android devices.
