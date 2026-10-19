@@ -12,6 +12,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.text.InputType;
 import android.view.View;
+import android.widget.FrameLayout;
 import android.view.Window;
 import android.view.WindowManager;
 import android.webkit.GeolocationPermissions;
@@ -60,6 +61,7 @@ public final class MainActivity extends Activity {
     private static final String DEFAULT_API_BASE_URL = "https://earnroute-nearby-api.onrender.com";
 
     private WebView webView;
+    private FrameLayout safeContentRoot;
     private GeolocationPermissions.Callback pendingGeoCallback;
     private String pendingGeoOrigin;
     private volatile String pendingSaveContent;
@@ -99,7 +101,6 @@ public final class MainActivity extends Activity {
                 .build();
 
         webView.addJavascriptInterface(new EarnRouteBridge(), "EarnRouteNative");
-        applyInsets(webView);
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
@@ -152,8 +153,7 @@ public final class MainActivity extends Activity {
                 return true;
             }
         });
-        setContentView(webView);
-        ViewCompat.requestApplyInsets(webView);
+        setSafeContentView(webView);
         webView.loadUrl(START_URL);
     }
 
@@ -191,7 +191,6 @@ public final class MainActivity extends Activity {
         view.setBackgroundColor(Color.rgb(18, 45, 33));
         view.setVerticalScrollBarEnabled(false);
         view.setHorizontalScrollBarEnabled(false);
-        applyInsets(view);
         view.addJavascriptInterface(new EarnRouteBridge(), "EarnRouteNative");
         WebViewAssetLoader loader = new WebViewAssetLoader.Builder()
                 .setDomain(ASSET_HOST)
@@ -258,49 +257,72 @@ public final class MainActivity extends Activity {
         }
     }
 
-    private void applyInsets(WebView view) {
-        ViewCompat.setOnApplyWindowInsetsListener(view, (target, windowInsets) -> {
-            int systemBarsAndCutout = WindowInsetsCompat.Type.systemBars()
-                    | WindowInsetsCompat.Type.displayCutout();
-            int navigationBarType = WindowInsetsCompat.Type.navigationBars();
-            Insets bars = windowInsets.getInsets(systemBarsAndCutout);
-            Insets visibleNavigationBars = windowInsets.getInsets(navigationBarType);
-            Insets stableNavigationBars = windowInsets.getInsetsIgnoringVisibility(navigationBarType);
-            Insets tappableElements = windowInsets.getInsets(WindowInsetsCompat.Type.tappableElement());
-            Insets ime = windowInsets.getInsets(WindowInsetsCompat.Type.ime());
-            boolean imeVisible = windowInsets.isVisible(WindowInsetsCompat.Type.ime());
-            float density = getResources().getDisplayMetrics().density;
+    /**
+     * Keep the WebView's actual layout viewport inside Android's status/navigation bars.
+     *
+     * Fixed-position HTML controls are attached to the WebView layout viewport, not to
+     * the WebView's own padding. Padding the WebView itself therefore leaves fixed headers,
+     * drawers and bottom navigation free to render underneath system bars. Pad a native
+     * parent instead, then pass zeroed system-bar insets to the WebView (but preserve IME
+     * insets so Android keyboard/visual-viewport behavior keeps working).
+     */
+    private void setSafeContentView(WebView view) {
+        if (safeContentRoot == null) {
+            safeContentRoot = new FrameLayout(this);
+            safeContentRoot.setBackgroundColor(Color.rgb(18, 45, 33));
+            ViewCompat.setOnApplyWindowInsetsListener(safeContentRoot, (container, windowInsets) -> {
+                int systemBarsAndCutout = WindowInsetsCompat.Type.systemBars()
+                        | WindowInsetsCompat.Type.displayCutout();
+                int navigationBarType = WindowInsetsCompat.Type.navigationBars();
+                Insets bars = windowInsets.getInsets(systemBarsAndCutout);
+                Insets visibleNavigationBars = windowInsets.getInsets(navigationBarType);
+                Insets stableNavigationBars = windowInsets.getInsetsIgnoringVisibility(navigationBarType);
+                Insets tappableElements = windowInsets.getInsets(WindowInsetsCompat.Type.tappableElement());
+                Insets ime = windowInsets.getInsets(WindowInsetsCompat.Type.ime());
+                boolean imeVisible = windowInsets.isVisible(WindowInsetsCompat.Type.ime());
+                float density = getResources().getDisplayMetrics().density;
 
-            // Use the largest reliable bottom inset. On gesture navigation the visible bar
-            // can report zero during transient visibility; stable/tappable insets still reserve
-            // room for 3-button navigation and the gesture handle.
-            int bottomInsetPx = Math.max(
-                    Math.max(bars.bottom, visibleNavigationBars.bottom),
-                    Math.max(stableNavigationBars.bottom, tappableElements.bottom));
-            systemBottomInsetDp = Math.max(0, Math.round(bottomInsetPx / density));
+                // Some gesture-navigation modes report a transient zero for the visible bar.
+                // Stable/tappable insets cover both gesture and classic 3-button navigation.
+                int bottomInsetPx = Math.max(
+                        Math.max(bars.bottom, visibleNavigationBars.bottom),
+                        Math.max(stableNavigationBars.bottom, tappableElements.bottom));
+                systemBottomInsetDp = Math.max(0, Math.round(bottomInsetPx / density));
+                systemImeInsetDp = imeVisible
+                        ? Math.max(0, Math.round(ime.bottom / density) - systemBottomInsetDp)
+                        : 0;
 
-            // Do not pad the WebView's bottom and also offset CSS fixed elements: that double
-            // counts the navigation bar. Instead, the web viewport extends edge-to-edge and CSS
-            // places its fixed navigation above the exact inset. Leave IME insets unconsumed so
-            // modern WebView versions can resize the visual viewport when the keyboard opens.
-            systemImeInsetDp = imeVisible
-                    ? Math.max(0, Math.round(ime.bottom / density) - systemBottomInsetDp)
-                    : 0;
-            target.setPadding(bars.left, bars.top, bars.right, 0);
-            applyCssSystemBottomInset(target);
-            return new WindowInsetsCompat.Builder(windowInsets)
-                    .setInsets(systemBarsAndCutout, Insets.NONE)
-                    .build();
-        });
+                // When the keyboard is showing, it already owns the bottom edge. Do not add
+                // an additional navigation-bar gap on top of the IME. WebView still receives
+                // the IME inset below.
+                int contentBottomInset = imeVisible ? 0 : bottomInsetPx;
+                container.setPadding(bars.left, bars.top, bars.right, contentBottomInset);
+
+                // The child viewport is already safe, so CSS must not apply a second system-bar offset.
+                applyCssSystemBottomInset(webView);
+                return new WindowInsetsCompat.Builder(windowInsets)
+                        .setInsets(systemBarsAndCutout, Insets.NONE)
+                        .build();
+            });
+        }
+
+        // A renderer restart may replace the WebView; keep exactly one child in the inset-safe root.
+        safeContentRoot.removeAllViews();
+        safeContentRoot.addView(view, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT));
+        setContentView(safeContentRoot);
+        ViewCompat.requestApplyInsets(safeContentRoot);
     }
 
     private void applyCssSystemBottomInset(View target) {
         if (!(target instanceof WebView)) return;
         WebView targetWebView = (WebView) target;
-        final int bottomInset = Math.max(0, systemBottomInsetDp);
+        // The parent native container already places the WebView between the system bars;
+        // expose 0 as the remaining CSS inset to prevent a second offset in fixed controls.
         final int imeInset = Math.max(0, systemImeInsetDp);
         targetWebView.evaluateJavascript("(function(){if(document.documentElement.classList.contains('er-native-app')){" +
-                "document.documentElement.style.setProperty('--er-system-bottom-inset','" + bottomInset + "px');" +
+                "document.documentElement.style.setProperty('--er-system-bottom-inset','0px');" +
                 "document.documentElement.style.setProperty('--er-system-ime-inset','" + imeInset + "px');" +
                 "if(typeof window.erSyncKeyboardViewport==='function'){window.erSyncKeyboardViewport();}" +
                 "}})();", null);
