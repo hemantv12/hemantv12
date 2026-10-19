@@ -1707,3 +1707,88 @@ html.er-native-app.er-keyboard-open #auth-modal .password-visibility-toggle {
 @media(prefers-reduced-motion:reduce) {
   .password-strength-track span { transition:none !important; }
 }
+
+
+/* Network recovery and session-only shift draft feedback. */
+.er-network-banner {
+  position:fixed;
+  top:12px;
+  left:12px;
+  right:12px;
+  z-index:1000;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:11px 12px;
+  border:1px solid #e5c5a0;
+  border-radius:14px;
+  background:#fff8e9;
+  color:#6c4e25;
+  box-shadow:0 12px 34px rgba(17,44,26,.16);
+  font-size:11px;
+  line-height:1.45;
+}
+.er-network-banner[hidden] { display:none !important; }
+.er-network-banner-message { flex:1 1 auto; min-width:0; overflow-wrap:anywhere; font-weight:750; }
+.er-network-retry,.er-network-dismiss {
+  flex:0 0 auto;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-height:36px;
+  padding:7px 10px;
+  border:1px solid #dfc59f;
+  border-radius:9px;
+  background:#fff;
+  color:#67491f;
+  font-size:10px;
+  font-weight:850;
+}
+.er-network-retry:disabled { opacity:.6; }
+.er-network-dismiss { width:34px; padding:0; font-size:20px; }
+.er-network-banner[data-state="online"] { border-color:#c5dcb2; background:#f3f9e9; color:#31582e; }
+.er-network-banner[data-state="online"] .er-network-retry,
+.er-network-banner[data-state="online"] .er-network-dismiss { border-color:#cfdfbd; color:#31582e; }
+html.er-native-app .er-network-banner {
+  top:calc(var(--er-mobile-header-height,62px) + 8px);
+  left:10px;
+  right:10px;
+  z-index:490;
+}
+html.er-native-app.er-keyboard-open .er-network-banner { top:8px; }
+.er-job-draft-notice {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  flex-wrap:wrap;
+  gap:9px;
+  margin:10px 0 17px;
+  padding:11px 12px;
+  border:1px solid #dce8cf;
+  border-radius:12px;
+  background:#f8fbf1;
+  color:#5b6c4a;
+  font-size:10px;
+  line-height:1.55;
+}
+.er-job-draft-notice span { flex:1 1 200px; min-width:0; }
+.er-job-draft-clear {
+  min-height:34px;
+  padding:7px 10px;
+  border:1px solid #dce6d2;
+  border-radius:9px;
+  background:#fff;
+  color:#38543c;
+  font-size:10px;
+  font-weight:850;
+}
+html.er-native-app .er-job-draft-notice { padding:10px; border-radius:12px; }
+html.er-native-app .er-job-draft-clear { min-height:38px; }
+@media(max-width:390px) {
+  .er-network-banner { gap:6px; padding:9px; }
+  .er-network-banner-message { font-size:10px; }
+  .er-network-retry { padding:7px 8px; }
+}
+@media(prefers-reduced-motion:reduce) {
+  .er-network-banner,.er-job-draft-notice { scroll-behavior:auto; transition:none !important; }
+}
