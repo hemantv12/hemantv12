@@ -64,7 +64,7 @@ Collabzy can be tested before the owner has a custom domain or Razorpay account.
 
 - **Persistent database:** create a separate Collabzy PostgreSQL database and configure DATABASE_URL in Render. See the setup guide. This has a monthly charge. Until it is configured and tested on the live service, records may be lost on restart or redeploy.
 - **Instagram:** configure META_APP_ID, META_APP_SECRET and META_REDIRECT_URI in Render and complete the Meta app setup in docs/INSTAGRAM_SETUP.md. Redirect URI must match exactly. A Creator/Business professional test account and correct Meta permissions are required; app review may be needed for outside users.
-- **Payments:** the planned ₹299/year membership is not connected. No checkout or payment collection is active.
+- **Payments:** the ₹299/year one-time Creator Pro checkout, server signature verification, persistent subscription activation, and signed Razorpay webhook handlers are implemented. Real payments remain disabled until the merchant owner configures Razorpay Test/Live API keys and the matching webhook in Render. Follow [`docs/PAYMENTS_SETUP.md`](docs/PAYMENTS_SETUP.md); do not claim launch-ready status until the full test and launch checklist passes.
 - **Account operations:** email verification and a real mail delivery provider for password recovery are not configured.
 - **Release/security:** keep secrets in the host secret store; never commit credentials. Keep JWT_SECRET stable while encrypted Instagram tokens exist. Configure backups, account recovery, support ownership, monitoring and physical-device QA before opening registration broadly.
 
