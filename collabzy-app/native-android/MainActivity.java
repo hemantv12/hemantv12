@@ -87,26 +87,36 @@ public final class MainActivity extends Activity {
         getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
         storage = getSharedPreferences("collabzy_native", MODE_PRIVATE);
         token = storage.getString("token", "");
-        if (token.isEmpty()) {
-            if (isInstagramCallback(getIntent())) {
-                showWelcome();
-                toast("Sign in to Collabzy, then connect Instagram from the app.");
-            } else showWelcome();
-        } else {
-            api("GET", "/api/me", null, (data, error) -> {
-                if (error == null && data != null) {
-                    user = data.optJSONObject("user");
-                    if (user == null) user = data;
-                    screen = isInstagramCallback(getIntent()) ? "instagram" : "home";
-                    showShell(screen);
-                    handleInstagramCallback(getIntent());
-                } else {
-                    token = "";
-                    storage.edit().remove("token").apply();
+        try {
+            if (token.isEmpty()) {
+                if (isInstagramCallback(getIntent())) {
                     showWelcome();
-                }
-            });
-            showLoadingScreen("Opening your workspace…");
+                    toast("Sign in to Collabzy, then connect Instagram from the app.");
+                } else showWelcome();
+            } else {
+                api("GET", "/api/me", null, (data, error) -> {
+                    try {
+                        if (error == null && data != null) {
+                            user = data.optJSONObject("user");
+                            if (user == null) user = data;
+                            screen = isInstagramCallback(getIntent()) ? "instagram" : "home";
+                            showShell(screen);
+                            handleInstagramCallback(getIntent());
+                        } else {
+                            token = "";
+                            storage.edit().remove("token").apply();
+                            showWelcome();
+                        }
+                    } catch (Throwable startupError) {
+                        android.util.Log.e("CollabzyStartup", "Could not render the signed-in screen.", startupError);
+                        showStartupFailure();
+                    }
+                });
+                showLoadingScreen("Opening your workspace…");
+            }
+        } catch (Throwable startupError) {
+            android.util.Log.e("CollabzyStartup", "Could not render the initial screen.", startupError);
+            showStartupFailure();
         }
     }
 
@@ -297,6 +307,32 @@ public final class MainActivity extends Activity {
         box.addView(text(message, 14, MUTED, false));
         frame.addView(box, new FrameLayout.LayoutParams(-2, -2, Gravity.CENTER));
         setContentView(frame);
+    }
+
+    private void showStartupFailure() {
+        try {
+            FrameLayout failureFrame = new FrameLayout(this);
+            failureFrame.setBackgroundColor(BG);
+            LinearLayout page = column();
+            page.setGravity(Gravity.CENTER);
+            page.setPadding(dp(24), dp(24), dp(24), dp(24));
+            TextView logo = text("collabzy", 28, WHITE, true);
+            logo.setGravity(Gravity.CENTER);
+            page.addView(logo, new LinearLayout.LayoutParams(-1, -2));
+            gap(page, 18);
+            TextView title = text("We couldn't open Collabzy.", 22, WHITE, true);
+            title.setGravity(Gravity.CENTER);
+            page.addView(title, new LinearLayout.LayoutParams(-1, -2));
+            gap(page, 10);
+            TextView detail = text("A startup error occurred. Please close and reopen the app. If it happens again, share your Android version so we can diagnose it.", 14, MUTED, false);
+            detail.setGravity(Gravity.CENTER);
+            detail.setLineSpacing(dp(4), 1.0f);
+            page.addView(detail, new LinearLayout.LayoutParams(-1, -2));
+            failureFrame.addView(page, new FrameLayout.LayoutParams(-1, -1));
+            setContentView(failureFrame);
+        } catch (Throwable fallbackError) {
+            android.util.Log.e("CollabzyStartup", "Unable to render the startup error screen.", fallbackError);
+        }
     }
 
     private void showWelcome() {

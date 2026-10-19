@@ -98,6 +98,20 @@ jobs:
             <foreground android:drawable="@drawable/collabzy_launcher_foreground" />
           </adaptive-icon>
           EOF
+      - name: Configure Android startup instrumentation test
+        run: |
+          sed -i '/defaultConfig {/a\\        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"' android/app/build.gradle
+          cat >> android/app/build.gradle <<'EOF'
+
+          dependencies {
+              androidTestImplementation "androidx.test:runner:1.6.2"
+              androidTestImplementation "androidx.test:core:1.6.1"
+              androidTestImplementation "androidx.test.ext:junit:1.2.1"
+              androidTestImplementation "junit:junit:4.13.2"
+          }
+          EOF
+          mkdir -p android/app/src/androidTest/java/com/collabzy/creator
+          cp native-android-tests/StartupScreenTest.java android/app/src/androidTest/java/com/collabzy/creator/StartupScreenTest.java
       - name: Build debug APK
         run: cd android && chmod +x gradlew && ./gradlew assembleDebug --no-daemon
       - name: Verify native launcher in APK
@@ -115,6 +129,15 @@ jobs:
           done < <(unzip -Z1 "$APK" | grep -E '^classes[0-9]*[.]dex')
           test "$found" = true
           echo "Verified native MainActivity is compiled into the APK."
+      - name: Launch Collabzy on Android 8.1 emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 27
+          target: default
+          arch: x86
+          profile: pixel_2
+          disable-animations: true
+          script: cd collabzy-app/android && ./gradlew connectedDebugAndroidTest --no-daemon
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
