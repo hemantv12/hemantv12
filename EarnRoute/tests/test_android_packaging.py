@@ -140,7 +140,7 @@ def test_saved_shift_and_safety_report_frontend_are_wired():
     assert "data-er-report-job" in nearby_js
     assert "category:'safety'" in nearby_js
     assert "message:'Published shift ID: ' + jobId + '\\nShift title: '" in nearby_js
-    assert "earnroute-shell-v13" in (ROOT / "app/static/sw.js").read_text()
+    assert "earnroute-shell-v14" in (ROOT / "app/static/sw.js").read_text()
     assert "t('sortHourlyRate')" in nearby_js
     assert "api('/api/support/tickets'" in nearby_js
     assert "reportConcern: 'Report a concern'" in app_js
@@ -158,7 +158,7 @@ def test_safety_report_uses_existing_private_ticket_workflow_and_cache_bust():
     assert "api('/api/support/tickets'" in nearby_js
     assert "reportConcern: 'Report a concern'" in app_js
     assert "safetyReportSent: 'आपकी सुरक्षा संबंधी शिकायत" in app_js
-    assert "earnroute-shell-v13" in sw_js
+    assert "earnroute-shell-v14" in sw_js
     assert "function erMobileNavLabel(screen, fallback)" in nearby_js
     assert "'saved-shifts':'सेव्ड'" in nearby_js
     assert "escapeHtml(erMobileNavLabel(item[0], item[2]))" in nearby_js
@@ -234,7 +234,7 @@ def test_android_generates_versioned_buildconfig_for_map_user_agent():
     gradle = (ANDROID / "app/build.gradle").read_text()
     activity = (ANDROID / "app/src/main/java/in/earnroute/app/MainActivity.java").read_text()
     assert "buildFeatures {\n        buildConfig true\n    }" in gradle
-    assert "versionName '1.6.3'" in gradle
+    assert "versionName '1.6.4'" in gradle
     assert 'EarnRouteAndroid/" + BuildConfig.VERSION_NAME' in activity
 
 
@@ -257,7 +257,7 @@ def test_account_export_and_privacy_controls_are_wired():
     assert "saveTextFile(String fileName, String mimeType, String content)" in activity
     assert "Intent.ACTION_CREATE_DOCUMENT" in activity
     assert "SAVE_TEXT_FILE_REQUEST" in activity
-    assert "earnroute-shell-v13" in sw
+    assert "earnroute-shell-v14" in sw
 
 
 def test_android_keyboard_resize_and_auth_sheet_visibility_are_wired():
