@@ -194,7 +194,7 @@ Use your production Postgres provider's SSL requirements and credentials. Do not
 
 The `android/` directory contains an Android Studio project bundling the responsive frontend with a secure `WebViewAssetLoader`, EarnRoute launcher icon, native **Connect server** setting and HTTPS `/api/health` verification before a server URL is saved. The Android page calls the deployed API over HTTPS; no fake server is hardcoded. See [`android/BUILD_APK.md`](android/BUILD_APK.md).
 
-The Android wrapper now requests native fine/coarse location permission for nearby search, defaults to the deployed HTTPS API, and bundles the updated local-earning interface. A cloud build workflow compiles and uploads the debug APK from checked-in source; see GitHub Actions for the latest result. The app compiles against Android API 36. The debug APK is for beta/device testing and is not a Play Store production-signed release.
+The Android wrapper requests native fine/coarse location permission for nearby search, uses the canonical/configurable map provider with an app-version User-Agent, defaults to the deployed HTTPS API, and bundles the updated local-earning interface. The delivery workflow builds and verifies an installable debug APK and an unsigned release AAB. The APK is for beta/device testing; the AAB is only prepared for signing and is not Play Store-ready. The signed-release workflow requires the owner-managed Android keystore secrets in GitHub Actions. The app compiles against Android API 36.
 
 ## Start EarnRoute on a Mac with one double-click
 
