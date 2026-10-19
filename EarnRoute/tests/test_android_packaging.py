@@ -75,7 +75,13 @@ def test_nearby_live_map_and_workplace_pin_picker_are_present():
     html = (ROOT / "app/static/index.html").read_text()
     nearby_js = (ROOT / "app/static/nearby.js").read_text()
     nearby_css = (ROOT / "app/static/nearby.css").read_text()
-    assert "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" in nearby_js
+    assert "https://tile.openstreetmap.org/{z}/{x}/{y}.png" in nearby_js
+    assert "function erMapTileUrl()" in nearby_js
+    assert "L.tileLayer(erMapTileUrl()" in nearby_js
+    assert "https://www.openstreetmap.org/fixthemap" in nearby_js
+    assert 'name="earnroute-map-tile-url"' in html
+    android = (ROOT / "android/app/src/main/java/in/earnroute/app/MainActivity.java").read_text()
+    assert 'EarnRouteAndroid/" + BuildConfig.VERSION_NAME' in android
     assert "OpenStreetMap contributors" in nearby_js
     assert "function erLiveMapSectionMarkup(options)" in nearby_js
     assert "erLiveMapSectionMarkup({id:'er-nearby-map'" in nearby_js
@@ -180,3 +186,26 @@ def test_commute_aware_estimate_is_explicit_and_optional():
     assert "sortAfterCommute: 'यात्रा खर्च के बाद सबसे ज़्यादा'" in app_js
     assert ".er-commute-estimate" in nearby_css
     assert ".connect-server-btn[hidden] { display:none !important; }" in nearby_css
+
+
+def test_manual_area_selection_and_map_provider_compliance_are_wired():
+    nearby_js = (ROOT / "app/static/nearby.js").read_text()
+    app_js = (ROOT / "app/static/app.js").read_text()
+    css = (ROOT / "app/static/nearby.css").read_text()
+    assert "const ER_MANUAL_AREAS = [" in nearby_js
+    assert "function erSetManualAreaCandidate(latitude, longitude)" in nearby_js
+    assert "function erCenterManualArea()" in nearby_js
+    assert "function erCommitManualCityCentre()" in nearby_js
+    assert "function erCommitManualAreaCandidate()" in nearby_js
+    assert "kind === 'origin'" in nearby_js
+    assert "data-er-manual-center" in nearby_js
+    assert "data-er-use-manual-location" in nearby_js
+    assert "data-er-use-city-center" in nearby_js
+    assert "!el.closest('details:not([open])')" in nearby_js
+    assert "manualAreaHeading: 'Can’t use GPS? Choose your area manually'" in app_js
+    assert "manualAreaHeading: 'GPS नहीं चल रहा? अपना क्षेत्र खुद चुनें'" in app_js
+    assert "manualAreaApproximateNotice:" in app_js
+    assert ".er-manual-area-picker" in css
+    assert ".er-manual-location-confirm" in css
+    assert "expiresAt:Date.now() + 30 * 60 * 1000" in nearby_js
+
