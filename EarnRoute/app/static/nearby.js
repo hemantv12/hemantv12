@@ -812,7 +812,7 @@ document.addEventListener('click', async function(event) {
         body:{
           subject:('Safety concern: shift #' + jobId + ' — ' + title).slice(0,140),
           category:'safety',
-          message:'Published shift ID: ' + jobId + '\\nShift title: ' + title + '\\nWorker report: ' + cleanReason
+          message:'Published shift ID: ' + jobId + '\nShift title: ' + title + '\nWorker report: ' + cleanReason
         }
       });
       showToast(t('safetyReportSent'));
