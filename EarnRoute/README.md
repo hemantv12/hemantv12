@@ -2,12 +2,19 @@
 
 EarnRoute is an India-first, mobile-first hyperlocal earning marketplace for finding genuine paid shifts within a selectable 1 km, 3 km or 5 km radius, plus expanded 8 km, 10 km and 15 km options. This repository is a runnable launch candidate: it includes a responsive public website, worker/business/admin workspaces, API, PostgreSQL-compatible schema, migration, tests, and deployment assets. It must **not** be represented as a fully production-verified marketplace until the remaining integrations and operating procedures in this README are completed.
 
-## Version 1.6.4 — Android safe-area, drawer and keyboard overlap fixes
+## Version 1.6.5 — native inset fix, safer auth and mobile recovery
 
 - Consolidated the Android auth sheet into one scroll owner so the backdrop and sign-in/sign-up form do not scroll against each other.
 - Accounted for both `visualViewport.offsetTop` and viewport height when positioning the active field above the software keyboard.
 - Requested `interactive-widget=resizes-content`, kept the Android IME inset fallback, and aligned mobile content padding with the fixed navigation height.
 - Bumped the service-worker shell cache and Android app version so existing installs can receive the new layout.
+- Explicit Android edge-to-edge configuration now uses stable navigation/tappable-element insets and applies top/side padding once; bottom content stays edge-to-edge while CSS positions the app tabs above the real system navigation area. Three-button navigation keeps a dark, readable system strip.
+- Added regression coverage for bottom navigation/system-bar separation, drawer z-order, password visibility/strength feedback, native Back handling, offline retry and session-only business form recovery.
+- Sign-in/sign-up now include a show/hide password control and a live strength meter. The meter is advisory and does not send/store the password or alter the server’s password policy.
+- Android Back now closes the keyboard, drawer, auth sheet or notification panel before exiting the app.
+- Connectivity banner reports detected offline state and provides a real API health retry; it does not mistake `navigator.onLine` alone for server availability.
+- Business shift posting restores an unfinished form from session storage on the same device/session. It never restores the publish toggle, never creates a server job automatically, and clears the local copy after a successful save.
+- Bumped the Android version and service-worker cache so updated layout and auth assets are not masked by old installed assets.
 - Anchored the fixed bottom tabs above Android’s measured navigation-bar inset and used the same inset for the content’s reserved scroll space, rather than relying on WebView `env(safe-area-inset-bottom)` alone.
 - Constrained the mobile drawer to start below the fixed app header and end above the system navigation area; removed duplicate static drawer branding/section heading, added a dimming scrim, and close-on-scrim/Escape/navigation actions.
 - Added regression checks for the Android drawer, bottom navigation, native insets and password-sheet keyboard scroll behavior.
