@@ -632,6 +632,85 @@ function showAdminSignIn(message = '') {
     $('#auth-error').hidden = false;
   }
 }
+function erCurrentVisibleViewportHeight() {
+  const vv = window.visualViewport;
+  const layoutHeight = Number(window.innerHeight || document.documentElement.clientHeight || 1);
+  const visualHeight = vv && Number(vv.height) > 0 ? Number(vv.height) : layoutHeight;
+  return Math.max(1, Math.round(Math.min(layoutHeight, visualHeight)));
+}
+let erLastNonKeyboardViewportHeight = erCurrentVisibleViewportHeight();
+
+function erIsEditableControl(target) {
+  return !!(target && target.matches &&
+    target.matches('input:not([type="button"]):not([type="submit"]):not([type="reset"]), textarea, select, [contenteditable="true"]'));
+}
+
+function erKeepFocusedControlVisible(target) {
+  if (!document.documentElement.classList.contains('er-native-app') || !erIsEditableControl(target)) return;
+  const vv = window.visualViewport;
+  const visibleHeight = erCurrentVisibleViewportHeight();
+  const visibleTop = Math.max(0, Math.round(vv ? vv.offsetTop : 0)) + 8;
+  const visibleBottom = visibleTop + visibleHeight - 18;
+  const rect = target.getBoundingClientRect();
+  if (rect.top >= visibleTop && rect.bottom <= visibleBottom) return;
+
+  // Prefer scrolling the authentication sheet itself, not the whole page behind it.
+  const sheet = target.closest('.auth-modal');
+  if (sheet) {
+    if (rect.bottom > visibleBottom) {
+      sheet.scrollTop += rect.bottom - visibleBottom + 16;
+    } else if (rect.top < visibleTop) {
+      sheet.scrollTop -= visibleTop - rect.top + 12;
+    }
+  } else {
+    target.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'auto' });
+  }
+}
+
+function erSyncKeyboardViewport() {
+  const root = document.documentElement;
+  if (!root.classList.contains('er-native-app')) return;
+
+  const vv = window.visualViewport;
+  const height = erCurrentVisibleViewportHeight();
+  const top = Math.max(0, Math.round(vv ? vv.offsetTop : 0));
+  root.style.setProperty('--er-visual-viewport-height', height + 'px');
+  root.style.setProperty('--er-visual-viewport-top', top + 'px');
+
+  const hasEditableFocus = erIsEditableControl(document.activeElement);
+  const keyboardOpen = hasEditableFocus && erLastNonKeyboardViewportHeight - height > 110;
+  root.classList.toggle('er-keyboard-open', keyboardOpen);
+
+  if (!hasEditableFocus || height > erLastNonKeyboardViewportHeight) {
+    erLastNonKeyboardViewportHeight = height;
+  }
+  if (hasEditableFocus) {
+    window.requestAnimationFrame(() => erKeepFocusedControlVisible(document.activeElement));
+  }
+}
+
+// Android resizes the visual viewport for the on-screen keyboard on supported WebView versions.
+// These listeners adapt the sheet to the actually visible area without stealing focus or hiding the keyboard.
+window.addEventListener('resize', erSyncKeyboardViewport, { passive: true });
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', erSyncKeyboardViewport, { passive: true });
+  window.visualViewport.addEventListener('scroll', erSyncKeyboardViewport, { passive: true });
+}
+document.addEventListener('focusin', event => {
+  if (!document.documentElement.classList.contains('er-native-app') || !erIsEditableControl(event.target)) return;
+  erSyncKeyboardViewport();
+  window.setTimeout(erSyncKeyboardViewport, 180);
+});
+document.addEventListener('focusout', () => {
+  window.setTimeout(erSyncKeyboardViewport, 120);
+});
+window.addEventListener('orientationchange', () => {
+  window.setTimeout(() => {
+    erLastNonKeyboardViewportHeight = erCurrentVisibleViewportHeight();
+    erSyncKeyboardViewport();
+  }, 250);
+});
+
 function openAuth(mode = 'login', role = 'worker') {
   if (isAdminPortal) mode = 'login';
   if (role) {
@@ -641,11 +720,21 @@ function openAuth(mode = 'login', role = 'worker') {
   setAuthMode(mode);
   $('#auth-modal').hidden = false;
   document.body.style.overflow = 'hidden';
-  window.setTimeout(() => $('#auth-email').focus(), 50);
+  const authSheet = $('#auth-modal .auth-modal');
+  if (authSheet) authSheet.scrollTop = 0;
+  erSyncKeyboardViewport();
+  // Do not auto-open the Android keyboard over the sign-up form. Desktop keeps quick email focus.
+  if (!document.documentElement.classList.contains('er-native-app') &&
+      window.matchMedia && window.matchMedia('(pointer: fine)').matches) {
+    window.setTimeout(() => $('#auth-email').focus(), 50);
+  }
 }
 function closeAuth() {
+  const active = document.activeElement;
+  if (active && $('#auth-modal').contains(active) && typeof active.blur === 'function') active.blur();
   $('#auth-modal').hidden = true;
   document.body.style.overflow = '';
+  document.documentElement.classList.remove('er-keyboard-open');
   $('#auth-error').hidden = true;
 }
 function setAuthMode(mode) {
