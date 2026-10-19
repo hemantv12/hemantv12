@@ -505,6 +505,20 @@ def test_published_job_requires_workplace_pin(client, register_business, create_
 
 
 
+def test_worker_can_submit_private_safety_report_for_a_suspicious_shift(client, register_worker):
+    _, headers = register_worker()
+    response = client.post("/api/support/tickets", headers=headers, json={
+        "subject": "Suspicious shift listing",
+        "category": "safety",
+        "message": "The listing asks me to pay a registration fee before confirming the shift.",
+    })
+    assert response.status_code == 201, response.text
+    ticket = response.json()["ticket"]
+    assert ticket["category"] == "safety"
+    assert ticket["status"] == "open"
+    assert "registration fee" in ticket["messages"][0]["message"].lower()
+
+
 def test_support_ticket_create_and_private_detail(client, register_worker):
     _, owner_headers = register_worker()
     _, other_headers = register_worker(email="other-worker@example.com")
