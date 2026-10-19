@@ -803,3 +803,157 @@ html.er-native-app .er-nearby-empty {
 .er-hourly-estimate { display:block; margin-top:4px; color:#617d3e!important; font-size:10px!important; font-weight:800; line-height:1.35; }
 .er-report-shift { display:inline-flex; align-items:center; margin-top:10px; color:#765b36; border-color:#eadcc5; background:#fffcf5; }
 .er-report-shift:hover { border-color:#d8b989; background:#fff7e9; }
+
+
+/* FINAL ANDROID HEADER FIT
+   Keep hidden controls hidden; make the compact native header predictable on narrow phones. */
+html.er-native-app .connect-server-btn[hidden] { display:none !important; }
+html.er-native-app .workspace-topbar {
+  box-sizing:border-box;
+  width:100%;
+  height:62px;
+  min-height:62px;
+  padding:0 12px;
+  gap:6px;
+  flex-wrap:nowrap;
+  align-items:center;
+  overflow:visible;
+}
+html.er-native-app .mobile-brand {
+  display:flex;
+  flex:1 1 0;
+  width:auto;
+  min-width:0;
+  max-width:none !important;
+  gap:6px;
+  overflow:hidden;
+}
+html.er-native-app .mobile-brand #mobile-menu {
+  flex:0 0 36px;
+  width:36px;
+  min-width:36px;
+  height:36px;
+  min-height:36px;
+  padding:0;
+  display:grid;
+  place-items:center;
+  font-size:17px;
+}
+html.er-native-app .mobile-brand .mini-mark {
+  display:grid;
+  place-items:center;
+  flex:0 0 30px;
+  width:30px;
+  min-width:30px;
+  height:30px;
+  min-height:30px;
+  border-radius:9px;
+}
+html.er-native-app .mobile-brand .mini-mark svg { width:23px; height:23px; }
+html.er-native-app .mobile-brand-title {
+  flex:1 1 auto;
+  min-width:0;
+  max-width:none;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  font-size:clamp(13px,3.6vw,15px);
+  line-height:1.1;
+  letter-spacing:-.4px;
+}
+html.er-native-app .topbar-actions {
+  display:flex;
+  flex:0 0 auto;
+  width:auto;
+  min-width:0;
+  margin:0 0 0 auto;
+  gap:5px;
+  flex-wrap:nowrap;
+  align-items:center;
+}
+html.er-native-app .topbar-actions > #lang-btn,
+html.er-native-app .topbar-actions > #notifications-btn,
+html.er-native-app .topbar-actions > #profile-btn,
+html.er-native-app .topbar-actions > .connect-server-btn:not([hidden]) {
+  box-sizing:border-box;
+  flex:0 0 32px;
+  width:32px;
+  min-width:32px;
+  max-width:32px;
+  height:34px;
+  min-height:34px;
+  max-height:34px;
+  padding:0;
+  margin:0;
+  border-radius:10px;
+}
+html.er-native-app .topbar-actions > .connect-server-btn:not([hidden]) {
+  display:inline-flex !important;
+  font-size:0 !important;
+  line-height:0;
+}
+html.er-native-app .topbar-actions > .connect-server-btn:not([hidden])::before {
+  content:"↔";
+  display:block;
+  font-size:18px;
+  line-height:1;
+}
+html.er-native-app .topbar-actions > #lang-btn {
+  display:grid;
+  place-items:center;
+  font-size:10px;
+  font-weight:900;
+}
+html.er-native-app .topbar-actions > #notifications-btn svg { display:block; width:17px; height:17px; }
+html.er-native-app .topbar-actions > #profile-btn { border:0; padding:0; min-width:30px; width:30px; flex-basis:30px; }
+html.er-native-app .topbar-actions > #profile-btn .avatar-small { width:30px; height:30px; min-width:30px; border-radius:10px; }
+html.er-native-app .topbar-actions > #profile-btn > span:nth-child(2),
+html.er-native-app .topbar-actions > #profile-btn > .user-caret { display:none !important; }
+html.er-native-app .er-mobile-nav {
+  bottom:0 !important;
+  padding:7px 7px calc(7px + env(safe-area-inset-bottom)) !important;
+}
+html.er-native-app .view-root {
+  min-width:0;
+  padding-left:14px;
+  padding-right:14px;
+  padding-bottom:calc(98px + env(safe-area-inset-bottom)) !important;
+}
+html.er-native-app .workspace-main,
+html.er-native-app .workspace,
+html.er-native-app #view-root { min-width:0; max-width:100%; }
+html.er-native-app .page-heading { align-items:flex-start; gap:10px; flex-wrap:wrap; }
+html.er-native-app .page-heading > div:first-child { min-width:0; flex:1 1 100%; }
+html.er-native-app .heading-actions { max-width:100%; }
+html.er-native-app .heading-actions .btn { min-width:0; max-width:100%; white-space:normal; }
+html.er-native-app .er-live-map-head,
+html.er-native-app .er-results-note,
+html.er-native-app .er-saved-summary,
+html.er-native-app .er-safety-panel { min-width:0; max-width:100%; }
+html.er-native-app .er-live-map { touch-action:pan-x pan-y; }
+html.er-native-app .er-mobile-nav button { min-width:0; overflow:hidden; }
+html.er-native-app .er-mobile-nav button small {
+  display:block;
+  max-width:100%;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  font-size:clamp(8px,2.4vw,10px);
+}
+@media(max-width:390px) {
+  html.er-native-app .workspace-topbar { padding-left:9px; padding-right:9px; gap:4px; }
+  html.er-native-app .mobile-brand { gap:4px; }
+  html.er-native-app .mobile-brand #mobile-menu { flex-basis:33px; width:33px; min-width:33px; }
+  html.er-native-app .mobile-brand .mini-mark { flex-basis:28px; width:28px; min-width:28px; height:28px; min-height:28px; }
+  html.er-native-app .topbar-actions { gap:3px; }
+  html.er-native-app .topbar-actions > #lang-btn,
+  html.er-native-app .topbar-actions > #notifications-btn,
+  html.er-native-app .topbar-actions > .connect-server-btn:not([hidden]) { flex-basis:29px; width:29px; min-width:29px; max-width:29px; }
+  html.er-native-app .topbar-actions > #profile-btn { flex-basis:29px; width:29px; min-width:29px; }
+  html.er-native-app .topbar-actions > #profile-btn .avatar-small { width:28px; height:28px; min-width:28px; }
+  html.er-native-app .view-root { padding-left:11px; padding-right:11px; }
+}
+@media(max-width:340px) {
+  html.er-native-app .topbar-actions > #lang-btn { display:none !important; }
+  html.er-native-app .mobile-brand-title { font-size:12px; }
+}
