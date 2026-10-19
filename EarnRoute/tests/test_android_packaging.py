@@ -151,3 +151,15 @@ def test_safety_report_uses_existing_private_ticket_workflow_and_cache_bust():
     assert "function erMobileNavLabel(screen, fallback)" in nearby_js
     assert "'saved-shifts':'सेव्ड'" in nearby_js
     assert "escapeHtml(erMobileNavLabel(item[0], item[2]))" in nearby_js
+
+
+def test_native_header_controls_fit_and_hidden_server_button_stays_hidden():
+    css = (ROOT / "app/static/nearby.css").read_text()
+    html = (ROOT / "app/static/index.html").read_text()
+    assert "FINAL ANDROID HEADER FIT" in css
+    assert '.connect-server-btn[hidden] { display:none !important; }' in css
+    assert "text-overflow:ellipsis" in css
+    assert "flex-wrap:nowrap" in css
+    assert 'data-connect-server aria-label="Connect server"' in html
+    assert "html.er-native-app .topbar-actions > #profile-btn > span:nth-child(2)" in css
+    assert "html.er-native-app .view-root {\n  min-width:0;" in css
