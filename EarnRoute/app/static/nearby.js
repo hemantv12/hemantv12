@@ -235,7 +235,7 @@ function erLocationPrompt() {
   return '<section class="er-location-prompt">' +
     '<div class="er-location-art"><span class="er-location-ring er-ring-one"></span><span class="er-location-ring er-ring-two"></span><span class="er-location-marker">⌖</span></div>' +
     '<div class="er-location-copy"><span class="er-overline">START WITH YOUR AREA</span><h2>Earn closer to home.</h2>' +
-    '<p>Turn on location to find real paid shifts within <b>1 km, 3 km, 5 km or more</b> (up to 15 km). Your live position stays on this device and expires after 30 minutes.</p>' +
+    '<p>' + escapeHtml(t('locationIntro')) + '</p>' +
     '<button class="btn btn-primary btn-large" type="button" data-er-enable-location>' + escapeHtml(t('useMyLocation')) + '</button></div>' +
     '<details class="er-manual-area-picker" id="er-manual-area-picker"><summary>' + escapeHtml(t('manualAreaHeading')) + '</summary>' +
     '<div class="er-manual-area-body"><p>' + escapeHtml(t('manualAreaIntro')) + '</p>' +
@@ -403,14 +403,15 @@ async function erFetchNearby(options) {
   if (!location) return {location:null, items:[], total:0};
   const radius = options.radius || erRadius();
   const category = options.category || erCategory();
-  const params = new URLSearchParams({
-    latitude:String(location.latitude), longitude:String(location.longitude),
-    radius_km:String(radius), page:'1', page_size:'50'
-  });
-  if (category && category !== 'All') params.set('category', category);
-  if (options.search && options.search.trim()) params.set('search', options.search.trim());
-  if (String(options.minPay || '').trim()) params.set('min_pay', String(options.minPay).trim());
-  const result = await api('/api/jobs?' + params.toString());
+  const payload = {
+    latitude:Number(location.latitude), longitude:Number(location.longitude),
+    radius_km:Number(radius), page:1, page_size:50
+  };
+  if (category && category !== 'All') payload.category = category;
+  if (options.search && options.search.trim()) payload.search = options.search.trim().slice(0,120);
+  if (String(options.minPay || '').trim()) payload.min_pay = Number(options.minPay);
+  // Coordinate values are sent in the request body, not appended to a URL that may enter access logs.
+  const result = await api('/api/jobs/nearby', {method:'POST', body:payload});
   return Object.assign({}, result, {location:location});
 }
 
