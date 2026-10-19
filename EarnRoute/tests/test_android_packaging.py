@@ -111,3 +111,21 @@ def test_saved_shifts_discovery_sorting_and_india_safety_are_wired():
     assert "prefers-reduced-motion:reduce" in nearby_css
     assert 'down_revision = "e3b90a71c6d2"' in migration
     assert "saved_shifts" in migration
+
+
+def test_saved_shift_and_safety_report_frontend_are_wired():
+    app_js = (ROOT / "app/static/app.js").read_text()
+    nearby_js = (ROOT / "app/static/nearby.js").read_text()
+    nearby_css = (ROOT / "app/static/nearby.css").read_text()
+    assert "async function renderSavedShifts()" in nearby_js
+    assert "renderSavedShifts = async function()" not in nearby_js
+    assert "function erTakeHomePerHour(job)" in nearby_js
+    assert "mode === 'hourly-rate'" in nearby_js
+    assert "er-hourly-estimate" in nearby_js
+    assert "data-er-report-job" in nearby_js
+    assert "category:'safety'" in nearby_js
+    assert "api('/api/support/tickets'" in nearby_js
+    assert "reportConcern: 'Report a concern'" in app_js
+    assert "reportConcern: 'शिकायत दर्ज करें'" in app_js
+    assert ".er-save-shift" in nearby_css
+    assert ".er-safety-panel" in nearby_css
