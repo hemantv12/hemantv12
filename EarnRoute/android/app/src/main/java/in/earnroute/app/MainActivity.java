@@ -255,8 +255,14 @@ public final class MainActivity extends Activity {
             Insets ime = windowInsets.getInsets(WindowInsetsCompat.Type.ime());
             boolean imeVisible = windowInsets.isVisible(WindowInsetsCompat.Type.ime());
             float density = getResources().getDisplayMetrics().density;
-            systemBottomInsetDp = Math.max(0, Math.round(navigationBars.bottom / density));
-            systemImeInsetDp = imeVisible ? Math.max(0, Math.round(ime.bottom / density)) : 0;
+            if (!imeVisible || navigationBars.bottom > 0) {
+                systemBottomInsetDp = Math.max(0, Math.round(navigationBars.bottom / density));
+            }
+            // The normal web viewport already excludes the navigation-bar inset. Use only
+            // the extra keyboard obstruction to avoid subtracting the bottom bar twice.
+            systemImeInsetDp = imeVisible
+                    ? Math.max(0, Math.round(ime.bottom / density) - systemBottomInsetDp)
+                    : 0;
 
             // This native WebView already applies system bar/cutout padding. Consume those insets
             // after padding so CSS safe-area-inset values do not add the same bars a second time.
