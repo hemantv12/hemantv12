@@ -36,6 +36,9 @@ import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.RequestBody;
 import okhttp3.Response;
+import com.razorpay.Checkout;
+import com.razorpay.PaymentData;
+import com.razorpay.PaymentResultWithDataListener;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -44,7 +47,7 @@ import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-public final class MainActivity extends Activity {
+public final class MainActivity extends Activity implements PaymentResultWithDataListener {
     private static final String API = "https://collabzy-api.onrender.com";
     private static final int BG = Color.rgb(247, 248, 252);
     private static final int PANEL = Color.rgb(255, 255, 255);
@@ -69,6 +72,9 @@ public final class MainActivity extends Activity {
     private ProgressBar progress;
     private static final int MEDIA_KIT_CREATE_REQUEST = 4207;
     private byte[] pendingMediaKitPdf;
+    private String screenAfterPro = "home";
+    private JSONObject campaignToApplyAfterPro;
+    private boolean paymentVerificationRunning = false;
     private JSONObject dashboardStats = new JSONObject();
     private boolean dashboardLoaded = false;
     private boolean dashboardRequestStarted = false;
@@ -612,7 +618,32 @@ public final class MainActivity extends Activity {
         } catch (Exception ignored) {}
     }
 
+    private boolean creatorFeatureRequiresPro(String target) {
+        if (!"creator".equals(user.optString("role"))) return false;
+        return "matches".equals(target) || "inbox".equals(target) || "conversation".equals(target)
+            || "saved".equals(target) || "invitations".equals(target) || "notifications".equals(target)
+            || "instagram".equals(target) || "autodm".equals(target) || "applications".equals(target)
+            || "ai".equals(target);
+    }
+
     private void showShell(String target) {
+        if (creatorFeatureRequiresPro(target)) {
+            showLoadingScreen("Checking your Creator Pro subscription…");
+            api("GET", "/api/billing/status", null, (data, error) -> {
+                if (error == null && data != null && data.optBoolean("active")) {
+                    showShellContent(target);
+                } else {
+                    screenAfterPro = target;
+                    showShellContent("billing");
+                    if (error != null) toast(error);
+                }
+            });
+            return;
+        }
+        showShellContent(target);
+    }
+
+    private void showShellContent(String target) {
         screen = target;
         frame = new FrameLayout(this);
         frame.setBackground(gradient(BG, Color.rgb(235, 238, 248), 0));
@@ -1103,6 +1134,23 @@ public final class MainActivity extends Activity {
     }
 
     private void showApplyDialog(JSONObject campaign) {
+        if ("creator".equals(user.optString("role"))) {
+            api("GET", "/api/billing/status", null, (data, error) -> {
+                if (error == null && data != null && data.optBoolean("active")) {
+                    showApplyDialogUnlocked(campaign);
+                } else {
+                    campaignToApplyAfterPro = campaign;
+                    screenAfterPro = "applications";
+                    showShellContent("billing");
+                    if (error != null) toast(error);
+                }
+            });
+            return;
+        }
+        showApplyDialogUnlocked(campaign);
+    }
+
+    private void showApplyDialogUnlocked(JSONObject campaign) {
         android.app.Dialog dialog = new android.app.Dialog(this);
         LinearLayout box = column();
         box.setPadding(dp(22), dp(22), dp(22), dp(22));
@@ -1929,37 +1977,128 @@ public final class MainActivity extends Activity {
     }
 
     private void renderBilling() {
-        heading("Plan & billing", "Your subscription status is checked on the server.");
+        heading("Collabzy Pro · ₹299/year", "Creator Pro unlocks applications, Smart Match, Inbox, AI Studio, saved campaigns and Instagram tools.");
         LinearLayout panel = card();
         TextView loading = text("Checking plan status…", 13, MUTED, false);
         panel.addView(loading);
         content.addView(panel);
         api("GET", "/api/billing/status", null, (data, error) -> {
             if (!"billing".equals(screen)) return;
-            panel.removeView(loading);
+            panel.removeAllViews();
             if (error != null) {
-                showInlineMessage("Plan status unavailable", error);
+                panel.addView(text("Plan status unavailable", 17, WHITE, true));
+                gap(panel, 7);
+                panel.addView(text(error, 12, RED, false));
+                gap(panel, 12);
+                TextView retry = button("Retry plan status", true);
+                panel.addView(retry, new LinearLayout.LayoutParams(-1, -2));
+                retry.setOnClickListener(v -> showShellContent("billing"));
                 return;
             }
-            panel.addView(text("Collabzy Pro", 22, WHITE, true));
+            panel.addView(text("Creator Pro · 365 days", 22, WHITE, true));
             gap(panel, 5);
-            panel.addView(text("₹" + data.optInt("amount", 299) + " / year", 15, MINT, true));
+            panel.addView(text("₹" + data.optInt("amount", 299) + " / year", 24, MINT, true));
             gap(panel, 11);
-            String status = data.optBoolean("active") ? "Active subscription" : data.optBoolean("beta_access") ? "Private beta access" : "No active subscription";
-            panel.addView(text(status, 14, data.optBoolean("active") || data.optBoolean("beta_access") ? MINT : VIOLET, true));
+            boolean active = data.optBoolean("active");
+            String status = active ? "Active subscription" : "No active paid subscription";
+            panel.addView(text(status, 14, active ? MINT : VIOLET, true));
             gap(panel, 7);
-            panel.addView(text("Checkout: " + (data.optBoolean("checkout_ready") ? "configured" : "not configured"), 12, MUTED, false));
             if (!data.optString("expires_at", "").isEmpty()) {
-                gap(panel, 5);
                 panel.addView(text("Expires: " + data.optString("expires_at"), 11, MUTED, false));
+                gap(panel, 6);
+            }
+            panel.addView(text("Included: campaign applications, Smart Match, Inbox, saved campaigns, AI tools and Instagram features after account connection.", 12, MUTED, false));
+            gap(panel, 15);
+            if (active) {
+                TextView open = button("Continue to my workspace  →", true);
+                panel.addView(open, new LinearLayout.LayoutParams(-1, -2));
+                open.setOnClickListener(v -> continueAfterPro());
+            } else if (data.optBoolean("checkout_ready")) {
+                TextView buy = button("Subscribe securely · ₹299/year", true);
+                panel.addView(buy, new LinearLayout.LayoutParams(-1, -2));
+                buy.setOnClickListener(v -> startProCheckout());
+            } else {
+                panel.addView(text("Secure payment setup is not complete yet.", 13, VIOLET, true));
+                gap(panel, 6);
+                panel.addView(text("The owner must configure Razorpay API keys and webhook verification before real payments can be collected. Your Pro status stays locked until a payment is verified by the server.", 12, MUTED, false));
             }
         });
         gap(content, 12);
         LinearLayout note = card();
-        note.addView(text("Safe beta billing", 15, WHITE, true));
+        note.addView(text("Payment security", 15, WHITE, true));
         gap(note, 6);
-        note.addView(text("Payment collection is not enabled unless the owner configures Razorpay keys and webhook verification. This screen never marks a payment successful or creates a paid plan on its own.", 12, MUTED, false));
+        note.addView(text("Collabzy activates Pro only after the server verifies the payment signature and confirms that Razorpay captured the correct ₹299 payment for this account. A cancelled or failed checkout does not unlock features.", 12, MUTED, false));
         content.addView(note);
+    }
+
+    private void continueAfterPro() {
+        String next = screenAfterPro == null || screenAfterPro.isEmpty() || "billing".equals(screenAfterPro) ? "home" : screenAfterPro;
+        JSONObject pending = campaignToApplyAfterPro;
+        campaignToApplyAfterPro = null;
+        screenAfterPro = "home";
+        showShellContent(next);
+        if (pending != null) showApplyDialogUnlocked(pending);
+    }
+
+    private void startProCheckout() {
+        JSONObject request = new JSONObject();
+        try { request.put("plan_code", "creator_annual_299"); }
+        catch (Exception ignored) {}
+        api("POST", "/api/billing/order", request, (data, error) -> {
+            if (!"billing".equals(screen)) return;
+            if (error != null) {
+                showInlineMessage("Secure checkout unavailable", error);
+                return;
+            }
+            JSONObject options = data.optJSONObject("checkout_options");
+            String keyId = data.optString("key_id", "");
+            if (options == null || keyId.isEmpty() || !data.optString("order_id", "").startsWith("order_")) {
+                showInlineMessage("Secure checkout unavailable", "The server did not return a valid payment order. No payment was collected.");
+                return;
+            }
+            try {
+                Checkout checkout = new Checkout();
+                checkout.setKeyID(keyId);
+                checkout.open(this, options);
+            } catch (Exception e) {
+                android.util.Log.e("CollabzyBilling", "Could not launch Razorpay Checkout.", e);
+                showInlineMessage("Checkout could not open", "Please return to billing and try again. No payment was confirmed.");
+            }
+        });
+    }
+
+    @Override
+    public void onPaymentSuccess(String paymentId, PaymentData paymentData) {
+        if (paymentData == null || paymentData.getOrderId() == null || paymentData.getSignature() == null) {
+            toast("Payment response was incomplete. Pro has not been activated.");
+            showShellContent("billing");
+            return;
+        }
+        JSONObject verify = new JSONObject();
+        try {
+            verify.put("order_id", paymentData.getOrderId());
+            verify.put("payment_id", paymentId);
+            verify.put("signature", paymentData.getSignature());
+        } catch (Exception ignored) {}
+        if (paymentVerificationRunning) return;
+        paymentVerificationRunning = true;
+        api("POST", "/api/billing/verify", verify, (data, error) -> {
+            paymentVerificationRunning = false;
+            if (error != null || data == null || !data.optBoolean("ok") || !data.optBoolean("active")) {
+                toast(error == null ? "Razorpay did not confirm an active Pro subscription. Please refresh billing." : error);
+                showShellContent("billing");
+                return;
+            }
+            toast("Collabzy Pro activated for this account.");
+            continueAfterPro();
+        });
+    }
+
+    @Override
+    public void onPaymentError(int code, String response, PaymentData paymentData) {
+        paymentVerificationRunning = false;
+        toast("Payment was cancelled or not confirmed. Pro access remains locked.");
+        if ("billing".equals(screen)) showShellContent("billing");
     }
 
     private void renderSupport() {
