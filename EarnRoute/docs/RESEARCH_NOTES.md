@@ -73,4 +73,4 @@ Android documentation explains that newer Android/WebView versions adjust safe a
 
 ## Current map implementation finding
 
-At the research baseline, the Leaflet layer used https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png and did not offer manual worker-area selection when GPS was denied. The next implementation should fix both and test the resulting UI/source path.
+At the research baseline, the Leaflet layer used https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png and did not offer manual worker-area selection when GPS was denied. These issues are now addressed in the working branch: the canonical tile URL is the default and configurable, Android identifies the app/version, an interactive manual-area map is available after GPS denial, a rough city-centre fallback is labelled approximate, and nearby GPS coordinates are sent in a validated POST body. The current release workflow must still be green before delivery.
