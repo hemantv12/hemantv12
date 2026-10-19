@@ -137,7 +137,8 @@ async function start(PORT,SECRET){
     const expectedDigest=crypto.createHash('sha256').update(expected,'utf8').digest();
     return crypto.timingSafeEqual(candidateDigest,expectedDigest);
   };
-  const registrationReady=()=>!requireEmailVerification||(publicLaunchApproved()&&emailReady()&&supportReady()&&legalIdentityReady()&&openAiReady()&&razorpayReady()&&(process.env.REQUIRE_INSTAGRAM_CONFIG!=='true'||metaReady()));
+  // Account creation is independent from payment, AI and Meta integrations. Only require email delivery when the owner explicitly enables email verification.
+  const registrationReady=()=>!requireEmailVerification||emailReady();
   const annualPlan={code:'creator_annual_299',amountPaise:29900,currency:'INR',durationDays:365};
   const razorpayAuthorization=()=>('Basic '+Buffer.from(process.env.RAZORPAY_KEY_ID+':'+process.env.RAZORPAY_KEY_SECRET).toString('base64'));
   async function recordCapturedPayment({orderId,paymentId,amount,currency}){
@@ -305,7 +306,7 @@ async function start(PORT,SECRET){
       {key:'legal',label:'Operator identity',configured:legalIdentityReady(),detail:legalIdentityReady()?'Operator identity settings detected':'Legal name and jurisdiction required'},
       {key:'launch',label:'Public launch approval',configured:publicLaunchApproved(),detail:publicLaunchApproved()?'Explicit approval is set':'Owner sign-off required'}
     ];
-    s.json({users:users.rows[0],campaigns:campaigns.rows[0],applications:applications.rows[0],billing:{paid_orders:Number(billing.rows[0].paid_orders||0),paid_revenue_inr:Number(billing.rows[0].paid_revenue_paise||0)/100},support:support.rows[0],trend:trend.rows,integrations,registration:registrationReady()&&publicLaunchApproved()?'open':'invite_only',audit:audit.rows});
+    s.json({users:users.rows[0],campaigns:campaigns.rows[0],applications:applications.rows[0],billing:{paid_orders:Number(billing.rows[0].paid_orders||0),paid_revenue_inr:Number(billing.rows[0].paid_revenue_paise||0)/100},support:support.rows[0],trend:trend.rows,integrations,registration:registrationReady()?'open':'invite_only',audit:audit.rows});
   }));
   app.get('/api/admin/users',adminAuth,asyncRoute(async(q,s)=>{
     const page=Math.max(1,Math.min(10000,parseInt(q.query.page,10)||1)),limit=25,values=[],where=['is_platform_account=FALSE'];
