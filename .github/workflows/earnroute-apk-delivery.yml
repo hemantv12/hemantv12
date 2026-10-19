@@ -97,21 +97,38 @@ jobs:
         working-directory: EarnRoute/android
         run: gradle --no-daemon --stacktrace :app:assembleDebug
 
-      - name: Verify APK output
+      - name: Build unsigned release App Bundle
+        working-directory: EarnRoute/android
+        run: gradle --no-daemon --stacktrace :app:bundleRelease
+
+      - name: Verify APK and AAB outputs
         shell: bash
         run: |
           set -euo pipefail
           APK='EarnRoute/android/app/build/outputs/apk/debug/app-debug.apk'
+          AAB='EarnRoute/android/app/build/outputs/bundle/release/app-release.aab'
           test -s "$APK"
-          echo "APK size:"
+          test -s "$AAB"
+          echo "Debug APK size and SHA-256:"
           du -h "$APK"
-          echo "SHA-256:"
           sha256sum "$APK"
+          echo "Unsigned release AAB size and SHA-256:"
+          du -h "$AAB"
+          sha256sum "$AAB"
+          echo "AAB is a release bundle prepared for signing. This workflow does not use the production signing keystore."
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: EarnRoute-debug-apk
           path: EarnRoute/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload unsigned release AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: EarnRoute-release-aab-unsigned
+          path: EarnRoute/android/app/build/outputs/bundle/release/app-release.aab
           if-no-files-found: error
           retention-days: 14
