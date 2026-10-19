@@ -124,6 +124,9 @@ def test_saved_shift_and_safety_report_frontend_are_wired():
     assert "er-hourly-estimate" in nearby_js
     assert "data-er-report-job" in nearby_js
     assert "category:'safety'" in nearby_js
+    assert "message:'Published shift ID: ' + jobId + '\\nShift title: '" in nearby_js
+    assert "earnroute-shell-v7" in (ROOT / "app/static/sw.js").read_text()
+    assert "Best estimated take-home / hour" in nearby_js
     assert "api('/api/support/tickets'" in nearby_js
     assert "reportConcern: 'Report a concern'" in app_js
     assert "reportConcern: 'शिकायत दर्ज करें'" in app_js
