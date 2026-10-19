@@ -1052,3 +1052,81 @@ html.er-native-app .er-mobile-nav button small {
   .er-account-privacy-actions { display:grid; grid-template-columns:minmax(0,1fr); }
   .er-account-privacy-actions .btn { width:100%; }
 }
+
+
+/* ANDROID KEYBOARD-SAFE AUTH SHEET
+   Resize the sheet to the real visible viewport and keep focused form fields reachable. */
+html.er-native-app {
+  --er-visual-viewport-height: 100dvh;
+  --er-visual-viewport-top: 0px;
+}
+html.er-native-app #auth-modal.modal-backdrop:not([hidden]) {
+  position:fixed !important;
+  top:var(--er-visual-viewport-top, 0px) !important;
+  right:0 !important;
+  bottom:auto !important;
+  left:0 !important;
+  box-sizing:border-box;
+  display:flex !important;
+  flex-direction:column;
+  align-items:center !important;
+  justify-content:flex-end !important;
+  width:100% !important;
+  height:var(--er-visual-viewport-height, 100dvh) !important;
+  max-height:var(--er-visual-viewport-height, 100dvh) !important;
+  padding:6px 0 calc(6px + env(safe-area-inset-bottom)) !important;
+  overflow-x:hidden !important;
+  overflow-y:auto !important;
+  overscroll-behavior:contain;
+  touch-action:pan-y;
+}
+html.er-native-app #auth-modal .auth-modal {
+  box-sizing:border-box;
+  flex:0 1 auto;
+  min-width:0;
+  min-height:0 !important;
+  width:100% !important;
+  max-width:480px;
+  max-height:calc(var(--er-visual-viewport-height, 100dvh) - 12px) !important;
+  padding:22px 20px calc(18px + env(safe-area-inset-bottom)) !important;
+  overflow-x:hidden !important;
+  overflow-y:auto !important;
+  overscroll-behavior-y:contain;
+  -webkit-overflow-scrolling:touch;
+  scroll-padding-top:14px;
+  scroll-padding-bottom:calc(24px + env(safe-area-inset-bottom));
+}
+html.er-native-app #auth-modal .auth-modal .form-field {
+  min-width:0;
+  scroll-margin-block:16px;
+}
+html.er-native-app #auth-modal .auth-modal input,
+html.er-native-app #auth-modal .auth-modal select,
+html.er-native-app #auth-modal .auth-modal textarea {
+  scroll-margin-block:18px;
+}
+html.er-native-app.er-keyboard-open #auth-modal.modal-backdrop:not([hidden]) {
+  padding-top:3px !important;
+  padding-bottom:3px !important;
+}
+html.er-native-app.er-keyboard-open #auth-modal .auth-modal {
+  max-height:calc(var(--er-visual-viewport-height, 100dvh) - 6px) !important;
+  padding-top:17px !important;
+  padding-bottom:calc(10px + env(safe-area-inset-bottom)) !important;
+  border-radius:20px 20px 0 0;
+}
+html.er-native-app.er-keyboard-open .er-mobile-nav {
+  display:none !important;
+}
+@media(max-height:560px) {
+  html.er-native-app #auth-modal .auth-modal {
+    padding-top:14px !important;
+    padding-right:17px !important;
+    padding-left:17px !important;
+  }
+  html.er-native-app #auth-modal .modal-brand { margin-bottom:12px; }
+  html.er-native-app #auth-modal .auth-subheading { margin-bottom:12px; }
+  html.er-native-app #auth-modal .auth-mode-tabs { margin-bottom:12px; }
+  html.er-native-app #auth-form { gap:10px; }
+  html.er-native-app #auth-modal .auth-safe { margin-top:10px; }
+}
