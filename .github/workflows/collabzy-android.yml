@@ -100,8 +100,13 @@ jobs:
           EOF
       - name: Configure Android startup instrumentation test
         run: |
-          sed -i '/defaultConfig {/a\\        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"' android/app/build.gradle
           cat >> android/app/build.gradle <<'EOF'
+
+          android {
+              defaultConfig {
+                  testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+              }
+          }
 
           dependencies {
               androidTestImplementation "androidx.test:runner:1.6.2"
