@@ -29,7 +29,18 @@ const TRANSLATIONS = {
     sortShiftsBy: 'Sort shifts by', sortClosest: 'Closest first', sortTakeHome: 'Highest estimated take-home',
     sortHourlyRate: 'Best estimated take-home / hour', sortAfterCommute: 'Best after commute estimate',
     sortSoonest: 'Soonest start', sortOpenSpots: 'Most open spots',
-    commuteBudgetLabel: 'Commute budget per straight-line km (₹)', commuteBudgetPlaceholder: '₹/km (optional)'
+    commuteBudgetLabel: 'Commute budget per straight-line km (₹)', commuteBudgetPlaceholder: '₹/km (optional)',
+    useMyLocation: 'Use my location', manualAreaHeading: 'Can’t use GPS? Choose your area manually',
+    manualAreaIntro: 'Choose the nearest city to centre the map, then zoom in and tap the area where you want to find work. A nearby public landmark is better than your home entrance.',
+    manualAreaCity: 'Your city / nearest city', manualAreaChooseCity: 'Choose a city', manualAreaChooseMap: 'Centre map and choose area',
+    manualAreaMapNote: 'Map taps set a temporary search point for 30 minutes. Distances are straight-line, not road distance or travel time.',
+    manualAreaNotSelected: 'No area selected yet. Centre the map, then tap your chosen locality.',
+    manualAreaUseThis: 'Use this area', manualAreaPrivacy: 'Your selected search point stays on this device for 30 minutes and is not added to your profile.',
+    manualMapHeading: 'Choose your work-search area', manualAreaPickerKicker: 'MANUAL AREA SELECTION',
+    manualAreaTapMap: 'Move or zoom the map to your locality, then tap it to set a temporary search centre.',
+    manualAreaInvalid: 'Please tap a valid point on the map.', manualAreaCustomPoint: 'Selected map area',
+    manualAreaCandidateReady: 'Area selected:', manualAreaActivated: 'Search area saved for 30 minutes. Showing shifts around your chosen point.',
+    manualAreaSelected: 'Using selected area', mapRecenter: 'Recenter', mapDeviceLocation: 'Device location', mapTemporaryLocation: 'Using temporary location'
   },
   hi: {
     workspace: 'आपका वर्कस्पेस', overview: 'डैशबोर्ड', discover: 'काम खोजें', applications: 'आवेदन', schedule: 'मेरा शेड्यूल', earnings: 'कमाई', profile: 'मेरी प्रोफ़ाइल',
@@ -44,7 +55,18 @@ const TRANSLATIONS = {
     sortShiftsBy: 'शिफ्ट क्रम', sortClosest: 'सबसे पास पहले', sortTakeHome: 'अनुमानित सबसे ज़्यादा कमाई',
     sortHourlyRate: 'प्रति घंटे अनुमानित कमाई', sortAfterCommute: 'यात्रा खर्च के बाद सबसे ज़्यादा',
     sortSoonest: 'सबसे जल्द शुरू', sortOpenSpots: 'सबसे ज़्यादा खाली जगह',
-    commuteBudgetLabel: 'सीधी दूरी के प्रति किमी यात्रा बजट (₹)', commuteBudgetPlaceholder: '₹/किमी (वैकल्पिक)'
+    commuteBudgetLabel: 'सीधी दूरी के प्रति किमी यात्रा बजट (₹)', commuteBudgetPlaceholder: '₹/किमी (वैकल्पिक)',
+    useMyLocation: 'मेरी लोकेशन उपयोग करें', manualAreaHeading: 'GPS नहीं चल रहा? अपना क्षेत्र खुद चुनें',
+    manualAreaIntro: 'मैप को पास के शहर पर केंद्रित करें, फिर ज़ूम करके उस क्षेत्र पर टैप करें जहाँ काम खोजना है। घर के प्रवेश-द्वार के बजाय पास का सार्वजनिक स्थान चुनना बेहतर है।',
+    manualAreaCity: 'आपका शहर / पास का शहर', manualAreaChooseCity: 'शहर चुनें', manualAreaChooseMap: 'मैप केंद्रित करें और क्षेत्र चुनें',
+    manualAreaMapNote: 'मैप पर चुना गया खोज-बिंदु 30 मिनट तक रहेगा। दूरी सीधी GPS दूरी है, सड़क की दूरी या यात्रा समय नहीं।',
+    manualAreaNotSelected: 'अभी क्षेत्र नहीं चुना गया। मैप केंद्रित करें, फिर अपने इलाके पर टैप करें।',
+    manualAreaUseThis: 'यह क्षेत्र चुनें', manualAreaPrivacy: 'चुना गया खोज-बिंदु 30 मिनट तक इस डिवाइस पर रहेगा और प्रोफ़ाइल में नहीं जोड़ा जाएगा।',
+    manualMapHeading: 'काम खोजने का क्षेत्र चुनें', manualAreaPickerKicker: 'अपना क्षेत्र चुनें',
+    manualAreaTapMap: 'मैप को अपने इलाके तक ले जाएँ या ज़ूम करें, फिर अस्थायी खोज-केंद्र चुनने के लिए टैप करें।',
+    manualAreaInvalid: 'कृपया मैप पर सही स्थान चुनें।', manualAreaCustomPoint: 'मैप पर चुना गया क्षेत्र',
+    manualAreaCandidateReady: 'क्षेत्र चुना गया:', manualAreaActivated: 'खोज क्षेत्र 30 मिनट के लिए सेव है। चुने गए स्थान के आसपास की शिफ्ट दिखाई जाएँगी।',
+    manualAreaSelected: 'चुने गए क्षेत्र से खोज रहे हैं', mapRecenter: 'फिर केंद्रित करें', mapDeviceLocation: 'डिवाइस की लोकेशन', mapTemporaryLocation: 'अस्थायी लोकेशन उपयोग हो रही है'
   }
 };
 const t = key => (TRANSLATIONS[selectedLanguage] && TRANSLATIONS[selectedLanguage][key]) || TRANSLATIONS.en[key] || key;
