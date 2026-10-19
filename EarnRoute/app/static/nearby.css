@@ -799,3 +799,7 @@ html.er-native-app .er-nearby-empty {
 @media(prefers-reduced-motion:reduce) {
   .er-job-card,.er-save-shift,.er-quick-links>button { animation:none!important; transition:none!important; }
 }
+
+.er-hourly-estimate { display:block; margin-top:4px; color:#617d3e!important; font-size:10px!important; font-weight:800; line-height:1.35; }
+.er-report-shift { display:inline-flex; align-items:center; margin-top:10px; color:#765b36; border-color:#eadcc5; background:#fffcf5; }
+.er-report-shift:hover { border-color:#d8b989; background:#fff7e9; }
