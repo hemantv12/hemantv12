@@ -24,7 +24,12 @@ const TRANSLATIONS = {
     noJobs: 'No published opportunities yet', noJobsCopy: 'New, verified opportunities will appear here when businesses publish genuine shifts. Try another category or check back later.',
     language: 'हि', myAccount: 'My account', workerRole: 'Worker', businessRole: 'Business', adminRole: 'Admin', support: 'Help & support', adminSupport: 'Support tickets',
     savedShifts: 'Saved shifts', savedShiftsSub: 'Keep promising shifts in one private list and compare them before you apply.', saveShift: 'Save shift', savedShift: 'Saved', removeSaved: 'Remove', noSavedShifts: 'No saved shifts yet', noSavedShiftsCopy: 'Save a published shift while browsing and it will appear here for later.', jobSafety: 'Work safely. Get paid fairly.', safetyIntro: 'A few checks can help you avoid common job scams and stay prepared while travelling to a shift.', safetyRule: 'Never pay a recruiter or employer to get a job, registration, or an interview.', emergency112: 'Emergency help · 112', cyberHelp: 'Cyber fraud helpline · 1930', officialSafety: 'Official safety guidance',
-    reportConcern: 'Report a concern', reportMinChars: 'Please describe the concern in at least 20 characters. Do not include passwords, OTPs or identity numbers.', safetyReportSent: 'Your safety concern was sent to EarnRoute support. For immediate danger, call 112.'
+    reportConcern: 'Report a concern', reportMinChars: 'Please describe the concern in at least 20 characters. Do not include passwords, OTPs or identity numbers.', safetyReportSent: 'Your safety concern was sent to EarnRoute support. For immediate danger, call 112.',
+    minimumPay: 'Minimum pay ₹', search: 'Search', clear: 'Clear',
+    sortShiftsBy: 'Sort shifts by', sortClosest: 'Closest first', sortTakeHome: 'Highest estimated take-home',
+    sortHourlyRate: 'Best estimated take-home / hour', sortAfterCommute: 'Best after commute estimate',
+    sortSoonest: 'Soonest start', sortOpenSpots: 'Most open spots',
+    commuteBudgetLabel: 'Commute budget per straight-line km (₹)', commuteBudgetPlaceholder: '₹/km (optional)'
   },
   hi: {
     workspace: 'आपका वर्कस्पेस', overview: 'डैशबोर्ड', discover: 'काम खोजें', applications: 'आवेदन', schedule: 'मेरा शेड्यूल', earnings: 'कमाई', profile: 'मेरी प्रोफ़ाइल',
@@ -34,7 +39,12 @@ const TRANSLATIONS = {
     noJobs: 'अभी कोई प्रकाशित अवसर नहीं', noJobsCopy: 'बिज़नेस द्वारा वास्तविक शिफ्ट प्रकाशित होने पर अवसर यहाँ दिखेंगे। फ़िल्टर बदलकर देखें या बाद में वापस आएँ।',
     language: 'EN', myAccount: 'मेरा अकाउंट', workerRole: 'वर्कर', businessRole: 'बिज़नेस', adminRole: 'एडमिन', support: 'सहायता', adminSupport: 'सपोर्ट टिकट',
     savedShifts: 'सेव की गई शिफ्ट', savedShiftsSub: 'अच्छी शिफ्ट को एक निजी सूची में रखें और आवेदन से पहले तुलना करें।', saveShift: 'शिफ्ट सेव करें', savedShift: 'सेव है', removeSaved: 'हटाएँ', noSavedShifts: 'अभी कोई सेव की गई शिफ्ट नहीं', noSavedShiftsCopy: 'ब्राउज़ करते समय किसी प्रकाशित शिफ्ट को सेव करें, वह यहाँ दिखेगी।', jobSafety: 'सुरक्षित काम करें। सही भुगतान पाएँ।', safetyIntro: 'कुछ सावधानियाँ आम जॉब स्कैम से बचने और शिफ्ट पर जाते समय तैयारी में मदद कर सकती हैं।', safetyRule: 'नौकरी, रजिस्ट्रेशन या इंटरव्यू पाने के लिए किसी रिक्रूटर या नियोक्ता को पैसे न दें।', emergency112: 'आपातकालीन मदद · 112', cyberHelp: 'साइबर धोखाधड़ी हेल्पलाइन · 1930', officialSafety: 'आधिकारिक सुरक्षा जानकारी',
-    reportConcern: 'शिकायत दर्ज करें', reportMinChars: 'कृपया कम-से-कम 20 अक्षरों में समस्या बताएँ। पासवर्ड, OTP या पहचान नंबर न लिखें।', safetyReportSent: 'आपकी सुरक्षा संबंधी शिकायत EarnRoute सपोर्ट को भेज दी गई है। तुरंत खतरा हो तो 112 पर कॉल करें।'
+    reportConcern: 'शिकायत दर्ज करें', reportMinChars: 'कृपया कम-से-कम 20 अक्षरों में समस्या बताएँ। पासवर्ड, OTP या पहचान नंबर न लिखें।', safetyReportSent: 'आपकी सुरक्षा संबंधी शिकायत EarnRoute सपोर्ट को भेज दी गई है। तुरंत खतरा हो तो 112 पर कॉल करें।',
+    minimumPay: 'न्यूनतम भुगतान ₹', search: 'खोजें', clear: 'हटाएँ',
+    sortShiftsBy: 'शिफ्ट क्रम', sortClosest: 'सबसे पास पहले', sortTakeHome: 'अनुमानित सबसे ज़्यादा कमाई',
+    sortHourlyRate: 'प्रति घंटे अनुमानित कमाई', sortAfterCommute: 'यात्रा खर्च के बाद सबसे ज़्यादा',
+    sortSoonest: 'सबसे जल्द शुरू', sortOpenSpots: 'सबसे ज़्यादा खाली जगह',
+    commuteBudgetLabel: 'सीधी दूरी के प्रति किमी यात्रा बजट (₹)', commuteBudgetPlaceholder: '₹/किमी (वैकल्पिक)'
   }
 };
 const t = key => (TRANSLATIONS[selectedLanguage] && TRANSLATIONS[selectedLanguage][key]) || TRANSLATIONS.en[key] || key;
