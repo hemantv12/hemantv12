@@ -109,6 +109,29 @@ function erDistanceKm(aLat, aLon, bLat, bLon) {
     Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
   return 6371.0088 * 2 * Math.asin(Math.sqrt(Math.min(1, Math.max(0, a))));
 }
+function erGetCommuteCostPerKm(value) {
+  let raw = value;
+  if (raw === undefined || raw === null) {
+    try { raw = localStorage.getItem('earnroute_commute_cost_per_km'); } catch (_) { raw = ''; }
+  }
+  if (String(raw == null ? '' : raw).trim() === '') return 0;
+  const rate = Number(raw);
+  if (!Number.isFinite(rate) || rate < 0) return 0;
+  return Math.min(500, Math.round(rate * 100) / 100);
+}
+function erEstimatedCommuteCost(job, rate) {
+  const perKm = rate === undefined ? erGetCommuteCostPerKm() : erGetCommuteCostPerKm(rate);
+  const distance = Number(job && job.distance_km);
+  if (perKm <= 0 || !Number.isFinite(distance) || distance < 0) return null;
+  // Uses direct GPS distance both ways as a planning proxy, not road distance or an actual fare.
+  return Math.round(distance * 2 * perKm);
+}
+function erAfterCommuteEstimate(job, rate) {
+  const cost = erEstimatedCommuteCost(job, rate);
+  if (cost === null) return null;
+  const net = Number(job.estimated_net_pay !== undefined ? job.estimated_net_pay : job.pay_amount || 0);
+  return Number.isFinite(net) ? net - cost : null;
+}
 function erTakeHomePerHour(job) {
   const net = Number(job.estimated_net_pay !== undefined ? job.estimated_net_pay : job.pay_amount || 0);
   const hours = Number(job.duration_hours || 0);
@@ -116,7 +139,14 @@ function erTakeHomePerHour(job) {
 }
 function erSortJobs(jobs, mode) {
   const items = (jobs || []).slice();
-  if (mode === 'take-home') items.sort(function(a,b) {
+  if (mode === 'after-commute') items.sort(function(a,b) {
+    const afterA = erAfterCommuteEstimate(a), afterB = erAfterCommuteEstimate(b);
+    if (afterA === null && afterB === null) return Number(a.distance_km ?? Infinity) - Number(b.distance_km ?? Infinity);
+    if (afterA === null) return 1;
+    if (afterB === null) return -1;
+    return afterB - afterA || Number(a.distance_km ?? Infinity) - Number(b.distance_km ?? Infinity);
+  });
+  else if (mode === 'take-home') items.sort(function(a,b) {
     return Number(b.estimated_net_pay || b.pay_amount || 0) - Number(a.estimated_net_pay || a.pay_amount || 0) ||
       Number(a.distance_km ?? Infinity) - Number(b.distance_km ?? Infinity);
   });
@@ -141,6 +171,11 @@ function erSortJobs(jobs, mode) {
 function erNearbyCard(job) {
   const gross = Number(job.gross_shift_pay_estimate !== undefined ? job.gross_shift_pay_estimate : job.pay_amount || 0);
   const net = Number(job.estimated_net_pay !== undefined ? job.estimated_net_pay : gross - Number(job.estimated_platform_fee || 0));
+  const commuteRate = erGetCommuteCostPerKm();
+  const commuteCost = erEstimatedCommuteCost(job, commuteRate);
+  const afterCommute = commuteCost === null ? null : net - commuteCost;
+  const commuteSummary = afterCommute === null ? '' :
+    '<small class="er-commute-estimate">After commute: ' + formatMoney(afterCommute) + '</small>';
   const dist = Number(job.distance_km);
   const distance = Number.isFinite(dist) ? (dist < 0.1 ? 'Under 100 m' : dist.toFixed(1) + ' km away') : 'Nearby';
   const slots = Math.max(0, Number(job.slots || 0) - Number(job.positions_filled || 0));
@@ -167,7 +202,7 @@ function erNearbyCard(job) {
     '<div class="er-job-title-wrap"><div><h3>' + escapeHtml(job.title) + '</h3><p>' + escapeHtml(job.business_name || 'Local business') +
     (job.business_verified ? ' <span class="er-verified-chip">✓ Checked</span>' : '') + '</p></div><span class="er-work-type">' + escapeHtml(job.category || 'Local work') + '</span></div>' +
     '<div class="er-pay-row"><div><small>GROSS / SHIFT</small><strong>' + formatMoney(gross) + '</strong><em>before platform fee</em></div>' +
-    '<div class="er-net-pay"><small>EST. YOU RECEIVE</small><strong>' + formatMoney(net) + '</strong><em>after estimated fee</em><small class="er-hourly-estimate">' + (Number(job.duration_hours) > 0 ? formatMoney(net / Number(job.duration_hours)) + '/hr estimated' : 'Hourly estimate unavailable') + '</small></div></div>' +
+    '<div class="er-net-pay"><small>EST. YOU RECEIVE</small><strong>' + formatMoney(net) + '</strong><em>after estimated fee</em><small class="er-hourly-estimate">' + (Number(job.duration_hours) > 0 ? formatMoney(net / Number(job.duration_hours)) + '/hr estimated' : 'Hourly estimate unavailable') + '</small>' + commuteSummary + '</div></div>' +
     '<div class="er-job-facts"><span>◷ ' + escapeHtml(formatDate(job.start_at)) + '</span><span>◴ ' + escapeHtml(job.duration_hours) + ' hrs</span><span>◎ ' + slots + ' spot' + (slots === 1 ? '' : 's') + '</span></div>' +
     (mismatch ? '<p class="er-match-note">Review your skills and availability before applying.</p>' : '') +
     '<div class="er-job-action-row">' + saveButton +
@@ -181,17 +216,19 @@ function erNearbyCard(job) {
     (job.safety_info ? '<p><b>Safety instructions:</b> ' + escapeHtml(job.safety_info) + '</p>' : '') +
     '<p><b>Apply by:</b> ' + escapeHtml(formatDate(job.application_deadline)) + '</p><p><b>Payment:</b> ' + escapeHtml(job.payment_terms || 'Confirm terms before accepting.') + '</p>' +
     '<p><b>Hourly comparison:</b> ' + (Number(job.duration_hours) > 0 ? formatMoney(net / Number(job.duration_hours)) + ' estimated take-home per paid hour' : 'not available') + '. This excludes travel time, fares and waiting time.</p>' +
+    (afterCommute !== null ? '<p><b>Commute planning estimate:</b> ' + formatMoney(commuteCost) + ' return-trip budget, leaving ' + formatMoney(afterCommute) + ' after your estimate. Uses straight-line GPS distance × your entered cost/km; the road route and actual transport fare may differ.</p>' : '') +
     '<small>Distance is straight-line GPS distance, not driving distance or ETA. Take-home pay is an estimate, not payment confirmation.</small>' + reportButton + '</details></div></article>';
 }
-function erSortSelectMarkup(selected) {
+function erSortSelectMarkup(selected, commuteRate) {
   const options = [
-    ['closest', 'Closest first'],
-    ['take-home', 'Highest estimated take-home'],
-    ['hourly-rate', 'Best estimated take-home / hour'],
-    ['soonest', 'Soonest start'],
-    ['open-spots', 'Most open spots']
+    ['closest', t('sortClosest')],
+    ['take-home', t('sortTakeHome')],
+    ['hourly-rate', t('sortHourlyRate')],
+    ['soonest', t('sortSoonest')],
+    ['open-spots', t('sortOpenSpots')]
   ];
-  return '<label class="er-sort-field"><span class="er-control-label">Sort shifts by</span><select name="sort_by" aria-label="Sort nearby shifts">' +
+  if (Number(commuteRate) > 0) options.splice(2, 0, ['after-commute', t('sortAfterCommute')]);
+  return '<label class="er-sort-field"><span class="er-control-label">' + escapeHtml(t('sortShiftsBy')) + '</span><select name="sort_by" aria-label="' + escapeHtml(t('sortShiftsBy')) + '">' +
     options.map(function(option) {
       return '<option value="' + option[0] + '"' + (selected === option[0] ? ' selected' : '') + '>' + option[1] + '</option>';
     }).join('') + '</select></label>';
@@ -590,7 +627,8 @@ renderDiscover = async function(filters) {
   const requestedRadius = Number(filters.radius_km || erRadius());
   const radius = ER_RADIUS_OPTIONS.includes(requestedRadius) ? requestedRadius : erRadius();
   const category = filters.category || erCategory();
-  const allowedSorts = ['closest','take-home','hourly-rate','soonest','open-spots'];
+  const commuteRate = erGetCommuteCostPerKm(filters.commute_cost_per_km);
+  const allowedSorts = ['closest','take-home','hourly-rate','soonest','open-spots'].concat(commuteRate > 0 ? ['after-commute'] : []);
   const requestedSort = String(filters.sort_by || sessionStorage.getItem('earnroute_nearby_sort') || 'closest');
   const sortBy = allowedSorts.includes(requestedSort) ? requestedSort : 'closest';
   if (!location) {
@@ -604,14 +642,16 @@ renderDiscover = async function(filters) {
   }
   const visibleJobs = erSortJobs(result.items || [], sortBy);
   const sortDescription = {
-    closest:'closest first', 'take-home':'highest estimated take-home first',
-    'hourly-rate':'best estimated take-home per paid hour', soonest:'soonest start first', 'open-spots':'most open spots first'
+    closest:t('sortClosest').toLowerCase(), 'take-home':t('sortTakeHome').toLowerCase(),
+    'hourly-rate':t('sortHourlyRate').toLowerCase(), 'after-commute':t('sortAfterCommute').toLowerCase(),
+    soonest:t('sortSoonest').toLowerCase(), 'open-spots':t('sortOpenSpots').toLowerCase()
   }[sortBy];
   return pageHeading('NEARBY WORK','Find work close to you.','No far-away listings. Compare distance, shift time and estimated take-home before applying.','<button type="button" class="btn btn-outline" data-er-enable-location>↻ Refresh location</button>') +
     '<div class="er-discover-toolbar"><div><span class="er-control-label">Distance limit</span>' + erRadiusButtons(radius) + '</div><div><span class="er-control-label">Work type</span>' + erCategoryButtons(category) + '</div><span class="er-location-note">⌖ Using device location · ' + radius + ' km maximum</span></div>' +
     '<form id="er-nearby-filter" class="er-search-row"><input name="search" placeholder="Search a local gig" aria-label="Search nearby jobs" value="' + escapeHtml(filters.search || '') + '">' +
-    '<input name="min_pay" type="number" min="0" step="50" placeholder="Min pay ₹" value="' + escapeHtml(filters.min_pay || '') + '" aria-label="Minimum pay">' +
-    erSortSelectMarkup(sortBy) + '<button class="btn btn-primary" type="submit">Search</button><button class="btn btn-outline" type="reset">Clear</button></form>' +
+    '<input name="min_pay" type="number" min="0" step="50" placeholder="' + escapeHtml(t('minimumPay')) + '" value="' + escapeHtml(filters.min_pay || '') + '" aria-label="' + escapeHtml(t('minimumPay')) + '">' +
+    '<label class="er-commute-field"><span class="er-control-label">' + escapeHtml(t('commuteBudgetLabel')) + '</span><input name="commute_cost_per_km" type="number" min="0" max="500" step="0.5" inputmode="decimal" placeholder="' + escapeHtml(t('commuteBudgetPlaceholder')) + '" value="' + (commuteRate > 0 ? commuteRate : '') + '" aria-label="' + escapeHtml(t('commuteBudgetLabel')) + '"></label>' +
+    erSortSelectMarkup(sortBy, commuteRate) + '<button class="btn btn-primary" type="submit">' + escapeHtml(t('search')) + '</button><button class="btn btn-outline" type="reset">' + escapeHtml(t('clear')) + '</button></form>' +
     '<div class="er-results-note"><b>' + (result.total || 0) + '</b> shift' + (result.total === 1 ? '' : 's') + ' within ' + radius + ' km · ' + sortDescription + '</div>' +
     erLiveMapSectionMarkup({id:'er-nearby-map',kind:'nearby',location:location,radius:radius,jobs:visibleJobs}) +
     (visibleJobs.length ? '<div class="er-job-grid">' + visibleJobs.map(erNearbyCard).join('') + '</div>' :
@@ -989,9 +1029,14 @@ document.addEventListener('submit', async function(event) {
   if (form && form.id === 'er-nearby-filter') {
     event.preventDefault();
     const data = formObject(form);
-    if (['closest','take-home','hourly-rate','soonest','open-spots'].includes(String(data.sort_by || ''))) {
-      sessionStorage.setItem('earnroute_nearby_sort', String(data.sort_by));
-    }
+    const commuteRate = erGetCommuteCostPerKm(data.commute_cost_per_km);
+    try {
+      if (commuteRate > 0) localStorage.setItem('earnroute_commute_cost_per_km', String(commuteRate));
+      else localStorage.removeItem('earnroute_commute_cost_per_km');
+    } catch (_) { /* The commute estimate remains optional if storage is disabled. */ }
+    const allowedSorts = ['closest','take-home','hourly-rate','soonest','open-spots'].concat(commuteRate > 0 ? ['after-commute'] : []);
+    if (allowedSorts.includes(String(data.sort_by || ''))) sessionStorage.setItem('earnroute_nearby_sort', String(data.sort_by));
+    else sessionStorage.setItem('earnroute_nearby_sort', 'closest');
     erDisposeLiveMaps($('#view-root'));
     $('#view-root').innerHTML = '<div class="loading-surface"><span class="loading-spinner"></span><span>Finding the closest shifts…</span></div>';
     try {
