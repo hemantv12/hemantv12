@@ -1949,6 +1949,7 @@ def admin_system(user: User = Depends(require_role("admin")), db: Session = Depe
     try:
         db.execute(select(1))
     except Exception:
+        db.rollback()
         db_status = "error"
         db_message = "Database query failed."
     latency_ms = round((time.perf_counter() - started) * 1000, 1)
