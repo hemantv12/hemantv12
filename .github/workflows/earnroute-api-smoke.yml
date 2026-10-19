@@ -41,3 +41,20 @@ jobs:
           code=$(curl --silent --output /dev/null --write-out '%{http_code}' 'https://earnroute-nearby-api.onrender.com/api/jobs?latitude=28.6139&longitude=77.2090&radius_km=20&page_size=10')
           test "$code" = "422"
           echo "Unsupported 20 km radius rejection: PASS"
+
+      - name: Verify privacy-safer POST nearby search
+        shell: bash
+        run: |
+          set -euo pipefail
+          POST_NEARBY="$(curl --fail --silent --show-error --retry 8 --retry-delay 5 --retry-all-errors \
+            -H 'Content-Type: application/json' \
+            -X POST 'https://earnroute-nearby-api.onrender.com/api/jobs/nearby' \
+            --data '{"latitude":28.6139,"longitude":77.2090,"radius_km":1,"page":1,"page_size":10}')"
+          echo "$POST_NEARBY"
+          python -c 'import json,sys; r=json.loads(sys.argv[1]); assert r.get("nearby") is True, r; assert r.get("radius_km") == 1, r; items=r.get("items", []); assert all(x.get("distance_km") is not None and x["distance_km"] <= 1 for x in items), r; assert all(items[i]["distance_km"] <= items[i+1]["distance_km"] for i in range(len(items)-1)), r; print("POST nearby search, distance and sorting check: PASS")' "$POST_NEARBY"
+          code=$(curl --silent --output /dev/null --write-out '%{http_code}' \
+            -H 'Content-Type: application/json' -X POST \
+            'https://earnroute-nearby-api.onrender.com/api/jobs/nearby' \
+            --data '{"latitude":28.6139,"radius_km":1}')
+          test "$code" = "422"
+          echo "Invalid partial-coordinate rejection: PASS"
