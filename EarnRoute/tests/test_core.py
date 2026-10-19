@@ -643,8 +643,9 @@ def test_admin_account_inventory_status_changes_and_last_admin_protection(client
     assert client.post("/api/auth/login", json={"email": "searchable-worker@example.com", "password": "WorkerPass1234"}).status_code == 200
 
 
-def test_suspending_business_pauses_published_jobs_and_system_health_is_admin_only(client, register_business, create_admin):
+def test_suspending_business_pauses_published_jobs_and_system_health_is_admin_only(client, register_worker, register_business, create_admin):
     business, business_headers = register_business()
+    _, active_worker_headers = register_worker(email="active-worker-system-check@example.com")
     admin = create_admin()
     admin_headers = token_headers(client, "admin@earnroute.test", "StrongAdminPass123")
     verified = client.patch(f"/api/admin/businesses/{business['user']['id']}/verification", headers=admin_headers,
@@ -671,5 +672,6 @@ def test_suspending_business_pauses_published_jobs_and_system_health_is_admin_on
     assert "RAZORPAY_WEBHOOK_SECRET" not in str(payload)
     assert "DATABASE_URL" not in str(payload)
     assert payload["integrations"]["email_delivery"]["configured"] is False
-    assert client.get("/api/admin/system", headers=business_headers).status_code == 403
-    assert client.get("/api/admin/system", headers=business_headers).status_code == 403
+    # An active non-admin is authenticated but forbidden; the suspended business token is invalidated.
+    assert client.get("/api/admin/system", headers=active_worker_headers).status_code == 403
+    assert client.get("/api/admin/system", headers=business_headers).status_code == 401
