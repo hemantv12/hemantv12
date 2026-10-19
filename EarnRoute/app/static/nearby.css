@@ -1825,3 +1825,50 @@ html.er-native-app.er-drawer-open .sidebar,
 html.er-native-app.er-drawer-open .sidebar.mobile-open { z-index:550 !important; }
 html.er-native-app.er-drawer-open .er-sidebar-scrim { z-index:540 !important; }
 html.er-native-app.er-keyboard-open .er-mobile-nav { display:none !important; }
+
+
+/* RELEASE 1.6.7 — fixed web overlays use measured Android system-bar insets.
+   The native parent pads normal flow; fixed drawer/nav/scrim are separately offset because
+   WebView fixed-position layers can still reach behind the status/navigation bars. */
+html.er-native-app {
+  --er-system-top-inset:0px;
+  --er-system-bottom-inset:0px;
+}
+html.er-native-app .sidebar,
+html.er-native-app .sidebar.mobile-open {
+  position:fixed !important;
+  top:calc(var(--er-system-top-inset,0px) + var(--er-mobile-header-height,62px)) !important;
+  bottom:var(--er-system-bottom-inset,0px) !important;
+  height:auto !important;
+  max-height:calc(100dvh - var(--er-system-top-inset,0px) - var(--er-mobile-header-height,62px) - var(--er-system-bottom-inset,0px)) !important;
+  overflow-x:hidden !important;
+  overflow-y:auto !important;
+}
+html.er-native-app .er-sidebar-scrim {
+  top:calc(var(--er-system-top-inset,0px) + var(--er-mobile-header-height,62px)) !important;
+  bottom:var(--er-system-bottom-inset,0px) !important;
+}
+html.er-native-app .er-mobile-nav {
+  position:fixed !important;
+  bottom:var(--er-system-bottom-inset,0px) !important;
+  padding:7px 7px 7px !important;
+}
+html.er-native-app .sidebar > .sidebar-brand,
+html.er-native-app .sidebar > .workspace-label {
+  display:none !important;
+}
+html.er-native-app .side-nav > .nav-group-title:first-child {
+  margin-top:5px;
+}
+html.er-native-app .er-mobile-nav button {
+  padding-bottom:5px;
+}
+html.er-native-app.er-drawer-open .workspace-topbar {
+  z-index:560 !important;
+}
+html.er-native-app.er-drawer-open .sidebar.mobile-open { z-index:550 !important; }
+html.er-native-app.er-drawer-open .er-sidebar-scrim { z-index:540 !important; }
+html.er-native-app.er-keyboard-open .er-mobile-nav,
+html.er-native-app.er-drawer-open .er-mobile-nav {
+  display:none !important;
+}
