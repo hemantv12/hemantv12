@@ -76,6 +76,11 @@ def test_nearby_live_map_and_workplace_pin_picker_are_present():
     nearby_js = (ROOT / "app/static/nearby.js").read_text()
     nearby_css = (ROOT / "app/static/nearby.css").read_text()
     assert "https://tile.openstreetmap.org/{z}/{x}/{y}.png" in nearby_js
+    assert '@app.post("/api/jobs/nearby")' in main
+    assert "class NearbyJobsSearchBody(BaseModel)" in main
+    assert "api('/api/jobs/nearby'" in nearby_js
+    assert "api('/api/jobs?' + params.toString())" not in nearby_js
+    assert "Choose 1, 3, 5, 8, 10 or 15 km" not in nearby_js
     assert "function erMapTileUrl()" in nearby_js
     assert "L.tileLayer(erMapTileUrl()" in nearby_js
     assert "https://www.openstreetmap.org/fixthemap" in nearby_js
@@ -205,6 +210,9 @@ def test_manual_area_selection_and_map_provider_compliance_are_wired():
     assert "manualAreaHeading: 'Can’t use GPS? Choose your area manually'" in app_js
     assert "manualAreaHeading: 'GPS नहीं चल रहा? अपना क्षेत्र खुद चुनें'" in app_js
     assert "manualAreaApproximateNotice:" in app_js
+    assert "locationIntro: 'Choose 1, 3, 5, 8, 10 or 15 km" in app_js
+    assert "locationIntro: 'वास्तविक प्रकाशित शिफ्ट" in app_js
+    assert "selected coordinates are sent to EarnRoute" in app_js
     assert ".er-manual-area-picker" in css
     assert ".er-manual-location-confirm" in css
     assert "expiresAt:Date.now() + 30 * 60 * 1000" in nearby_js
