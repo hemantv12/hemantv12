@@ -347,6 +347,6 @@ def test_keyboard_layout_has_single_scroll_owner_and_keyboard_resizes_content():
     assert "max-height:calc(var(--er-visual-viewport-height, 100dvh) - 6px) !important" in css
     assert "html.er-native-app.er-keyboard-open #auth-modal .auth-modal" in css
     assert css.count("html.er-native-app #auth-modal.modal-backdrop:not([hidden])") == 1
-    assert css.count("html.er-native-app.er-keyboard-open #auth-modal .auth-modal") == 1
+    assert css.count("html.er-native-app.er-keyboard-open #auth-modal .auth-modal {") == 1
     assert 'android:windowSoftInputMode="adjustResize"' in (ANDROID / "app/src/main/AndroidManifest.xml").read_text()
     assert "WindowInsetsCompat.Type.ime()" in activity
