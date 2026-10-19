@@ -540,3 +540,63 @@ def test_support_ticket_create_and_private_detail(client, register_worker):
     ticket_id = created.json()["ticket"]["id"]
     assert client.get(f"/api/support/tickets/{ticket_id}", headers=owner_headers).status_code == 200
     assert client.get(f"/api/support/tickets/{ticket_id}", headers=other_headers).status_code == 404
+
+
+def test_account_data_export_is_private_and_excludes_credentials(client, register_worker):
+    worker, owner_headers = register_worker()
+    _, other_headers = register_worker(email="other-export@example.com")
+
+    response = client.get("/api/account/data-export", headers=owner_headers)
+    assert response.status_code == 200, response.text
+    assert "no-store" in response.headers.get("cache-control", "")
+    payload = response.json()
+    assert payload["account"]["id"] == worker["user"]["id"]
+    assert payload["account"]["email"] == worker["user"]["email"]
+    assert payload["policy_acceptance_events"]
+    accepted = payload["policy_acceptance_events"][0]
+    assert accepted["terms_version"] == "1.1-draft-2026-10-19"
+    assert accepted["privacy_notice_version"] == "1.1-draft-2026-10-19"
+    assert "password_hash" not in str(payload)
+    assert "access_token" not in payload
+    assert "other-export@example.com" not in str(payload)
+
+    other_export = client.get("/api/account/data-export", headers=other_headers)
+    assert other_export.status_code == 200
+    assert other_export.json()["account"]["email"] == "other-export@example.com"
+    assert other_export.json()["account"]["id"] != payload["account"]["id"]
+
+
+def test_privacy_request_creates_private_review_ticket_without_auto_deletion(client, register_worker):
+    worker, owner_headers = register_worker()
+    _, other_headers = register_worker(email="privacy-outsider@example.com")
+
+    response = client.post("/api/account/privacy-requests", headers=owner_headers, json={
+        "request_type": "deletion",
+        "message": "I request account closure and review for deletion of eligible personal data.",
+    })
+    assert response.status_code == 201, response.text
+    ticket = response.json()["ticket"]
+    assert ticket["category"] == "privacy"
+    assert ticket["status"] == "open"
+    assert "does not automatically delete" in ticket["messages"][0]["message"].lower()
+    assert client.get(f"/api/support/tickets/{ticket['id']}", headers=owner_headers).status_code == 200
+    assert client.get(f"/api/support/tickets/{ticket['id']}", headers=other_headers).status_code == 404
+
+    existing = SessionLocal().get(User, worker["user"]["id"])
+    assert existing is not None and existing.active is True
+    exported = client.get("/api/account/data-export", headers=owner_headers).json()
+    assert any(item["id"] == ticket["id"] for item in exported["support_tickets"])
+
+
+def test_privacy_requests_validate_type_and_message(client, register_worker):
+    _, headers = register_worker()
+    invalid_type = client.post("/api/account/privacy-requests", headers=headers, json={
+        "request_type": "erase-everything",
+        "message": "Please erase everything.",
+    })
+    assert invalid_type.status_code == 422
+    short_message = client.post("/api/account/privacy-requests", headers=headers, json={
+        "request_type": "correction",
+        "message": "short",
+    })
+    assert short_message.status_code == 422

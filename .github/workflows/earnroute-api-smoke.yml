@@ -6,6 +6,9 @@ on:
     branches: [earnroute-production]
     paths:
       - '.github/workflows/earnroute-api-smoke.yml'
+      - 'EarnRoute/app/main.py'
+      - 'EarnRoute/app/static/nearby.js'
+      - 'EarnRoute/app/static/nearby.css'
 
 permissions:
   contents: read

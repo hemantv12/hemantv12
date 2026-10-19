@@ -40,7 +40,7 @@ jobs:
           grep -Fq "document.querySelectorAll('[data-er-language-toggle]')" EarnRoute/app/static/app.js
           grep -q 'shareText(String text, String chooserTitle)' EarnRoute/android/app/src/main/java/in/earnroute/app/MainActivity.java
           grep -q 'test_worker_profile_accepts_more_radius_presets' EarnRoute/tests/test_core.py
-          grep -q "versionName '1.5.2'" EarnRoute/android/app/build.gradle
+          grep -q "versionName '1.5.3'" EarnRoute/android/app/build.gradle
 
       - name: Set up Python
         uses: actions/setup-python@v5

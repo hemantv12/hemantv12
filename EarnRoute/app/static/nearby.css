@@ -1027,3 +1027,28 @@ html.er-native-app .er-mobile-nav button small {
   .er-manual-area-actions { display:grid; grid-template-columns:minmax(0,1fr); }
   .er-manual-area-actions .btn { width:100%; }
 }
+
+
+/* Account privacy tools: self-service export and support-assisted requests. */
+.er-account-privacy {
+  margin:18px 0 30px;
+  padding:20px;
+  border:1px solid #dce7d3;
+  border-radius:18px;
+  background:linear-gradient(135deg,#fbfdf5 0%,#fff 76%);
+  box-shadow:0 8px 24px rgba(24,59,43,.04);
+  min-width:0;
+}
+.er-account-privacy-head { max-width:760px; }
+.er-account-privacy-kicker { display:block; margin-bottom:6px; color:#6b8847; font-size:9px; font-weight:950; letter-spacing:1.3px; }
+.er-account-privacy h2 { margin:0 0 7px; color:#203c2a; font-size:17px; letter-spacing:-.3px; }
+.er-account-privacy-head p,.er-account-privacy-note { margin:0; color:#6d7b6c; font-size:11px; line-height:1.7; }
+.er-account-privacy-actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:15px; }
+.er-account-privacy-actions .btn { min-height:42px; max-width:100%; white-space:normal; }
+.er-account-privacy-actions .er-privacy-delete { border-color:#edd9d4; color:#8c493f; background:#fffafa; }
+.er-account-privacy-note { margin-top:13px; padding-top:12px; border-top:1px solid #e9efdf; }
+@media(max-width:520px) {
+  .er-account-privacy { padding:15px; border-radius:15px; }
+  .er-account-privacy-actions { display:grid; grid-template-columns:minmax(0,1fr); }
+  .er-account-privacy-actions .btn { width:100%; }
+}

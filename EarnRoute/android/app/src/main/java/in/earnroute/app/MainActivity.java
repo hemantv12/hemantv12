@@ -40,6 +40,7 @@ import org.json.JSONObject;
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URL;
@@ -54,11 +55,13 @@ public final class MainActivity extends Activity {
     private static final String PREFS = "earnroute_settings";
     private static final String API_BASE_KEY = "api_base_url";
     private static final int LOCATION_PERMISSION_REQUEST = 4821;
+    private static final int SAVE_TEXT_FILE_REQUEST = 4822;
     private static final String DEFAULT_API_BASE_URL = "https://earnroute-nearby-api.onrender.com";
 
     private WebView webView;
     private GeolocationPermissions.Callback pendingGeoCallback;
     private String pendingGeoOrigin;
+    private volatile String pendingSaveContent;
     private SharedPreferences preferences;
     private final ExecutorService ioExecutor = Executors.newSingleThreadExecutor();
     private volatile int systemBottomInsetDp = 0;
@@ -282,6 +285,48 @@ public final class MainActivity extends Activity {
                     Toast.makeText(MainActivity.this, "No app available to share these details.", Toast.LENGTH_SHORT).show();
                 }
             });
+        }
+
+        /** Save an account export using Android's document picker without broad storage permissions. */
+        @JavascriptInterface public boolean saveTextFile(String fileName, String mimeType, String content) {
+            if (content == null || content.trim().isEmpty() || content.length() > 950000) return false;
+            final String safeName = fileName != null && fileName.matches("[A-Za-z0-9._-]{1,100}")
+                    ? fileName : "earnroute-data-export.json";
+            runOnUiThread(() -> {
+                if (pendingSaveContent != null) {
+                    Toast.makeText(MainActivity.this, "Finish the current file-save request first.", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                pendingSaveContent = content;
+                Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+                intent.addCategory(Intent.CATEGORY_OPENABLE);
+                intent.setType("application/json");
+                intent.putExtra(Intent.EXTRA_TITLE, safeName);
+                try {
+                    startActivityForResult(intent, SAVE_TEXT_FILE_REQUEST);
+                } catch (RuntimeException error) {
+                    pendingSaveContent = null;
+                    Toast.makeText(MainActivity.this, "Could not open the Android file picker.", Toast.LENGTH_LONG).show();
+                }
+            });
+            return true;
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != SAVE_TEXT_FILE_REQUEST) return;
+        String exportContent = pendingSaveContent;
+        pendingSaveContent = null;
+        if (resultCode != RESULT_OK || data == null || data.getData() == null || exportContent == null) return;
+        try (OutputStream output = getContentResolver().openOutputStream(data.getData(), "w")) {
+            if (output == null) throw new java.io.IOException("No output stream");
+            output.write(exportContent.getBytes(StandardCharsets.UTF_8));
+            output.flush();
+            Toast.makeText(this, "EarnRoute data export saved.", Toast.LENGTH_LONG).show();
+        } catch (Exception error) {
+            Toast.makeText(this, "Could not save the export. Please try again.", Toast.LENGTH_LONG).show();
         }
     }
 

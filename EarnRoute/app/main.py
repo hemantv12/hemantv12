@@ -39,6 +39,10 @@ MARKET_TIMEZONE = ZoneInfo(os.getenv("MARKET_TIMEZONE", "Asia/Kolkata"))
 DEFAULT_PLATFORM_FEE_PERCENT = max(0.0, min(float(os.getenv("DEFAULT_PLATFORM_FEE_PERCENT", "12")), 40.0))
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./earnroute.db")
 
+# Revision IDs are recorded for new sign-ups only; these draft notices are not legal approval.
+TERMS_POLICY_VERSION = "1.1-draft-2026-10-19"
+PRIVACY_POLICY_VERSION = "1.1-draft-2026-10-19"
+
 if APP_ENV == "production" and (len(JWT_SECRET) < 32 or JWT_SECRET.startswith("dev-only")):
     raise RuntimeError("Set JWT_SECRET to a unique random value of at least 32 characters in production.")
 
@@ -475,7 +479,7 @@ class BusinessProfileBody(BaseModel):
 
 class SupportTicketCreateBody(BaseModel):
     subject: str = Field(min_length=5, max_length=140)
-    category: Literal["account", "payments", "shift", "safety", "technical", "other"] = "other"
+    category: Literal["account", "privacy", "payments", "shift", "safety", "technical", "other"] = "other"
     message: str = Field(min_length=20, max_length=4000)
 
     @field_validator("subject", "message")
@@ -484,6 +488,19 @@ class SupportTicketCreateBody(BaseModel):
         value = value.strip()
         if not value:
             raise ValueError("Enter a subject and a message.")
+        return value
+
+
+class PrivacyRequestBody(BaseModel):
+    request_type: Literal["access", "correction", "deletion"]
+    message: str = Field(min_length=10, max_length=2000)
+
+    @field_validator("message")
+    @classmethod
+    def clean_privacy_message(cls, value: str) -> str:
+        value = value.strip()
+        if len(value) < 10:
+            raise ValueError("Please describe your privacy request in at least 10 characters.")
         return value
 
 
@@ -929,6 +946,13 @@ def register(body: RegisterBody, request: Request, db: Session = Depends(get_db)
     db.add(user)
     db.flush()
     log_event(db, user.id, "account_registered", "user", user.id, {"role": user.role})
+    # Record the exact policy revisions accepted at signup. Do not backdate consent for existing accounts.
+    log_event(db, user.id, "legal_policies_accepted", "user", user.id, {
+        "terms_version": TERMS_POLICY_VERSION,
+        "privacy_notice_version": PRIVACY_POLICY_VERSION,
+        "accepted_via": "registration_checkbox",
+        "role_at_acceptance": user.role,
+    })
     notify(db, user.id, "Welcome to EarnRoute", "Complete your profile to receive better work matches.")
     db.commit()
     return {"access_token": create_access_token(user), "token_type": "bearer", "user": serialize_user(user, db)}
@@ -946,6 +970,251 @@ def login(body: LoginBody, request: Request, db: Session = Depends(get_db)):
 @app.get("/api/auth/me")
 def auth_me(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     return {"user": serialize_user(user, db)}
+
+
+
+
+@app.get("/api/account/data-export")
+def export_account_data(
+    request: Request,
+    response: Response,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Export this authenticated user's own marketplace data without credentials or tokens."""
+    enforce_rate_limit(request, "account_data_export", 5, "Too many export requests. Please wait and try again.")
+    response.headers["Cache-Control"] = "private, no-store"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+
+    record_limit = 500
+    truncated_sections: list[str] = []
+
+    def limited(section: str, rows: list[Any]) -> list[Any]:
+        if len(rows) > record_limit:
+            truncated_sections.append(section)
+        return rows[:record_limit]
+
+    def iso(value: datetime | None) -> str | None:
+        return as_utc(value).isoformat() if value else None
+
+    def job_record(job: Job | None) -> dict[str, Any] | None:
+        if job is None:
+            return None
+        business = db.get(User, job.business_id)
+        return {
+            "id": job.id,
+            "business_name": business.full_name if business else None,
+            "title": job.title,
+            "description": job.description,
+            "category": job.category,
+            "city": job.city,
+            "address": job.address,
+            "latitude": job.latitude,
+            "longitude": job.longitude,
+            "slots": job.slots,
+            "start_at": iso(job.start_at),
+            "end_at": iso(job.end_at),
+            "pay_amount": job.pay_amount,
+            "pay_basis": job.pay_basis,
+            "payment_terms": job.payment_terms,
+            "requirements": job.requirements or [],
+            "min_experience": job.min_experience,
+            "breaks_info": job.breaks_info,
+            "equipment_info": job.equipment_info,
+            "safety_info": job.safety_info,
+            "application_deadline": iso(job.application_deadline),
+            "cancellation_policy": job.cancellation_policy,
+            "status": job.status,
+            "created_at": iso(job.created_at),
+        }
+
+    data: dict[str, Any] = {
+        "schema_version": "1.0",
+        "exported_at": utc_now().isoformat(),
+        "account": serialize_user(user, db),
+        "privacy_notes": [
+            "This file contains personal information; store and share it carefully.",
+            "Passwords, password hashes, authentication tokens, and raw device-location history are never included.",
+            "Device-selected nearby-search points are temporary in device session storage and are not persisted to the profile.",
+            f"Each activity section is limited to {record_limit} records. Any section that exceeds the limit is listed in truncated_sections.",
+        ],
+        "policy_acceptance_events": [],
+        "applications": [],
+        "saved_shifts": [],
+        "posted_jobs": [],
+        "assignments": [],
+        "notifications": [],
+        "support_tickets": [],
+        "reviews": [],
+        "truncated_sections": truncated_sections,
+    }
+
+    policy_rows = db.scalars(
+        select(AuditEvent)
+        .where(AuditEvent.actor_user_id == user.id, AuditEvent.action == "legal_policies_accepted")
+        .order_by(AuditEvent.created_at.desc()).limit(record_limit + 1)
+    ).all()
+    data["policy_acceptance_events"] = [
+        {
+            "accepted_at": iso(item.created_at),
+            "terms_version": (item.detail or {}).get("terms_version"),
+            "privacy_notice_version": (item.detail or {}).get("privacy_notice_version"),
+            "role_at_acceptance": (item.detail or {}).get("role_at_acceptance"),
+            "accepted_via": (item.detail or {}).get("accepted_via"),
+        }
+        for item in limited("policy_acceptance_events", policy_rows)
+    ]
+
+    if user.role == "worker":
+        application_rows = db.scalars(
+            select(Application).where(Application.worker_id == user.id)
+            .order_by(Application.created_at.desc()).limit(record_limit + 1)
+        ).all()
+        data["applications"] = [
+            {
+                "id": item.id,
+                "status": item.status,
+                "note": item.note,
+                "created_at": iso(item.created_at),
+                "updated_at": iso(item.updated_at),
+                "job": job_record(db.get(Job, item.job_id)),
+            }
+            for item in limited("applications", application_rows)
+        ]
+
+        saved_rows = db.scalars(
+            select(SavedShift).where(SavedShift.worker_id == user.id)
+            .order_by(SavedShift.created_at.desc()).limit(record_limit + 1)
+        ).all()
+        data["saved_shifts"] = [
+            {"saved_at": iso(item.created_at), "job": job_record(db.get(Job, item.job_id))}
+            for item in limited("saved_shifts", saved_rows)
+        ]
+
+        assignment_rows = db.scalars(
+            select(Assignment).where(Assignment.worker_id == user.id)
+            .order_by(Assignment.created_at.desc()).limit(record_limit + 1)
+        ).all()
+        data["assignments"] = [
+            {
+                "id": item.id,
+                "status": item.status,
+                "checkin_at": iso(item.checkin_at),
+                "checkout_at": iso(item.checkout_at),
+                "completion_approved_at": iso(item.completion_approved_at),
+                "completed_at": iso(item.completed_at),
+                "gross_pay": item.gross_pay,
+                "platform_fee": item.platform_fee,
+                "net_pay": item.net_pay,
+                "payout_status": item.payout_status,
+                "created_at": iso(item.created_at),
+                "job": job_record(db.get(Job, item.job_id)),
+            }
+            for item in limited("assignments", assignment_rows)
+        ]
+
+    elif user.role == "business":
+        job_rows = db.scalars(
+            select(Job).where(Job.business_id == user.id)
+            .order_by(Job.created_at.desc()).limit(record_limit + 1)
+        ).all()
+        data["posted_jobs"] = [job_record(item) for item in limited("posted_jobs", job_rows)]
+
+        assignment_rows = db.scalars(
+            select(Assignment).join(Job, Assignment.job_id == Job.id)
+            .where(Job.business_id == user.id)
+            .order_by(Assignment.created_at.desc()).limit(record_limit + 1)
+        ).all()
+        data["assignments"] = [
+            {
+                "id": item.id,
+                "status": item.status,
+                "gross_pay": item.gross_pay,
+                "created_at": iso(item.created_at),
+                "checkin_at": iso(item.checkin_at),
+                "checkout_at": iso(item.checkout_at),
+                "completed_at": iso(item.completed_at),
+                "job": job_record(db.get(Job, item.job_id)),
+            }
+            for item in limited("assignments", assignment_rows)
+        ]
+
+    notification_rows = db.scalars(
+        select(Notification).where(Notification.user_id == user.id)
+        .order_by(Notification.created_at.desc()).limit(record_limit + 1)
+    ).all()
+    data["notifications"] = [
+        {
+            "title": item.title,
+            "body": item.body,
+            "created_at": iso(item.created_at),
+            "read_at": iso(item.read_at),
+        }
+        for item in limited("notifications", notification_rows)
+    ]
+
+    ticket_rows = db.scalars(
+        select(SupportTicket).where(SupportTicket.user_id == user.id)
+        .order_by(SupportTicket.updated_at.desc()).limit(101)
+    ).all()
+    if len(ticket_rows) > 100:
+        truncated_sections.append("support_tickets")
+    data["support_tickets"] = [
+        serialize_support_ticket(db, item, include_messages=True)
+        for item in ticket_rows[:100]
+    ]
+
+    review_rows = db.scalars(
+        select(Review).where((Review.reviewer_id == user.id) | (Review.reviewee_id == user.id))
+        .order_by(Review.created_at.desc()).limit(record_limit + 1)
+    ).all()
+    data["reviews"] = [
+        {
+            "direction": "given" if item.reviewer_id == user.id else "received",
+            "rating": item.rating,
+            "comment": item.comment,
+            "created_at": iso(item.created_at),
+        }
+        for item in limited("reviews", review_rows)
+    ]
+    return data
+
+
+@app.post("/api/account/privacy-requests", status_code=201)
+def create_privacy_request(
+    body: PrivacyRequestBody,
+    request: Request,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Create a private, auditable support ticket; requests never erase records automatically."""
+    enforce_rate_limit(
+        request, f"privacy_request_{user.id}", 5,
+        "Too many privacy requests. Please wait and try again."
+    )
+    subjects = {
+        "access": "Privacy request: account data copy",
+        "correction": "Privacy request: data correction",
+        "deletion": "Privacy request: account closure / data deletion",
+    }
+    ticket = SupportTicket(user_id=user.id, subject=subjects[body.request_type], category="privacy", status="open")
+    db.add(ticket)
+    db.flush()
+    message = body.message.strip()
+    if body.request_type == "deletion":
+        message += (
+            "\n\nEarnRoute system note: this request does not automatically delete the account or records. "
+            "The operator must review active assignments, disputes, security/audit needs, and applicable retention obligations."
+        )
+    db.add(SupportMessage(ticket_id=ticket.id, sender_user_id=user.id, message=message))
+    log_event(db, user.id, "privacy_request_created", "support_ticket", ticket.id,
+              {"request_type": body.request_type, "category": "privacy"})
+    for administrator in db.scalars(select(User).where(User.role == "admin", User.active.is_(True))).all():
+        notify(db, administrator.id, "New privacy request", f"{subjects[body.request_type]} · submitted by {user.full_name}.")
+    db.commit()
+    db.refresh(ticket)
+    return {"ticket": serialize_support_ticket(db, ticket, include_messages=True)}
 
 
 @app.patch("/api/worker/profile")

@@ -234,5 +234,27 @@ def test_android_generates_versioned_buildconfig_for_map_user_agent():
     gradle = (ANDROID / "app/build.gradle").read_text()
     activity = (ANDROID / "app/src/main/java/in/earnroute/app/MainActivity.java").read_text()
     assert "buildFeatures {\n        buildConfig true\n    }" in gradle
-    assert "versionName '1.5.2'" in gradle
+    assert "versionName '1.5.3'" in gradle
     assert 'EarnRouteAndroid/" + BuildConfig.VERSION_NAME' in activity
+
+
+def test_account_export_and_privacy_controls_are_wired():
+    main = (ROOT / "app/main.py").read_text()
+    app_js = (ROOT / "app/static/app.js").read_text()
+    css = (ROOT / "app/static/nearby.css").read_text()
+    activity = (ANDROID / "app/src/main/java/in/earnroute/app/MainActivity.java").read_text()
+    sw = (ROOT / "app/static/sw.js").read_text()
+    assert '@app.get("/api/account/data-export")' in main
+    assert '@app.post("/api/account/privacy-requests", status_code=201)' in main
+    assert 'category: Literal["account", "privacy"' in main
+    assert '"legal_policies_accepted"' in main
+    assert 'TERMS_POLICY_VERSION = "1.1-draft-2026-10-19"' in main
+    assert "function renderAccountPrivacyTools()" in app_js
+    assert "data-export-my-data" in app_js
+    assert 'data-privacy-request="deletion"' in app_js
+    assert "Privacy request sent to support." in app_js
+    assert "er-account-privacy" in css
+    assert "saveTextFile(String fileName, String mimeType, String content)" in activity
+    assert "Intent.ACTION_CREATE_DOCUMENT" in activity
+    assert "SAVE_TEXT_FILE_REQUEST" in activity
+    assert "earnroute-shell-v9" in sw

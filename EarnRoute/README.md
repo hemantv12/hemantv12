@@ -2,8 +2,11 @@
 
 EarnRoute is an India-first, mobile-first hyperlocal earning marketplace for finding genuine paid shifts within a selectable 1 km, 3 km or 5 km radius, plus expanded 8 km, 10 km and 15 km options. This repository is a runnable launch candidate: it includes a responsive public website, worker/business/admin workspaces, API, PostgreSQL-compatible schema, migration, tests, and deployment assets. It must **not** be represented as a fully production-verified marketplace until the remaining integrations and operating procedures in this README are completed.
 
-## Version 1.5.2 — GPS fallback, privacy-safe nearby search and compliant map configuration
+## Version 1.5.3 — account data export, policy audit and privacy requests
 
+- Account privacy controls: signed-in users can export a JSON copy of their own profile, work records, notifications, support tickets/messages, reviews and recorded policy acceptances. Password hashes and session tokens are excluded; each activity section is capped at 500 records, support-ticket exports are capped at 100 tickets, and truncation is explicitly reported.
+- New sign-ups record the exact draft Terms and Privacy notice revision IDs accepted in the audit history. Existing accounts are not retroactively assigned a revision they did not accept.
+- Access-help, correction and deletion requests create private support tickets and notify active administrators. These requests do not automatically erase accounts or records; the operator must review active assignments, disputes, security/audit requirements and applicable retention duties.
 - App-first welcome and workspace layouts have narrower-device constraints, Devanagari font/line-height treatment, safe-area handling, wrapping controls, and horizontal overflow prevention.
 - English/Hindi preference is persisted locally. The UI localization pass covers the welcome screen, role navigation, forms, dynamic labels, job statuses, common prompts, and notifications. Device/browser rendering still needs physical-device QA to catch any remaining string or font differences.
 - Workers can use the OS share sheet/browser sharing to send nearby or accepted-shift details, compensation estimates, workplace information, and a Maps destination link. It does not track the other party live.
@@ -224,3 +227,9 @@ The scheduled workflow is `.github/workflows/earnroute-backup.yml`. It is config
 - `EARNROUTE_BACKUP_PASSPHRASE`: independently generated secret of at least 32 characters, stored in the owner's password manager. This key is needed to decrypt every backup made with it; keep an offline recovery copy.
 
 The workflow uses the existing Neon Storage endpoint in `ap-southeast-1`; credentials and the encryption passphrase are not stored in source. After adding the secrets, run `EarnRoute encrypted PostgreSQL backup` manually once in Actions and confirm the log ends with successful upload/download/archive verification before relying on the daily schedule. This is an off-site copy only within the same Neon provider and region, so a second-provider copy is still recommended for disaster recovery. A manual baseline snapshot already exists; automatic Neon snapshot scheduling is not enabled for this project.
+
+
+## Research notes and launch readiness
+
+- Product, competitor, India privacy, emergency-resource, OpenStreetMap and Android sources: docs/RESEARCH_NOTES.md.
+- Owner-facing pre-launch blockers, current implementation status and required actions: docs/LAUNCH_READINESS.md.

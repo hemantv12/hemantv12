@@ -30,6 +30,22 @@ const TRANSLATIONS = {
     sortHourlyRate: 'Best estimated take-home / hour', sortAfterCommute: 'Best after commute estimate',
     sortSoonest: 'Soonest start', sortOpenSpots: 'Most open spots',
     commuteBudgetLabel: 'Commute budget per straight-line km (₹)', commuteBudgetPlaceholder: '₹/km (optional)',
+    privacyToolsKicker: 'YOUR DATA, YOUR CHOICE', privacyToolsTitle: 'Privacy & account data',
+    privacyToolsCopy: 'Download a copy of the data currently stored for your EarnRoute account, or send a private request to the support team. The export excludes passwords and session tokens.',
+    downloadMyData: 'Download my data', requestFullCopy: 'Request help with a full data copy',
+    requestCorrection: 'Request data correction', requestDeletion: 'Request account closure / deletion',
+    privacyReviewNote: 'Requests create a private support ticket for review. Account closure and record deletion are not automatic; records may need to be retained for active assignments, disputes, security, or legal obligations.',
+    privacyExportPickLocation: 'Choose a location in Android’s file picker to save your JSON export.',
+    privacyExportStarted: 'Your account data export is being prepared for download.',
+    privacyExportTooLarge: 'This export is too large for this device. Request a complete copy from support instead.',
+    privacyExportTooLargeConfirm: 'The export is too large to save directly. Send support a request for a complete account-data copy?',
+    privacyRequestSent: 'Privacy request sent to support. No account data was deleted automatically.',
+    privacyDeleteConfirm: 'This sends a request for review; it will not immediately delete your account or records. Continue?',
+    privacyCorrectionPrompt: 'Describe what account data needs correction. Do not include passwords, OTPs or identity numbers.',
+    privacyRequestTooShort: 'Please describe the request in at least 10 characters.',
+    privacyAccessRequestMessage: 'Please provide a complete copy of the personal data associated with my account, including items not present in the self-service export.',
+    privacyDeletionMessage: 'I request account closure and review for deletion of personal data eligible for deletion.',
+    privacyRequestFailed: 'The privacy request could not be sent. Please retry or use Help & support.',
     useMyLocation: 'Use my location', locationIntro: 'Choose 1, 3, 5, 8, 10 or 15 km to find genuine published shifts. The selected coordinates are sent to EarnRoute to return nearby results, kept in this device session for up to 30 minutes, and not added to your profile.', manualAreaHeading: 'Can’t use GPS? Choose your area manually',
     manualAreaIntro: 'Choose the nearest city to centre the map, then zoom in and tap the area where you want to find work. A nearby public landmark is better than your home entrance.',
     manualAreaCity: 'Your city / nearest city', manualAreaChooseCity: 'Choose a city', manualAreaChooseMap: 'Centre map and choose area',
@@ -58,6 +74,22 @@ const TRANSLATIONS = {
     sortHourlyRate: 'प्रति घंटे अनुमानित कमाई', sortAfterCommute: 'यात्रा खर्च के बाद सबसे ज़्यादा',
     sortSoonest: 'सबसे जल्द शुरू', sortOpenSpots: 'सबसे ज़्यादा खाली जगह',
     commuteBudgetLabel: 'सीधी दूरी के प्रति किमी यात्रा बजट (₹)', commuteBudgetPlaceholder: '₹/किमी (वैकल्पिक)',
+    privacyToolsKicker: 'आपका डेटा, आपका चुनाव', privacyToolsTitle: 'गोपनीयता और अकाउंट डेटा',
+    privacyToolsCopy: 'अपने EarnRoute अकाउंट में सेव डेटा की कॉपी डाउनलोड करें या सपोर्ट टीम को निजी अनुरोध भेजें। एक्सपोर्ट में पासवर्ड और सेशन टोकन शामिल नहीं होते।',
+    downloadMyData: 'मेरा डेटा डाउनलोड करें', requestFullCopy: 'पूरी डेटा कॉपी के लिए मदद माँगें',
+    requestCorrection: 'डेटा सुधार का अनुरोध', requestDeletion: 'अकाउंट बंद / डेटा हटाने का अनुरोध',
+    privacyReviewNote: 'अनुरोध निजी सपोर्ट टिकट के रूप में समीक्षा के लिए जाएगा। अकाउंट बंद करना या रिकॉर्ड हटाना अपने-आप नहीं होता; सक्रिय असाइनमेंट, विवाद, सुरक्षा या कानूनी दायित्वों के लिए कुछ रिकॉर्ड रखने पड़ सकते हैं।',
+    privacyExportPickLocation: 'JSON कॉपी सेव करने के लिए Android फ़ाइल पिकर में जगह चुनें।',
+    privacyExportStarted: 'आपके अकाउंट डेटा की डाउनलोड कॉपी तैयार हो रही है।',
+    privacyExportTooLarge: 'यह एक्सपोर्ट इस डिवाइस पर सेव करने के लिए बहुत बड़ा है। सपोर्ट से पूरी कॉपी माँगें।',
+    privacyExportTooLargeConfirm: 'एक्सपोर्ट सीधे सेव करने के लिए बहुत बड़ा है। क्या पूरी अकाउंट-डेटा कॉपी के लिए सपोर्ट को अनुरोध भेजें?',
+    privacyRequestSent: 'गोपनीयता अनुरोध सपोर्ट को भेज दिया गया। कोई डेटा अपने-आप नहीं हटाया गया।',
+    privacyDeleteConfirm: 'यह समीक्षा के लिए अनुरोध भेजेगा; इससे अकाउंट या रिकॉर्ड तुरंत नहीं मिटेंगे। जारी रखें?',
+    privacyCorrectionPrompt: 'बताएँ कि अकाउंट डेटा में क्या सुधार चाहिए। पासवर्ड, OTP या पहचान नंबर न लिखें।',
+    privacyRequestTooShort: 'कृपया कम-से-कम 10 अक्षरों में अनुरोध बताएँ।',
+    privacyAccessRequestMessage: 'कृपया मेरे अकाउंट से जुड़ी निजी जानकारी की पूरी कॉपी दें, जिसमें सेल्फ-सर्विस एक्सपोर्ट में न दिखने वाले आइटम भी शामिल हों।',
+    privacyDeletionMessage: 'मैं अकाउंट बंद करने और हटाए जा सकने वाले निजी डेटा को मिटाने की समीक्षा का अनुरोध करता/करती हूँ।',
+    privacyRequestFailed: 'गोपनीयता अनुरोध नहीं भेजा जा सका। दोबारा कोशिश करें या सहायता से संपर्क करें।',
     useMyLocation: 'मेरी लोकेशन उपयोग करें', locationIntro: 'वास्तविक प्रकाशित शिफ्ट खोजने के लिए 1, 3, 5, 8, 10 या 15 किमी चुनें। आसपास के परिणाम दिखाने के लिए चुने गए निर्देशांक EarnRoute को भेजे जाते हैं; वे इस डिवाइस के सेशन में अधिकतम 30 मिनट रहते हैं और प्रोफ़ाइल में नहीं जोड़े जाते।', manualAreaHeading: 'GPS नहीं चल रहा? अपना क्षेत्र खुद चुनें',
     manualAreaIntro: 'मैप को पास के शहर पर केंद्रित करें, फिर ज़ूम करके उस क्षेत्र पर टैप करें जहाँ काम खोजना है। घर के प्रवेश-द्वार के बजाय पास का सार्वजनिक स्थान चुनना बेहतर है।',
     manualAreaCity: 'आपका शहर / पास का शहर', manualAreaChooseCity: 'शहर चुनें', manualAreaChooseMap: 'मैप केंद्रित करें और क्षेत्र चुनें',
@@ -423,16 +455,29 @@ async function renderBusinessApplicants(jobId = null) {
   return `${pageHeading('APPLICANT MANAGEMENT','Meet the people behind the applications.','Review the relevant skills and work preferences shared by applicants. Send offers only when shift terms and capacity are still correct.', '<button class="btn btn-outline" data-screen="business-jobs">Back to jobs →</button>')}
   <div class="panel"><div class="panel-header"><div><h2 class="panel-title">${jobId ? 'Applicants for selected job' : 'All applicants'}</h2><div class="panel-subtitle">${items.length} application${items.length===1?'':'s'} · Private worker details are limited to applications for your jobs.</div></div></div><div class="panel-body">${items.length?`<div class="job-list">${items.map(a=>`<article class="job-card"><div class="job-card-head"><div class="job-brand-icon">${escapeHtml(initials(a.worker_name).slice(0,1))}</div><div class="job-head-main"><div class="job-title">${escapeHtml(a.worker_name)}</div><div class="job-business">${escapeHtml(a.job_title)} · ${escapeHtml(a.worker_city||'City not set')} · ${a.worker_experience_years||0} year(s) experience${a.worker_rating ? ` · ★ ${Number(a.worker_rating).toFixed(1)} (${Number(a.worker_review_count||0)})` : ' · No reviews yet'}</div></div>${statusPill(a.status)}</div><div class="job-meta">${(a.worker_skills||[]).length?(a.worker_skills||[]).map(s=>`<span class="meta-chip">${escapeHtml(s)}</span>`).join(''):'<span class="meta-chip">Skills not added yet</span>'}</div>${a.note?`<p class="application-note">${escapeHtml(a.note)}</p>`:''}<div class="job-card-bottom"><span class="job-business">Received ${escapeHtml(formatDate(a.created_at))}</span><div class="job-management-actions">${['applied','shortlisted'].includes(a.status)?`<button class="btn btn-outline btn-sm" data-app-status="${a.id}" data-status="${a.status==='shortlisted'?'rejected':'shortlisted'}">${a.status==='shortlisted'?'Reject':'Shortlist'}</button><button class="btn btn-primary btn-sm" data-offer="${a.id}">Send offer</button>`:''}${a.assignment_id?`<button class="btn btn-light btn-sm" data-screen="business-assignments">Assignment #${a.assignment_id}</button>`:''}</div></div></article>`).join('')}</div>`:emptyState('No applications in this view','When workers apply to your published jobs, their applications and relevant profile details will appear here.','◎')}</div></div>`;
 }
+function renderAccountPrivacyTools() {
+  return '<section class="er-account-privacy" aria-labelledby="er-account-privacy-title">' +
+    '<div class="er-account-privacy-head"><span class="er-account-privacy-kicker">' + escapeHtml(t('privacyToolsKicker')) + '</span>' +
+    '<h2 id="er-account-privacy-title">' + escapeHtml(t('privacyToolsTitle')) + '</h2>' +
+    '<p>' + escapeHtml(t('privacyToolsCopy')) + '</p></div>' +
+    '<div class="er-account-privacy-actions">' +
+    '<button type="button" class="btn btn-primary" data-export-my-data>↓ ' + escapeHtml(t('downloadMyData')) + '</button>' +
+    '<button type="button" class="btn btn-outline" data-privacy-request="access">' + escapeHtml(t('requestFullCopy')) + '</button>' +
+    '<button type="button" class="btn btn-outline" data-privacy-request="correction">' + escapeHtml(t('requestCorrection')) + '</button>' +
+    '<button type="button" class="btn btn-outline er-privacy-delete" data-privacy-request="deletion">' + escapeHtml(t('requestDeletion')) + '</button>' +
+    '</div><p class="er-account-privacy-note">' + escapeHtml(t('privacyReviewNote')) + '</p></section>';
+}
+
 async function renderProfile() {
   const p=currentUser.profile||{};
   if(currentUser.role==='worker') {
     const availability=(p.availability||[]).map(w=>`${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][w.day]},${w.start},${w.end}`).join('\n');
     return `${pageHeading('YOUR WORK PROFILE','Help the matcher understand you.','Keep your preferences honest and up to date. You choose whether to apply for or accept any opportunity.', '<button class="btn btn-outline" data-screen="overview">Back to overview →</button>')}
-    <form id="worker-profile-form" class="form-panel"><h2>Work preferences</h2><p>These details are used for explainable recommendations. Do not include Aadhaar, bank credentials or other unnecessary sensitive information.</p><div class="form-grid"><div class="form-field"><label for="profile-city">Your city *</label><input id="profile-city" name="city" required maxlength="100" value="${escapeHtml(p.city||'')}" placeholder="e.g. Delhi"></div><div class="form-field"><label for="profile-radius">Preferred travel radius</label><select id="profile-radius" name="travel_radius_km">${[1,3,5,8,10,15].map(v=>`<option value="${v}" ${Number(p.travel_radius_km||3)===v?'selected':''}>${v} km</option>`).join('')}</select><small class="form-help">Nearby searches support 1, 3 or 5 km, plus More: 8, 10 and 15 km. Distances are straight-line, not road ETA.</small></div><div class="form-field span-2"><label for="profile-skills">Your skills (comma-separated)</label><input id="profile-skills" name="skills" value="${escapeHtml((p.skills||[]).join(', '))}" placeholder="customer service, stock counting, event support"></div><div class="form-field span-2"><label for="profile-categories">Preferred work categories (comma-separated)</label><input id="profile-categories" name="preferred_categories" value="${escapeHtml((p.preferred_categories||[]).join(', '))}" placeholder="Retail, Events, Warehouse"></div><div class="form-field"><label for="profile-pay">Minimum preferred gross pay per shift (INR)</label><input id="profile-pay" name="min_pay" type="number" min="0" max="1000000" step="50" value="${escapeHtml(p.min_pay||0)}"></div><div class="form-field"><label for="profile-experience">Relevant experience (years)</label><input id="profile-experience" name="experience_years" type="number" min="0" max="60" value="${escapeHtml(p.experience_years||0)}"></div><div class="form-field span-2"><label for="profile-availability">Weekly availability windows *</label><textarea id="profile-availability" name="availability" placeholder="One per line: Mon,09:00,17:00\nTue,16:00,21:00">${escapeHtml(availability)}</textarea><small class="form-help">Use Mon, Tue, Wed, Thu, Fri, Sat or Sun followed by a start and end time in 24-hour format. Example: Wed,09:00,16:00. A window must cover the full shift.</small></div></div><div id="profile-form-error" class="form-error" hidden></div><div class="form-actions"><button class="btn btn-primary btn-large" type="submit">Save preferences <span>↗</span></button></div></form>`;
+    <form id="worker-profile-form" class="form-panel"><h2>Work preferences</h2><p>These details are used for explainable recommendations. Do not include Aadhaar, bank credentials or other unnecessary sensitive information.</p><div class="form-grid"><div class="form-field"><label for="profile-city">Your city *</label><input id="profile-city" name="city" required maxlength="100" value="${escapeHtml(p.city||'')}" placeholder="e.g. Delhi"></div><div class="form-field"><label for="profile-radius">Preferred travel radius</label><select id="profile-radius" name="travel_radius_km">${[1,3,5,8,10,15].map(v=>`<option value="${v}" ${Number(p.travel_radius_km||3)===v?'selected':''}>${v} km</option>`).join('')}</select><small class="form-help">Nearby searches support 1, 3 or 5 km, plus More: 8, 10 and 15 km. Distances are straight-line, not road ETA.</small></div><div class="form-field span-2"><label for="profile-skills">Your skills (comma-separated)</label><input id="profile-skills" name="skills" value="${escapeHtml((p.skills||[]).join(', '))}" placeholder="customer service, stock counting, event support"></div><div class="form-field span-2"><label for="profile-categories">Preferred work categories (comma-separated)</label><input id="profile-categories" name="preferred_categories" value="${escapeHtml((p.preferred_categories||[]).join(', '))}" placeholder="Retail, Events, Warehouse"></div><div class="form-field"><label for="profile-pay">Minimum preferred gross pay per shift (INR)</label><input id="profile-pay" name="min_pay" type="number" min="0" max="1000000" step="50" value="${escapeHtml(p.min_pay||0)}"></div><div class="form-field"><label for="profile-experience">Relevant experience (years)</label><input id="profile-experience" name="experience_years" type="number" min="0" max="60" value="${escapeHtml(p.experience_years||0)}"></div><div class="form-field span-2"><label for="profile-availability">Weekly availability windows *</label><textarea id="profile-availability" name="availability" placeholder="One per line: Mon,09:00,17:00\nTue,16:00,21:00">${escapeHtml(availability)}</textarea><small class="form-help">Use Mon, Tue, Wed, Thu, Fri, Sat or Sun followed by a start and end time in 24-hour format. Example: Wed,09:00,16:00. A window must cover the full shift.</small></div></div><div id="profile-form-error" class="form-error" hidden></div><div class="form-actions"><button class="btn btn-primary btn-large" type="submit">Save preferences <span>↗</span></button></div></form>` + renderAccountPrivacyTools();
   }
   if(currentUser.role==='business') return `${pageHeading('BUSINESS PROFILE','Your business, clearly represented.','Keep business contact and location details accurate. Documents and private verification uploads are not enabled in this starter release.', '<button class="btn btn-outline" data-screen="business-overview">Back to overview →</button>')}
-    <div class="callout-warning">Verification status: <b>${escapeHtml(p.verification_status||'pending')}</b>${p.verification_reason?` — ${escapeHtml(p.verification_reason)}`:''}. Publishing is locked until an admin verifies the business.</div><form id="business-profile-form" class="form-panel"><h2>Business details</h2><div class="form-grid"><div class="form-field"><label for="business-name">Business / legal name *</label><input id="business-name" name="legal_name" required maxlength="150" value="${escapeHtml(p.legal_name||currentUser.full_name)}"></div><div class="form-field"><label for="business-category">Business category</label><select id="business-category" name="category">${['Retail','Events','Warehouse','Hospitality','Delivery','Office support','Inventory','Customer support','Other'].map(v=>`<option ${p.category===v?'selected':''}>${v}</option>`).join('')}</select></div><div class="form-field"><label for="business-city">City *</label><input id="business-city" name="city" required maxlength="100" value="${escapeHtml(p.city||'')}"></div><div class="form-field"><label for="business-phone">Business phone</label><input id="business-phone" name="phone" maxlength="20" value="${escapeHtml(p.phone||'')}"></div><div class="form-field span-2"><label for="business-address">Business address</label><input id="business-address" name="address" maxlength="300" value="${escapeHtml(p.address||'')}"></div><div class="form-field span-2"><label for="business-description">Description</label><textarea id="business-description" name="description" maxlength="3000">${escapeHtml(p.description||'')}</textarea></div></div><div id="profile-form-error" class="form-error" hidden></div><div class="form-actions"><button class="btn btn-primary btn-large" type="submit">Save business details ↗</button></div></form>`;
-  return emptyState('Admin account','Admin accounts are provisioned by the founder command-line script. Profile editing is disabled for this role.');
+    <div class="callout-warning">Verification status: <b>${escapeHtml(p.verification_status||'pending')}</b>${p.verification_reason?` — ${escapeHtml(p.verification_reason)}`:''}. Publishing is locked until an admin verifies the business.</div><form id="business-profile-form" class="form-panel"><h2>Business details</h2><div class="form-grid"><div class="form-field"><label for="business-name">Business / legal name *</label><input id="business-name" name="legal_name" required maxlength="150" value="${escapeHtml(p.legal_name||currentUser.full_name)}"></div><div class="form-field"><label for="business-category">Business category</label><select id="business-category" name="category">${['Retail','Events','Warehouse','Hospitality','Delivery','Office support','Inventory','Customer support','Other'].map(v=>`<option ${p.category===v?'selected':''}>${v}</option>`).join('')}</select></div><div class="form-field"><label for="business-city">City *</label><input id="business-city" name="city" required maxlength="100" value="${escapeHtml(p.city||'')}"></div><div class="form-field"><label for="business-phone">Business phone</label><input id="business-phone" name="phone" maxlength="20" value="${escapeHtml(p.phone||'')}"></div><div class="form-field span-2"><label for="business-address">Business address</label><input id="business-address" name="address" maxlength="300" value="${escapeHtml(p.address||'')}"></div><div class="form-field span-2"><label for="business-description">Description</label><textarea id="business-description" name="description" maxlength="3000">${escapeHtml(p.description||'')}</textarea></div></div><div id="profile-form-error" class="form-error" hidden></div><div class="form-actions"><button class="btn btn-primary btn-large" type="submit">Save business details ↗</button></div></form>` + renderAccountPrivacyTools();
+  return emptyState('Admin account','Admin accounts are provisioned by the founder command-line script. Profile editing is disabled for this role.') + renderAccountPrivacyTools();
 }
 async function renderAdminOverview() {
   const s=await api('/api/admin/overview');
@@ -812,6 +857,81 @@ document.addEventListener('click', async event => {
   if(target.dataset.rejectBusiness){const reason=window.prompt('Enter the reason for rejection (at least 8 characters):');if(reason===null)return;if(reason.trim().length<8){showToast('Please provide a clear rejection reason.','error');return;}await actionApi(`/api/admin/businesses/${target.dataset.rejectBusiness}/verification`,'PATCH',{status:'rejected',reason},'Business verification rejected with a recorded reason.');return;}
   if(target.dataset.resolveDispute){const resolution_note=window.prompt(`Document why this dispute will be ${target.dataset.status} (at least 5 characters):`);if(resolution_note===null)return;if(resolution_note.trim().length<5){showToast('Please document your decision.','error');return;}await actionApi(`/api/admin/disputes/${target.dataset.resolveDispute}`,'PATCH',{status:target.dataset.status,resolution_note},'Dispute decision recorded in the audit history.');return;}
   if(target.dataset.readNotification){await actionApi(`/api/notifications/${target.dataset.readNotification}/read`,'POST',undefined,'Notification marked as read.');$('#notification-panel')?.remove();return;}
+  if(target.hasAttribute('data-export-my-data')) {
+    target.disabled = true;
+    try {
+      const payload = await api('/api/account/data-export');
+      const json = JSON.stringify(payload, null, 2);
+      const fileName = 'earnroute-data-export-' + new Date().toISOString().slice(0,10) + '.json';
+      if (json.length > 950000) {
+        if (window.confirm(t('privacyExportTooLargeConfirm'))) {
+          const result = await api('/api/account/privacy-requests', {
+            method:'POST',
+            body:{request_type:'access', message:t('privacyAccessRequestMessage')}
+          });
+          showToast(t('privacyRequestSent') + ' #' + Number(result.ticket && result.ticket.id));
+        }
+        return;
+      }
+      if (window.EarnRouteNative && typeof window.EarnRouteNative.saveTextFile === 'function') {
+        const started = window.EarnRouteNative.saveTextFile(fileName, 'application/json', json);
+        if (!started) throw new Error(t('privacyExportTooLarge'));
+        showToast(t('privacyExportPickLocation'));
+      } else {
+        const blob = new Blob([json], {type:'application/json;charset=utf-8'});
+        const objectUrl = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = objectUrl;
+        link.download = fileName;
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.setTimeout(function(){ URL.revokeObjectURL(objectUrl); }, 30000);
+        showToast(t('privacyExportStarted'));
+      }
+    } catch (error) {
+      showToast(friendlyError(error) || t('privacyRequestFailed'), 'error');
+    } finally { target.disabled = false; }
+    return;
+  }
+  if (target.dataset.privacyRequest) {
+    const requestType = target.dataset.privacyRequest;
+    let message;
+    if (requestType === 'deletion') {
+      if (!window.confirm(t('privacyDeleteConfirm'))) return;
+      message = t('privacyDeletionMessage');
+    } else if (requestType === 'access') {
+      message = t('privacyAccessRequestMessage');
+    } else {
+      message = window.prompt(t('privacyCorrectionPrompt'));
+      if (message === null) return;
+      message = message.trim();
+      if (message.length < 10) {
+        showToast(t('privacyRequestTooShort'), 'error');
+        return;
+      }
+    }
+    target.disabled = true;
+    try {
+      const result = await api('/api/account/privacy-requests', {
+        method:'POST',
+        body:{request_type:requestType, message:message}
+      });
+      const ticketId = Number(result.ticket && result.ticket.id);
+      showToast(t('privacyRequestSent') + (ticketId ? ' #' + ticketId : ''));
+      if (currentUser && currentUser.role === 'admin') {
+        activeAdminSupportTicketId = ticketId || null;
+        setActiveScreen('admin-support');
+      } else {
+        activeSupportTicketId = ticketId || null;
+        setActiveScreen('support');
+      }
+    } catch (error) {
+      showToast(friendlyError(error) || t('privacyRequestFailed'), 'error');
+    } finally { target.disabled = false; }
+    return;
+  }
   if(target.id==='profile-btn'){setActiveScreen('profile');return;}
   if(target.getAttribute('href')==='#top' && currentUser){setActiveScreen('overview');return;}
 });
