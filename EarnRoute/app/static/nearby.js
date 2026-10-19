@@ -946,8 +946,8 @@ function erEnsureMobileNav() {
       ['business-applicants','◎','People'], ['business-assignments','✓','Work']
     ],
     admin: [
-      ['admin-overview','⌂','Home'], ['admin-verifications','✓','Verify'], ['admin-jobs','▤','Jobs'],
-      ['admin-disputes','⚑','Issues'], ['admin-audit','◷','Audit']
+      ['admin-overview','⌂','Home'], ['admin-verifications','✓','Verify'], ['admin-users','◎','Users'],
+      ['admin-support','✉','Support'], ['admin-system','⌁','System']
     ]
   };
   const items = navigation[role];
