@@ -1219,3 +1219,196 @@ html.er-native-app .form-field textarea {
   html.er-native-app #auth-form { gap:8px; }
   html.er-native-app #auth-modal .auth-safe { margin-top:8px; }
 }
+
+
+/* FINAL MOBILE FORM + KEYBOARD LAYER (v2)
+   One scroll owner for the auth sheet prevents the backdrop and form from fighting
+   over touch/keyboard scroll. Keep the active input above the Android IME. */
+html.er-native-app #auth-modal.modal-backdrop:not([hidden]) {
+  display:flex !important;
+  flex-direction:column !important;
+  align-items:center !important;
+  justify-content:center !important;
+  padding:6px !important;
+  overflow:hidden !important;
+  overscroll-behavior:none !important;
+  touch-action:pan-y;
+}
+html.er-native-app #auth-modal .auth-modal {
+  box-sizing:border-box !important;
+  display:block;
+  flex:0 1 auto !important;
+  width:100% !important;
+  min-width:0 !important;
+  min-height:0 !important;
+  max-width:480px !important;
+  max-height:calc(var(--er-visual-viewport-height, 100dvh) - 12px) !important;
+  margin:0 auto;
+  overflow-x:hidden !important;
+  overflow-y:auto !important;
+  overscroll-behavior:contain !important;
+  -webkit-overflow-scrolling:touch;
+  scroll-padding-block:24px;
+}
+html.er-native-app #auth-modal .auth-modal #auth-form,
+html.er-native-app #auth-modal .auth-modal #auth-form .form-field {
+  min-width:0;
+  max-width:100%;
+}
+html.er-native-app #auth-modal .auth-modal #auth-form .form-field input,
+html.er-native-app #auth-modal .auth-modal #auth-form .form-field select,
+html.er-native-app #auth-modal .auth-modal #auth-form .form-field textarea {
+  box-sizing:border-box;
+  width:100%;
+  min-width:0;
+  max-width:100%;
+}
+html.er-native-app.er-keyboard-open #auth-modal.modal-backdrop:not([hidden]) {
+  justify-content:flex-end !important;
+  padding:0 !important;
+  overflow:hidden !important;
+}
+html.er-native-app.er-keyboard-open #auth-modal .auth-modal {
+  align-self:center;
+  flex:0 1 auto !important;
+  width:100% !important;
+  max-width:480px !important;
+  max-height:calc(var(--er-visual-viewport-height, 100dvh) - 2px) !important;
+  margin:0 auto;
+  padding:11px 16px calc(10px + env(safe-area-inset-bottom)) !important;
+  border-radius:18px 18px 0 0;
+  overflow-x:hidden !important;
+  overflow-y:auto !important;
+  scroll-padding-block:30px;
+}
+html.er-native-app.er-keyboard-open #auth-modal .modal-brand,
+html.er-native-app.er-keyboard-open #auth-modal .auth-eyebrow,
+html.er-native-app.er-keyboard-open #auth-modal .auth-safe {
+  display:none !important;
+}
+html.er-native-app.er-keyboard-open #auth-modal .auth-modal h2 {
+  margin:0 34px 5px 0;
+  font-size:20px;
+  line-height:1.25;
+  letter-spacing:-.4px;
+}
+html.er-native-app.er-keyboard-open #auth-modal .auth-subheading {
+  margin:0 0 9px;
+  font-size:10px;
+  line-height:1.45;
+}
+html.er-native-app.er-keyboard-open #auth-modal .auth-mode-tabs {
+  gap:4px;
+  margin-bottom:9px;
+  padding:3px;
+}
+html.er-native-app.er-keyboard-open #auth-modal .auth-mode {
+  padding:8px 6px;
+}
+html.er-native-app.er-keyboard-open #auth-modal #auth-form {
+  gap:9px;
+  padding-bottom:6px;
+}
+html.er-native-app.er-keyboard-open #auth-modal #auth-form .form-field {
+  gap:4px;
+}
+html.er-native-app.er-keyboard-open #auth-modal #auth-form .form-field input,
+html.er-native-app.er-keyboard-open #auth-modal #auth-form .form-field select {
+  min-height:43px;
+  height:43px;
+  font-size:16px;
+}
+html.er-native-app.er-keyboard-open #auth-modal #auth-form .terms-check {
+  align-items:flex-start;
+  font-size:10px;
+  line-height:1.5;
+}
+html.er-native-app.er-keyboard-open #auth-modal #auth-submit {
+  min-height:46px;
+  margin-top:2px;
+}
+html.er-native-app.er-keyboard-open #auth-modal .modal-close {
+  position:absolute;
+  top:8px;
+  right:10px;
+  z-index:4;
+}
+html.er-native-app.er-keyboard-open .er-mobile-nav,
+html.er-native-app.er-keyboard-open .workspace-footer {
+  display:none !important;
+}
+html.er-native-app.er-keyboard-open .view-root {
+  padding-bottom:8px !important;
+  scroll-padding-top:68px;
+  scroll-padding-bottom:22px;
+}
+html.er-native-app.er-keyboard-open .form-field input,
+html.er-native-app.er-keyboard-open .form-field select,
+html.er-native-app.er-keyboard-open .form-field textarea {
+  scroll-margin-top:18px;
+  scroll-margin-bottom:28px;
+}
+@media(max-width:640px) {
+  html.er-native-app .workspace,
+  html.er-native-app .workspace-main,
+  html.er-native-app #view-root,
+  html.er-native-app .view-root,
+  html.er-native-app .panel,
+  html.er-native-app .panel-body,
+  html.er-native-app .form-panel,
+  html.er-native-app .form-grid,
+  html.er-native-app .form-field {
+    box-sizing:border-box;
+    min-width:0;
+    max-width:100%;
+  }
+  html.er-native-app .workspace-main { overflow-x:hidden; }
+  html.er-native-app .form-grid {
+    grid-template-columns:minmax(0,1fr) !important;
+    gap:12px;
+  }
+  html.er-native-app .form-grid > .span-2,
+  html.er-native-app .form-grid > [class*="span-"] {
+    grid-column:1 / -1 !important;
+  }
+  html.er-native-app .form-field input,
+  html.er-native-app .form-field select,
+  html.er-native-app .form-field textarea,
+  html.er-native-app .form-field button,
+  html.er-native-app .form-grid input,
+  html.er-native-app .form-grid select,
+  html.er-native-app .form-grid textarea {
+    box-sizing:border-box;
+    width:100%;
+    min-width:0;
+    max-width:100%;
+  }
+  html.er-native-app .panel-header {
+    min-width:0;
+    flex-wrap:wrap;
+    align-items:flex-start;
+    gap:10px;
+  }
+  html.er-native-app .panel-header > * { min-width:0; max-width:100%; }
+  html.er-native-app .page-heading,
+  html.er-native-app .heading-actions { min-width:0; max-width:100%; }
+  html.er-native-app .data-table-wrap,
+  html.er-native-app .table-wrap { max-width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; }
+}
+@media(max-height:520px) {
+  html.er-native-app #auth-modal .auth-modal {
+    padding-top:10px !important;
+    padding-right:12px !important;
+    padding-left:12px !important;
+  }
+  html.er-native-app.er-keyboard-open #auth-modal .auth-modal {
+    padding-top:8px !important;
+    padding-bottom:8px !important;
+  }
+  html.er-native-app.er-keyboard-open #auth-modal .auth-subheading { display:none !important; }
+  html.er-native-app.er-keyboard-open #auth-modal .auth-mode-tabs { margin-bottom:6px; }
+  html.er-native-app.er-keyboard-open #auth-modal #auth-form { gap:7px; }
+}
+@media(prefers-reduced-motion:reduce) {
+  html.er-native-app #auth-modal .auth-modal { scroll-behavior:auto !important; }
+}
