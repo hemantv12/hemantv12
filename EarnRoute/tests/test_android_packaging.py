@@ -258,3 +258,30 @@ def test_account_export_and_privacy_controls_are_wired():
     assert "Intent.ACTION_CREATE_DOCUMENT" in activity
     assert "SAVE_TEXT_FILE_REQUEST" in activity
     assert "earnroute-shell-v9" in sw
+
+
+def test_android_keyboard_resize_and_auth_sheet_visibility_are_wired():
+    manifest = (ANDROID / "app/src/main/AndroidManifest.xml").read_text()
+    activity = (ANDROID / "app/src/main/java/in/earnroute/app/MainActivity.java").read_text()
+    app_js = (ROOT / "app/static/app.js").read_text()
+    nearby_css = (ROOT / "app/static/nearby.css").read_text()
+
+    assert 'android:windowSoftInputMode="adjustResize"' in manifest
+    assert "WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE" in activity
+    assert "function erCurrentVisibleViewportHeight()" in app_js
+    assert "window.visualViewport.addEventListener('resize', erSyncKeyboardViewport" in app_js
+    assert "window.visualViewport.addEventListener('scroll', erSyncKeyboardViewport" in app_js
+    assert "function erKeepFocusedControlVisible(target)" in app_js
+    assert "if (!document.documentElement.classList.contains('er-native-app') &&" in app_js
+    assert "ANDROID KEYBOARD-SAFE AUTH SHEET" in nearby_css
+    assert "max-height:var(--er-visual-viewport-height, 100dvh) !important" in nearby_css
+    assert "html.er-native-app.er-keyboard-open .er-mobile-nav" in nearby_css
+    assert "active.blur()" in app_js
+
+
+def test_auth_sheet_does_not_automatically_open_mobile_keyboard():
+    app_js = (ROOT / "app/static/app.js").read_text()
+    open_auth = app_js[app_js.index("function openAuth(mode = 'login'"):app_js.index("function closeAuth()")]
+    assert "Do not auto-open the Android keyboard over the sign-up form." in open_auth
+    assert "window.setTimeout(() => $('#auth-email').focus(), 50);" in open_auth
+    assert "window.matchMedia('(pointer: fine)').matches" in open_auth
