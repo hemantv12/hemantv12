@@ -803,8 +803,28 @@ renderWorkerOverview = async function() {
     '<button type="button" data-screen="schedule"><span class="er-quick-icon">▦</span><span><b>My schedule</b><small>' + confirmed.length + ' confirmed</small></span><i>→</i></button>' +
     '<button type="button" data-screen="earnings"><span class="er-quick-icon">₹</span><span><b>My earnings</b><small>' + formatMoney(earnings.pending_settlement || 0) + ' pending</small></span><i>→</i></button></section>' + erWorkerSafetyPanel();
 };
+function erGetNearbyFilterState() {
+  try {
+    const value = JSON.parse(sessionStorage.getItem('earnroute_nearby_filters') || '{}');
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+    const search = typeof value.search === 'string' ? value.search.slice(0,120) : '';
+    const min = value.min_pay === '' || value.min_pay == null ? '' : Number(value.min_pay);
+    const minPay = Number.isFinite(min) && min >= 0 && min <= 1000000 ? String(min) : '';
+    return {search:search,min_pay:minPay};
+  } catch (_) { return {}; }
+}
+function erSaveNearbyFilterState(value) {
+  value = value || {};
+  const search = String(value.search || '').trim().slice(0,120);
+  const rawMin = String(value.min_pay == null ? '' : value.min_pay).trim();
+  const min = rawMin === '' ? '' : Number(rawMin);
+  const minPay = Number.isFinite(min) && min >= 0 && min <= 1000000 ? String(min) : '';
+  try { sessionStorage.setItem('earnroute_nearby_filters', JSON.stringify({search:search,min_pay:minPay})); }
+  catch (_) { /* Filtering still works for this render if session storage is unavailable. */ }
+}
+
 renderDiscover = async function(filters) {
-  filters = filters || {};
+  filters = Object.assign({}, erGetNearbyFilterState(), filters || {});
   await erRefreshSavedShiftIds();
   const location = erGetLocation();
   const requestedRadius = Number(filters.radius_km || erRadius());
@@ -831,8 +851,8 @@ renderDiscover = async function(filters) {
   }[sortBy];
   return pageHeading('NEARBY WORK','Find work close to you.','No far-away listings. Compare distance, shift time and estimated take-home before applying.','<button type="button" class="btn btn-outline" data-er-enable-location>↻ Refresh location</button>') +
     '<div class="er-discover-toolbar"><div><span class="er-control-label">Distance limit</span>' + erRadiusButtons(radius) + '</div><div><span class="er-control-label">Work type</span>' + erCategoryButtons(category) + '</div><span class="er-location-note">⌖ ' + escapeHtml(erLocationLabel(location)) + ' · ' + radius + ' km maximum</span></div>' +
-    '<form id="er-nearby-filter" class="er-search-row"><input name="search" placeholder="Search a local gig" aria-label="Search nearby jobs" value="' + escapeHtml(filters.search || '') + '">' +
-    '<input name="min_pay" type="number" min="0" step="50" placeholder="' + escapeHtml(t('minimumPay')) + '" value="' + escapeHtml(filters.min_pay || '') + '" aria-label="' + escapeHtml(t('minimumPay')) + '">' +
+    '<form id="er-nearby-filter" class="er-search-row"><input name="search" maxlength="120" placeholder="Search a local gig" aria-label="Search nearby jobs" value="' + escapeHtml(filters.search || '') + '">' +
+    '<input name="min_pay" type="number" min="0" max="1000000" step="50" placeholder="' + escapeHtml(t('minimumPay')) + '" value="' + escapeHtml(filters.min_pay || '') + '" aria-label="' + escapeHtml(t('minimumPay')) + '">' +
     '<label class="er-commute-field"><span class="er-control-label">' + escapeHtml(t('commuteBudgetLabel')) + '</span><input name="commute_cost_per_km" type="number" min="0" max="500" step="0.5" inputmode="decimal" placeholder="' + escapeHtml(t('commuteBudgetPlaceholder')) + '" value="' + (commuteRate > 0 ? commuteRate : '') + '" aria-label="' + escapeHtml(t('commuteBudgetLabel')) + '"></label>' +
     erSortSelectMarkup(sortBy, commuteRate) + '<button class="btn btn-primary" type="submit">' + escapeHtml(t('search')) + '</button><button class="btn btn-outline" type="reset">' + escapeHtml(t('clear')) + '</button></form>' +
     '<div class="er-results-note"><b>' + (result.total || 0) + '</b> shift' + (result.total === 1 ? '' : 's') + ' within ' + radius + ' km · ' + sortDescription + '</div>' +
@@ -1245,6 +1265,7 @@ document.addEventListener('submit', async function(event) {
   if (form && form.id === 'er-nearby-filter') {
     event.preventDefault();
     const data = formObject(form);
+    erSaveNearbyFilterState(data);
     const commuteRate = erGetCommuteCostPerKm(data.commute_cost_per_km);
     try {
       if (commuteRate > 0) localStorage.setItem('earnroute_commute_cost_per_km', String(commuteRate));
@@ -1267,6 +1288,7 @@ document.addEventListener('reset', function(event) {
     event.preventDefault();
     sessionStorage.removeItem('earnroute_nearby_category');
     sessionStorage.removeItem('earnroute_nearby_sort');
+    sessionStorage.removeItem('earnroute_nearby_filters');
     setTimeout(function(){renderPage();}, 0);
   }
 });
