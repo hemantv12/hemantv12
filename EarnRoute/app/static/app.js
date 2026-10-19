@@ -701,13 +701,35 @@ function showAdminSignIn(message = '') {
     $('#auth-error').hidden = false;
   }
 }
+// The native bridge supplies IME insets for older Android System WebView releases
+// whose visualViewport does not resize when the software keyboard opens.
+function erNativeImeInsetCssPx() {
+  if (!document.documentElement.classList.contains('er-native-app')) return 0;
+  try {
+    const bridge = window.EarnRouteNative;
+    const value = Number(bridge && typeof bridge.getSystemImeInsetDp === 'function'
+      ? bridge.getSystemImeInsetDp() : 0);
+    return Number.isFinite(value) ? Math.max(0, Math.round(value)) : 0;
+  } catch (_) {
+    return 0;
+  }
+}
+let erLastNonKeyboardViewportHeight = 0;
 function erCurrentVisibleViewportHeight() {
   const vv = window.visualViewport;
   const layoutHeight = Number(window.innerHeight || document.documentElement.clientHeight || 1);
   const visualHeight = vv && Number(vv.height) > 0 ? Number(vv.height) : layoutHeight;
-  return Math.max(1, Math.round(Math.min(layoutHeight, visualHeight)));
+  const observedHeight = Math.max(1, Math.round(Math.min(layoutHeight, visualHeight)));
+  const imeInset = erNativeImeInsetCssPx();
+  // Use native insets as a fallback, but take the smaller value so modern WebView's
+  // visual-viewport resize is never subtracted twice.
+  if (imeInset > 110 && erLastNonKeyboardViewportHeight > 0) {
+    const nativeVisibleHeight = Math.max(1, Math.round(erLastNonKeyboardViewportHeight - imeInset));
+    return Math.max(1, Math.min(observedHeight, nativeVisibleHeight));
+  }
+  return observedHeight;
 }
-let erLastNonKeyboardViewportHeight = erCurrentVisibleViewportHeight();
+erLastNonKeyboardViewportHeight = erCurrentVisibleViewportHeight();
 
 function erIsEditableControl(target) {
   return !!(target && target.matches &&
@@ -717,22 +739,41 @@ function erIsEditableControl(target) {
 function erKeepFocusedControlVisible(target) {
   if (!document.documentElement.classList.contains('er-native-app') || !erIsEditableControl(target)) return;
   const vv = window.visualViewport;
+  const viewportTop = Math.max(0, Math.round(vv ? vv.offsetTop : 0));
   const visibleHeight = erCurrentVisibleViewportHeight();
-  const visibleTop = Math.max(0, Math.round(vv ? vv.offsetTop : 0)) + 8;
-  const visibleBottom = visibleTop + visibleHeight - 18;
+  const visibleBottom = viewportTop + visibleHeight - 18;
+  let visibleTop = viewportTop + 8;
+  const sheet = target.closest('.auth-modal');
+  if (!sheet) {
+    // Keep controls clear of the sticky app header while the keyboard is open.
+    const header = document.querySelector('.workspace-topbar');
+    if (header) {
+      const headerRect = header.getBoundingClientRect();
+      if (headerRect.bottom > visibleTop && headerRect.top < visibleBottom) {
+        visibleTop = Math.min(visibleBottom - 40, headerRect.bottom + 8);
+      }
+    }
+  }
   const rect = target.getBoundingClientRect();
   if (rect.top >= visibleTop && rect.bottom <= visibleBottom) return;
 
-  // Prefer scrolling the authentication sheet itself, not the whole page behind it.
-  const sheet = target.closest('.auth-modal');
+  // Scroll the form sheet for sign-in/sign-up. On workspace forms, center the field
+  // in the visible viewport instead of leaving it underneath the sticky header.
   if (sheet) {
     if (rect.bottom > visibleBottom) {
-      sheet.scrollTop += rect.bottom - visibleBottom + 16;
+      sheet.scrollTop += rect.bottom - visibleBottom + 20;
     } else if (rect.top < visibleTop) {
-      sheet.scrollTop -= visibleTop - rect.top + 12;
+      sheet.scrollTop -= visibleTop - rect.top + 14;
     }
+    window.requestAnimationFrame(() => {
+      if (document.activeElement === target) {
+        const after = target.getBoundingClientRect();
+        if (after.bottom > visibleBottom) sheet.scrollTop += after.bottom - visibleBottom + 12;
+        else if (after.top < visibleTop) sheet.scrollTop -= visibleTop - after.top + 10;
+      }
+    });
   } else {
-    target.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'auto' });
+    target.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'auto' });
   }
 }
 
@@ -743,14 +784,20 @@ function erSyncKeyboardViewport() {
   const vv = window.visualViewport;
   const height = erCurrentVisibleViewportHeight();
   const top = Math.max(0, Math.round(vv ? vv.offsetTop : 0));
+  const nativeImeInset = erNativeImeInsetCssPx();
   root.style.setProperty('--er-visual-viewport-height', height + 'px');
   root.style.setProperty('--er-visual-viewport-top', top + 'px');
+  root.style.setProperty('--er-system-ime-inset', nativeImeInset + 'px');
 
-  const hasEditableFocus = erIsEditableControl(document.activeElement);
-  const keyboardOpen = hasEditableFocus && erLastNonKeyboardViewportHeight - height > 110;
+  const activeControl = document.activeElement;
+  const hasEditableFocus = erIsEditableControl(activeControl);
+  const keyboardOpen = hasEditableFocus &&
+    (erLastNonKeyboardViewportHeight - height > 110 || nativeImeInset > 110);
   root.classList.toggle('er-keyboard-open', keyboardOpen);
 
-  if (!hasEditableFocus || height > erLastNonKeyboardViewportHeight) {
+  // Never redefine the pre-keyboard baseline using a keyboard-shortened viewport.
+  if (height > erLastNonKeyboardViewportHeight ||
+      (!hasEditableFocus && nativeImeInset <= 110)) {
     erLastNonKeyboardViewportHeight = height;
   }
   if (hasEditableFocus) {
@@ -767,8 +814,14 @@ if (window.visualViewport) {
 }
 document.addEventListener('focusin', event => {
   if (!document.documentElement.classList.contains('er-native-app') || !erIsEditableControl(event.target)) return;
+  const target = event.target;
   erSyncKeyboardViewport();
-  window.setTimeout(erSyncKeyboardViewport, 180);
+  // Re-check after keyboard animation; some keyboards update their final insets in stages.
+  [80, 180, 320].forEach(delay => window.setTimeout(() => {
+    if (document.activeElement !== target) return;
+    erSyncKeyboardViewport();
+    erKeepFocusedControlVisible(target);
+  }, delay));
 });
 document.addEventListener('focusout', () => {
   window.setTimeout(erSyncKeyboardViewport, 120);
