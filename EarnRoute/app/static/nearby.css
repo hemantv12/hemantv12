@@ -1872,3 +1872,41 @@ html.er-native-app.er-keyboard-open .er-mobile-nav,
 html.er-native-app.er-drawer-open .er-mobile-nav {
   display:none !important;
 }
+
+
+/* Keyboard viewport alignment: the auth backdrop is a grid when the keyboard is closed.
+   Switch to a bottom-anchored flex sheet while the IME is open, sized to the visible viewport. */
+html.er-native-app.er-keyboard-open #auth-modal.modal-backdrop:not([hidden]) {
+  position:fixed !important;
+  display:flex !important;
+  flex-direction:column !important;
+  align-items:stretch !important;
+  justify-content:flex-end !important;
+  top:var(--er-visual-viewport-top,0px) !important;
+  right:0 !important;
+  bottom:auto !important;
+  left:0 !important;
+  width:100% !important;
+  height:var(--er-visual-viewport-height,100dvh) !important;
+  max-height:var(--er-visual-viewport-height,100dvh) !important;
+  padding:0 !important;
+  overflow:hidden !important;
+}
+html.er-native-app.er-keyboard-open #auth-modal .auth-modal {
+  flex:0 1 auto !important;
+  align-self:center;
+  max-height:calc(var(--er-visual-viewport-height,100dvh) - 6px) !important;
+  margin:0 auto !important;
+  overflow-x:hidden !important;
+  overflow-y:auto !important;
+  overscroll-behavior:contain !important;
+  -webkit-overflow-scrolling:touch;
+  scroll-padding-top:24px;
+  scroll-padding-bottom:30px;
+}
+html.er-native-app.er-keyboard-open #auth-modal #auth-password,
+html.er-native-app.er-keyboard-open #auth-modal #auth-email,
+html.er-native-app.er-keyboard-open #auth-modal #auth-name {
+  scroll-margin-top:18px;
+  scroll-margin-bottom:32px;
+}
