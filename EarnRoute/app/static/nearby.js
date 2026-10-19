@@ -980,6 +980,8 @@ renderPage = async function() {
   erDisposeLiveMaps($('#view-root'));
   await erBaseRenderPage();
   erEnsureMobileNav();
+  if (typeof erInitializeBusinessJobDraft === 'function') erInitializeBusinessJobDraft();
+  if (typeof erSyncNativeBackHandling === 'function') erSyncNativeBackHandling();
   erEnhanceLiveMaps();
 };
 
