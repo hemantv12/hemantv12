@@ -305,8 +305,34 @@ html.er-native-app button{touch-action:manipulation}
 /* Keep the marketing page clean in browsers and the app drawer consistent on tablet-sized Android screens. */
 .er-app-splash{display:none}
 html.er-native-app .workspace{display:block}
-html.er-native-app .sidebar{position:fixed;left:-270px;top:0;bottom:0;height:100dvh;width:250px;transition:left .22s ease;box-shadow:none;z-index:100}
-html.er-native-app .sidebar.mobile-open{left:0;box-shadow:20px 0 50px rgba(16,50,29,.17)}
+html.er-native-app {
+  --er-mobile-header-height:62px;
+  --er-system-bottom-inset:0px;
+}
+html.er-native-app .sidebar {
+  position:fixed;
+  left:-105vw;
+  top:var(--er-mobile-header-height,62px);
+  bottom:var(--er-system-bottom-inset,0px);
+  height:auto;
+  max-height:calc(100dvh - var(--er-mobile-header-height,62px) - var(--er-system-bottom-inset,0px));
+  width:min(304px,calc(100vw - 56px));
+  max-width:calc(100vw - 56px);
+  padding:14px 15px 16px;
+  overflow-x:hidden;
+  overflow-y:auto;
+  overscroll-behavior:contain;
+  -webkit-overflow-scrolling:touch;
+  transition:left .22s ease,box-shadow .22s ease;
+  box-shadow:none;
+  z-index:200;
+}
+html.er-native-app .sidebar.mobile-open {
+  left:0;
+  box-shadow:20px 0 50px rgba(16,50,29,.17);
+}
+html.er-native-app .sidebar-brand,
+html.er-native-app .sidebar > .workspace-label { display:none !important; }
 
 
 /* MOBILE FIT AND WRAPPING FIXES
@@ -1062,6 +1088,8 @@ html.er-native-app {
   --er-visual-viewport-height: 100dvh;
   --er-visual-viewport-top: 0px;
   --er-system-ime-inset: 0px;
+  --er-system-bottom-inset: 0px;
+  --er-mobile-header-height: 62px;
   --er-mobile-nav-height: 68px;
 }
 html.er-native-app,
@@ -1219,9 +1247,9 @@ html.er-native-app .view-root {
   max-width:780px;
   min-width:0;
   margin:0 auto;
-  padding:19px 14px calc(var(--er-mobile-nav-height,68px) + 22px + env(safe-area-inset-bottom)) !important;
-  scroll-padding-top:78px;
-  scroll-padding-bottom:calc(var(--er-mobile-nav-height,68px) + 22px + env(safe-area-inset-bottom));
+  padding:19px 14px calc(var(--er-mobile-nav-height,68px) + 18px + var(--er-system-bottom-inset,0px)) !important;
+  scroll-padding-top:calc(var(--er-mobile-header-height,62px) + 16px);
+  scroll-padding-bottom:calc(var(--er-mobile-nav-height,68px) + 18px + var(--er-system-bottom-inset,0px));
   overflow-wrap:anywhere;
 }
 html.er-native-app #view-root { min-width:0; max-width:780px; }
@@ -1231,10 +1259,10 @@ html.er-native-app .er-mobile-nav {
   z-index:500;
   left:0;
   right:0;
-  bottom:0 !important;
+  bottom:var(--er-system-bottom-inset,0px) !important;
   box-sizing:border-box;
   min-height:var(--er-mobile-nav-height,68px);
-  padding:7px 7px calc(7px + env(safe-area-inset-bottom)) !important;
+  padding:7px 7px 7px !important;
   display:grid;
   grid-template-columns:repeat(5,minmax(0,1fr));
   gap:2px;
@@ -1517,3 +1545,31 @@ html.er-native-app.er-keyboard-open .form-field textarea {
   html.er-native-app #auth-modal .auth-modal { scroll-behavior:auto !important; }
   html.er-native-app .er-mobile-nav button:active { transform:none !important; }
 }
+
+
+/* Mobile navigation overlays must live between the fixed app header and Android system bar. */
+html.er-native-app .er-sidebar-scrim {
+  position:fixed !important;
+  top:var(--er-mobile-header-height,62px) !important;
+  right:0 !important;
+  bottom:var(--er-system-bottom-inset,0px) !important;
+  left:0 !important;
+  z-index:180 !important;
+  display:block !important;
+  width:100% !important;
+  min-width:0 !important;
+  min-height:0 !important;
+  max-width:none !important;
+  margin:0 !important;
+  padding:0 !important;
+  border:0 !important;
+  border-radius:0 !important;
+  background:rgba(10,26,17,.36) !important;
+  box-shadow:none !important;
+  backdrop-filter:blur(1px);
+}
+html.er-native-app .er-sidebar-scrim:active { background:rgba(10,26,17,.42) !important; }
+html.er-native-app.er-drawer-open .er-mobile-nav,
+html.er-native-app.er-drawer-open .workspace-footer { display:none !important; }
+html.er-native-app.er-drawer-open { overscroll-behavior:none; }
+html.er-native-app.er-drawer-open .sidebar { touch-action:pan-y; }
