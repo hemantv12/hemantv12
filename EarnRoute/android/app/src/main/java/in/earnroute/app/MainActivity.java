@@ -65,6 +65,7 @@ public final class MainActivity extends Activity {
     private SharedPreferences preferences;
     private final ExecutorService ioExecutor = Executors.newSingleThreadExecutor();
     private volatile int systemBottomInsetDp = 0;
+    private volatile int systemImeInsetDp = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -247,26 +248,44 @@ public final class MainActivity extends Activity {
 
     private void applyInsets(WebView view) {
         ViewCompat.setOnApplyWindowInsetsListener(view, (target, windowInsets) -> {
-            Insets bars = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars());
+            int systemBarsAndCutout = WindowInsetsCompat.Type.systemBars()
+                    | WindowInsetsCompat.Type.displayCutout();
+            Insets bars = windowInsets.getInsets(systemBarsAndCutout);
             Insets navigationBars = windowInsets.getInsets(WindowInsetsCompat.Type.navigationBars());
-            systemBottomInsetDp = Math.max(0, Math.round(navigationBars.bottom / getResources().getDisplayMetrics().density));
+            Insets ime = windowInsets.getInsets(WindowInsetsCompat.Type.ime());
+            boolean imeVisible = windowInsets.isVisible(WindowInsetsCompat.Type.ime());
+            float density = getResources().getDisplayMetrics().density;
+            systemBottomInsetDp = Math.max(0, Math.round(navigationBars.bottom / density));
+            systemImeInsetDp = imeVisible ? Math.max(0, Math.round(ime.bottom / density)) : 0;
+
+            // This native WebView already applies system bar/cutout padding. Consume those insets
+            // after padding so CSS safe-area-inset values do not add the same bars a second time.
+            // Keep IME insets unconsumed so modern WebView versions can still resize visualViewport.
             target.setPadding(bars.left, bars.top, bars.right, bars.bottom);
             applyCssSystemBottomInset(target);
-            return windowInsets;
+            return new WindowInsetsCompat.Builder(windowInsets)
+                    .setInsets(systemBarsAndCutout, Insets.NONE)
+                    .build();
         });
     }
 
     private void applyCssSystemBottomInset(View target) {
         if (!(target instanceof WebView)) return;
         WebView targetWebView = (WebView) target;
-        final int inset = Math.max(0, systemBottomInsetDp);
-        targetWebView.evaluateJavascript("(function(){if(document.documentElement.classList.contains('er-native-app')){document.documentElement.style.setProperty('--er-system-bottom-inset','" + inset + "px');}})();", null);
+        final int bottomInset = Math.max(0, systemBottomInsetDp);
+        final int imeInset = Math.max(0, systemImeInsetDp);
+        targetWebView.evaluateJavascript("(function(){if(document.documentElement.classList.contains('er-native-app')){" +
+                "document.documentElement.style.setProperty('--er-system-bottom-inset','" + bottomInset + "px');" +
+                "document.documentElement.style.setProperty('--er-system-ime-inset','" + imeInset + "px');" +
+                "if(typeof window.erSyncKeyboardViewport==='function'){window.erSyncKeyboardViewport();}" +
+                "}})();", null);
     }
 
     private final class EarnRouteBridge {
         @JavascriptInterface public boolean isAndroidApp() { return true; }
         @JavascriptInterface public String getApiBaseUrl() { return preferences.getString(API_BASE_KEY, DEFAULT_API_BASE_URL); }
         @JavascriptInterface public int getSystemBottomInsetDp() { return systemBottomInsetDp; }
+        @JavascriptInterface public int getSystemImeInsetDp() { return systemImeInsetDp; }
         @JavascriptInterface public void openServerSettings() { runOnUiThread(() -> showServerSettings()); }
 
         /** Share work/shift details using Android's native share sheet. */
