@@ -47,6 +47,7 @@ async function start(PORT,SECRET){
   await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS terms_version TEXT NOT NULL DEFAULT ''");
   await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS private_beta_access BOOLEAN NOT NULL DEFAULT FALSE");
   await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS account_status TEXT NOT NULL DEFAULT 'active' CHECK(account_status IN('active','suspended'))");
+  await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_platform_account BOOLEAN NOT NULL DEFAULT FALSE");
   await pool.query("CREATE TABLE IF NOT EXISTS email_action_tokens(id BIGSERIAL PRIMARY KEY,user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,token_hash TEXT NOT NULL UNIQUE,purpose TEXT NOT NULL CHECK(purpose IN('verify_email','password_reset')),expires_at TIMESTAMPTZ NOT NULL,consumed_at TIMESTAMPTZ,created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP)");
   await pool.query("CREATE INDEX IF NOT EXISTS email_action_tokens_user_idx ON email_action_tokens(user_id,purpose,created_at DESC)");
   await pool.query("CREATE TABLE IF NOT EXISTS support_requests(id BIGSERIAL PRIMARY KEY,name TEXT NOT NULL,email TEXT NOT NULL,category TEXT NOT NULL,subject TEXT NOT NULL,message TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'open',created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP)");
@@ -224,13 +225,22 @@ async function start(PORT,SECRET){
     if(!raw)return s.status(401).json({error:'Please sign in to continue.'});
     let decoded;try{decoded=jwt.verify(raw,SECRET)}catch{return s.status(401).json({error:'Session expired. Please sign in again.'})}
     if(decoded.admin===true||!decoded.id)return s.status(401).json({error:'Please sign in to continue.'});
-    const r=await pool.query('SELECT '+PROFILE_FIELDS+', (instagram_access_token_enc<>\'\') AS instagram_connected,session_version,email_verified_at,private_beta_access,account_status FROM users WHERE id=$1',[decoded.id]);
+    const r=await pool.query('SELECT '+PROFILE_FIELDS+', (instagram_access_token_enc<>\'\') AS instagram_connected,session_version,email_verified_at,private_beta_access,account_status,is_platform_account FROM users WHERE id=$1',[decoded.id]);
     if(!r.rows.length)return s.status(401).json({error:'Please sign in to continue.'});
     if(Number(decoded.ver||0)!==Number(r.rows[0].session_version||0))return s.status(401).json({error:'Your session expired. Please sign in again.'});
+    if(r.rows[0].is_platform_account)return s.status(401).json({error:'Please sign in to continue.'});
     if(r.rows[0].account_status==='suspended')return s.status(403).json({error:'This account is suspended. Contact Collabzy support.'});
     if(requireEmailVerification&&!r.rows[0].email_verified_at&&r.rows[0].private_beta_access!==true)return s.status(403).json({error:'Please verify your email before using Collabzy.'});
     q.sessionVersion=Number(r.rows[0].session_version||0);
     q.user=publicUser(r.rows[0]);n();
+  });
+  const creatorProAuth=asyncRoute(async(q,s,n)=>{
+    if(q.user?.role!=='creator')return n();
+    const result=await pool.query("SELECT plan_code,status,expires_at FROM user_subscriptions WHERE user_id=$1",[q.user.id]);
+    const sub=result.rows[0],active=!!sub&&sub.status==='active'&&new Date(sub.expires_at)>new Date();
+    if(active)return n();
+    s.setHeader('Cache-Control','no-store');
+    return s.status(402).json({error:'Collabzy Pro is required for this creator feature. Subscribe for ₹299/year to unlock it.',code:'PRO_REQUIRED',plan_code:'creator_annual_299',amount:299,currency:'INR',duration_days:365});
   });
 
   // Owner-only admin console. First use is activated once with a high-entropy deployment token.
@@ -392,7 +402,7 @@ async function start(PORT,SECRET){
   }));
   app.post('/api/auth/login',asyncRoute(async(q,s)=>{
     const email=validEmail(q.body?.email),r=await pool.query('SELECT * FROM users WHERE email=$1',[email]);
-    if(!r.rows.length||!(await bcrypt.compare(String(q.body?.password||''),r.rows[0].password_hash)))return s.status(401).json({error:'Email or password is incorrect.'});
+    if(!r.rows.length||r.rows[0].is_platform_account||!(await bcrypt.compare(String(q.body?.password||''),r.rows[0].password_hash)))return s.status(401).json({error:'Email or password is incorrect.'});
     if(r.rows[0].account_status==='suspended')return s.status(403).json({error:'This account is suspended. Contact Collabzy support.'});
     if(requireEmailVerification&&!r.rows[0].email_verified_at&&r.rows[0].private_beta_access!==true)return s.status(403).json({error:'Please verify your email before signing in. Use Resend verification if you need a new link.'});
     const u=publicUser(r.rows[0]);s.json({token:tokenFor(r.rows[0],SECRET),user:u});
