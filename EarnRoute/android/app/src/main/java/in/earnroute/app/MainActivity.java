@@ -163,11 +163,12 @@ public final class MainActivity extends Activity {
         // supported versions so the WebView and CSS agree on who owns each system inset.
         WindowCompat.setDecorFitsSystemWindows(window, false);
         window.setStatusBarColor(Color.TRANSPARENT);
-        window.setNavigationBarColor(Color.TRANSPARENT);
+        // Keep the classic three-button navigation strip dark and readable. The WebView's
+        // fixed app navigation is now offset above the system inset, so the system strip no
+        // longer sits on top of the app's tabs.
+        window.setNavigationBarColor(Color.rgb(18, 45, 33));
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-            // Keep three-button navigation readable without allowing a system scrim to cover
-            // the app's own bottom navigation. The WebView root paints the bar background.
-            window.setNavigationBarContrastEnforced(false);
+            window.setNavigationBarContrastEnforced(true);
             window.setStatusBarContrastEnforced(false);
         }
         window.getDecorView().setSystemUiVisibility(0);
