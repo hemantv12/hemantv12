@@ -87,3 +87,17 @@ test('Native Android app includes the complete creator-brand marketplace and acc
  assert.ok(configScript.includes('android:launchMode="singleTask"'),'OAuth callback must return to the existing Activity');
  assert.ok(configScript.includes('android:scheme="collabzy"'),'OAuth callback must be registered as a deep link');
 });
+
+
+test('Creator Pro subscription locks premium navigation until payment is verified',()=>{
+ const html=fs.readFileSync(path.join(root,'public','index.html'),'utf8');
+ const backend=fs.readFileSync(path.join(root,'src','server-postgres.js'),'utf8');
+ assert.match(html,/function renderSubscriptionPage\(\)/);
+ assert.match(html,/async function subscribeToPro\(\)/);
+ assert.match(html,/\/billing\/order/);
+ assert.match(html,/\/billing\/verify/);
+ assert.match(html,/razorpay_payment_id/);
+ assert.match(html,/CREATOR_PRO_PAGES\.has\(p\)/);
+ assert.match(backend,/const creatorProAuth=asyncRoute/);
+ assert.match(backend,/code:'PRO_REQUIRED'/);
+});
