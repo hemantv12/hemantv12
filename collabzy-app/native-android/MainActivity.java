@@ -326,14 +326,36 @@ public final class MainActivity extends Activity {
         eyebrow.setLetterSpacing(0.08f);
         page.addView(eyebrow);
         gap(page, 15);
-        TextView headline = text("Your next big\ncollaboration starts here.", 35, WHITE, true);
+        TextView headline = text("Turn your content\ninto brand opportunities.", 35, WHITE, true);
         headline.setLineSpacing(dp(3), 1f);
         page.addView(headline);
         gap(page, 15);
-        TextView explainer = text("Discover paid campaigns, meet the right brands, and keep every opportunity in one native app built for creators and teams.", 16, MUTED, false);
+        TextView explainer = text("Find paid, barter and hybrid campaigns, pitch smarter with creator tools, and manage brand collaborations in one app.", 16, MUTED, false);
         explainer.setLineSpacing(dp(5), 1.05f);
         page.addView(explainer);
-        gap(page, 28);
+        gap(page, 18);
+        LinearLayout proCard = column();
+        proCard.setPadding(dp(18), dp(18), dp(18), dp(17));
+        proCard.setBackground(gradient(Color.rgb(39, 28, 65), Color.rgb(83, 56, 151), 23));
+        TextView proLabel = text("COLLABZY PRO  ·  365 DAYS", 10, Color.rgb(117, 240, 218), true);
+        proLabel.setLetterSpacing(0.08f);
+        proCard.addView(proLabel);
+        gap(proCard, 7);
+        proCard.addView(text("₹299 / year", 30, Color.WHITE, true));
+        gap(proCard, 3);
+        proCard.addView(text("Creator tools made for your next brand deal.", 13, Color.rgb(232, 225, 250), true));
+        gap(proCard, 10);
+        TextView proBenefits = text("✦  AI-assisted pitches and content ideas\n↗  Campaign discovery and collaboration tools\n◎  Instagram insights after official Meta setup", 12, Color.rgb(240, 236, 250), false);
+        proBenefits.setLineSpacing(dp(4), 1.0f);
+        proCard.addView(proBenefits);
+        gap(proCard, 13);
+        TextView proCta = button("Join beta · explore the Pro plan  →", true);
+        proCard.addView(proCta, new LinearLayout.LayoutParams(-1, -2));
+        proCta.setOnClickListener(v -> showAuth(true));
+        gap(proCard, 9);
+        proCard.addView(text("Intro plan price for 365 days. Checkout is not active yet; beta access is free. Paid campaigns and earnings are not guaranteed.", 10, Color.rgb(225, 218, 243), false));
+        page.addView(proCard);
+        gap(page, 20);
         LinearLayout valueCard = card();
         valueCard.setBackground(gradient(Color.rgb(223, 246, 243), Color.rgb(240, 237, 251), 22));
         addFeature(valueCard, "✦", "Smart campaign matching", "Find opportunities that fit your niche");
@@ -686,6 +708,23 @@ public final class MainActivity extends Activity {
         cta.setOnClickListener(v -> showShell("explore"));
         content.addView(hero);
         gap(content, 22);
+
+        if (creator) {
+            LinearLayout proPromo = column();
+            proPromo.setPadding(dp(17), dp(16), dp(17), dp(16));
+            proPromo.setBackground(gradient(Color.rgb(42, 29, 70), Color.rgb(83, 56, 151), 21));
+            proPromo.addView(text("CREATOR PRO  ·  ₹299 / YEAR", 10, Color.rgb(117, 240, 218), true));
+            gap(proPromo, 7);
+            proPromo.addView(text("Put your next brand pitch in motion.", 18, Color.WHITE, true));
+            gap(proPromo, 6);
+            proPromo.addView(text("AI-assisted content tools and the Growth Coach when the required integrations and plan access are enabled. Brand campaigns offer opportunities, not guaranteed income.", 12, Color.rgb(232, 225, 250), false));
+            gap(proPromo, 12);
+            TextView viewPlan = button("View membership & billing  →", true);
+            proPromo.addView(viewPlan, new LinearLayout.LayoutParams(-1, -2));
+            viewPlan.setOnClickListener(v -> showShell("billing"));
+            content.addView(proPromo);
+            gap(content, 22);
+        }
 
         heading("Your at-a-glance", "Live counts from your Collabzy account.");
         JSONObject stats = dashboardStats;

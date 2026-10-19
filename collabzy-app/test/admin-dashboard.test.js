@@ -23,6 +23,9 @@ test('owner admin dashboard is responsive, real-data-only and JavaScript parses'
   assert.match(adminHtml, /Create owner account/);
   assert.match(adminHtml, /api\('\/setup-status'\)/);
   assert.match(adminHtml, /No sample data is shown/);
+  assert.match(adminHtml, /data-create-campaign/);
+  assert.match(adminHtml, /Create campaign ad/);
+  assert.match(adminHtml, /campaign-create-form/);
   assert.doesNotMatch(adminHtml, /COLLABZY_ADMIN_PASSWORD_HASH|process\.env|RAZORPAY_KEY_SECRET|OPENAI_API_KEY/);
 });
 
@@ -42,6 +45,9 @@ test('admin API is owner-only, short-lived, rate-limited and audits moderation',
   assert.match(backend, /app\.get\('\/api\/admin\/campaigns',adminAuth/);
   assert.match(backend, /app\.get\('\/api\/admin\/support',adminAuth/);
   assert.match(backend, /admin_audit_log/);
+  assert.ok(backend.includes("app.get('/api/admin/brand-options',adminAuth"));
+  assert.ok(backend.includes("app.post('/api/admin/campaigns',adminAuth"));
+  assert.ok(backend.includes("publish_campaign"));
   assert.match(backend, /session_version=session_version\+1/);
   assert.match(backend, /account_status==='suspended'/);
 });
