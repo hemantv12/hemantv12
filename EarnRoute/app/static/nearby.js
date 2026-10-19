@@ -158,6 +158,10 @@ function erNearbyCard(job) {
       '" data-er-save-shift="' + Number(job.id) + '" aria-pressed="' + (isSaved ? 'true' : 'false') + '">' +
       '<span aria-hidden="true">' + (isSaved ? '♥' : '♡') + '</span> ' + escapeHtml(t(isSaved ? 'savedShift' : 'saveShift')) + '</button>'
     : '';
+  const reportButton = currentUser && currentUser.role === 'worker'
+    ? '<button type="button" class="btn btn-outline btn-sm er-report-shift" data-er-report-job="' + Number(job.id) +
+      '" data-er-report-title="' + escapeHtml(String(job.title || 'Local shift').slice(0,140)) + '">' + escapeHtml(t('reportConcern')) + '</button>'
+    : '';
   return '<article class="er-job-card" data-er-job-id="' + Number(job.id) + '">' +
     '<div class="er-job-card-top"><span class="er-job-icon">' + erCategoryIcon(job.category) + '</span><span class="er-distance-pill">⌖ ' + escapeHtml(distance) + '</span></div>' +
     '<div class="er-job-title-wrap"><div><h3>' + escapeHtml(job.title) + '</h3><p>' + escapeHtml(job.business_name || 'Local business') +
@@ -177,7 +181,7 @@ function erNearbyCard(job) {
     (job.safety_info ? '<p><b>Safety instructions:</b> ' + escapeHtml(job.safety_info) + '</p>' : '') +
     '<p><b>Apply by:</b> ' + escapeHtml(formatDate(job.application_deadline)) + '</p><p><b>Payment:</b> ' + escapeHtml(job.payment_terms || 'Confirm terms before accepting.') + '</p>' +
     '<p><b>Hourly comparison:</b> ' + (Number(job.duration_hours) > 0 ? formatMoney(net / Number(job.duration_hours)) + ' estimated take-home per paid hour' : 'not available') + '. This excludes travel time, fares and waiting time.</p>' +
-    '<small>Distance is straight-line GPS distance, not driving distance or ETA. Take-home pay is an estimate, not payment confirmation.</small></details></div></article>';
+    '<small>Distance is straight-line GPS distance, not driving distance or ETA. Take-home pay is an estimate, not payment confirmation.</small>' + reportButton + '</details></div></article>';
 }
 function erSortSelectMarkup(selected) {
   const options = [
@@ -791,6 +795,35 @@ document.addEventListener('click', function(event) {
 document.addEventListener('click', async function(event) {
   const target = event.target.closest('button');
   if (!target) return;
+  if (target.hasAttribute('data-er-report-job')) {
+    const jobId = Number(target.dataset.erReportJob);
+    const title = String(target.dataset.erReportTitle || 'Local shift').slice(0,140);
+    const reason = window.prompt(t('reportMinChars'));
+    if (reason === null) return;
+    const cleanReason = reason.trim();
+    if (cleanReason.length < 20) {
+      showToast(t('reportMinChars'), 'error');
+      return;
+    }
+    target.disabled = true;
+    try {
+      await api('/api/support/tickets', {
+        method:'POST',
+        body:{
+          subject:('Safety concern: shift #' + jobId + ' — ' + title).slice(0,140),
+          category:'safety',
+          message:'Published shift ID: ' + jobId + '\\nShift title: ' + title + '\\nWorker report: ' + cleanReason
+        }
+      });
+      showToast(t('safetyReportSent'));
+      target.textContent = 'Reported ✓';
+      target.disabled = true;
+    } catch (error) {
+      showToast(friendlyError(error), 'error');
+      target.disabled = false;
+    }
+    return;
+  }
   if (target.hasAttribute('data-er-save-shift')) {
     const jobId = Number(target.dataset.erSaveShift);
     const wasSaved = erSavedShiftIds.has(jobId);
