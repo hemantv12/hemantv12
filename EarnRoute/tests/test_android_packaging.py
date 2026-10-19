@@ -148,3 +148,6 @@ def test_safety_report_uses_existing_private_ticket_workflow_and_cache_bust():
     assert "reportConcern: 'Report a concern'" in app_js
     assert "safetyReportSent: 'आपकी सुरक्षा संबंधी शिकायत" in app_js
     assert "earnroute-shell-v7" in sw_js
+    assert "function erMobileNavLabel(screen, fallback)" in nearby_js
+    assert "'saved-shifts':'सेव्ड'" in nearby_js
+    assert "escapeHtml(erMobileNavLabel(item[0], item[2]))" in nearby_js
