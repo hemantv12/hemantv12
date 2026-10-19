@@ -140,7 +140,7 @@ def test_saved_shift_and_safety_report_frontend_are_wired():
     assert "data-er-report-job" in nearby_js
     assert "category:'safety'" in nearby_js
     assert "message:'Published shift ID: ' + jobId + '\\nShift title: '" in nearby_js
-    assert "earnroute-shell-v15" in (ROOT / "app/static/sw.js").read_text()
+    assert "earnroute-shell-v16" in (ROOT / "app/static/sw.js").read_text()
     assert "t('sortHourlyRate')" in nearby_js
     assert "api('/api/support/tickets'" in nearby_js
     assert "reportConcern: 'Report a concern'" in app_js
@@ -158,7 +158,7 @@ def test_safety_report_uses_existing_private_ticket_workflow_and_cache_bust():
     assert "api('/api/support/tickets'" in nearby_js
     assert "reportConcern: 'Report a concern'" in app_js
     assert "safetyReportSent: 'आपकी सुरक्षा संबंधी शिकायत" in app_js
-    assert "earnroute-shell-v15" in sw_js
+    assert "earnroute-shell-v16" in sw_js
     assert "function erMobileNavLabel(screen, fallback)" in nearby_js
     assert "'saved-shifts':'सेव्ड'" in nearby_js
     assert "escapeHtml(erMobileNavLabel(item[0], item[2]))" in nearby_js
@@ -234,7 +234,7 @@ def test_android_generates_versioned_buildconfig_for_map_user_agent():
     gradle = (ANDROID / "app/build.gradle").read_text()
     activity = (ANDROID / "app/src/main/java/in/earnroute/app/MainActivity.java").read_text()
     assert "buildFeatures {\n        buildConfig true\n    }" in gradle
-    assert "versionName '1.6.5'" in gradle
+    assert "versionName '1.6.6'" in gradle
     assert 'EarnRouteAndroid/" + BuildConfig.VERSION_NAME' in activity
 
 
@@ -257,7 +257,7 @@ def test_account_export_and_privacy_controls_are_wired():
     assert "saveTextFile(String fileName, String mimeType, String content)" in activity
     assert "Intent.ACTION_CREATE_DOCUMENT" in activity
     assert "SAVE_TEXT_FILE_REQUEST" in activity
-    assert "earnroute-shell-v15" in sw
+    assert "earnroute-shell-v16" in sw
 
 
 def test_android_keyboard_resize_and_auth_sheet_visibility_are_wired():
@@ -389,7 +389,10 @@ def test_android_system_insets_are_applied_once_and_mobile_footer_clears_system_
     assert "WindowCompat.setDecorFitsSystemWindows(window, false)" in activity
     assert "getInsetsIgnoringVisibility(navigationBarType)" in activity
     assert "WindowInsetsCompat.Type.tappableElement()" in activity
-    assert "target.setPadding(bars.left, bars.top, bars.right, 0)" in activity
+    assert "private FrameLayout safeContentRoot;" in activity
+    assert "private void setSafeContentView(WebView view)" in activity
+    assert "container.setPadding(bars.left, bars.top, bars.right, contentBottomInset)" in activity
+    assert "safeContentRoot.addView(view, new FrameLayout.LayoutParams(" in activity
     assert "window.setNavigationBarContrastEnforced(true)" in activity
     assert "bottom:var(--er-system-bottom-inset,0px) !important" in css
     assert "padding-bottom:calc(var(--er-mobile-nav-height,68px) + 18px + var(--er-system-bottom-inset,0px))" in css
@@ -437,4 +440,21 @@ def test_offline_banner_and_session_only_business_job_draft_recovery_are_wired()
     assert "erInitializeBusinessJobDraft === 'function'" in nearby_js
     assert ".er-network-banner" in css
     assert ".er-job-draft-notice" in css
+
+
+
+def test_android_safe_viewport_container_prevents_fixed_controls_overlapping_system_bars():
+    activity = (ANDROID / "app/src/main/java/in/earnroute/app/MainActivity.java").read_text()
+    html = (ROOT / "app/static/index.html").read_text()
+    css = (ROOT / "app/static/nearby.css").read_text()
+    assert "private FrameLayout safeContentRoot;" in activity
+    assert "private void setSafeContentView(WebView view)" in activity
+    assert "container.setPadding(bars.left, bars.top, bars.right, contentBottomInset)" in activity
+    assert "setInsets(systemBarsAndCutout, Insets.NONE)" in activity
+    assert "documentElement.style.setProperty(\"--er-system-bottom-inset\", \"0px\")" in html
+    assert "RELEASE 1.6.6 — Android's native parent" in css
+    assert "html.er-native-app .er-mobile-nav { bottom:0 !important; }" in css
+    assert "html.er-native-app .sidebar.mobile-open" in css
+    assert "html.er-native-app .er-sidebar-scrim" in css
+
 
