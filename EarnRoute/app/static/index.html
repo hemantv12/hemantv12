@@ -9,8 +9,11 @@
     try {
       if (window.EarnRouteNative && window.EarnRouteNative.isAndroidApp()) {
         document.documentElement.classList.add("er-native-app");
-        document.documentElement.style.setProperty("--er-system-bottom-inset", "0px");
+        var topInset = Number(window.EarnRouteNative.getSystemTopInsetDp ? window.EarnRouteNative.getSystemTopInsetDp() : 0);
+        var bottomInset = Number(window.EarnRouteNative.getSystemBottomInsetDp ? window.EarnRouteNative.getSystemBottomInsetDp() : 0);
         var imeInset = Number(window.EarnRouteNative.getSystemImeInsetDp ? window.EarnRouteNative.getSystemImeInsetDp() : 0);
+        document.documentElement.style.setProperty("--er-system-top-inset", Math.max(0, topInset) + "px");
+        document.documentElement.style.setProperty("--er-system-bottom-inset", Math.max(0, bottomInset) + "px");
         document.documentElement.style.setProperty("--er-system-ime-inset", Math.max(0, imeInset) + "px");
       }
     } catch (_) { /* Browser mode has no native insets bridge. */ }
