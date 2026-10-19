@@ -11,6 +11,7 @@ on:
       - 'collabzy-app/public/index.html'
       - 'collabzy-app/public/admin/index.html'
       - 'collabzy-app/test/admin-dashboard.test.js'
+      - 'collabzy-app/docs/PAYMENTS_SETUP.md'
       - '.github/workflows/collabzy-android.yml'
       - '.github/workflows/collabzy-live-smoke.yml'
   workflow_dispatch:
