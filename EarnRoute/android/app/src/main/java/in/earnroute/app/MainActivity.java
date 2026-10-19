@@ -67,6 +67,7 @@ public final class MainActivity extends Activity {
     private volatile String pendingSaveContent;
     private SharedPreferences preferences;
     private final ExecutorService ioExecutor = Executors.newSingleThreadExecutor();
+    private volatile int systemTopInsetDp = 0;
     private volatile int systemBottomInsetDp = 0;
     private volatile int systemImeInsetDp = 0;
     private volatile boolean backHandlingEnabled = false;
@@ -281,6 +282,9 @@ public final class MainActivity extends Activity {
                 Insets ime = windowInsets.getInsets(WindowInsetsCompat.Type.ime());
                 boolean imeVisible = windowInsets.isVisible(WindowInsetsCompat.Type.ime());
                 float density = getResources().getDisplayMetrics().density;
+                // Fixed-position HTML overlays use the whole WebView viewport, so expose
+                // both real system-bar insets to CSS. Flow layout still uses native padding.
+                systemTopInsetDp = Math.max(0, Math.round(bars.top / density));
 
                 // Some gesture-navigation modes report a transient zero for the visible bar.
                 // Stable/tappable insets cover both gesture and classic 3-button navigation.
@@ -318,11 +322,15 @@ public final class MainActivity extends Activity {
     private void applyCssSystemBottomInset(View target) {
         if (!(target instanceof WebView)) return;
         WebView targetWebView = (WebView) target;
-        // The parent native container already places the WebView between the system bars;
-        // expose 0 as the remaining CSS inset to prevent a second offset in fixed controls.
+        // Flow content is kept safe by native parent padding. Fixed-position HTML overlays
+        // still require explicit insets because their positioning viewport can extend behind
+        // Android's status and navigation bars.
+        final int topInset = Math.max(0, systemTopInsetDp);
+        final int bottomInset = Math.max(0, systemBottomInsetDp);
         final int imeInset = Math.max(0, systemImeInsetDp);
         targetWebView.evaluateJavascript("(function(){if(document.documentElement.classList.contains('er-native-app')){" +
-                "document.documentElement.style.setProperty('--er-system-bottom-inset','0px');" +
+                "document.documentElement.style.setProperty('--er-system-top-inset','" + topInset + "px');" +
+                "document.documentElement.style.setProperty('--er-system-bottom-inset','" + bottomInset + "px');" +
                 "document.documentElement.style.setProperty('--er-system-ime-inset','" + imeInset + "px');" +
                 "if(typeof window.erSyncKeyboardViewport==='function'){window.erSyncKeyboardViewport();}" +
                 "}})();", null);
@@ -331,6 +339,7 @@ public final class MainActivity extends Activity {
     private final class EarnRouteBridge {
         @JavascriptInterface public boolean isAndroidApp() { return true; }
         @JavascriptInterface public String getApiBaseUrl() { return preferences.getString(API_BASE_KEY, DEFAULT_API_BASE_URL); }
+        @JavascriptInterface public int getSystemTopInsetDp() { return systemTopInsetDp; }
         @JavascriptInterface public int getSystemBottomInsetDp() { return systemBottomInsetDp; }
         @JavascriptInterface public int getSystemImeInsetDp() { return systemImeInsetDp; }
         @JavascriptInterface public void setBackHandlingEnabled(boolean enabled) { backHandlingEnabled = enabled; }
