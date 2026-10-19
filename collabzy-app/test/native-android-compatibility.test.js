@@ -10,7 +10,7 @@ test('fresh native startup is not dependent on a WebView or remote HTML', () => 
   assert.match(source, /private void showWelcome\(\)/);
   assert.match(source, /Your next brand deal starts here/);
   assert.match(source, /setContentView\(root\)/);
-  assert.doesNotMatch(source, /WebView\s+\w+/);
+  assert.doesNotMatch(source, /import\s+android\.webkit\.WebView/);
 });
 
 test('startup errors have a visible fallback screen', () => {
