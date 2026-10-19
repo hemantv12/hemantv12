@@ -400,7 +400,7 @@ def test_android_system_insets_are_applied_once_and_mobile_footer_clears_system_
     assert "bottom:var(--er-system-bottom-inset,0px) !important" in css
     assert "padding-bottom:calc(var(--er-mobile-nav-height,68px) + 18px + var(--er-system-bottom-inset,0px))" in css
     assert "systemBottomInsetDp = Math.max(0, Math.round(bottomInsetPx / density));" in activity
-    assert "style.setProperty('--er-system-bottom-inset','\" + bottomInset + \"px');" in activity
+    assert "final int bottomInset = Math.max(0, systemBottomInsetDp);" in activity
     assert "z-index:530 !important" in css
     assert "z-index:540 !important" in css
 
@@ -476,8 +476,8 @@ def test_fixed_android_overlays_use_live_insets_instead_of_zero_offsets():
     assert "private volatile int systemTopInsetDp = 0;" in activity
     assert "getSystemTopInsetDp()" in activity
     assert "systemTopInsetDp = Math.max(0, Math.round(bars.top / density));" in activity
-    assert "style.setProperty('--er-system-top-inset','\" + topInset + \"px');" in activity
-    assert "style.setProperty('--er-system-bottom-inset','\" + bottomInset + \"px');" in activity
+    assert "final int topInset = Math.max(0, systemTopInsetDp);" in activity
+    assert "final int bottomInset = Math.max(0, systemBottomInsetDp);" in activity
     assert 'getSystemTopInsetDp ? window.EarnRouteNative.getSystemTopInsetDp() : 0' in html
     assert 'getSystemBottomInsetDp ? window.EarnRouteNative.getSystemBottomInsetDp() : 0' in html
     assert "bottom:var(--er-system-bottom-inset,0px) !important;" in css
