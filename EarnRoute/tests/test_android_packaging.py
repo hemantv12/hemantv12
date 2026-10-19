@@ -381,3 +381,60 @@ def test_auth_keyboard_layout_keeps_password_and_submit_in_scrollable_sheet():
     assert "window.requestAnimationFrame(() => erKeepFocusedControlVisible(document.activeElement));" in js
     assert "getSystemImeInsetDp()" in js
 
+
+
+def test_android_system_insets_are_applied_once_and_mobile_footer_clears_system_nav():
+    activity = (ANDROID / "app/src/main/java/in/earnroute/app/MainActivity.java").read_text()
+    css = (ROOT / "app/static/nearby.css").read_text()
+    assert "WindowCompat.setDecorFitsSystemWindows(window, false)" in activity
+    assert "getInsetsIgnoringVisibility(navigationBarType)" in activity
+    assert "WindowInsetsCompat.Type.tappableElement()" in activity
+    assert "target.setPadding(bars.left, bars.top, bars.right, 0)" in activity
+    assert "window.setNavigationBarContrastEnforced(true)" in activity
+    assert "bottom:var(--er-system-bottom-inset,0px) !important" in css
+    assert "padding-bottom:calc(var(--er-mobile-nav-height,68px) + 18px + var(--er-system-bottom-inset,0px))" in css
+    assert "z-index:530 !important" in css
+    assert "z-index:540 !important" in css
+
+
+def test_auth_password_can_be_revealed_and_strength_feedback_is_live():
+    html = (ROOT / "app/static/index.html").read_text()
+    app_js = (ROOT / "app/static/app.js").read_text()
+    css = (ROOT / "app/static/nearby.css").read_text()
+    assert 'data-password-toggle="auth-password"' in html
+    assert 'aria-pressed="false">Show</button>' in html
+    assert 'id="password-strength" class="password-strength"' in html
+    assert "function erPasswordText(key)" in app_js
+    assert "function erUpdatePasswordStrength()" in app_js
+    assert "if (target.dataset.passwordToggle)" in app_js
+    assert "event.target.id === 'auth-password'" in app_js
+    assert ".password-input-wrap" in css
+    assert ".password-strength[data-level=\"strong\"]" in css
+
+
+def test_android_back_button_closes_auth_or_drawer_before_leaving():
+    activity = (ANDROID / "app/src/main/java/in/earnroute/app/MainActivity.java").read_text()
+    app_js = (ROOT / "app/static/app.js").read_text()
+    assert "setBackHandlingEnabled(boolean enabled)" in activity
+    assert "if (backHandlingEnabled && webView != null)" in activity
+    assert "window.erHandleNativeBack = function()" in app_js
+    assert "erSetMobileDrawerOpen(false)" in app_js
+    assert "closeAuth();" in app_js
+    assert "erSyncNativeBackHandling();" in app_js
+
+
+def test_offline_banner_and_session_only_business_job_draft_recovery_are_wired():
+    app_js = (ROOT / "app/static/app.js").read_text()
+    nearby_js = (ROOT / "app/static/nearby.js").read_text()
+    css = (ROOT / "app/static/nearby.css").read_text()
+    assert "function erEnsureNetworkBanner()" in app_js
+    assert "window.addEventListener('offline'" in app_js
+    assert "window.addEventListener('online'" in app_js
+    assert "await api('/api/health')" in app_js
+    assert "function erInitializeBusinessJobDraft()" in app_js
+    assert "sessionStorage.setItem(key, serialized)" in app_js
+    assert "name === 'publish'" in app_js
+    assert "erInitializeBusinessJobDraft === 'function'" in nearby_js
+    assert ".er-network-banner" in css
+    assert ".er-job-draft-notice" in css
+
