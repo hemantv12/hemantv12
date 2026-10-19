@@ -233,8 +233,11 @@ async function mutateStatus(path,status,confirmMessage){
 $('#appView').addEventListener('click',async event=>{
   const nav=event.target.closest('[data-view]');
   if(nav){currentView=nav.dataset.view;$$('[data-view]').forEach(b=>b.classList.toggle('active',b.dataset.view===currentView));await loadView();return;}
-  const el=event.target.closest('[data-action]');
+  const el=event.target.closest('[data-action], [data-page-kind]');
   if(!el)return;
+  if(el.dataset.pageKind){
+    const kind=el.dataset.pageKind,page=Math.max(1,Number(el.dataset.page)||1);pageState[kind]=page;await loadView();return;
+  }
   const action=el.dataset.action;
   if(action==='logout'){clearSession();return;}
   if(action==='refresh'){await loadView();showToast('Workspace refreshed.');return;}
@@ -254,9 +257,6 @@ $('#appView').addEventListener('click',async event=>{
   if(action==='support-status'){
     const id=el.dataset.id,status=el.dataset.status;
     await mutateStatus('/api/admin/support/'+encodeURIComponent(id)+'/status',status,(status==='resolved'?'Mark this support request as resolved?':status==='open'?'Reopen this request?':'Move this request into progress?'));return;
-  }
-  if(el.dataset.pageKind){
-    const kind=el.dataset.pageKind,page=Math.max(1,Number(el.dataset.page)||1);pageState[kind]=page;await loadView();
   }
 });
 $('#appView').addEventListener('submit',async event=>{
