@@ -1,193 +1,170 @@
 package com.collabzy.creator;
 
 import android.app.Activity;
-import android.os.Bundle;
+import android.content.Intent;
+import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.Typeface;
-import android.graphics.Canvas;
-import android.graphics.Paint;
-import android.graphics.RectF;
-import android.graphics.pdf.PdfDocument;
 import android.graphics.drawable.GradientDrawable;
-import android.content.Context;
-import android.content.SharedPreferences;
-import android.content.Intent;
 import android.net.Uri;
+import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.text.InputType;
 import android.view.Gravity;
 import android.view.View;
-import android.view.ViewGroup;
-import android.view.inputmethod.InputMethodManager;
 import android.view.inputmethod.EditorInfo;
-import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.FrameLayout;
-import android.widget.HorizontalScrollView;
 import android.widget.LinearLayout;
+import android.widget.ProgressBar;
 import android.widget.ScrollView;
 import android.widget.TextView;
-import android.widget.ProgressBar;
 import android.widget.Toast;
-import android.text.InputType;
+
 import org.json.JSONArray;
 import org.json.JSONObject;
+
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.RequestBody;
 import okhttp3.Response;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.OutputStream;
-import java.util.concurrent.TimeUnit;
-import java.util.Locale;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
+/**
+ * Fresh, native Collabzy Android client. The screens are rendered directly with Android
+ * Views; no WebView or remote HTML is needed to display the first screen.
+ */
 public final class MainActivity extends Activity {
     private static final String API = "https://collabzy-api.onrender.com";
     private static final int BG = Color.rgb(247, 248, 252);
-    private static final int PANEL = Color.rgb(255, 255, 255);
-    private static final int PANEL_ALT = Color.rgb(243, 241, 250);
-    private static final int MINT = Color.rgb(16, 149, 126);
-    private static final int VIOLET = Color.rgb(112, 82, 202);
-    private static final int WHITE = Color.rgb(39, 34, 61);
+    private static final int WHITE = Color.WHITE;
+    private static final int INK = Color.rgb(39, 34, 61);
     private static final int MUTED = Color.rgb(111, 106, 133);
-    private static final int RED = Color.rgb(192, 57, 80);
+    private static final int PURPLE = Color.rgb(112, 82, 202);
+    private static final int TEAL = Color.rgb(16, 149, 126);
+    private static final int LIGHT_PURPLE = Color.rgb(242, 239, 252);
+    private static final int LIGHT_TEAL = Color.rgb(227, 247, 242);
+    private static final int BORDER = Color.rgb(226, 222, 239);
+    private static final int RED = Color.rgb(184, 49, 72);
+    private static final MediaType JSON = MediaType.get("application/json; charset=utf-8");
 
-    private final ExecutorService network = Executors.newSingleThreadExecutor();
-    private final OkHttpClient httpClient = new OkHttpClient.Builder().connectTimeout(18, TimeUnit.SECONDS).readTimeout(22, TimeUnit.SECONDS).build();
-    private static final MediaType JSON_MEDIA = MediaType.get("application/json; charset=utf-8");
-    private SharedPreferences storage;
-    private FrameLayout frame;
-    private LinearLayout content;
+    private final ExecutorService network = Executors.newFixedThreadPool(2);
+    private final Handler main = new Handler(Looper.getMainLooper());
+    private final OkHttpClient client = new OkHttpClient.Builder()
+        .connectTimeout(12, TimeUnit.SECONDS)
+        .readTimeout(20, TimeUnit.SECONDS)
+        .callTimeout(25, TimeUnit.SECONDS)
+        .build();
+
+    private SharedPreferences prefs;
     private String token = "";
     private String screen = "welcome";
-    private String authMode = "creator";
-    private String aiTool = "";
-    private JSONObject user = new JSONObject();
-    private ProgressBar progress;
-    private static final int MEDIA_KIT_CREATE_REQUEST = 4207;
-    private byte[] pendingMediaKitPdf;
-    private JSONObject dashboardStats = new JSONObject();
-    private boolean dashboardLoaded = false;
-    private boolean dashboardRequestStarted = false;
-    private JSONArray cachedInstagramMedia = new JSONArray();
-    private JSONArray cachedInstagramInsights = new JSONArray();
+    private String tab = "discover";
+    private String signupRole = "creator";
+    private String selectedTool = "reel_hooks";
+    private String notice = "";
+    private boolean noticeIsError = false;
 
-    private interface ApiCallback {
-        void complete(JSONObject data, String error);
-    }
+    private JSONObject me = new JSONObject();
+    private JSONObject stats = new JSONObject();
+    private JSONObject billing = new JSONObject();
+    private JSONObject instagram = new JSONObject();
+    private JSONArray campaigns = new JSONArray();
+    private JSONArray applications = new JSONArray();
+    private JSONArray brandCampaigns = new JSONArray();
+    private boolean statsLoaded, campaignsLoaded, applicationsLoaded, brandCampaignsLoaded;
+    private boolean billingLoaded, instagramLoaded;
 
-    @Override
-    public void onCreate(Bundle state) {
+    private LinearLayout body;
+    private TextView authMessage, composerMessage, applyMessage, studioOutput;
+    private TextView instagramStatus, billingStatus;
+    private EditText authName, authEmail, authPassword, authBetaCode;
+    private CheckBox authTerms, studioDisclosure;
+    private EditText studioBrief, studioAudience;
+    private String selectedCampaignId = "";
+    private String selectedCampaignTitle = "";
+
+    private interface Callback { void done(JSONObject data, String error); }
+
+    @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         getWindow().setStatusBarColor(BG);
-        getWindow().setNavigationBarColor(BG);
-        getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
-        storage = getSharedPreferences("collabzy_native", MODE_PRIVATE);
-        token = storage.getString("token", "");
+        getWindow().setNavigationBarColor(WHITE);
+        getWindow().getDecorView().setSystemUiVisibility(
+            View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR);
+        prefs = getSharedPreferences("collabzy_native_v2", MODE_PRIVATE);
+        token = prefs.getString("token", "");
         try {
             if (token.isEmpty()) {
-                if (isInstagramCallback(getIntent())) {
-                    showWelcome();
-                    toast("Sign in to Collabzy, then connect Instagram from the app.");
-                } else showWelcome();
+                showWelcome();
             } else {
-                api("GET", "/api/me", null, (data, error) -> {
-                    try {
-                        if (error == null && data != null) {
-                            user = data.optJSONObject("user");
-                            if (user == null) user = data;
-                            screen = isInstagramCallback(getIntent()) ? "instagram" : "home";
-                            showShell(screen);
-                            handleInstagramCallback(getIntent());
-                        } else {
-                            token = "";
-                            storage.edit().remove("token").apply();
-                            showWelcome();
-                        }
-                    } catch (Throwable startupError) {
-                        android.util.Log.e("CollabzyStartup", "Could not render the signed-in screen.", startupError);
-                        showStartupFailure();
+                showLoading("Opening your Collabzy workspace…");
+                request("GET", "/api/me", null, (data, error) -> {
+                    if (error == null && data != null) {
+                        me = data.optJSONObject("user") == null ? data : data.optJSONObject("user");
+                        clearCaches();
+                        tab = isInstagramCallback(getIntent()) ? "profile" : "discover";
+                        showApp(tab);
+                        if (isInstagramCallback(getIntent())) handleInstagramCallback(getIntent());
+                    } else {
+                        signOutLocal();
+                        notice = error == null ? "Please sign in again to continue." : error;
+                        noticeIsError = true;
+                        showWelcome();
                     }
                 });
-                showLoadingScreen("Opening your workspace…");
             }
-        } catch (Throwable startupError) {
-            android.util.Log.e("CollabzyStartup", "Could not render the initial screen.", startupError);
+        } catch (Throwable error) {
+            android.util.Log.e("CollabzyStartup", "Initial startup failed.", error);
             showStartupFailure();
         }
     }
 
-    @Override
-    protected void onNewIntent(Intent intent) {
+    @Override protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
-        if (isInstagramCallback(intent) && !token.isEmpty()) {
-            handleInstagramCallback(intent);
-            showShell("instagram");
-        }
+        if (isInstagramCallback(intent) && !token.isEmpty()) handleInstagramCallback(intent);
     }
 
-    private boolean isInstagramCallback(Intent intent) {
-        if (intent == null || intent.getData() == null) return false;
-        Uri uri = intent.getData();
-        return "collabzy".equals(uri.getScheme()) && "instagram".equals(uri.getHost())
-            && "/callback".equals(uri.getPath());
-    }
-
-    private void handleInstagramCallback(Intent intent) {
-        if (!isInstagramCallback(intent)) return;
-        String result = intent.getData().getQueryParameter("instagram");
-        if ("connected".equals(result)) {
-            toast("Instagram connected. Refreshing account details…");
-            api("GET", "/api/instagram/status", null, (data, error) -> {
-                if (error == null && data != null) showShell("instagram");
-                else toast(error == null ? "Instagram was connected, but status could not be refreshed." : error);
-            });
-        } else if ("denied".equals(result)) {
-            toast("Instagram connection was cancelled.");
+    @Override public void onBackPressed() {
+        if ("app".equals(screen)) {
+            if (!"discover".equals(tab)) showApp("discover"); else super.onBackPressed();
+        } else if ("auth".equals(screen) || "forgot".equals(screen)) {
+            showWelcome();
+        } else if ("composer".equals(screen)) {
+            showApp("work");
+        } else if ("apply".equals(screen)) {
+            showApp("discover");
         } else {
-            toast("Instagram could not be connected. Check Meta app setup and try again.");
+            super.onBackPressed();
         }
     }
 
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode != MEDIA_KIT_CREATE_REQUEST) return;
-        byte[] content = pendingMediaKitPdf;
-        pendingMediaKitPdf = null;
-        if (resultCode != RESULT_OK || data == null || data.getData() == null || content == null) {
-            toast("Media kit export was cancelled.");
-            return;
-        }
-        try (OutputStream stream = getContentResolver().openOutputStream(data.getData())) {
-            if (stream == null) throw new IOException("Could not open the selected destination.");
-            stream.write(content);
-            stream.flush();
-            toast("Creator media kit PDF saved.");
-        } catch (Exception error) {
-            toast("Could not save the media kit. Please choose another location.");
-        }
-    }
-
-    @Override
-    protected void onDestroy() {
+    @Override protected void onDestroy() {
         super.onDestroy();
         network.shutdownNow();
+        main.removeCallbacksAndMessages(null);
     }
 
-    private int dp(float value) {
-        return (int) (value * getResources().getDisplayMetrics().density + 0.5f);
+    private int dp(float n) { return (int)(n * getResources().getDisplayMetrics().density + 0.5f); }
+    private LinearLayout col() { LinearLayout v = new LinearLayout(this); v.setOrientation(LinearLayout.VERTICAL); return v; }
+    private LinearLayout row() { LinearLayout v = new LinearLayout(this); v.setOrientation(LinearLayout.HORIZONTAL); v.setGravity(Gravity.CENTER_VERTICAL); return v; }
+
+    private void gap(LinearLayout parent, int height) {
+        parent.addView(new View(this), new LinearLayout.LayoutParams(1, dp(height)));
     }
 
-    private GradientDrawable rounded(int color, int radius, int strokeColor) {
+    private GradientDrawable shape(int color, int radius, int border) {
         GradientDrawable d = new GradientDrawable();
         d.setColor(color);
         d.setCornerRadius(dp(radius));
-        if (strokeColor != 0) d.setStroke(dp(1), strokeColor);
+        if (border != 0) d.setStroke(dp(1), border);
         return d;
     }
 
@@ -197,2445 +174,985 @@ public final class MainActivity extends Activity {
         return d;
     }
 
-    private TextView text(String value, int size, int color, boolean bold) {
+    private TextView txt(String value, int size, int color, boolean bold) {
         TextView v = new TextView(this);
         v.setText(value);
-        v.setTextColor(color);
         v.setTextSize(size);
+        v.setTextColor(color);
         v.setIncludeFontPadding(true);
-        if (bold) v.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
-        else v.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
+        v.setTypeface(Typeface.create("sans-serif", bold ? Typeface.BOLD : Typeface.NORMAL));
         return v;
     }
 
-    private LinearLayout column() {
-        LinearLayout l = new LinearLayout(this);
-        l.setOrientation(LinearLayout.VERTICAL);
-        return l;
+    private TextView button(String title, boolean primary, Runnable click) {
+        TextView v = txt(title, 15, primary ? WHITE : INK, true);
+        v.setGravity(Gravity.CENTER);
+        v.setPadding(dp(16), dp(14), dp(16), dp(14));
+        v.setMinHeight(dp(50));
+        v.setBackground(shape(primary ? TEAL : LIGHT_PURPLE, 16, primary ? 0 : BORDER));
+        v.setClickable(true);
+        v.setFocusable(true);
+        v.setOnClickListener(view -> { if (click != null) click.run(); });
+        return v;
     }
 
-    private LinearLayout row() {
-        LinearLayout l = new LinearLayout(this);
-        l.setOrientation(LinearLayout.HORIZONTAL);
-        l.setGravity(Gravity.CENTER_VERTICAL);
-        return l;
-    }
-
-    private void gap(LinearLayout parent, int height) {
-        View v = new View(this);
-        parent.addView(v, new LinearLayout.LayoutParams(1, dp(height)));
-    }
-
-    private void line(LinearLayout parent, int color, int height) {
-        View v = new View(this);
-        v.setBackgroundColor(color);
-        parent.addView(v, new LinearLayout.LayoutParams(-1, dp(height)));
-    }
-
-    private TextView button(String title, boolean primary) {
-        TextView b = text(title, 15, primary ? BG : WHITE, true);
-        b.setGravity(Gravity.CENTER);
-        b.setPadding(dp(16), dp(15), dp(16), dp(15));
-        b.setMinHeight(dp(50));
-        b.setBackground(rounded(primary ? MINT : PANEL_ALT, 17, primary ? 0 : Color.rgb(224, 220, 238)));
-        b.setClickable(true);
-        b.setFocusable(true);
-        // This is a TextView, not an AppCompatButton. Avoid the API-28-only all-caps helper.
-        b.setTransformationMethod(null);
-        return b;
-    }
-
-    private TextView smallButton(String title) {
-        TextView b = text(title, 13, MINT, true);
-        b.setGravity(Gravity.CENTER);
-        b.setPadding(dp(12), dp(10), dp(12), dp(10));
-        b.setBackground(rounded(Color.rgb(225, 247, 242), 13, Color.rgb(210, 234, 229)));
-        b.setClickable(true);
-        b.setFocusable(true);
-        return b;
-    }
-
-    private EditText field(String hint, int inputType, String value) {
-        EditText e = new EditText(this);
-        e.setTextColor(WHITE);
-        e.setHintTextColor(Color.rgb(137, 131, 158));
-        e.setHint(hint);
-        e.setTextSize(15);
-        e.setSingleLine(inputType != InputType.TYPE_CLASS_TEXT || !hint.equals("Short bio (optional)"));
-        e.setInputType(inputType);
-        e.setPadding(dp(16), dp(12), dp(16), dp(12));
-        e.setMinHeight(dp(53));
-        e.setBackground(rounded(PANEL_ALT, 15, Color.rgb(224, 220, 238)));
-        if (value != null) e.setText(value);
-        e.setSelectAllOnFocus(false);
-        e.setImeOptions(EditorInfo.IME_ACTION_NEXT);
-        return e;
-    }
-
-    private void addField(LinearLayout parent, String label, EditText edit) {
-        TextView l = text(label, 12, MUTED, true);
-        l.setLetterSpacing(0.04f);
-        parent.addView(l);
-        gap(parent, 7);
-        parent.addView(edit, new LinearLayout.LayoutParams(-1, -2));
-        gap(parent, 14);
+    private TextView smallButton(String title, Runnable click) {
+        TextView v = txt(title, 12, PURPLE, true);
+        v.setGravity(Gravity.CENTER);
+        v.setPadding(dp(12), dp(10), dp(12), dp(10));
+        v.setBackground(shape(LIGHT_PURPLE, 12, BORDER));
+        v.setClickable(true);
+        v.setFocusable(true);
+        v.setOnClickListener(view -> { if (click != null) click.run(); });
+        return v;
     }
 
     private LinearLayout card() {
-        LinearLayout c = column();
-        c.setPadding(dp(17), dp(17), dp(17), dp(17));
-        c.setBackground(rounded(PANEL, 22, Color.rgb(224, 220, 238)));
-        return c;
+        LinearLayout v = col();
+        v.setPadding(dp(17), dp(17), dp(17), dp(17));
+        v.setBackground(shape(WHITE, 20, BORDER));
+        return v;
     }
 
-    private void showLoadingScreen(String message) {
-        frame = new FrameLayout(this);
-        frame.setBackground(gradient(BG, Color.rgb(239, 241, 249), 0));
-        LinearLayout box = column();
-        box.setGravity(Gravity.CENTER);
-        TextView mark = text("C", 32, BG, true);
-        mark.setGravity(Gravity.CENTER);
-        mark.setBackground(rounded(MINT, 24, 0));
-        box.addView(mark, new LinearLayout.LayoutParams(dp(72), dp(72)));
-        gap(box, 18);
-        box.addView(text("collabzy", 28, WHITE, true));
-        gap(box, 8);
-        ProgressBar spinner = new ProgressBar(this);
-        spinner.setIndeterminateTintList(android.content.res.ColorStateList.valueOf(MINT));
-        box.addView(spinner, new LinearLayout.LayoutParams(dp(36), dp(36)));
-        gap(box, 12);
-        box.addView(text(message, 14, MUTED, false));
-        frame.addView(box, new FrameLayout.LayoutParams(-2, -2, Gravity.CENTER));
-        setContentView(frame);
+    private EditText input(String hint, int type, boolean multiline) {
+        EditText v = new EditText(this);
+        v.setTextColor(INK);
+        v.setHintTextColor(Color.rgb(145, 140, 161));
+        v.setHint(hint);
+        v.setTextSize(15);
+        v.setSingleLine(!multiline);
+        v.setInputType(type | (multiline ? InputType.TYPE_TEXT_FLAG_MULTI_LINE : 0));
+        v.setPadding(dp(14), dp(12), dp(14), dp(12));
+        v.setMinHeight(dp(multiline ? 96 : 52));
+        v.setBackground(shape(LIGHT_PURPLE, 14, BORDER));
+        v.setImeOptions(multiline ? EditorInfo.IME_ACTION_NONE : EditorInfo.IME_ACTION_NEXT);
+        if (multiline) v.setGravity(Gravity.TOP | Gravity.START);
+        return v;
     }
 
-    private void showStartupFailure() {
-        try {
-            FrameLayout failureFrame = new FrameLayout(this);
-            failureFrame.setBackgroundColor(BG);
-            LinearLayout page = column();
-            page.setGravity(Gravity.CENTER);
-            page.setPadding(dp(24), dp(24), dp(24), dp(24));
-            TextView logo = text("collabzy", 28, WHITE, true);
-            logo.setGravity(Gravity.CENTER);
-            page.addView(logo, new LinearLayout.LayoutParams(-1, -2));
-            gap(page, 18);
-            TextView title = text("We couldn't open Collabzy.", 22, WHITE, true);
-            title.setGravity(Gravity.CENTER);
-            page.addView(title, new LinearLayout.LayoutParams(-1, -2));
-            gap(page, 10);
-            TextView detail = text("A startup error occurred. Please close and reopen the app. If it happens again, share your Android version so we can diagnose it.", 14, MUTED, false);
-            detail.setGravity(Gravity.CENTER);
-            detail.setLineSpacing(dp(4), 1.0f);
-            page.addView(detail, new LinearLayout.LayoutParams(-1, -2));
-            failureFrame.addView(page, new FrameLayout.LayoutParams(-1, -1));
-            setContentView(failureFrame);
-        } catch (Throwable fallbackError) {
-            android.util.Log.e("CollabzyStartup", "Unable to render the startup error screen.", fallbackError);
+    private void field(LinearLayout parent, String label, EditText input) {
+        parent.addView(txt(label, 12, MUTED, true));
+        gap(parent, 6);
+        parent.addView(input, new LinearLayout.LayoutParams(-1, -2));
+        gap(parent, 13);
+    }
+
+    private void section(LinearLayout parent, String title, String subtitle) {
+        parent.addView(txt(title, 21, INK, true));
+        if (subtitle != null && !subtitle.isEmpty()) {
+            gap(parent, 4);
+            TextView copy = txt(subtitle, 13, MUTED, false);
+            copy.setLineSpacing(dp(3), 1f);
+            parent.addView(copy);
         }
+        gap(parent, 15);
+    }
+
+    private void feature(LinearLayout parent, String icon, String title, String description) {
+        LinearLayout line = row();
+        TextView mark = txt(icon, 20, TEAL, true);
+        mark.setGravity(Gravity.CENTER);
+        mark.setBackground(shape(LIGHT_TEAL, 13, 0));
+        line.addView(mark, new LinearLayout.LayoutParams(dp(42), dp(42)));
+        LinearLayout copy = col();
+        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, -2, 1);
+        p.leftMargin = dp(12);
+        copy.setLayoutParams(p);
+        copy.addView(txt(title, 14, INK, true));
+        gap(copy, 3);
+        copy.addView(txt(description, 12, MUTED, false));
+        line.addView(copy);
+        parent.addView(line);
+    }
+
+    private void beginPage(String title, boolean nav, boolean back) {
+        FrameLayout root = new FrameLayout(this);
+        root.setBackgroundColor(BG);
+        LinearLayout shell = col();
+        root.addView(shell, new FrameLayout.LayoutParams(-1, -1));
+
+        LinearLayout header = row();
+        header.setPadding(dp(19), dp(13), dp(16), dp(12));
+        header.setBackgroundColor(WHITE);
+        TextView mark = txt("C", 23, WHITE, true);
+        mark.setGravity(Gravity.CENTER);
+        mark.setBackground(gradient(PURPLE, TEAL, 14));
+        header.addView(mark, new LinearLayout.LayoutParams(dp(43), dp(43)));
+
+        LinearLayout brand = col();
+        LinearLayout.LayoutParams brandParams = new LinearLayout.LayoutParams(0, -2, 1);
+        brandParams.leftMargin = dp(11);
+        brand.setLayoutParams(brandParams);
+        brand.addView(txt("collabzy", 19, INK, true));
+        brand.addView(txt(title, 11, MUTED, false));
+        header.addView(brand);
+
+        if (nav) {
+            TextView avatar = txt(initial(me.optString("name", "C")), 15, PURPLE, true);
+            avatar.setGravity(Gravity.CENTER);
+            avatar.setBackground(shape(LIGHT_PURPLE, 22, BORDER));
+            header.addView(avatar, new LinearLayout.LayoutParams(dp(40), dp(40)));
+            avatar.setOnClickListener(v -> showApp("profile"));
+        } else if (back) {
+            TextView close = txt("‹", 30, INK, false);
+            close.setGravity(Gravity.CENTER);
+            header.addView(close, new LinearLayout.LayoutParams(dp(40), dp(42)));
+            close.setOnClickListener(v -> onBackPressed());
+        }
+        shell.addView(header, new LinearLayout.LayoutParams(-1, -2));
+
+        ScrollView scroller = new ScrollView(this);
+        scroller.setFillViewport(false);
+        scroller.setClipToPadding(false);
+        body = col();
+        body.setPadding(dp(19), dp(18), dp(19), dp(25));
+        scroller.addView(body, new ScrollView.LayoutParams(-1, -2));
+        shell.addView(scroller, new LinearLayout.LayoutParams(-1, 0, 1));
+        if (nav) shell.addView(bottomNav(), new LinearLayout.LayoutParams(-1, -2));
+        setContentView(root);
+    }
+
+    private LinearLayout bottomNav() {
+        LinearLayout nav = row();
+        nav.setPadding(dp(6), dp(8), dp(6), dp(8));
+        nav.setBackgroundColor(WHITE);
+        navItem(nav, "discover", "⌕", "Discover");
+        navItem(nav, "work", "▤", "My work");
+        navItem(nav, "studio", "✧", "AI Studio");
+        navItem(nav, "profile", "◉", "Profile");
+        return nav;
+    }
+
+    private void navItem(LinearLayout nav, String key, String icon, String label) {
+        boolean active = key.equals(tab);
+        LinearLayout item = col();
+        item.setGravity(Gravity.CENTER);
+        item.setPadding(dp(3), dp(4), dp(3), dp(4));
+        item.setBackground(shape(active ? LIGHT_TEAL : WHITE, 12, 0));
+        TextView glyph = txt(icon, 19, active ? TEAL : MUTED, true);
+        glyph.setGravity(Gravity.CENTER);
+        item.addView(glyph);
+        TextView caption = txt(label, 10, active ? TEAL : MUTED, active);
+        caption.setGravity(Gravity.CENTER);
+        item.addView(caption);
+        nav.addView(item, new LinearLayout.LayoutParams(0, -2, 1));
+        item.setClickable(true);
+        item.setOnClickListener(v -> showApp(key));
+    }
+
+    private void showLoading(String message) {
+        screen = "loading";
+        FrameLayout frame = new FrameLayout(this);
+        frame.setBackground(gradient(BG, LIGHT_PURPLE, 0));
+        LinearLayout center = col();
+        center.setGravity(Gravity.CENTER);
+        center.setPadding(dp(26), dp(26), dp(26), dp(26));
+        TextView logo = txt("C", 30, WHITE, true);
+        logo.setGravity(Gravity.CENTER);
+        logo.setBackground(gradient(PURPLE, TEAL, 22));
+        center.addView(logo, new LinearLayout.LayoutParams(dp(72), dp(72)));
+        gap(center, 16);
+        center.addView(txt("collabzy", 27, INK, true));
+        gap(center, 14);
+        ProgressBar spinner = new ProgressBar(this);
+        spinner.setIndeterminateTintList(android.content.res.ColorStateList.valueOf(TEAL));
+        center.addView(spinner, new LinearLayout.LayoutParams(dp(34), dp(34)));
+        gap(center, 12);
+        TextView label = txt(message, 14, MUTED, false);
+        label.setGravity(Gravity.CENTER);
+        center.addView(label);
+        frame.addView(center, new FrameLayout.LayoutParams(-1, -1, Gravity.CENTER));
+        setContentView(frame);
     }
 
     private void showWelcome() {
         screen = "welcome";
-        frame = new FrameLayout(this);
-        frame.setBackground(gradient(BG, Color.rgb(241, 238, 251), 0));
-        ScrollView scroll = new ScrollView(this);
-        scroll.setFillViewport(true);
-        LinearLayout page = column();
-        page.setPadding(dp(24), dp(32), dp(24), dp(28));
-        scroll.addView(page);
-        frame.addView(scroll, new FrameLayout.LayoutParams(-1, -1));
-        LinearLayout brand = row();
-        TextView mark = text("C", 28, BG, true);
-        mark.setGravity(Gravity.CENTER);
-        mark.setBackground(rounded(MINT, 20, 0));
-        brand.addView(mark, new LinearLayout.LayoutParams(dp(56), dp(56)));
-        LinearLayout brandWords = column();
-        LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-2, -2);
-        bp.leftMargin = dp(12);
-        brandWords.setLayoutParams(bp);
-        brandWords.addView(text("collabzy", 25, WHITE, true));
-        brandWords.addView(text("CREATOR  ×  BRAND", 10, MINT, true));
-        brand.addView(brandWords);
-        page.addView(brand);
-        gap(page, 48);
-        TextView eyebrow = text("YOUR CREATOR BUSINESS, CONNECTED", 11, MINT, true);
+        beginPage("CREATOR  ×  BRAND", false, false);
+        if (!notice.isEmpty()) {
+            message(body, notice, noticeIsError);
+            gap(body, 12);
+        }
+        TextView eyebrow = txt("YOUR CREATOR BUSINESS, CONNECTED", 10, TEAL, true);
         eyebrow.setLetterSpacing(0.08f);
-        page.addView(eyebrow);
-        gap(page, 15);
-        TextView headline = text("Turn your content\ninto brand opportunities.", 35, WHITE, true);
+        body.addView(eyebrow);
+        gap(body, 12);
+        TextView headline = txt("Your next brand deal starts here.", 34, INK, true);
         headline.setLineSpacing(dp(3), 1f);
-        page.addView(headline);
-        gap(page, 15);
-        TextView explainer = text("Find paid, barter and hybrid campaigns, pitch smarter with creator tools, and manage brand collaborations in one app.", 16, MUTED, false);
-        explainer.setLineSpacing(dp(5), 1.05f);
-        page.addView(explainer);
-        gap(page, 18);
-        LinearLayout proCard = column();
-        proCard.setPadding(dp(18), dp(18), dp(18), dp(17));
-        proCard.setBackground(gradient(Color.rgb(39, 28, 65), Color.rgb(83, 56, 151), 23));
-        TextView proLabel = text("COLLABZY PRO  ·  365 DAYS", 10, Color.rgb(117, 240, 218), true);
-        proLabel.setLetterSpacing(0.08f);
-        proCard.addView(proLabel);
-        gap(proCard, 7);
-        proCard.addView(text("₹299 / year", 30, Color.WHITE, true));
-        gap(proCard, 3);
-        proCard.addView(text("Creator tools made for your next brand deal.", 13, Color.rgb(232, 225, 250), true));
-        gap(proCard, 10);
-        TextView proBenefits = text("✦  AI-assisted pitches and content ideas\n↗  Campaign discovery and collaboration tools\n◎  Instagram insights after official Meta setup", 12, Color.rgb(240, 236, 250), false);
-        proBenefits.setLineSpacing(dp(4), 1.0f);
-        proCard.addView(proBenefits);
-        gap(proCard, 13);
-        TextView proCta = button("Join beta · explore the Pro plan  →", true);
-        proCard.addView(proCta, new LinearLayout.LayoutParams(-1, -2));
-        proCta.setOnClickListener(v -> showAuth(true));
-        gap(proCard, 9);
-        proCard.addView(text("Intro plan price for 365 days. Checkout is not active yet; beta access is free. Paid campaigns and earnings are not guaranteed.", 10, Color.rgb(225, 218, 243), false));
-        page.addView(proCard);
-        gap(page, 20);
-        LinearLayout valueCard = card();
-        valueCard.setBackground(gradient(Color.rgb(223, 246, 243), Color.rgb(240, 237, 251), 22));
-        addFeature(valueCard, "✦", "Smart campaign matching", "Find opportunities that fit your niche");
-        gap(valueCard, 14);
-        addFeature(valueCard, "↗", "Creator–brand workspace", "Applications, chats and progress together");
-        gap(valueCard, 14);
-        addFeature(valueCard, "✧", "AI-powered creator tools", "Draft ideas and pitches in less time");
-        page.addView(valueCard);
-        gap(page, 28);
-        TextView create = button("Create your account  →", true);
-        create.setOnClickListener(v -> showAuth(true));
-        page.addView(create);
-        gap(page, 12);
-        TextView signIn = button("I already have an account", false);
-        signIn.setOnClickListener(v -> showAuth(false));
-        page.addView(signIn);
-        gap(page, 18);
-        TextView legal = text("Invite-only early access  •  No payment is taken in this beta", 11, MUTED, false);
-        legal.setGravity(Gravity.CENTER);
-        page.addView(legal);
-        setContentView(frame);
-        fadeIn(page);
-    }
+        body.addView(headline);
+        gap(body, 12);
+        TextView copy = txt("Discover creator campaigns, send smarter pitches and manage collaborations in one simple mobile app.", 15, MUTED, false);
+        copy.setLineSpacing(dp(5), 1f);
+        body.addView(copy);
+        gap(body, 20);
 
-    private void addFeature(LinearLayout parent, String icon, String title, String subtitle) {
-        LinearLayout r = row();
-        TextView glyph = text(icon, 22, MINT, true);
-        glyph.setGravity(Gravity.CENTER);
-        glyph.setBackground(rounded(Color.rgb(218, 244, 239), 13, 0));
-        r.addView(glyph, new LinearLayout.LayoutParams(dp(43), dp(43)));
-        LinearLayout copy = column();
-        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, -2, 1);
-        p.leftMargin = dp(12);
-        copy.setLayoutParams(p);
-        copy.addView(text(title, 14, WHITE, true));
-        gap(copy, 3);
-        copy.addView(text(subtitle, 12, MUTED, false));
-        r.addView(copy);
-        parent.addView(r);
+        LinearLayout plan = col();
+        plan.setPadding(dp(19), dp(19), dp(19), dp(18));
+        plan.setBackground(gradient(Color.rgb(42, 29, 74), Color.rgb(92, 62, 157), 23));
+        TextView planLabel = txt("COLLABZY PRO  ·  365 DAYS", 10, Color.rgb(122, 241, 219), true);
+        planLabel.setLetterSpacing(0.08f);
+        plan.addView(planLabel);
+        gap(plan, 8);
+        plan.addView(txt("₹299 / year", 30, WHITE, true));
+        gap(plan, 5);
+        plan.addView(txt("Smart creator tools for your next collaboration.", 13, Color.rgb(238, 232, 250), true));
+        gap(plan, 12);
+        TextView benefits = txt("✦  AI-assisted pitches and content ideas\n↗  Paid, barter and hybrid campaigns\n◎  Instagram insights after official Meta setup", 12, Color.rgb(243, 239, 251), false);
+        benefits.setLineSpacing(dp(5), 1f);
+        plan.addView(benefits);
+        gap(plan, 15);
+        plan.addView(button("Join private beta  →", true, () -> showAuth(true)), new LinearLayout.LayoutParams(-1, -2));
+        gap(plan, 10);
+        TextView priceNote = txt("Intro plan price. Checkout is not active yet; beta access is free. Campaigns and earnings are not guaranteed.", 10, Color.rgb(225, 218, 243), false);
+        priceNote.setLineSpacing(dp(3), 1f);
+        plan.addView(priceNote);
+        body.addView(plan);
+        gap(body, 18);
+
+        LinearLayout features = card();
+        feature(features, "✦", "Campaign discovery", "Find opportunities that match your niche.");
+        gap(features, 15);
+        feature(features, "↗", "Creator–brand workspace", "Manage applications and collaboration progress.");
+        gap(features, 15);
+        feature(features, "✧", "AI creator studio", "Draft hooks, captions, bios and brand pitches.");
+        body.addView(features);
+        gap(body, 20);
+        body.addView(button("I already have an account", false, () -> showAuth(false)), new LinearLayout.LayoutParams(-1, -2));
+        gap(body, 13);
+        TextView beta = txt("PRIVATE BETA  ·  NO PAYMENT IS TAKEN", 10, MUTED, true);
+        beta.setGravity(Gravity.CENTER);
+        body.addView(beta);
     }
 
     private void showAuth(boolean create) {
-        screen = create ? "register" : "login";
-        frame = new FrameLayout(this);
-        frame.setBackground(gradient(BG, Color.rgb(239, 241, 249), 0));
-        ScrollView scroll = new ScrollView(this);
-        scroll.setFillViewport(true);
-        LinearLayout page = column();
-        page.setPadding(dp(22), dp(20), dp(22), dp(28));
-        scroll.addView(page);
-        frame.addView(scroll, new FrameLayout.LayoutParams(-1, -1));
-        TextView back = text("‹   Back", 15, MINT, true);
-        back.setPadding(0, dp(10), 0, dp(10));
-        back.setOnClickListener(v -> showWelcome());
-        page.addView(back);
-        gap(page, 13);
-        LinearLayout markRow = row();
-        TextView mark = text("C", 23, BG, true);
-        mark.setGravity(Gravity.CENTER);
-        mark.setBackground(rounded(MINT, 17, 0));
-        markRow.addView(mark, new LinearLayout.LayoutParams(dp(48), dp(48)));
-        TextView word = text("collabzy", 23, WHITE, true);
-        LinearLayout.LayoutParams wp = new LinearLayout.LayoutParams(-2, -2);
-        wp.leftMargin = dp(11);
-        markRow.addView(word, wp);
-        page.addView(markRow);
-        gap(page, 25);
-        page.addView(text(create ? "Create your account" : "Welcome back", 29, WHITE, true));
-        gap(page, 8);
-        page.addView(text(create ? "Join the Collabzy private beta and set up your workspace." : "Sign in to pick up where your next collaboration begins.", 14, MUTED, false));
-        gap(page, 24);
-        LinearLayout form = card();
-        EditText name = field("Your full name", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS, "");
-        EditText email = field("you@example.com", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS, "");
-        EditText password = field("At least 8 characters", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD, "");
-        EditText beta = field("Private beta invite code", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS, "");
-        if (create) addField(form, "FULL NAME", name);
-        addField(form, "EMAIL ADDRESS", email);
-        addField(form, "PASSWORD", password);
-        LinearLayout roleRow = row();
-        TextView creatorRole = button("Creator", true);
-        TextView brandRole = button("Brand", false);
-        roleRow.addView(creatorRole, new LinearLayout.LayoutParams(0, -2, 1));
-        LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(0, -2, 1);
-        rp.leftMargin = dp(8);
-        roleRow.addView(brandRole, rp);
+        screen = "auth";
+        beginPage(create ? "Create account" : "Sign in", false, true);
+        section(body, create ? "Join Collabzy" : "Welcome back",
+            create ? "Create a creator or brand account to get started." : "Sign in to open your collaboration workspace.");
         if (create) {
-            TextView roleTitle = text("I'M JOINING AS", 12, MUTED, true);
-            form.addView(roleTitle);
-            gap(form, 8);
-            form.addView(roleRow);
-            gap(form, 14);
-            TextView betaTitle = text("PRIVATE BETA CODE", 12, MUTED, true);
-            form.addView(betaTitle);
-            gap(form, 7);
-            form.addView(beta, new LinearLayout.LayoutParams(-1, -2));
-            gap(form, 12);
+            body.addView(txt("I am joining as", 12, MUTED, true));
+            gap(body, 8);
+            LinearLayout roles = row();
+            roles.addView(button("Creator" + ("creator".equals(signupRole) ? "  ✓" : ""),
+                "creator".equals(signupRole), () -> { signupRole = "creator"; showAuth(true); }),
+                new LinearLayout.LayoutParams(0, -2, 1));
+            roles.addView(new View(this), new LinearLayout.LayoutParams(dp(10), 1));
+            roles.addView(button("Brand" + ("brand".equals(signupRole) ? "  ✓" : ""),
+                "brand".equals(signupRole), () -> { signupRole = "brand"; showAuth(true); }),
+                new LinearLayout.LayoutParams(0, -2, 1));
+            body.addView(roles);
+            gap(body, 16);
+            authName = input("Your full name", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS, false);
+            field(body, "FULL NAME", authName);
+        } else {
+            authName = null;
         }
-        CheckBox terms = new CheckBox(this);
-        terms.setText("I agree to the Terms of Use and Privacy Notice");
-        terms.setTextColor(MUTED);
-        terms.setTextSize(12);
-        terms.setButtonTintList(new android.content.res.ColorStateList(
-            new int[][]{new int[]{android.R.attr.state_checked}, new int[]{}},
-            new int[]{MINT, MUTED}));
-        if (create) form.addView(terms);
-        gap(form, 4);
-        TextView notice = text("Private beta access is required while public registration is paused. No payment is collected here.", 11, MUTED, false);
-        form.addView(notice);
-        page.addView(form);
-        gap(page, 18);
-        TextView submit = button(create ? "Create account  →" : "Sign in  →", true);
-        page.addView(submit);
-        gap(page, 12);
+        authEmail = input("you@example.com", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS, false);
+        field(body, "EMAIL ADDRESS", authEmail);
+        authPassword = input("At least 8 characters", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD, false);
+        field(body, "PASSWORD", authPassword);
+        if (create) {
+            authBetaCode = input("Only if you received an invite", InputType.TYPE_CLASS_TEXT, false);
+            field(body, "PRIVATE BETA ACCESS CODE", authBetaCode);
+            authTerms = new CheckBox(this);
+            authTerms.setText("I agree to the Terms of Use and Privacy Notice.");
+            authTerms.setTextColor(MUTED);
+            authTerms.setTextSize(12);
+            authTerms.setButtonTintList(android.content.res.ColorStateList.valueOf(TEAL));
+            body.addView(authTerms);
+            gap(body, 12);
+        } else {
+            authBetaCode = null;
+            authTerms = null;
+        }
+        authMessage = txt("", 12, RED, false);
+        authMessage.setLineSpacing(dp(3), 1f);
+        if (!notice.isEmpty()) {
+            authMessage.setText(notice);
+            authMessage.setTextColor(noticeIsError ? RED : TEAL);
+            notice = "";
+            noticeIsError = false;
+        }
+        body.addView(authMessage);
+        gap(body, 10);
+        body.addView(button(create ? "Create account  →" : "Sign in  →", true, () -> submitAuth(create)),
+            new LinearLayout.LayoutParams(-1, -2));
+        gap(body, 12);
+        body.addView(button(create ? "I already have an account" : "Create a new account", false,
+            () -> showAuth(!create)), new LinearLayout.LayoutParams(-1, -2));
         if (!create) {
-            TextView forgot = text("Forgot password?", 13, MINT, true);
-            forgot.setGravity(Gravity.CENTER);
-            forgot.setPadding(dp(8), dp(10), dp(8), dp(10));
-            page.addView(forgot);
-            forgot.setOnClickListener(v -> showForgotPasswordDialog());
+            gap(body, 11);
+            body.addView(smallButton("Forgot your password?", this::showForgotPassword),
+                new LinearLayout.LayoutParams(-1, -2));
         }
-        TextView swap = text(create ? "Already registered?  Sign in" : "New to Collabzy?  Create account", 14, VIOLET, true);
-        swap.setGravity(Gravity.CENTER);
-        swap.setPadding(dp(10), dp(13), dp(10), dp(13));
-        page.addView(swap);
-        swap.setOnClickListener(v -> showAuth(!create));
-
-        final String[] selectedRole = new String[]{"creator"};
-        creatorRole.setOnClickListener(v -> {
-            selectedRole[0] = "creator";
-            creatorRole.setBackground(rounded(MINT, 17, 0));
-            creatorRole.setTextColor(BG);
-            brandRole.setBackground(rounded(PANEL_ALT, 17, Color.rgb(224, 220, 238)));
-            brandRole.setTextColor(WHITE);
-        });
-        brandRole.setOnClickListener(v -> {
-            selectedRole[0] = "brand";
-            brandRole.setBackground(rounded(MINT, 17, 0));
-            brandRole.setTextColor(BG);
-            creatorRole.setBackground(rounded(PANEL_ALT, 17, Color.rgb(224, 220, 238)));
-            creatorRole.setTextColor(WHITE);
-        });
-        submit.setOnClickListener(v -> {
-            String mail = email.getText().toString().trim();
-            String pass = password.getText().toString();
-            if (mail.isEmpty() || pass.isEmpty() || (create && name.getText().toString().trim().isEmpty())) {
-                toast("Please complete the required fields.");
-                return;
-            }
-            if (create && !terms.isChecked()) {
-                toast("Please accept the Terms of Use and Privacy Notice.");
-                return;
-            }
-            hideKeyboard();
-            JSONObject payload = new JSONObject();
-            try {
-                payload.put("email", mail);
-                payload.put("password", pass);
-                if (create) {
-                    payload.put("name", name.getText().toString().trim());
-                    payload.put("role", selectedRole[0]);
-                    payload.put("beta_code", beta.getText().toString().trim());
-                    payload.put("accepted_terms", terms.isChecked());
-                }
-            } catch (Exception ignored) {}
-            submit.setText("Connecting securely…");
-            submit.setEnabled(false);
-            api("POST", create ? "/api/auth/register" : "/api/auth/login", payload, (data, error) -> {
-                submit.setEnabled(true);
-                submit.setText(create ? "Create account  →" : "Sign in  →");
-                if (error != null) {
-                    toast(error);
-                    return;
-                }
-                if (data.optBoolean("requires_email_verification")) {
-                    toast("Account created. Check your email to verify it before signing in.");
-                    showAuth(false);
-                    return;
-                }
-                token = data.optString("token", "");
-                JSONObject returnedUser = data.optJSONObject("user");
-                if (token.isEmpty() || returnedUser == null) {
-                    toast("The server response was incomplete. Please try again.");
-                    return;
-                }
-                user = returnedUser;
-                storage.edit().putString("token", token).apply();
-                screen = "home";
-                showShell("home");
-            });
-        });
-        setContentView(frame);
-        fadeIn(page);
+        gap(body, 16);
+        TextView note = txt("Invite-only access may be required while the app is in private beta.", 11, MUTED, false);
+        note.setGravity(Gravity.CENTER);
+        body.addView(note);
     }
 
-    private void showForgotPasswordDialog() {
-        EditText email = field("Email address", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS, "");
-        new android.app.AlertDialog.Builder(this)
-            .setTitle("Reset your password")
-            .setMessage("We'll request a secure password-reset link. If email delivery isn't configured, the server will tell you.")
-            .setView(email)
-            .setNegativeButton("Cancel", null)
-            .setPositiveButton("Send link", (dialog, which) -> {
-                String address = email.getText().toString().trim();
-                if (address.isEmpty()) { toast("Enter your account email."); return; }
-                api("POST", "/api/auth/forgot-password", json("email", address), (data, error) -> {
-                    if (error != null) toast(error);
-                    else toast(data.optString("message", "If that account exists, a reset link will be sent."));
-                });
-            }).show();
-    }
-
-    private void hideKeyboard() {
+    private void submitAuth(boolean create) {
+        String email = authEmail == null ? "" : authEmail.getText().toString().trim();
+        String password = authPassword == null ? "" : authPassword.getText().toString();
+        JSONObject payload = new JSONObject();
         try {
-            InputMethodManager imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
-            if (imm != null) imm.hideSoftInputFromWindow(frame.getWindowToken(), 0);
-        } catch (Exception ignored) {}
-    }
-
-    private void showShell(String target) {
-        screen = target;
-        frame = new FrameLayout(this);
-        frame.setBackground(gradient(BG, Color.rgb(235, 238, 248), 0));
-        LinearLayout shell = column();
-        frame.addView(shell, new FrameLayout.LayoutParams(-1, -1));
-        shell.addView(header(), new LinearLayout.LayoutParams(-1, -2));
-        ScrollView scroll = new ScrollView(this);
-        scroll.setFillViewport(false);
-        scroll.setClipToPadding(false);
-        content = column();
-        content.setPadding(dp(18), dp(15), dp(18), dp(24));
-        scroll.addView(content);
-        shell.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1f));
-        shell.addView(bottomNavigation(target), new LinearLayout.LayoutParams(-1, -2));
-        setContentView(frame);
-        switch (target) {
-            case "explore": renderExplore(); break;
-            case "matches": renderMatches(); break;
-            case "inbox": renderInbox(); break;
-            case "profile": renderProfile(); break;
-            case "more": renderMore(); break;
-            case "saved": renderSavedCampaigns(); break;
-            case "invitations": renderInvitations(); break;
-            case "notifications": renderNotifications(); break;
-            case "my_campaigns": renderMyCampaigns(); break;
-            case "instagram": renderInstagram(); break;
-            case "autodm": renderAutoDM(); break;
-            case "billing": renderBilling(); break;
-            case "support": renderSupport(); break;
-            case "applications": renderApplications(); break;
-            case "ai": renderAI(); break;
-            case "create_campaign": renderCreateCampaign(); break;
-            case "conversation": renderConversation(); break;
-            default: renderHome();
-        }
-        fadeIn(content);
-    }
-
-    private View header() {
-        LinearLayout h = row();
-        h.setPadding(dp(18), dp(13), dp(18), dp(11));
-        h.setBackgroundColor(Color.rgb(247, 248, 252));
-        TextView mark = text("C", 20, BG, true);
-        mark.setGravity(Gravity.CENTER);
-        mark.setBackground(rounded(MINT, 15, 0));
-        h.addView(mark, new LinearLayout.LayoutParams(dp(42), dp(42)));
-        LinearLayout words = column();
-        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, -2, 1);
-        p.leftMargin = dp(10);
-        h.addView(words, p);
-        words.addView(text("collabzy", 19, WHITE, true));
-        words.addView(text("COLLABORATION, IN MOTION", 8, MUTED, true));
-        String initial = user.optString("name", "C");
-        initial = initial.isEmpty() ? "C" : initial.substring(0, 1).toUpperCase(Locale.ROOT);
-        TextView avatar = text(initial, 15, MINT, true);
-        avatar.setGravity(Gravity.CENTER);
-        avatar.setBackground(rounded(Color.rgb(241, 239, 250), 16, Color.rgb(224, 220, 238)));
-        h.addView(avatar, new LinearLayout.LayoutParams(dp(40), dp(40)));
-        avatar.setOnClickListener(v -> showShell("profile"));
-        return h;
-    }
-
-    private View bottomNavigation(String active) {
-        LinearLayout nav = row();
-        nav.setPadding(dp(7), dp(8), dp(7), dp(10));
-        nav.setBackground(rounded(Color.rgb(255, 255, 255), 0, Color.rgb(224, 220, 238)));
-        String[] labels = new String[]{"Home", "Explore", "Matches", "Inbox", "More"};
-        String[] keys = new String[]{"home", "explore", "matches", "inbox", "more"};
-        String[] glyphs = new String[]{"⌂", "⌕", "✦", "▤", "•••"};
-        for (int i = 0; i < labels.length; i++) {
-            final String key = keys[i];
-            boolean moreScreen = active.equals("more") || active.equals("profile") || active.equals("saved")
-                || active.equals("invitations") || active.equals("notifications") || active.equals("my_campaigns")
-                || active.equals("instagram") || active.equals("autodm") || active.equals("billing")
-                || active.equals("support") || active.equals("applications") || active.equals("ai")
-                || active.equals("create_campaign");
-            boolean selected = active.equals(key) || (active.equals("conversation") && key.equals("inbox"))
-                || (key.equals("more") && moreScreen);
-            LinearLayout item = column();
-            item.setGravity(Gravity.CENTER);
-            TextView icon = text(glyphs[i], 21, selected ? MINT : MUTED, true);
-            icon.setGravity(Gravity.CENTER);
-            item.addView(icon);
-            TextView label = text(labels[i], 9, selected ? MINT : MUTED, selected);
-            item.addView(label);
-            item.setPadding(dp(2), dp(3), dp(2), dp(2));
-            item.setBackground(rounded(selected ? Color.rgb(225, 247, 242) : Color.TRANSPARENT, 13, 0));
-            item.setClickable(true);
-            item.setOnClickListener(v -> showShell(key));
-            LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, -2, 1);
-            p.leftMargin = dp(2);
-            p.rightMargin = dp(2);
-            nav.addView(item, p);
-        }
-        return nav;
-    }
-
-    private void heading(String title, String subtitle) {
-        content.addView(text(title, 27, WHITE, true));
-        gap(content, 6);
-        content.addView(text(subtitle, 13, MUTED, false));
-        gap(content, 19);
-    }
-
-    private void renderHome() {
-        boolean creator = "creator".equals(user.optString("role", "creator"));
-        String name = user.optString("name", "there");
-        int space = name.indexOf(' ');
-        if (space > 0) name = name.substring(0, space);
-        content.addView(text("YOUR WORKSPACE", 10, MINT, true));
-        gap(content, 8);
-        content.addView(text("Hey " + name + ",", 29, WHITE, true));
-        gap(content, 5);
-        content.addView(text(creator ? "Your next opportunity is out there." : "Let's build your next campaign.", 14, MUTED, false));
-        gap(content, 19);
-
-        LinearLayout hero = column();
-        hero.setPadding(dp(20), dp(20), dp(20), dp(20));
-        hero.setBackground(gradient(Color.rgb(229, 247, 244), Color.rgb(241, 236, 250), 24));
-        TextView chip = text(creator ? "✦  CREATOR STUDIO" : "✦  BRAND STUDIO", 10, MINT, true);
-        chip.setLetterSpacing(0.08f);
-        hero.addView(chip);
-        gap(hero, 12);
-        hero.addView(text(creator ? "Turn your influence\ninto opportunity." : "Find creators who\nfit your brand.", 25, WHITE, true));
-        gap(hero, 9);
-        hero.addView(text(creator ? "Discover relevant briefs, match with brands, and manage the conversations that matter." : "Publish a campaign, discover talent, and move every collaboration forward.", 13, Color.rgb(73, 69, 101), false));
-        gap(hero, 17);
-        TextView cta = button(creator ? "Explore campaigns  →" : "Open campaign studio  →", true);
-        hero.addView(cta, new LinearLayout.LayoutParams(-1, -2));
-        cta.setOnClickListener(v -> showShell("explore"));
-        content.addView(hero);
-        gap(content, 22);
-
-        if (creator) {
-            LinearLayout proPromo = column();
-            proPromo.setPadding(dp(17), dp(16), dp(17), dp(16));
-            proPromo.setBackground(gradient(Color.rgb(42, 29, 70), Color.rgb(83, 56, 151), 21));
-            proPromo.addView(text("CREATOR PRO  ·  ₹299 / YEAR", 10, Color.rgb(117, 240, 218), true));
-            gap(proPromo, 7);
-            proPromo.addView(text("Put your next brand pitch in motion.", 18, Color.WHITE, true));
-            gap(proPromo, 6);
-            proPromo.addView(text("AI-assisted content tools and the Growth Coach when the required integrations and plan access are enabled. Brand campaigns offer opportunities, not guaranteed income.", 12, Color.rgb(232, 225, 250), false));
-            gap(proPromo, 12);
-            TextView viewPlan = button("View membership & billing  →", true);
-            proPromo.addView(viewPlan, new LinearLayout.LayoutParams(-1, -2));
-            viewPlan.setOnClickListener(v -> showShell("billing"));
-            content.addView(proPromo);
-            gap(content, 22);
-        }
-
-        heading("Your at-a-glance", "Live counts from your Collabzy account.");
-        JSONObject stats = dashboardStats;
-        String primaryTitle = creator ? "My applications" : "My campaigns";
-        String primaryValue = String.valueOf(stats.optInt(creator ? "myApplications" : "myCampaigns", 0));
-        String primaryHint = creator ? stats.optInt("accepted", 0) + " accepted" : stats.optInt("receivedApplications", 0) + " applications received";
-        String secondaryTitle = creator ? "Saved campaigns" : "Active campaigns";
-        String secondaryValue = String.valueOf(stats.optInt(creator ? "savedCampaigns" : "activeCampaigns", 0));
-        String secondaryHint = creator ? (user.optString("instagram_handle", "").isEmpty() ? "Instagram not linked" : "@" + user.optString("instagram_handle")) : "Marketplace opportunities";
-        LinearLayout statRow = row();
-        statRow.addView(statCard(primaryTitle, primaryValue, primaryHint), new LinearLayout.LayoutParams(0, -2, 1));
-        LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(0, -2, 1);
-        sp.leftMargin = dp(10);
-        statRow.addView(statCard(secondaryTitle, secondaryValue, secondaryHint), sp);
-        content.addView(statRow);
-        gap(content, 22);
-
-        heading("Made for your next move", "Jump back into the tools you need.");
-        addQuickAction("✦", "Smart matches", creator ? "Find briefs that fit your niche" : "Discover relevant creators", () -> showShell("matches"));
-        gap(content, 10);
-        addQuickAction("◎", "Explore opportunities", creator ? "Paid, barter and hybrid campaigns" : "Browse the marketplace", () -> showShell("explore"));
-        gap(content, 10);
-        addQuickAction("✧", "AI Studio", "Pitches, content ideas and campaign briefs", () -> showShell("ai"));
-        gap(content, 10);
-        addQuickAction("▤", "Applications & activity", "Track collaboration progress", () -> showShell("applications"));
-        gap(content, 10);
-        addQuickAction("◎", "Instagram & creator insights", "Official account connection and metrics", () -> showShell("instagram"));
-        if (!creator) {
-            gap(content, 10);
-            addQuickAction("+", "Create a campaign", "Publish a collaboration brief", () -> showShell("create_campaign"));
-            gap(content, 10);
-            addQuickAction("♙", "Manage campaigns", "Edit status and review applicants", () -> showShell("my_campaigns"));
-        }
-        gap(content, 18);
-        if (!dashboardLoaded && !dashboardRequestStarted) {
-            dashboardRequestStarted = true;
-            api("GET", "/api/dashboard", null, (data, error) -> {
-                dashboardRequestStarted = false;
-                dashboardLoaded = true;
-                if (error == null && data != null) {
-                    JSONObject actual = data.optJSONObject("stats");
-                    if (actual != null) dashboardStats = actual;
-                    if ("home".equals(screen)) showShell("home");
-                } else if (error != null) {
-                    toast("Dashboard counts could not refresh: " + error);
+            payload.put("email", email);
+            payload.put("password", password);
+            if (create) {
+                String name = authName == null ? "" : authName.getText().toString().trim();
+                if (name.isEmpty()) { setAuthMessage("Enter your name to continue.", true); return; }
+                if (email.isEmpty() || password.length() < 8) {
+                    setAuthMessage("Enter a valid email and a password of at least 8 characters.", true); return;
                 }
+                if (authTerms == null || !authTerms.isChecked()) {
+                    setAuthMessage("Please accept the Terms of Use and Privacy Notice.", true); return;
+                }
+                payload.put("name", name);
+                payload.put("role", signupRole);
+                payload.put("beta_code", authBetaCode == null ? "" : authBetaCode.getText().toString().trim());
+                payload.put("accepted_terms", true);
+            }
+        } catch (Exception ignored) { setAuthMessage("Please check the details and try again.", true); return; }
+
+        setAuthMessage(create ? "Creating your account…" : "Signing you in…", false);
+        request("POST", create ? "/api/auth/register" : "/api/auth/login", payload, (data, error) -> {
+            if (error != null) { setAuthMessage(error, true); return; }
+            String nextToken = data == null ? "" : data.optString("token", "");
+            if (nextToken.isEmpty()) {
+                setAuthMessage(data == null ? "The server did not return a sign-in session."
+                    : data.optString("message", "Your account needs another step before you can sign in."), false);
+                return;
+            }
+            token = nextToken;
+            prefs.edit().putString("token", token).apply();
+            me = data.optJSONObject("user") == null ? new JSONObject() : data.optJSONObject("user");
+            clearCaches();
+            notice = "";
+            showApp("discover");
+        });
+    }
+
+    private void setAuthMessage(String text, boolean error) {
+        if (authMessage != null) {
+            authMessage.setText(text == null ? "" : text);
+            authMessage.setTextColor(error ? RED : TEAL);
+        } else toast(text);
+    }
+
+    private void showForgotPassword() {
+        screen = "forgot";
+        beginPage("Password recovery", false, true);
+        section(body, "Reset your password", "We will ask the server to send a secure reset link if email delivery is configured.");
+        EditText email = input("you@example.com", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS, false);
+        field(body, "EMAIL ADDRESS", email);
+        TextView result = txt("", 12, MUTED, false);
+        body.addView(result);
+        gap(body, 10);
+        body.addView(button("Send reset link", true, () -> {
+            JSONObject payload = new JSONObject();
+            try { payload.put("email", email.getText().toString().trim()); } catch (Exception ignored) {}
+            result.setText("Sending request…");
+            request("POST", "/api/auth/forgot-password", payload, (data, error) -> {
+                result.setText(error == null ? data.optString("message",
+                    "If an account matches, recovery instructions will be sent.") : error);
+                result.setTextColor(error == null ? TEAL : RED);
+            });
+        }), new LinearLayout.LayoutParams(-1, -2));
+    }
+
+    private void showApp(String destination) {
+        screen = "app";
+        tab = destination == null ? "discover" : destination;
+        String title = "discover".equals(tab) ? "Discover campaigns" :
+            "work".equals(tab) ? "My work" : "studio".equals(tab) ? "AI Studio" : "Your profile";
+        beginPage(title, true, false);
+        renderTabBody();
+        loadTabData();
+    }
+
+    private void renderTabBody() {
+        if (body == null) return;
+        body.removeAllViews();
+        if ("discover".equals(tab)) renderDiscover();
+        else if ("work".equals(tab)) renderWork();
+        else if ("studio".equals(tab)) renderStudio();
+        else renderProfile();
+    }
+
+    private void loadTabData() {
+        if (!"app".equals(screen)) return;
+        if ("discover".equals(tab)) {
+            if (!statsLoaded) request("GET", "/api/dashboard", null, (data, error) -> {
+                statsLoaded = true;
+                if (error == null) stats = data.optJSONObject("stats") == null ? new JSONObject() : data.optJSONObject("stats");
+                else toast(error);
+                if ("app".equals(screen) && "discover".equals(tab)) renderTabBody();
+            });
+            if (!campaignsLoaded) request("GET", "/api/campaigns", null, (data, error) -> {
+                campaignsLoaded = true;
+                if (error == null) campaigns = data.optJSONArray("campaigns") == null ? new JSONArray() : data.optJSONArray("campaigns");
+                else toast(error);
+                if ("app".equals(screen) && "discover".equals(tab)) renderTabBody();
+            });
+        } else if ("work".equals(tab)) {
+            if ("brand".equals(me.optString("role"))) {
+                if (!brandCampaignsLoaded) request("GET", "/api/my-campaigns", null, (data, error) -> {
+                    brandCampaignsLoaded = true;
+                    if (error == null) brandCampaigns = data.optJSONArray("campaigns") == null ? new JSONArray() : data.optJSONArray("campaigns");
+                    else toast(error);
+                    if ("app".equals(screen) && "work".equals(tab)) renderTabBody();
+                });
+            } else if (!applicationsLoaded) request("GET", "/api/applications", null, (data, error) -> {
+                applicationsLoaded = true;
+                if (error == null) applications = data.optJSONArray("applications") == null ? new JSONArray() : data.optJSONArray("applications");
+                else toast(error);
+                if ("app".equals(screen) && "work".equals(tab)) renderTabBody();
+            });
+        } else if ("profile".equals(tab)) {
+            if (!billingLoaded) request("GET", "/api/billing/status", null, (data, error) -> {
+                billingLoaded = true;
+                if (error == null) billing = data;
+                if ("app".equals(screen) && "profile".equals(tab)) renderTabBody();
+            });
+            if (!instagramLoaded) request("GET", "/api/instagram/status", null, (data, error) -> {
+                instagramLoaded = true;
+                if (error == null) instagram = data;
+                else {
+                    instagram = new JSONObject();
+                    try { instagram.put("message", error); } catch (Exception ignored) {}
+                }
+                if ("app".equals(screen) && "profile".equals(tab)) renderTabBody();
             });
         }
-        TextView beta = text("PRIVATE BETA  ·  Built for real creator–brand workflows", 10, MUTED, false);
-        beta.setGravity(Gravity.CENTER);
-        content.addView(beta);
     }
 
-    private View statCard(String title, String value, String hint) {
+    private void renderDiscover() {
+        TextView eyebrow = txt("YOUR COLLABORATION WORKSPACE", 10, TEAL, true);
+        eyebrow.setLetterSpacing(0.07f);
+        body.addView(eyebrow);
+        gap(body, 7);
+        body.addView(txt("Hello, " + me.optString("name", "creator") + " 👋", 26, INK, true));
+        gap(body, 5);
+        body.addView(txt("Small steps today can build your next great collaboration.", 13, MUTED, false));
+        gap(body, 17);
+
+        LinearLayout hero = col();
+        hero.setPadding(dp(18), dp(18), dp(18), dp(18));
+        hero.setBackground(gradient(Color.rgb(232, 248, 244), Color.rgb(242, 238, 253), 21));
+        hero.addView(txt("Make your next collaboration happen.", 20, INK, true));
+        gap(hero, 7);
+        hero.addView(txt("Explore campaign briefs and apply with a thoughtful pitch. Brands can publish from My work.", 12, MUTED, false));
+        gap(hero, 13);
+        hero.addView(button("brand".equals(me.optString("role")) ? "Publish a campaign  +" : "Open AI creator studio  ✧",
+            true, () -> { if ("brand".equals(me.optString("role"))) showCampaignComposer(); else showApp("studio"); }));
+        body.addView(hero);
+        gap(body, 18);
+        section(body, "Your activity", "A quick view of your workspace.");
+        LinearLayout metrics = row();
+        metrics.addView(metric("Active campaigns", statsLoaded ? String.valueOf(stats.optInt("activeCampaigns", 0)) : "—"),
+            new LinearLayout.LayoutParams(0, -2, 1));
+        metrics.addView(new View(this), new LinearLayout.LayoutParams(dp(8), 1));
+        metrics.addView(metric("Applications", statsLoaded ? String.valueOf(stats.optInt("myApplications", 0)) : "—"),
+            new LinearLayout.LayoutParams(0, -2, 1));
+        metrics.addView(new View(this), new LinearLayout.LayoutParams(dp(8), 1));
+        metrics.addView(metric("Accepted", statsLoaded ? String.valueOf(stats.optInt("accepted", 0)) : "—"),
+            new LinearLayout.LayoutParams(0, -2, 1));
+        body.addView(metrics);
+        gap(body, 20);
+        section(body, "Campaigns for you", "Paid, barter and hybrid opportunities.");
+        if (!campaignsLoaded) body.addView(loadingCard("Loading active campaigns…"));
+        else if (campaigns.length() == 0) body.addView(emptyCard("No active campaigns yet",
+            "Check back soon for opportunities. Brands can publish a campaign to appear here."));
+        else for (int i = 0; i < Math.min(campaigns.length(), 30); i++) {
+            JSONObject c = campaigns.optJSONObject(i);
+            if (c != null) { body.addView(campaignCard(c, false)); gap(body, 12); }
+        }
+        gap(body, 6);
+        body.addView(smallButton("Refresh this screen", this::refreshCurrentTab));
+    }
+
+    private LinearLayout metric(String label, String value) {
         LinearLayout c = card();
-        c.setPadding(dp(15), dp(15), dp(15), dp(15));
-        c.addView(text(title, 11, MUTED, true));
-        gap(c, 9);
-        c.addView(text(value, 21, WHITE, true));
-        gap(c, 4);
-        c.addView(text(hint, 10, MUTED, false));
+        c.setPadding(dp(10), dp(13), dp(10), dp(13));
+        c.addView(txt(value, 21, PURPLE, true));
+        gap(c, 5);
+        c.addView(txt(label, 10, MUTED, true));
         return c;
     }
 
-    private void addQuickAction(String glyph, String title, String subtitle, Runnable action) {
-        LinearLayout c = row();
-        c.setPadding(dp(14), dp(14), dp(14), dp(14));
-        c.setBackground(rounded(PANEL, 19, Color.rgb(224, 220, 238)));
-        TextView icon = text(glyph, 21, MINT, true);
-        icon.setGravity(Gravity.CENTER);
-        icon.setBackground(rounded(Color.rgb(225, 247, 242), 14, 0));
-        c.addView(icon, new LinearLayout.LayoutParams(dp(45), dp(45)));
-        LinearLayout copy = column();
-        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, -2, 1);
-        p.leftMargin = dp(12);
-        copy.setLayoutParams(p);
-        copy.addView(text(title, 14, WHITE, true));
-        gap(copy, 3);
-        copy.addView(text(subtitle, 11, MUTED, false));
-        c.addView(copy);
-        c.addView(text("›", 25, MUTED, false));
-        c.setClickable(true);
-        c.setOnClickListener(v -> action.run());
-        content.addView(c);
-    }
-
-    private String compact(long n) {
-        if (n >= 1000000) return String.format(Locale.US, "%.1fM", n / 1000000.0);
-        if (n >= 1000) return String.format(Locale.US, "%.1fK", n / 1000.0);
-        return String.valueOf(n);
-    }
-
-    private String budget(JSONObject c) {
-        long min = c.optLong("budget_min", 0), max = c.optLong("budget_max", 0);
-        if (min <= 0 && max <= 0) return "Budget to be discussed";
-        if (min > 0 && max > min) return "₹" + compact(min) + " – ₹" + compact(max);
-        if (max > 0) return "Up to ₹" + compact(max);
-        return "From ₹" + compact(min);
-    }
-
-    private void renderExplore() {
-        boolean brand = "brand".equals(user.optString("role"));
-        heading(brand ? "Creator discovery" : "Explore campaigns",
-            brand ? "Find creators by niche and location, then invite them to an active brief." :
-            "Search real campaigns and filter by collaboration type.");
-        LinearLayout filters = card();
-        EditText query = field(brand ? "Creator name or keywords" : "Campaign, brand or keyword", InputType.TYPE_CLASS_TEXT, "");
-        addField(filters, "SEARCH", query);
-        EditText category = field(brand ? "Creator niche (optional)" : "Category (optional)", InputType.TYPE_CLASS_TEXT, "");
-        EditText location = field("Location (optional)", InputType.TYPE_CLASS_TEXT, "");
-        addField(filters, brand ? "NICHE" : "CATEGORY", category);
-        addField(filters, "LOCATION", location);
-        final String[] type = new String[]{"All"};
-        if (!brand) {
-            filters.addView(text("COLLABORATION TYPE", 11, MUTED, true));
-            gap(filters, 7);
-            LinearLayout types = row();
-            String[] typeLabels = new String[]{"All", "Paid", "Barter", "Hybrid"};
-            for (String value : typeLabels) {
-                TextView chip = smallButton(value);
-                LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0, -2, 1);
-                cp.rightMargin = dp(4);
-                types.addView(chip, cp);
-                chip.setOnClickListener(v -> {
-                    type[0] = value;
-                    for (int i = 0; i < types.getChildCount(); i++) {
-                        TextView current = (TextView) types.getChildAt(i);
-                        boolean active = current.getText().toString().equals(value);
-                        current.setBackground(rounded(active ? MINT : Color.rgb(225, 247, 242), 13, 0));
-                        current.setTextColor(active ? BG : WHITE);
-                    }
-                });
-            }
-            filters.addView(types);
-            gap(filters, 13);
-        }
-        TextView search = button("Search  →", true);
-        filters.addView(search);
-        content.addView(filters);
-        gap(content, 16);
-        LinearLayout results = column();
-        content.addView(results);
-        Runnable searchAction = () -> loadExploreResults(results, query.getText().toString().trim(),
-            category.getText().toString().trim(), location.getText().toString().trim(), type[0]);
-        search.setOnClickListener(v -> searchAction.run());
-        searchAction.run();
-    }
-
-    private void loadExploreResults(LinearLayout results, String query, String category, String location, String type) {
-        results.removeAllViews();
-        TextView loading = text("Loading live opportunities…", 13, MUTED, false);
-        results.addView(loading);
-        boolean brand = "brand".equals(user.optString("role"));
-        String endpoint = brand ? "/api/creators" : "/api/campaigns";
-        java.util.ArrayList<String> params = new java.util.ArrayList<>();
-        if (!query.isEmpty()) params.add("q=" + Uri.encode(query));
-        if (!category.isEmpty()) params.add((brand ? "niche=" : "category=") + Uri.encode(category));
-        if (!location.isEmpty()) params.add("location=" + Uri.encode(location));
-        if (!brand && !type.equals("All")) params.add("type=" + Uri.encode(type));
-        if (!params.isEmpty()) endpoint += "?" + android.text.TextUtils.join("&", params);
-        api("GET", endpoint, null, (data, error) -> {
-            if (!"explore".equals(screen)) return;
-            results.removeAllViews();
-            if (error != null) {
-                LinearLayout errorPanel = card();
-                errorPanel.addView(text("Could not load opportunities", 15, RED, true));
-                gap(errorPanel, 6);
-                errorPanel.addView(text(error, 12, MUTED, false));
-                results.addView(errorPanel);
-                return;
-            }
-            JSONArray items = data.optJSONArray(brand ? "creators" : "campaigns");
-            if (items == null || items.length() == 0) {
-                showEmptyIn(results, brand ? "No creators match those filters" : "No campaigns match those filters",
-                    brand ? "Try a broader niche or location. You can also publish a brief and invite creators." :
-                    "Try another search or collaboration type. New briefs appear as brands publish them.");
-                return;
-            }
-            for (int i = 0; i < items.length(); i++) {
-                JSONObject item = items.optJSONObject(i);
-                if (item == null) continue;
-                if (brand) renderCreatorCardInto(results, item);
-                else renderCampaignCardInto(results, item, false, null);
-            }
-        });
-    }
-
-    private void showEmptyIn(LinearLayout target, String title, String body) {
+    private View loadingCard(String message) {
         LinearLayout c = card();
-        c.setGravity(Gravity.CENTER);
-        c.setPadding(dp(22), dp(24), dp(22), dp(24));
-        TextView icon = text("✦", 28, MINT, true);
-        icon.setGravity(Gravity.CENTER);
-        c.addView(icon);
+        ProgressBar spinner = new ProgressBar(this);
+        spinner.setIndeterminateTintList(android.content.res.ColorStateList.valueOf(TEAL));
+        c.addView(spinner, new LinearLayout.LayoutParams(dp(26), dp(26)));
+        gap(c, 8);
+        c.addView(txt(message, 13, MUTED, false));
+        return c;
+    }
+
+    private View emptyCard(String title, String copy) {
+        LinearLayout c = card();
+        c.addView(txt("✧", 24, PURPLE, true));
         gap(c, 7);
-        TextView h = text(title, 17, WHITE, true);
-        h.setGravity(Gravity.CENTER);
-        c.addView(h);
-        gap(c, 6);
-        TextView b = text(body, 12, MUTED, false);
-        b.setGravity(Gravity.CENTER);
-        c.addView(b);
-        target.addView(c);
+        c.addView(txt(title, 16, INK, true));
+        gap(c, 5);
+        c.addView(txt(copy, 12, MUTED, false));
+        return c;
     }
 
-    private void renderCampaignCard(JSONObject c, boolean withScore, JSONObject match) {
-        renderCampaignCardInto(content, c, withScore, match);
-    }
-
-    private void renderCampaignCardInto(LinearLayout target, JSONObject c, boolean withScore, JSONObject match) {
-        LinearLayout campaignCard = card();
-        LinearLayout meta = row();
-        TextView type = text(c.optString("collaboration_type", "COLLAB"), 10, MINT, true);
+    private LinearLayout campaignCard(JSONObject c, boolean owned) {
+        LinearLayout card = card();
+        LinearLayout line = row();
+        TextView type = txt(c.optString("collaboration_type", "Campaign").toUpperCase(), 10, TEAL, true);
         type.setPadding(dp(9), dp(6), dp(9), dp(6));
-        type.setBackground(rounded(Color.rgb(224, 247, 242), 10, 0));
-        meta.addView(type);
-        View spacer = new View(this);
-        meta.addView(spacer, new LinearLayout.LayoutParams(0, 1, 1));
-        if (withScore && match != null) meta.addView(text(match.optInt("score", 0) + "% match", 11, VIOLET, true));
-        campaignCard.addView(meta);
-        gap(campaignCard, 12);
-        campaignCard.addView(text(c.optString("title", "Campaign opportunity"), 18, WHITE, true));
-        gap(campaignCard, 4);
-        campaignCard.addView(text(c.optString("brand_name", "Brand"), 12, MUTED, true));
-        gap(campaignCard, 10);
-        campaignCard.addView(text(budget(c), 14, MINT, true));
-        gap(campaignCard, 9);
-        campaignCard.addView(text(c.optString("description", "Open the brief to review collaboration details."), 13, Color.rgb(73, 69, 101), false));
-        if (match != null) {
-            JSONArray reasons = match.optJSONArray("reasons");
-            if (reasons != null && reasons.length() > 0) {
-                gap(campaignCard, 10);
-                campaignCard.addView(text("WHY IT MATCHES", 10, VIOLET, true));
-                for (int i = 0; i < Math.min(2, reasons.length()); i++) {
-                    gap(campaignCard, 4);
-                    campaignCard.addView(text("• " + reasons.optString(i), 11, MUTED, false));
-                }
-            }
+        type.setBackground(shape(LIGHT_TEAL, 10, 0));
+        line.addView(type);
+        TextView category = txt(c.optString("category", "Creator"), 11, MUTED, true);
+        LinearLayout.LayoutParams categoryParams = new LinearLayout.LayoutParams(0, -2, 1);
+        categoryParams.leftMargin = dp(8);
+        line.addView(category, categoryParams);
+        card.addView(line);
+        gap(card, 10);
+        card.addView(txt(c.optString("title", "Untitled campaign"), 18, INK, true));
+        gap(card, 4);
+        card.addView(txt("By " + c.optString("brand_name", "Brand") + "  ·  " + c.optString("location", "India"), 12, MUTED, false));
+        gap(card, 10);
+        card.addView(txt(shorten(c.optString("description", "Campaign details available when you open it."), 220), 13, INK, false));
+        gap(card, 10);
+        int min = c.optInt("budget_min", 0), max = c.optInt("budget_max", min);
+        String budgetText = min == 0 && max == 0 ? c.optString("collaboration_type", "Collaboration") + " opportunity"
+            : "₹" + min + (max > min ? " – ₹" + max : "") + " budget";
+        card.addView(txt(budgetText, 13, TEAL, true));
+        if (!c.optString("deliverables", "").isEmpty()) {
+            gap(card, 4);
+            card.addView(txt("Deliverables: " + c.optString("deliverables"), 11, MUTED, false));
         }
-        gap(campaignCard, 15);
-        LinearLayout actions = row();
-        TextView apply = smallButton("View & apply");
-        TextView save = smallButton(screen.equals("saved") ? "Remove saved" : "Save");
-        actions.addView(apply, new LinearLayout.LayoutParams(0, -2, 1));
-        LinearLayout.LayoutParams saveParams = new LinearLayout.LayoutParams(0, -2, 1);
-        saveParams.leftMargin = dp(8);
-        actions.addView(save, saveParams);
-        apply.setOnClickListener(v -> showApplyDialog(c));
-        save.setOnClickListener(v -> {
-            boolean remove = screen.equals("saved");
-            api(remove ? "DELETE" : "POST", "/api/campaigns/" + c.optLong("id") + "/save", json("saved", "true"), (data, error) -> {
-                if (error != null) toast(error);
+        gap(card, 13);
+        if (owned) card.addView(txt("Applications: " + c.optInt("application_count", 0), 12, MUTED, true));
+        else card.addView(button("View campaign & apply  →", true, () -> showApply(c)));
+        return card;
+    }
+
+    private void renderWork() {
+        if ("brand".equals(me.optString("role"))) {
+            section(body, "Campaign manager", "Publish campaigns and follow applications from your brand.");
+            body.addView(button("Create a campaign  +", true, this::showCampaignComposer), new LinearLayout.LayoutParams(-1, -2));
+            gap(body, 18);
+            section(body, "Your campaigns", "Campaigns published by your account.");
+            if (!brandCampaignsLoaded) body.addView(loadingCard("Loading your campaigns…"));
+            else if (brandCampaigns.length() == 0) body.addView(emptyCard("No campaigns published",
+                "Create a brief with clear deliverables and budget. Active campaigns can appear in discovery."));
+            else for (int i = 0; i < brandCampaigns.length(); i++) {
+                JSONObject c = brandCampaigns.optJSONObject(i);
+                if (c != null) { body.addView(campaignCard(c, true)); gap(body, 12); }
+            }
+            gap(body, 6);
+            body.addView(smallButton("Refresh my campaigns", () -> { brandCampaignsLoaded = false; showApp("work"); }));
+        } else {
+            section(body, "My applications", "Track the campaigns you have applied to.");
+            if (!applicationsLoaded) body.addView(loadingCard("Loading your applications…"));
+            else if (applications.length() == 0) {
+                body.addView(emptyCard("Your next opportunity is waiting", "Explore active campaigns and send a pitch. Your submissions will appear here."));
+                gap(body, 12);
+                body.addView(button("Explore campaigns", true, () -> showApp("discover")), new LinearLayout.LayoutParams(-1, -2));
+            } else for (int i = 0; i < applications.length(); i++) {
+                JSONObject a = applications.optJSONObject(i);
+                if (a == null) continue;
+                LinearLayout c = card();
+                c.addView(txt(a.optString("campaign_title", "Campaign application"), 16, INK, true));
+                gap(c, 5);
+                c.addView(txt(a.optString("brand_name", "Brand"), 12, MUTED, false));
+                gap(c, 10);
+                String status = a.optString("status", "pending");
+                TextView badge = txt(status.replace('_', ' ').toUpperCase(), 10,
+                    "accepted".equals(status) ? TEAL : PURPLE, true);
+                badge.setPadding(dp(9), dp(6), dp(9), dp(6));
+                badge.setBackground(shape("accepted".equals(status) ? LIGHT_TEAL : LIGHT_PURPLE, 10, 0));
+                c.addView(badge);
+                body.addView(c);
+                gap(body, 12);
+            }
+            gap(body, 6);
+            body.addView(smallButton("Refresh my applications", () -> { applicationsLoaded = false; showApp("work"); }));
+        }
+    }
+
+    private void showCampaignComposer() {
+        screen = "composer";
+        beginPage("Publish a campaign", false, true);
+        section(body, "Create campaign", "Give creators a clear, honest brief with a budget and deliverables.");
+        EditText title = input("e.g. Summer skincare Reel", InputType.TYPE_CLASS_TEXT, false);
+        field(body, "CAMPAIGN TITLE", title);
+        EditText description = input("What are you promoting? What should the creator make?", InputType.TYPE_CLASS_TEXT, true);
+        field(body, "CAMPAIGN BRIEF", description);
+        EditText category = input("e.g. Beauty, Fashion, Food, Tech", InputType.TYPE_CLASS_TEXT, false);
+        field(body, "CATEGORY", category);
+        EditText type = input("Paid, Barter or Hybrid", InputType.TYPE_CLASS_TEXT, false);
+        type.setText("Paid");
+        field(body, "COLLABORATION TYPE", type);
+        LinearLayout budgets = row();
+        EditText min = input("Min ₹", InputType.TYPE_CLASS_NUMBER, false);
+        EditText max = input("Max ₹", InputType.TYPE_CLASS_NUMBER, false);
+        budgets.addView(min, new LinearLayout.LayoutParams(0, -2, 1));
+        budgets.addView(new View(this), new LinearLayout.LayoutParams(dp(10), 1));
+        budgets.addView(max, new LinearLayout.LayoutParams(0, -2, 1));
+        body.addView(txt("BUDGET RANGE (INR)", 12, MUTED, true));
+        gap(body, 6);
+        body.addView(budgets);
+        gap(body, 13);
+        EditText deliverables = input("e.g. 1 Reel + 2 story frames", InputType.TYPE_CLASS_TEXT, false);
+        field(body, "DELIVERABLES", deliverables);
+        EditText location = input("India", InputType.TYPE_CLASS_TEXT, false);
+        location.setText("India");
+        field(body, "LOCATION", location);
+        composerMessage = txt("", 12, RED, false);
+        body.addView(composerMessage);
+        gap(body, 8);
+        body.addView(button("Publish campaign  →", true, () -> {
+            String t = title.getText().toString().trim();
+            String d = description.getText().toString().trim();
+            String cat = category.getText().toString().trim();
+            String collab = type.getText().toString().trim();
+            if (t.isEmpty() || d.isEmpty() || cat.isEmpty()) {
+                composerMessage.setText("Add a title, brief and category before publishing.");
+                composerMessage.setTextColor(RED); return;
+            }
+            if (!(collab.equalsIgnoreCase("Paid") || collab.equalsIgnoreCase("Barter") || collab.equalsIgnoreCase("Hybrid"))) {
+                composerMessage.setText("Choose Paid, Barter or Hybrid as the collaboration type.");
+                composerMessage.setTextColor(RED); return;
+            }
+            JSONObject payload = new JSONObject();
+            try {
+                payload.put("title", t);
+                payload.put("description", d);
+                payload.put("category", cat);
+                payload.put("collaboration_type", titleCase(collab));
+                payload.put("budget_min", number(min.getText().toString()));
+                payload.put("budget_max", number(max.getText().toString()));
+                payload.put("deliverables", deliverables.getText().toString().trim());
+                payload.put("location", location.getText().toString().trim().isEmpty() ? "India" : location.getText().toString().trim());
+            } catch (Exception ignored) {}
+            composerMessage.setText("Publishing…");
+            composerMessage.setTextColor(TEAL);
+            request("POST", "/api/campaigns", payload, (data, error) -> {
+                if (error != null) { composerMessage.setText(error); composerMessage.setTextColor(RED); }
                 else {
-                    toast(remove ? "Removed from saved campaigns." : "Campaign saved.");
-                    dashboardLoaded = false;
-                    if (remove) showShell("saved");
+                    campaignsLoaded = false;
+                    brandCampaignsLoaded = false;
+                    toast("Campaign published.");
+                    showApp("work");
                 }
             });
-        });
-        campaignCard.addView(actions, new LinearLayout.LayoutParams(-1, -2));
-        target.addView(campaignCard);
-        gap(target, 12);
+        }), new LinearLayout.LayoutParams(-1, -2));
     }
 
-    private void renderCreatorCard(JSONObject c) {
-        renderCreatorCardInto(content, c);
-    }
-
-    private void renderCreatorCardInto(LinearLayout target, JSONObject c) {
-        LinearLayout creatorCard = card();
-        LinearLayout r = row();
-        String name = c.optString("name", "Creator");
-        String initial = name.isEmpty() ? "C" : name.substring(0, 1).toUpperCase(Locale.ROOT);
-        TextView avatar = text(initial, 18, BG, true);
-        avatar.setGravity(Gravity.CENTER);
-        avatar.setBackground(rounded(VIOLET, 16, 0));
-        r.addView(avatar, new LinearLayout.LayoutParams(dp(47), dp(47)));
-        LinearLayout copy = column();
-        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, -2, 1);
-        p.leftMargin = dp(11);
-        copy.setLayoutParams(p);
-        copy.addView(text(name, 16, WHITE, true));
-        gap(copy, 3);
-        copy.addView(text(c.optString("niche", "Creator"), 12, MUTED, false));
-        r.addView(copy);
-        creatorCard.addView(r);
-        gap(creatorCard, 12);
-        creatorCard.addView(text(compact(c.optLong("followers", 0)) + " followers  ·  " + (c.optDouble("engagement", 0) > 0 ? String.format(Locale.US, "%.1f%% engagement", c.optDouble("engagement", 0)) : "Engagement not added"), 12, MINT, true));
-        gap(creatorCard, 8);
-        creatorCard.addView(text(c.optString("bio", "Creator profile"), 12, MUTED, false));
-        gap(creatorCard, 12);
-        TextView invite = smallButton("Invite to a campaign  →");
-        creatorCard.addView(invite);
-        invite.setOnClickListener(v -> showInviteDialog(c));
-        target.addView(creatorCard);
-        gap(target, 12);
-    }
-
-    private void showInviteDialog(JSONObject creator) {
-        api("GET", "/api/my-campaigns", null, (data, error) -> {
-            if (error != null) { toast(error); return; }
-            JSONArray campaigns = data.optJSONArray("campaigns");
-            java.util.ArrayList<JSONObject> active = new java.util.ArrayList<>();
-            java.util.ArrayList<String> labels = new java.util.ArrayList<>();
-            if (campaigns != null) {
-                for (int i = 0; i < campaigns.length(); i++) {
-                    JSONObject campaign = campaigns.optJSONObject(i);
-                    if (campaign != null && "active".equals(campaign.optString("status"))) {
-                        active.add(campaign);
-                        labels.add(campaign.optString("title", "Campaign") + "  ·  " + budget(campaign));
-                    }
-                }
-            }
-            if (active.isEmpty()) {
-                new android.app.AlertDialog.Builder(this).setTitle("Create a campaign first")
-                    .setMessage("Publish an active campaign before inviting a creator.")
-                    .setPositiveButton("Create campaign", (d, w) -> showShell("create_campaign"))
-                    .setNegativeButton("Cancel", null).show();
-                return;
-            }
-            new android.app.AlertDialog.Builder(this)
-                .setTitle("Invite " + creator.optString("name", "creator"))
-                .setItems(labels.toArray(new String[0]), (dialog, which) -> {
-                    JSONObject campaign = active.get(which);
-                    JSONObject payload = new JSONObject();
-                    try {
-                        payload.put("creator_id", creator.optLong("id"));
-                        payload.put("message", "We would like to invite you to collaborate on " + campaign.optString("title", "our campaign") + ".");
-                    } catch (Exception ignored) {}
-                    api("POST", "/api/campaigns/" + campaign.optLong("id") + "/invite", payload, (result, problem) -> {
-                        if (problem != null) toast(problem);
-                        else {
-                            toast("Invitation sent.");
-                            dashboardLoaded = false;
-                        }
-                    });
-                }).setNegativeButton("Cancel", null).show();
-        });
-    }
-
-    private void showApplyDialog(JSONObject campaign) {
-        android.app.Dialog dialog = new android.app.Dialog(this);
-        LinearLayout box = column();
-        box.setPadding(dp(22), dp(22), dp(22), dp(22));
-        box.setBackground(rounded(PANEL, 24, Color.rgb(224, 220, 238)));
-        box.addView(text("Apply to campaign", 21, WHITE, true));
-        gap(box, 8);
-        box.addView(text(campaign.optString("title", "Campaign"), 13, MINT, true));
-        gap(box, 16);
-        EditText pitch = field("Tell the brand why you're a fit", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE, "");
-        pitch.setMinLines(3);
-        pitch.setGravity(Gravity.TOP | Gravity.START);
-        box.addView(pitch);
-        gap(box, 12);
-        EditText rate = field("Your proposed rate in ₹ (optional)", InputType.TYPE_CLASS_NUMBER, "");
-        box.addView(rate);
-        gap(box, 16);
-        TextView send = button("Send application", true);
-        box.addView(send);
-        gap(box, 8);
-        TextView cancel = button("Cancel", false);
-        box.addView(cancel);
-        cancel.setOnClickListener(v -> dialog.dismiss());
-        send.setOnClickListener(v -> {
+    private void showApply(JSONObject campaign) {
+        selectedCampaignId = campaign.optString("id", "");
+        selectedCampaignTitle = campaign.optString("title", "campaign");
+        screen = "apply";
+        beginPage("Campaign application", false, true);
+        section(body, "Pitch this campaign", "Tell the brand why your content and audience fit the brief.");
+        body.addView(txt(selectedCampaignTitle, 18, INK, true));
+        gap(body, 5);
+        body.addView(txt("Brand: " + campaign.optString("brand_name", "Brand"), 12, MUTED, false));
+        gap(body, 16);
+        EditText pitch = input("Share your content idea and why you fit this brief.", InputType.TYPE_CLASS_TEXT, true);
+        field(body, "YOUR PITCH", pitch);
+        EditText rate = input("Proposed rate in INR (optional)", InputType.TYPE_CLASS_NUMBER, false);
+        field(body, "PROPOSED RATE", rate);
+        applyMessage = txt("", 12, RED, false);
+        body.addView(applyMessage);
+        gap(body, 9);
+        body.addView(button("Submit application  →", true, () -> {
+            if (selectedCampaignId.isEmpty()) { applyMessage.setText("Invalid campaign id. Refresh campaigns and try again."); return; }
             JSONObject payload = new JSONObject();
             try {
                 payload.put("pitch", pitch.getText().toString().trim());
-                payload.put("proposed_rate", rate.getText().toString().trim().isEmpty() ? 0 : Long.parseLong(rate.getText().toString().trim()));
+                payload.put("proposed_rate", number(rate.getText().toString()));
             } catch (Exception ignored) {}
-            send.setText("Sending…");
-            send.setEnabled(false);
-            api("POST", "/api/campaigns/" + campaign.optLong("id") + "/apply", payload, (data, error) -> {
-                send.setEnabled(true);
-                if (error != null) {
-                    send.setText("Send application");
-                    toast(error);
-                } else {
-                    dialog.dismiss();
-                    toast("Application sent. You can continue the conversation in Inbox.");
-                    showShell("applications");
-                }
-            });
-        });
-        dialog.setContentView(box);
-        if (dialog.getWindow() != null) {
-            dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
-            dialog.getWindow().setLayout(getResources().getDisplayMetrics().widthPixels - dp(34), -2);
-        }
-        dialog.show();
-        if (dialog.getWindow() != null) {
-            dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
-            dialog.getWindow().setLayout(getResources().getDisplayMetrics().widthPixels - dp(34), -2);
-        }
-    }
-
-    private void renderMatches() {
-        boolean creator = "creator".equals(user.optString("role", "creator"));
-        heading("Smart Match Center", creator ? "Relevant campaign ideas, with reasons behind each score." : "Creator profiles ranked by fit signals from your brand and campaigns.");
-        TextView note = text("Match scores are guidance, not guarantees of acceptance or earnings.", 11, MUTED, false);
-        note.setPadding(dp(13), dp(12), dp(13), dp(12));
-        note.setBackground(rounded(Color.rgb(241, 238, 251), 14, 0));
-        content.addView(note);
-        gap(content, 14);
-        TextView loading = text("Finding your best matches…", 13, MUTED, false);
-        content.addView(loading);
-        api("GET", "/api/matches", null, (data, error) -> {
-            if (!"matches".equals(screen)) return;
-            content.removeView(loading);
-            if (error != null) {
-                showInlineMessage("Matches are unavailable", error);
-                return;
-            }
-            JSONArray matches = data.optJSONArray("matches");
-            if (matches == null || matches.length() == 0) {
-                showEmpty("Your match list is ready for its first signal", creator ? "Complete your niche and bio, then explore campaigns as brands publish briefs." : "Create an active campaign and complete your brand profile to improve creator recommendations.");
-                return;
-            }
-            for (int i = 0; i < matches.length(); i++) {
-                JSONObject item = matches.optJSONObject(i);
-                if (item == null) continue;
-                if (creator) {
-                    JSONObject campaign = item.optJSONObject("campaign");
-                    if (campaign != null) renderCampaignCard(campaign, true, item);
-                } else {
-                    JSONObject creatorItem = item.optJSONObject("creator");
-                    if (creatorItem == null) creatorItem = item;
-                    renderMatchCreatorCard(creatorItem, item);
-                }
-            }
-        });
-    }
-
-    private void renderMatchCreatorCard(JSONObject c, JSONObject match) {
-        LinearLayout card = card();
-        LinearLayout r = row();
-        TextView avatar = text(c.optString("name", "C").substring(0, 1).toUpperCase(Locale.ROOT), 18, BG, true);
-        avatar.setGravity(Gravity.CENTER);
-        avatar.setBackground(rounded(VIOLET, 16, 0));
-        r.addView(avatar, new LinearLayout.LayoutParams(dp(46), dp(46)));
-        LinearLayout label = column();
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, -2, 1);
-        lp.leftMargin = dp(11);
-        label.setLayoutParams(lp);
-        label.addView(text(c.optString("name", "Creator"), 16, WHITE, true));
-        gap(label, 3);
-        label.addView(text(c.optString("niche", "Creator"), 12, MUTED, false));
-        r.addView(label);
-        TextView score = text(match.optInt("score", 0) + "%", 15, MINT, true);
-        r.addView(score);
-        card.addView(r);
-        gap(card, 12);
-        card.addView(text(compact(c.optLong("followers", 0)) + " followers  ·  " + String.format(Locale.US, "%.1f%% engagement", c.optDouble("engagement", 0)), 12, MUTED, false));
-        JSONArray reasons = match.optJSONArray("reasons");
-        if (reasons != null) {
-            for (int i = 0; i < Math.min(3, reasons.length()); i++) {
-                gap(card, 5);
-                card.addView(text("• " + reasons.optString(i), 11, MUTED, false));
-            }
-        }
-        gap(card, 11);
-        TextView invite = smallButton("Invite to campaign");
-        card.addView(invite);
-        invite.setOnClickListener(v -> showInviteDialog(c));
-        content.addView(card);
-        gap(content, 12);
-    }
-
-    private void renderInbox() {
-        heading("Your inbox", "Conversations follow real applications and invitations.");
-        TextView loading = text("Loading conversations…", 13, MUTED, false);
-        content.addView(loading);
-        api("GET", "/api/conversations", null, (data, error) -> {
-            if (!"inbox".equals(screen)) return;
-            content.removeView(loading);
-            if (error != null) {
-                showInlineMessage("Inbox couldn't load", error);
-                return;
-            }
-            JSONArray chats = data.optJSONArray("conversations");
-            if (chats == null || chats.length() == 0) {
-                showEmpty("Your next conversation starts with a collaboration", "Apply to a campaign or accept an invitation. The resulting conversation will show up here.");
-                return;
-            }
-            for (int i = 0; i < chats.length(); i++) {
-                JSONObject chat = chats.optJSONObject(i);
-                if (chat == null) continue;
-                LinearLayout item = row();
-                item.setPadding(dp(14), dp(14), dp(14), dp(14));
-                item.setBackground(rounded(PANEL, 18, Color.rgb(224, 220, 238)));
-                String counterpart = chat.optString("counterpart_name", "Collaboration");
-                TextView avatar = text(counterpart.isEmpty() ? "C" : counterpart.substring(0, 1).toUpperCase(Locale.ROOT), 17, BG, true);
-                avatar.setGravity(Gravity.CENTER);
-                avatar.setBackground(rounded(MINT, 15, 0));
-                item.addView(avatar, new LinearLayout.LayoutParams(dp(45), dp(45)));
-                LinearLayout copy = column();
-                LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0, -2, 1);
-                cp.leftMargin = dp(12);
-                copy.setLayoutParams(cp);
-                copy.addView(text(counterpart, 15, WHITE, true));
-                gap(copy, 4);
-                copy.addView(text(chat.optString("campaign_title", "Collaboration"), 11, MINT, true));
-                gap(copy, 4);
-                copy.addView(text(chat.optString("last_message", "Open conversation"), 11, MUTED, false));
-                item.addView(copy);
-                if (chat.optInt("unread", 0) > 0) {
-                    TextView unread = text(String.valueOf(chat.optInt("unread")), 11, BG, true);
-                    unread.setGravity(Gravity.CENTER);
-                    unread.setBackground(rounded(MINT, 30, 0));
-                    item.addView(unread, new LinearLayout.LayoutParams(dp(24), dp(24)));
-                } else item.addView(text("›", 23, MUTED, false));
-                item.setClickable(true);
-                item.setOnClickListener(v -> {
-                    selectedConversation = chat;
-                    selectedConversationId = chat.optLong("id", 0);
-                    showShell("conversation");
-                });
-                content.addView(item);
-                gap(content, 10);
-            }
-        });
-    }
-
-    private JSONObject selectedConversation = new JSONObject();
-    private long selectedConversationId = 0;
-    private EditText messageEntry;
-    private LinearLayout messageList;
-
-    private void renderConversation() {
-        String other = selectedConversation.optString("counterpart_name", "Conversation");
-        LinearLayout titleRow = row();
-        TextView back = text("‹", 28, MINT, true);
-        back.setPadding(0, 0, dp(12), 0);
-        back.setOnClickListener(v -> showShell("inbox"));
-        titleRow.addView(back);
-        LinearLayout names = column();
-        names.addView(text(other, 19, WHITE, true));
-        gap(names, 2);
-        names.addView(text(selectedConversation.optString("campaign_title", "Collaboration"), 11, MUTED, false));
-        titleRow.addView(names);
-        content.addView(titleRow);
-        gap(content, 15);
-        messageList = column();
-        content.addView(messageList);
-        TextView loading = text("Loading messages…", 12, MUTED, false);
-        messageList.addView(loading);
-        api("GET", "/api/conversations/" + selectedConversationId + "/messages", null, (data, error) -> {
-            if (!"conversation".equals(screen)) return;
-            messageList.removeView(loading);
-            if (error != null) {
-                showInlineMessage("Messages couldn't load", error);
-                return;
-            }
-            JSONArray messages = data.optJSONArray("messages");
-            if (messages == null || messages.length() == 0) {
-                TextView empty = text("Say hello and keep the collaboration moving.", 12, MUTED, false);
-                messageList.addView(empty);
-            } else {
-                for (int i = 0; i < messages.length(); i++) {
-                    JSONObject m = messages.optJSONObject(i);
-                    if (m == null) continue;
-                    boolean mine = String.valueOf(user.optLong("id", -1)).equals(String.valueOf(m.optLong("sender_id", -2)));
-                    LinearLayout bubble = column();
-                    bubble.setPadding(dp(13), dp(11), dp(13), dp(11));
-                    bubble.setBackground(rounded(mine ? Color.rgb(215, 244, 236) : PANEL, 16, mine ? Color.rgb(200, 228, 222) : Color.rgb(224, 220, 238)));
-                    bubble.addView(text(m.optString("body", ""), 14, WHITE, false));
-                    LinearLayout.LayoutParams b = new LinearLayout.LayoutParams(Math.min(getResources().getDisplayMetrics().widthPixels - dp(85), dp(300)), -2);
-                    b.gravity = mine ? Gravity.RIGHT : Gravity.LEFT;
-                    b.bottomMargin = dp(9);
-                    messageList.addView(bubble, b);
-                }
-            }
-        });
-        gap(content, 15);
-        messageEntry = field("Write a message…", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE, "");
-        messageEntry.setMinLines(1);
-        content.addView(messageEntry, new LinearLayout.LayoutParams(-1, -2));
-        gap(content, 9);
-        TextView send = button("Send message  →", true);
-        content.addView(send);
-        send.setOnClickListener(v -> {
-            String body = messageEntry.getText().toString().trim();
-            if (body.isEmpty()) { toast("Write a message first."); return; }
-            JSONObject payload = new JSONObject();
-            try { payload.put("body", body); } catch (Exception ignored) {}
-            send.setEnabled(false);
-            api("POST", "/api/conversations/" + selectedConversationId + "/messages", payload, (data, error) -> {
-                send.setEnabled(true);
-                if (error != null) toast(error);
+            applyMessage.setText("Submitting…");
+            request("POST", "/api/campaigns/" + Uri.encode(selectedCampaignId) + "/apply", payload, (data, error) -> {
+                if (error != null) { applyMessage.setText(error); applyMessage.setTextColor(RED); }
                 else {
-                    selectedConversationId = selectedConversationId;
-                    showShell("conversation");
+                    applicationsLoaded = false;
+                    toast("Your application has been submitted.");
+                    showApp("work");
                 }
             });
-        });
+        }), new LinearLayout.LayoutParams(-1, -2));
     }
 
-    private void renderMore() {
-        heading("More tools", "Every part of your creator or brand workspace, in one app.");
-        addQuickAction("◉", "Your profile", "Edit your niche, bio and account details", () -> showShell("profile"));
-        gap(content, 9);
-        addQuickAction("▤", "Applications & activity", "Review applications and collaboration status", () -> showShell("applications"));
-        gap(content, 9);
-        addQuickAction("♡", "Saved campaigns", "Return to opportunities you bookmarked", () -> showShell("saved"));
-        gap(content, 9);
-        addQuickAction("✉", "Invitations", "Accept or decline collaboration invitations", () -> showShell("invitations"));
-        gap(content, 9);
-        addQuickAction("♧", "Notifications", "Review application and message updates", () -> showShell("notifications"));
-        gap(content, 9);
-        addQuickAction("◎", "Instagram Insights", "Connect your professional account and view metrics", () -> showShell("instagram"));
-        if ("creator".equals(user.optString("role", "creator"))) {
-            gap(content, 9);
-            addQuickAction("↗", "Instagram Auto DM", "Manage keyword reply drafts and activity", () -> showShell("autodm"));
-        } else {
-            gap(content, 9);
-            addQuickAction("♙", "My campaigns", "Manage published briefs and applications", () -> showShell("my_campaigns"));
+    private void renderStudio() {
+        boolean brand = "brand".equals(me.optString("role"));
+        section(body, "AI creator studio", "Create a useful first draft. Review and personalize it before publishing.");
+        LinearLayout plan = card();
+        plan.setBackground(gradient(Color.rgb(42, 29, 74), Color.rgb(92, 62, 157), 20));
+        plan.addView(txt("COLLABZY PRO", 10, Color.rgb(122, 241, 219), true));
+        gap(plan, 5);
+        plan.addView(txt("₹299 / year", 24, WHITE, true));
+        gap(plan, 5);
+        plan.addView(txt("Checkout is inactive in the private beta.", 11, Color.rgb(238, 232, 250), false));
+        body.addView(plan);
+        gap(body, 17);
+        body.addView(txt("CHOOSE A TOOL", 11, MUTED, true));
+        gap(body, 9);
+        String[][] choices = brand
+            ? new String[][]{{"brand_campaign_brief", "Campaign brief"}, {"brand_outreach", "Creator outreach"}, {"ugc_script", "UGC script"}, {"brand_campaign_plan", "Campaign plan"}}
+            : new String[][]{{"reel_hooks", "Reel hooks"}, {"caption_hashtags", "Caption & hashtags"}, {"creator_bio", "Creator bio"}, {"content_calendar", "7-day calendar"}, {"brand_pitch", "Brand pitch"}};
+        for (String[] choice : choices) {
+            body.addView(button((selectedTool.equals(choice[0]) ? "✓  " : "") + choice[1], selectedTool.equals(choice[0]), () -> {
+                selectedTool = choice[0];
+                renderTabBody();
+            }), new LinearLayout.LayoutParams(-1, -2));
+            gap(body, 8);
         }
-        gap(content, 9);
-        addQuickAction("✧", "AI Studio", "Create pitches, content ideas and campaign briefs", () -> showShell("ai"));
-        gap(content, 9);
-        addQuickAction("♢", "Plan & billing", "Check beta access and subscription status", () -> showShell("billing"));
-        gap(content, 9);
-        addQuickAction("?", "Contact support", "Send an account, privacy or technical request", () -> showShell("support"));
+        studioBrief = input("Describe your niche, product or campaign. Include details to make the draft specific.", InputType.TYPE_CLASS_TEXT, true);
+        field(body, "YOUR BRIEF", studioBrief);
+        studioAudience = input("e.g. Gen Z beauty audience in India (optional)", InputType.TYPE_CLASS_TEXT, false);
+        field(body, "TARGET AUDIENCE (OPTIONAL)", studioAudience);
+        studioDisclosure = new CheckBox(this);
+        studioDisclosure.setText("I understand my brief is sent to Collabzy's AI generation endpoint.");
+        studioDisclosure.setTextColor(MUTED);
+        studioDisclosure.setTextSize(12);
+        studioDisclosure.setButtonTintList(android.content.res.ColorStateList.valueOf(TEAL));
+        body.addView(studioDisclosure);
+        gap(body, 11);
+        studioOutput = txt("Your draft will appear here.", 13, MUTED, false);
+        studioOutput.setLineSpacing(dp(4), 1f);
+        studioOutput.setPadding(dp(14), dp(14), dp(14), dp(14));
+        studioOutput.setBackground(shape(WHITE, 15, BORDER));
+        body.addView(studioOutput);
+        gap(body, 11);
+        body.addView(button("Generate draft  ✧", true, this::generateAiDraft), new LinearLayout.LayoutParams(-1, -2));
     }
 
-    private void renderSavedCampaigns() {
-        heading("Saved campaigns", "Keep interesting opportunities close at hand.");
-        TextView loading = text("Loading saved opportunities…", 13, MUTED, false);
-        content.addView(loading);
-        api("GET", "/api/saved-campaigns", null, (data, error) -> {
-            if (!"saved".equals(screen)) return;
-            content.removeView(loading);
-            if (error != null) {
-                showInlineMessage("Saved campaigns couldn't load", error);
-                return;
-            }
-            JSONArray campaigns = data.optJSONArray("campaigns");
-            if (campaigns == null || campaigns.length() == 0) {
-                showEmpty("No saved campaigns yet", "Open Explore and save a brief you want to revisit.");
-                return;
-            }
-            for (int i = 0; i < campaigns.length(); i++) {
-                JSONObject campaign = campaigns.optJSONObject(i);
-                if (campaign != null) renderCampaignCard(campaign, false, null);
-            }
-        });
-    }
-
-    private void renderInvitations() {
-        heading("Invitations", "Respond to real collaboration invitations.");
-        TextView loading = text("Loading invitations…", 13, MUTED, false);
-        content.addView(loading);
-        api("GET", "/api/invitations", null, (data, error) -> {
-            if (!"invitations".equals(screen)) return;
-            content.removeView(loading);
-            if (error != null) {
-                showInlineMessage("Invitations couldn't load", error);
-                return;
-            }
-            JSONArray invitations = data.optJSONArray("invitations");
-            if (invitations == null || invitations.length() == 0) {
-                showEmpty("No invitations yet", "When a brand invites you—or you invite a creator—updates will appear here.");
-                return;
-            }
-            boolean creator = "creator".equals(user.optString("role", "creator"));
-            for (int i = 0; i < invitations.length(); i++) {
-                JSONObject inv = invitations.optJSONObject(i);
-                if (inv == null) continue;
-                LinearLayout c = card();
-                String title = inv.optString("campaign_title", "Collaboration");
-                c.addView(text(title, 17, WHITE, true));
-                gap(c, 5);
-                c.addView(text(creator ? inv.optString("brand_name", "Brand") : inv.optString("creator_name", "Creator"), 12, MUTED, true));
-                gap(c, 7);
-                if (!inv.optString("message", "").trim().isEmpty()) {
-                    c.addView(text(inv.optString("message"), 13, Color.rgb(73, 69, 101), false));
-                    gap(c, 10);
-                }
-                c.addView(text(budget(inv) + "  ·  " + inv.optString("collaboration_type", "Collaboration"), 12, MINT, true));
-                gap(c, 10);
-                String status = inv.optString("status", "pending");
-                TextView state = text(status.toUpperCase(Locale.ROOT), 10, MINT, true);
-                state.setPadding(dp(9), dp(6), dp(9), dp(6));
-                state.setBackground(rounded(Color.rgb(224, 247, 242), 10, 0));
-                c.addView(state, new LinearLayout.LayoutParams(-2, -2));
-                if (creator && "pending".equals(status)) {
-                    gap(c, 12);
-                    LinearLayout actions = row();
-                    TextView accept = button("Accept", true);
-                    TextView decline = button("Decline", false);
-                    actions.addView(accept, new LinearLayout.LayoutParams(0, -2, 1));
-                    LinearLayout.LayoutParams d = new LinearLayout.LayoutParams(0, -2, 1);
-                    d.leftMargin = dp(8);
-                    actions.addView(decline, d);
-                    c.addView(actions);
-                    accept.setOnClickListener(v -> respondToInvitation(inv, "accepted"));
-                    decline.setOnClickListener(v -> respondToInvitation(inv, "declined"));
-                } else if (!creator && "pending".equals(status)) {
-                    gap(c, 7);
-                    c.addView(text("Awaiting creator response", 11, MUTED, false));
-                }
-                content.addView(c);
-                gap(content, 11);
-            }
-        });
-    }
-
-    private void respondToInvitation(JSONObject inv, String response) {
-        long id = inv.optLong("id", 0);
-        api("PATCH", "/api/invitations/" + id + "/respond", json("status", response), (data, error) -> {
-            if (error != null) toast(error);
+    private void generateAiDraft() {
+        if (studioBrief == null || studioBrief.getText().toString().trim().length() < 4) {
+            toast("Add a little more context for a useful draft."); return;
+        }
+        if (studioDisclosure == null || !studioDisclosure.isChecked()) {
+            toast("Please confirm the AI data-use note before generating."); return;
+        }
+        JSONObject payload = new JSONObject();
+        try {
+            payload.put("tool", selectedTool);
+            payload.put("brief", studioBrief.getText().toString().trim());
+            payload.put("audience", studioAudience == null ? "" : studioAudience.getText().toString().trim());
+            payload.put("tone", "warm and confident");
+            payload.put("confirmed_ai_disclosure", true);
+        } catch (Exception ignored) {}
+        studioOutput.setText("Creating your draft…");
+        studioOutput.setTextColor(TEAL);
+        request("POST", "/api/ai/studio", payload, (data, error) -> {
+            if (studioOutput == null) return;
+            if (error != null) { studioOutput.setText(error); studioOutput.setTextColor(RED); }
             else {
-                toast(response.equals("accepted") ? "Invitation accepted. Your conversation is ready in Inbox." : "Invitation declined.");
-                dashboardLoaded = false;
-                showShell("invitations");
-            }
-        });
-    }
-
-    private void renderNotifications() {
-        heading("Notifications", "Application, invitation and message updates.");
-        TextView loading = text("Loading notifications…", 13, MUTED, false);
-        content.addView(loading);
-        api("GET", "/api/notifications", null, (data, error) -> {
-            if (!"notifications".equals(screen)) return;
-            content.removeView(loading);
-            if (error != null) {
-                showInlineMessage("Notifications couldn't load", error);
-                return;
-            }
-            JSONArray items = data.optJSONArray("notifications");
-            int unread = data.optInt("unread", 0);
-            if (unread > 0) {
-                TextView mark = button("Mark all as read", false);
-                content.addView(mark);
-                gap(content, 12);
-                mark.setOnClickListener(v -> api("PATCH", "/api/notifications/read-all", json("ok", "true"), (d, e) -> {
-                    if (e != null) toast(e);
-                    else showShell("notifications");
-                }));
-            }
-            if (items == null || items.length() == 0) {
-                showEmpty("You're all caught up", "New collaboration activity will appear here.");
-                return;
-            }
-            for (int i = 0; i < items.length(); i++) {
-                JSONObject item = items.optJSONObject(i);
-                if (item == null) continue;
-                LinearLayout c = card();
-                boolean isUnread = item.isNull("read_at") || item.optString("read_at", "").isEmpty();
-                LinearLayout top = row();
-                TextView dot = text(isUnread ? "●" : "○", 12, isUnread ? MINT : MUTED, true);
-                top.addView(dot);
-                TextView title = text(item.optString("title", "Collabzy update"), 15, WHITE, true);
-                LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(0, -2, 1);
-                tp.leftMargin = dp(8);
-                top.addView(title, tp);
-                c.addView(top);
-                gap(c, 7);
-                c.addView(text(item.optString("body", ""), 12, MUTED, false));
-                content.addView(c);
-                gap(content, 9);
-            }
-        });
-    }
-
-    private void renderMyCampaigns() {
-        heading("My campaigns", "Manage live briefs and review application counts.");
-        TextView create = button("+  Create campaign", true);
-        content.addView(create);
-        create.setOnClickListener(v -> showShell("create_campaign"));
-        gap(content, 16);
-        TextView loading = text("Loading your campaigns…", 13, MUTED, false);
-        content.addView(loading);
-        api("GET", "/api/my-campaigns", null, (data, error) -> {
-            if (!"my_campaigns".equals(screen)) return;
-            content.removeView(loading);
-            if (error != null) {
-                showInlineMessage("Campaign manager couldn't load", error);
-                return;
-            }
-            JSONArray campaigns = data.optJSONArray("campaigns");
-            if (campaigns == null || campaigns.length() == 0) {
-                showEmpty("Your first campaign starts here", "Publish a clear brief and creators can discover it in Explore.");
-                return;
-            }
-            for (int i = 0; i < campaigns.length(); i++) {
-                JSONObject campaign = campaigns.optJSONObject(i);
-                if (campaign == null) continue;
-                LinearLayout c = card();
-                c.addView(text(campaign.optString("title", "Campaign"), 17, WHITE, true));
-                gap(c, 7);
-                c.addView(text(budget(campaign) + "  ·  " + campaign.optString("collaboration_type", "Collaboration"), 12, MINT, true));
-                gap(c, 6);
-                c.addView(text(campaign.optInt("application_count", 0) + " applications  ·  " + campaign.optString("status", "active"), 12, MUTED, false));
-                gap(c, 12);
-                boolean active = "active".equals(campaign.optString("status"));
-                LinearLayout actions = row();
-                TextView edit = button("Edit brief", false);
-                TextView toggle = button(active ? "Close" : "Reopen", true);
-                actions.addView(edit, new LinearLayout.LayoutParams(0, -2, 1));
-                LinearLayout.LayoutParams toggleP = new LinearLayout.LayoutParams(0, -2, 1);
-                toggleP.leftMargin = dp(8);
-                actions.addView(toggle, toggleP);
-                c.addView(actions);
-                edit.setOnClickListener(v -> showEditCampaignDialog(campaign));
-                toggle.setOnClickListener(v -> {
-                    toggle.setEnabled(false);
-                    api("PATCH", "/api/campaigns/" + campaign.optLong("id") + "/manage", json("status", active ? "closed" : "active"), (d, e) -> {
-                        if (e != null) { toggle.setEnabled(true); toast(e); }
-                        else { toast(active ? "Campaign closed." : "Campaign reopened."); dashboardLoaded = false; showShell("my_campaigns"); }
-                    });
-                });
-                content.addView(c);
-                gap(content, 11);
-            }
-        });
-    }
-
-    private void showEditCampaignDialog(JSONObject campaign) {
-        android.app.Dialog dialog = new android.app.Dialog(this);
-        LinearLayout box = column();
-        box.setPadding(dp(20), dp(20), dp(20), dp(20));
-        box.setBackground(rounded(PANEL, 22, Color.rgb(224, 220, 238)));
-        box.addView(text("Edit campaign brief", 20, WHITE, true));
-        gap(box, 12);
-        EditText title = field("Campaign title", InputType.TYPE_CLASS_TEXT, campaign.optString("title", ""));
-        EditText description = field("Campaign description", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE, campaign.optString("description", ""));
-        description.setSingleLine(false); description.setMinLines(4); description.setGravity(Gravity.TOP | Gravity.START);
-        EditText category = field("Category", InputType.TYPE_CLASS_TEXT, campaign.optString("category", ""));
-        EditText low = field("Minimum budget in ₹", InputType.TYPE_CLASS_NUMBER, String.valueOf(campaign.optLong("budget_min", 0)));
-        EditText high = field("Maximum budget in ₹", InputType.TYPE_CLASS_NUMBER, String.valueOf(campaign.optLong("budget_max", 0)));
-        EditText deliverables = field("Deliverables", InputType.TYPE_CLASS_TEXT, campaign.optString("deliverables", ""));
-        EditText location = field("Location", InputType.TYPE_CLASS_TEXT, campaign.optString("location", "India"));
-        addField(box, "TITLE", title); addField(box, "BRIEF", description); addField(box, "CATEGORY", category);
-        addField(box, "MINIMUM BUDGET", low); addField(box, "MAXIMUM BUDGET", high);
-        addField(box, "DELIVERABLES", deliverables); addField(box, "LOCATION", location);
-        final String[] collabType = new String[]{campaign.optString("collaboration_type", "Paid")};
-        box.addView(text("COLLABORATION TYPE", 11, MUTED, true)); gap(box, 7);
-        LinearLayout types = row();
-        for (String value : new String[]{"Paid", "Barter", "Hybrid"}) {
-            TextView chip = button(value, value.equals(collabType[0]));
-            LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(0, -2, 1);
-            cp.rightMargin = dp(4);
-            types.addView(chip, cp);
-            chip.setOnClickListener(v -> {
-                collabType[0] = value;
-                for (int i = 0; i < types.getChildCount(); i++) {
-                    TextView item = (TextView) types.getChildAt(i);
-                    boolean selected = item.getText().toString().equals(value);
-                    item.setBackground(rounded(selected ? MINT : PANEL_ALT, 15, selected ? 0 : Color.rgb(224, 220, 238)));
-                    item.setTextColor(selected ? BG : WHITE);
-                }
-            });
-        }
-        box.addView(types); gap(box, 12);
-        TextView save = button("Save campaign changes", true);
-        box.addView(save);
-        save.setOnClickListener(v -> {
-            long min, max;
-            try {
-                min = Long.parseLong(low.getText().toString().trim());
-                max = Long.parseLong(high.getText().toString().trim());
-            } catch (Exception ex) { toast("Enter valid minimum and maximum budget values."); return; }
-            if (title.getText().toString().trim().isEmpty() || description.getText().toString().trim().isEmpty()
-                || category.getText().toString().trim().isEmpty() || max < min) {
-                toast("Check the title, brief, category and budget range.");
-                return;
-            }
-            JSONObject payload = new JSONObject();
-            try {
-                payload.put("title", title.getText().toString().trim());
-                payload.put("description", description.getText().toString().trim());
-                payload.put("category", category.getText().toString().trim());
-                payload.put("collaboration_type", collabType[0]);
-                payload.put("budget_min", min); payload.put("budget_max", max);
-                payload.put("deliverables", deliverables.getText().toString().trim());
-                payload.put("location", location.getText().toString().trim());
-            } catch (Exception ignored) {}
-            save.setEnabled(false);
-            api("PATCH", "/api/campaigns/" + campaign.optLong("id"), payload, (data, error) -> {
-                save.setEnabled(true);
-                if (error != null) toast(error);
-                else {
-                    dialog.dismiss();
-                    toast("Campaign updated.");
-                    dashboardLoaded = false;
-                    showShell("my_campaigns");
-                }
-            });
-        });
-        dialog.setContentView(box);
-        dialog.show();
-        if (dialog.getWindow() != null) {
-            dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
-            dialog.getWindow().setLayout(getResources().getDisplayMetrics().widthPixels - dp(32), -1);
-        }
-    }
-
-    private void renderInstagram() {
-        heading("Instagram Studio", "Official Meta connection, insights and recent media.");
-        LinearLayout panel = card();
-        TextView loading = text("Checking Instagram connection…", 13, MUTED, false);
-        panel.addView(loading);
-        content.addView(panel);
-        api("GET", "/api/instagram/status", null, (data, error) -> {
-            if (!"instagram".equals(screen)) return;
-            panel.removeView(loading);
-            if (error != null) {
-                panel.addView(text("Instagram status unavailable", 15, RED, true));
-                gap(panel, 6);
-                panel.addView(text(error, 12, MUTED, false));
-                return;
-            }
-            boolean connected = data.optBoolean("connected");
-            panel.addView(text(connected ? "Instagram connected" : "Instagram not connected", 18, WHITE, true));
-            gap(panel, 6);
-            panel.addView(text(connected ? "@" + data.optString("handle", "") : data.optString("message", "Connect an eligible professional account to continue."), 12, MUTED, false));
-            gap(panel, 12);
-            if (!connected) {
-                TextView connect = button("Connect Instagram securely", true);
-                panel.addView(connect);
-                connect.setOnClickListener(v -> connectInstagram());
-            } else {
-                TextView insights = button("Refresh insights", true);
-                panel.addView(insights);
-                gap(panel, 8);
-                TextView media = button("Recent Instagram posts", false);
-                panel.addView(media);
-                gap(panel, 8);
-                TextView disconnect = button("Disconnect Instagram", false);
-                panel.addView(disconnect);
-                insights.setOnClickListener(v -> loadInstagramInsights());
-                media.setOnClickListener(v -> loadInstagramMedia());
-                disconnect.setOnClickListener(v -> new android.app.AlertDialog.Builder(this)
-                    .setTitle("Disconnect Instagram?")
-                    .setMessage("Collabzy will remove the stored access token and synced profile metrics.")
-                    .setNegativeButton("Cancel", (d, w) -> d.dismiss())
-                    .setPositiveButton("Disconnect", (d, w) -> api("POST", "/api/instagram/disconnect", json("confirm", "true"), (res, problem) -> {
-                        if (problem != null) toast(problem);
-                        else {
-                            dashboardLoaded = false;
-                            toast("Instagram disconnected.");
-                            api("GET", "/api/me", null, (profileData, profileError) -> {
-                                if (profileError == null && profileData != null) {
-                                    JSONObject refreshedUser = profileData.optJSONObject("user");
-                                    if (refreshedUser != null) user = refreshedUser;
-                                }
-                                showShell("instagram");
-                            });
-                        }
-                    })).show());
-            }
-        });
-        gap(content, 12);
-        LinearLayout note = card();
-        note.addView(text("Connection requirements", 15, WHITE, true));
-        gap(note, 6);
-        note.addView(text("Live metrics require the operator's Meta app credentials, matching OAuth redirect URI, approved permissions, and an eligible Instagram professional account. If these are not configured, the app will show the setup state rather than fake metrics.", 12, MUTED, false));
-        content.addView(note);
-    }
-
-    private void connectInstagram() {
-        api("GET", "/api/instagram/connect?platform=native", null, (data, error) -> {
-            if (error != null) { toast(error); return; }
-            String url = data.optString("authorization_url", "");
-            if (url.isEmpty()) { toast("The server did not return an Instagram authorization URL."); return; }
-            try {
-                startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url)));
-            } catch (Exception ex) {
-                toast("Unable to open the secure Instagram authorization page on this device.");
-            }
-        });
-    }
-
-    private void loadInstagramInsights() {
-        toast("Refreshing official Instagram metrics…");
-        api("GET", "/api/instagram/insights", null, (data, error) -> {
-            if (error != null) { toast(error); return; }
-            JSONArray items = data.optJSONArray("insights");
-            StringBuilder out = new StringBuilder();
-            out.append("Account: @").append(data.optString("handle", "")).append("\n\n");
-            if (items == null || items.length() == 0) {
-                out.append("Instagram returned no insight rows for the available permission set.");
-            } else {
-                for (int i = 0; i < items.length(); i++) {
-                    JSONObject m = items.optJSONObject(i);
-                    if (m == null) continue;
-                    out.append(m.optString("title", m.optString("name", "Metric"))).append("\n");
-                    out.append(m.optString("description", "")).append("\n");
-                    JSONArray values = m.optJSONArray("values");
-                    if (values != null && values.length() > 0) {
-                        JSONObject v = values.optJSONObject(values.length() - 1);
-                        if (v != null) out.append("Latest value: ").append(v.opt("value")).append("\n");
-                    }
-                    out.append("\n");
-                }
-            }
-            showTextDialog("Instagram Insights", out.toString());
-        });
-    }
-
-    private void loadInstagramMedia() {
-        api("GET", "/api/instagram/media", null, (data, error) -> {
-            if (error != null) { toast(error); return; }
-            JSONArray media = data.optJSONArray("media");
-            StringBuilder out = new StringBuilder("Recent posts from @").append(data.optString("handle", "")).append("\n\n");
-            if (media == null || media.length() == 0) out.append("No media was returned for this account.");
-            else for (int i = 0; i < media.length(); i++) {
-                JSONObject m = media.optJSONObject(i);
-                if (m == null) continue;
-                out.append(i + 1).append(". ").append(m.optString("media_type", "POST")).append("\n");
-                out.append(m.optString("caption", "(No caption)")).append("\n");
-                out.append("Likes: ").append(m.optInt("like_count", 0)).append("  ·  Comments: ").append(m.optInt("comments_count", 0)).append("\n");
-                out.append(m.optString("permalink", "")).append("\n\n");
-            }
-            showTextDialog("Recent Instagram posts", out.toString());
-        });
-    }
-
-    private void renderAutoDM() {
-        heading("Instagram Auto DM", "Manage comment-triggered reply rules. Live sending stays protected by Meta setup.");
-        LinearLayout info = card();
-        info.addView(text("Private-reply automation", 16, WHITE, true));
-        gap(info, 6);
-        info.addView(text("Rules can be saved as drafts. Enabling actual replies requires an authorized Instagram account, Meta messaging/comment permissions, webhook verification and the server-side operator enable switch.", 12, MUTED, false));
-        content.addView(info);
-        gap(content, 12);
-        TextView add = button("+  Add keyword rule", true);
-        content.addView(add);
-        add.setOnClickListener(v -> showAutomationDialog());
-        gap(content, 8);
-        TextView setup = button("Configure comment webhook", false);
-        content.addView(setup);
-        setup.setOnClickListener(v -> api("POST", "/api/instagram/automations/setup", json("confirm", "true"), (data, error) -> {
-            if (error != null) toast(error);
-            else { toast(data.optString("message", "Webhook setup completed.")); showShell("autodm"); }
-        }));
-        gap(content, 17);
-        content.addView(text("YOUR RULES", 11, MUTED, true));
-        gap(content, 8);
-        TextView loading = text("Loading reply rules…", 13, MUTED, false);
-        content.addView(loading);
-        api("GET", "/api/instagram/automations", null, (data, error) -> {
-            if (!"autodm".equals(screen)) return;
-            content.removeView(loading);
-            if (error != null) {
-                showInlineMessage("Auto DM rules couldn't load", error);
-                return;
-            }
-            boolean configured = data.optBoolean("configured");
-            boolean connected = data.optBoolean("connected");
-            LinearLayout status = card();
-            status.addView(text(configured && connected ? "Meta integration configured" : "Draft mode only", 14, configured && connected ? MINT : VIOLET, true));
-            gap(status, 4);
-            status.addView(text(data.optString("message", ""), 11, MUTED, false));
-            content.addView(status);
-            gap(content, 10);
-            TextView activityButton = button("View Auto DM activity", false);
-            activityButton.setOnClickListener(v -> loadAutomationEvents());
-            content.addView(activityButton);
-            gap(content, 10);
-            JSONArray rules = data.optJSONArray("rules");
-            if (rules == null || rules.length() == 0) {
-                showEmpty("No keyword rules yet", "Add a keyword and draft a reply. It will not send until the server and Meta permissions allow it.");
-                return;
-            }
-            for (int i = 0; i < rules.length(); i++) {
-                JSONObject rule = rules.optJSONObject(i);
-                if (rule == null) continue;
-                LinearLayout c = card();
-                c.addView(text(rule.optString("keyword", "Keyword"), 16, WHITE, true));
-                gap(c, 5);
-                c.addView(text(rule.optString("reply_text", ""), 12, MUTED, false));
-                if (!rule.optString("cta_url", "").isEmpty()) {
-                    gap(c, 5);
-                    c.addView(text(rule.optString("cta_url"), 11, MINT, false));
-                }
-                gap(c, 9);
-                c.addView(text(rule.optBoolean("enabled") ? "Enabled on server" : "Paused / draft", 11, rule.optBoolean("enabled") ? MINT : VIOLET, true));
-                gap(c, 10);
-                LinearLayout actions = row();
-                TextView toggle = button(rule.optBoolean("enabled") ? "Pause" : "Enable", false);
-                TextView remove = button("Delete", false);
-                actions.addView(toggle, new LinearLayout.LayoutParams(0, -2, 1));
-                LinearLayout.LayoutParams rp = new LinearLayout.LayoutParams(0, -2, 1);
-                rp.leftMargin = dp(8);
-                actions.addView(remove, rp);
-                c.addView(actions);
-                toggle.setOnClickListener(v -> api("PATCH", "/api/instagram/automations/" + rule.optLong("id"), jsonBoolean("enabled", !rule.optBoolean("enabled")), (d, e) -> {
-                    if (e != null) toast(e); else { toast(d.optString("message", "Rule updated.")); showShell("autodm"); }
-                }));
-                remove.setOnClickListener(v -> new android.app.AlertDialog.Builder(this)
-                    .setTitle("Delete keyword rule?")
-                    .setMessage("This rule will be removed from your account.")
-                    .setNegativeButton("Cancel", (d, w) -> d.dismiss())
-                    .setPositiveButton("Delete", (d, w) -> api("DELETE", "/api/instagram/automations/" + rule.optLong("id"), null, (res, problem) -> {
-                        if (problem != null) toast(problem); else { toast("Rule deleted."); showShell("autodm"); }
-                    })).show());
-                content.addView(c);
-                gap(content, 10);
-            }
-        });
-    }
-
-    private void showAutomationDialog() {
-        android.app.Dialog dialog = new android.app.Dialog(this);
-        LinearLayout box = column();
-        box.setPadding(dp(20), dp(20), dp(20), dp(20));
-        box.setBackground(rounded(PANEL, 22, Color.rgb(224, 220, 238)));
-        box.addView(text("New keyword rule", 21, WHITE, true));
-        gap(box, 12);
-        EditText keyword = field("Keyword (minimum 2 characters)", InputType.TYPE_CLASS_TEXT, "");
-        EditText reply = field("Private reply text", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE, "");
-        reply.setSingleLine(false); reply.setMinLines(3);
-        EditText link = field("Optional HTTPS link", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI, "");
-        box.addView(keyword); gap(box, 9); box.addView(reply); gap(box, 9); box.addView(link); gap(box, 12);
-        TextView save = button("Save draft rule", true);
-        TextView cancel = button("Cancel", false);
-        box.addView(save); gap(box, 8); box.addView(cancel);
-        cancel.setOnClickListener(v -> dialog.dismiss());
-        save.setOnClickListener(v -> {
-            if (keyword.getText().toString().trim().length() < 2 || reply.getText().toString().trim().length() < 2) {
-                toast("Enter a keyword and a reply before saving.");
-                return;
-            }
-            JSONObject payload = new JSONObject();
-            try {
-                payload.put("keyword", keyword.getText().toString().trim());
-                payload.put("match_type", "contains");
-                payload.put("reply_text", reply.getText().toString().trim());
-                payload.put("cta_url", link.getText().toString().trim());
-                payload.put("enabled", false);
-            } catch (Exception ignored) {}
-            save.setEnabled(false);
-            api("POST", "/api/instagram/automations", payload, (data, error) -> {
-                save.setEnabled(true);
-                if (error != null) toast(error);
-                else { dialog.dismiss(); toast(data.optString("message", "Draft saved.")); showShell("autodm"); }
-            });
-        });
-        dialog.setContentView(box);
-        dialog.show();
-        if (dialog.getWindow() != null) {
-            dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
-            dialog.getWindow().setLayout(getResources().getDisplayMetrics().widthPixels - dp(32), -2);
-        }
-    }
-
-    private void loadAutomationEvents() {
-        api("GET", "/api/instagram/automations/events", null, (data, error) -> {
-            if (error != null) { toast(error); return; }
-            JSONArray events = data.optJSONArray("events");
-            StringBuilder out = new StringBuilder("Recent comment-reply activity\n\n");
-            if (events == null || events.length() == 0) out.append("No delivery events recorded.");
-            else for (int i = 0; i < events.length(); i++) {
-                JSONObject e = events.optJSONObject(i);
-                if (e == null) continue;
-                out.append("• ").append(e.optString("keyword", "Rule")).append(": ")
-                   .append(e.optString("status", "received"));
-                if (e.optInt("response_code") > 0) out.append(" (HTTP ").append(e.optInt("response_code")).append(")");
-                out.append("\n").append(e.optString("message", "")).append("\n\n");
-            }
-            showTextDialog("Auto DM activity", out.toString());
-        });
-    }
-
-    private void renderBilling() {
-        heading("Plan & billing", "Your subscription status is checked on the server.");
-        LinearLayout panel = card();
-        TextView loading = text("Checking plan status…", 13, MUTED, false);
-        panel.addView(loading);
-        content.addView(panel);
-        api("GET", "/api/billing/status", null, (data, error) -> {
-            if (!"billing".equals(screen)) return;
-            panel.removeView(loading);
-            if (error != null) {
-                showInlineMessage("Plan status unavailable", error);
-                return;
-            }
-            panel.addView(text("Collabzy Pro", 22, WHITE, true));
-            gap(panel, 5);
-            panel.addView(text("₹" + data.optInt("amount", 299) + " / year", 15, MINT, true));
-            gap(panel, 11);
-            String status = data.optBoolean("active") ? "Active subscription" : data.optBoolean("beta_access") ? "Private beta access" : "No active subscription";
-            panel.addView(text(status, 14, data.optBoolean("active") || data.optBoolean("beta_access") ? MINT : VIOLET, true));
-            gap(panel, 7);
-            panel.addView(text("Checkout: " + (data.optBoolean("checkout_ready") ? "configured" : "not configured"), 12, MUTED, false));
-            if (!data.optString("expires_at", "").isEmpty()) {
-                gap(panel, 5);
-                panel.addView(text("Expires: " + data.optString("expires_at"), 11, MUTED, false));
-            }
-        });
-        gap(content, 12);
-        LinearLayout note = card();
-        note.addView(text("Safe beta billing", 15, WHITE, true));
-        gap(note, 6);
-        note.addView(text("Payment collection is not enabled unless the owner configures Razorpay keys and webhook verification. This screen never marks a payment successful or creates a paid plan on its own.", 12, MUTED, false));
-        content.addView(note);
-    }
-
-    private void renderSupport() {
-        heading("Contact support", "Send a clear account, privacy or technical request.");
-        LinearLayout panel = card();
-        EditText name = field("Your name", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS, user.optString("name", ""));
-        EditText email = field("Email address", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS, user.optString("email", ""));
-        EditText subject = field("Subject", InputType.TYPE_CLASS_TEXT, "");
-        EditText message = field("Describe the issue (at least 20 characters)", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE, "");
-        message.setSingleLine(false); message.setMinLines(5); message.setGravity(Gravity.TOP | Gravity.START);
-        addField(panel, "NAME", name); addField(panel, "EMAIL", email); addField(panel, "SUBJECT", subject); addField(panel, "MESSAGE", message);
-        TextView submit = button("Send support request", true);
-        panel.addView(submit);
-        content.addView(panel);
-        submit.setOnClickListener(v -> {
-            if (subject.getText().toString().trim().length() < 4 || message.getText().toString().trim().length() < 20) {
-                toast("Add a subject and a message of at least 20 characters.");
-                return;
-            }
-            JSONObject payload = new JSONObject();
-            try {
-                payload.put("name", name.getText().toString().trim());
-                payload.put("email", email.getText().toString().trim());
-                payload.put("subject", subject.getText().toString().trim());
-                payload.put("message", message.getText().toString().trim());
-                payload.put("category", "general");
-            } catch (Exception ignored) {}
-            submit.setEnabled(false);
-            api("POST", "/api/support", payload, (data, error) -> {
-                submit.setEnabled(true);
-                if (error != null) toast(error);
-                else { toast(data.optString("message", "Support request received.")); showShell("more"); }
-            });
-        });
-    }
-
-    private void showTextDialog(String title, String value) {
-        android.app.Dialog dialog = new android.app.Dialog(this);
-        LinearLayout box = column();
-        box.setPadding(dp(20), dp(20), dp(20), dp(20));
-        box.setBackground(rounded(PANEL, 22, Color.rgb(224, 220, 238)));
-        box.addView(text(title, 20, WHITE, true));
-        gap(box, 12);
-        ScrollView scroll = new ScrollView(this);
-        TextView body = text(value, 13, Color.rgb(73, 69, 101), false);
-        body.setTextIsSelectable(true);
-        body.setLineSpacing(dp(4), 1f);
-        scroll.addView(body);
-        box.addView(scroll, new LinearLayout.LayoutParams(-1, dp(310)));
-        gap(box, 12);
-        TextView close = button("Done", true);
-        box.addView(close);
-        close.setOnClickListener(v -> dialog.dismiss());
-        dialog.setContentView(box);
-        dialog.show();
-        if (dialog.getWindow() != null) {
-            dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
-            dialog.getWindow().setLayout(getResources().getDisplayMetrics().widthPixels - dp(32), -2);
-        }
-    }
-
-    private void renderApplications() {
-        heading("Applications & activity", "See where your collaborations stand.");
-        String path = "/api/applications";
-        TextView loading = text("Loading your activity…", 13, MUTED, false);
-        content.addView(loading);
-        api("GET", path, null, (data, error) -> {
-            if (!"applications".equals(screen)) return;
-            content.removeView(loading);
-            if (error != null) {
-                showInlineMessage("Applications couldn't load", error);
-                return;
-            }
-            JSONArray apps = data.optJSONArray("applications");
-            if (apps == null || apps.length() == 0) {
-                showEmpty("No applications yet", "When you apply to a brief—or a brand receives your application—it will appear here.");
-                return;
-            }
-            for (int i = 0; i < apps.length(); i++) {
-                JSONObject a = apps.optJSONObject(i);
-                if (a == null) continue;
-                LinearLayout c = card();
-                c.addView(text(a.optString("campaign_title", "Campaign"), 16, WHITE, true));
-                gap(c, 5);
-                c.addView(text(a.optString("brand_name", a.optString("creator_name", "Collaboration")), 12, MUTED, false));
-                gap(c, 12);
-                String status = a.optString("status", "pending").toUpperCase(Locale.ROOT);
-                TextView badge = text(status, 10, MINT, true);
-                badge.setPadding(dp(10), dp(7), dp(10), dp(7));
-                badge.setBackground(rounded(Color.rgb(224, 247, 242), 11, 0));
-                c.addView(badge, new LinearLayout.LayoutParams(-2, -2));
-                if ("brand".equals(user.optString("role"))) {
-                    String currentStatus = a.optString("status", "pending");
-                    LinearLayout actions = row();
-                    if ("pending".equals(currentStatus)) {
-                        TextView accept = smallButton("Accept");
-                        TextView decline = smallButton("Decline");
-                        actions.addView(accept, new LinearLayout.LayoutParams(0, -2, 1));
-                        LinearLayout.LayoutParams declineP = new LinearLayout.LayoutParams(0, -2, 1);
-                        declineP.leftMargin = dp(8);
-                        actions.addView(decline, declineP);
-                        accept.setOnClickListener(v -> updateApplicationStatus(a, "accepted"));
-                        decline.setOnClickListener(v -> updateApplicationStatus(a, "declined"));
-                    } else if ("accepted".equals(currentStatus)) {
-                        TextView complete = smallButton("Mark completed");
-                        actions.addView(complete, new LinearLayout.LayoutParams(-1, -2));
-                        complete.setOnClickListener(v -> updateApplicationStatus(a, "completed"));
-                    }
-                    if (actions.getChildCount() > 0) {
-                        gap(c, 12);
-                        c.addView(actions);
-                    }
-                }
-                content.addView(c);
-                gap(content, 10);
-            }
-        });
-    }
-
-    private void updateApplicationStatus(JSONObject application, String status) {
-        api("PATCH", "/api/applications/" + application.optLong("id") + "/status", json("status", status), (data, error) -> {
-            if (error != null) toast(error);
-            else {
-                toast("Application marked " + status + ".");
-                dashboardLoaded = false;
-                showShell("applications");
+                studioOutput.setText(data.optString("output",
+                    data.optString("draft", data.optString("text", data.optString("message", "The draft could not be displayed."))));
+                studioOutput.setTextColor(INK);
             }
         });
     }
 
     private void renderProfile() {
-        heading("Your profile", "Keep your details sharp so the right collaborations find you.");
-        LinearLayout panel = card();
-        EditText name = field("Full name", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS, user.optString("name", ""));
-        EditText niche = field("Niche / industry", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS, user.optString("niche", ""));
-        EditText location = field("City or region", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS, user.optString("location", ""));
-        EditText handle = field("Instagram handle", InputType.TYPE_CLASS_TEXT, user.optString("instagram_handle", ""));
-        EditText bio = field("Short bio (optional)", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE, user.optString("bio", ""));
-        bio.setSingleLine(false);
-        bio.setMinLines(3);
-        bio.setGravity(Gravity.TOP | Gravity.START);
-        addField(panel, "YOUR NAME", name);
-        addField(panel, "NICHE", niche);
-        addField(panel, "LOCATION", location);
-        addField(panel, "INSTAGRAM HANDLE", handle);
-        addField(panel, "BIO", bio);
-        TextView save = button("Save profile changes", true);
-        panel.addView(save);
-        save.setOnClickListener(v -> {
-            JSONObject payload = new JSONObject();
-            try {
-                payload.put("name", name.getText().toString().trim());
-                payload.put("niche", niche.getText().toString().trim());
-                payload.put("location", location.getText().toString().trim());
-                payload.put("instagram_handle", handle.getText().toString().trim());
-                payload.put("bio", bio.getText().toString().trim());
-            } catch (Exception ignored) {}
-            save.setEnabled(false);
-            save.setText("Saving…");
-            api("PATCH", "/api/me", payload, (data, error) -> {
-                save.setEnabled(true);
-                save.setText("Save profile changes");
-                if (error != null) toast(error);
-                else {
-                    JSONObject changed = data.optJSONObject("user");
-                    if (changed != null) user = changed;
-                    toast("Profile saved.");
-                    showShell("profile");
-                }
-            });
-        });
-        content.addView(panel);
-        gap(content, 16);
-        if ("creator".equals(user.optString("role", "creator"))) {
-            addQuickAction("▣", "Download creator media kit", "Generate a shareable PDF profile for brand partnerships", () -> downloadMediaKit());
-            gap(content, 10);
-        }
-        addQuickAction("✧", "AI Studio", "Create content, pitches and campaign briefs", () -> showShell("ai"));
-        gap(content, 10);
-        addQuickAction("▤", "My applications", "Review application statuses", () -> showShell("applications"));
-        gap(content, 10);
-        addQuickAction("♢", "Password & security", "Change your sign-in password", () -> showPasswordDialog());
-        gap(content, 10);
-        addQuickAction("⇩", "Export account data", "View a copy of your stored account information", () -> exportAccountData());
-        gap(content, 10);
-        addQuickAction("⚠", "Delete account", "Permanently delete your account after password confirmation", () -> confirmDeleteAccount());
-        gap(content, 20);
-        TextView signOut = button("Sign out", false);
-        content.addView(signOut);
-        signOut.setOnClickListener(v -> new android.app.AlertDialog.Builder(this)
-            .setTitle("Sign out of Collabzy?")
-            .setMessage("Your account remains safe on the server. This device will forget the saved session.")
-            .setNegativeButton("Stay signed in", (d, w) -> d.dismiss())
-            .setPositiveButton("Sign out", (d, w) -> {
-                token = "";
-                user = new JSONObject();
-                dashboardStats = new JSONObject();
-                dashboardLoaded = false;
-                dashboardRequestStarted = false;
-                storage.edit().remove("token").apply();
-                showWelcome();
-            }).show());
+        section(body, "Your profile", "Account details, Instagram connection and membership.");
+        LinearLayout profile = card();
+        LinearLayout top = row();
+        TextView avatar = txt(initial(me.optString("name", "C")), 24, WHITE, true);
+        avatar.setGravity(Gravity.CENTER);
+        avatar.setBackground(gradient(PURPLE, TEAL, 28));
+        top.addView(avatar, new LinearLayout.LayoutParams(dp(54), dp(54)));
+        LinearLayout labels = col();
+        LinearLayout.LayoutParams names = new LinearLayout.LayoutParams(0, -2, 1);
+        names.leftMargin = dp(12);
+        labels.setLayoutParams(names);
+        labels.addView(txt(me.optString("name", "Collabzy member"), 17, INK, true));
+        labels.addView(txt(me.optString("email", ""), 12, MUTED, false));
+        labels.addView(txt(me.optString("role", "creator").toUpperCase(), 10, TEAL, true));
+        top.addView(labels);
+        profile.addView(top);
+        gap(profile, 13);
+        profile.addView(txt("NICHE  ·  " + me.optString("niche", "Not added"), 11, MUTED, false));
+        gap(profile, 7);
+        profile.addView(txt("LOCATION  ·  " + me.optString("location", "Not added"), 11, MUTED, false));
+        body.addView(profile);
+        gap(body, 16);
+
+        section(body, "Instagram connection", "Official insights require Meta app setup and Instagram authorization.");
+        LinearLayout instagramCard = card();
+        instagramStatus = txt(instagramLoaded ? instagram.optString("message",
+            instagram.optBoolean("connected") ? "Instagram is connected." : "Instagram is not connected.") : "Checking Instagram connection…", 12, MUTED, false);
+        instagramStatus.setLineSpacing(dp(3), 1f);
+        instagramCard.addView(instagramStatus);
+        gap(instagramCard, 10);
+        instagramCard.addView(button(instagram.optBoolean("connected") ? "Refresh Instagram status" : "Connect Instagram", true, this::connectInstagram));
+        gap(instagramCard, 10);
+        instagramCard.addView(smallButton("Refresh status", () -> { instagramLoaded = false; showApp("profile"); }));
+        body.addView(instagramCard);
+        gap(body, 17);
+
+        section(body, "Membership", "No payment is taken while the app is in private beta.");
+        LinearLayout plan = card();
+        plan.addView(txt("Collabzy Pro · 365 days", 16, INK, true));
+        gap(plan, 4);
+        plan.addView(txt("₹299 / year", 24, PURPLE, true));
+        gap(plan, 6);
+        String status = billingLoaded ? (billing.optBoolean("active") ? "Plan active" :
+            billing.optBoolean("beta_access") ? "Private beta access" : "Plan not activated") : "Checking plan status…";
+        billingStatus = txt(status, 12, MUTED, false);
+        plan.addView(billingStatus);
+        gap(plan, 8);
+        plan.addView(txt("Secure checkout is not configured yet; the plan cannot be purchased from the app.", 11, MUTED, false));
+        body.addView(plan);
+        gap(body, 17);
+        body.addView(button("Sign out", false, () -> { signOutLocal(); notice = ""; showWelcome(); }),
+            new LinearLayout.LayoutParams(-1, -2));
     }
 
-    private void downloadMediaKit() {
-        if (!"creator".equals(user.optString("role", "creator"))) {
-            toast("Media kits are available to creator accounts.");
-            return;
-        }
-        api("GET", "/api/instagram/status", null, (statusData, statusError) -> {
-            boolean connected = statusError == null && statusData != null && statusData.optBoolean("connected");
-            String handle = statusData == null ? user.optString("instagram_handle", "")
-                : statusData.optString("handle", user.optString("instagram_handle", ""));
-            generateMediaKitPdf(connected, handle);
+    private void connectInstagram() {
+        if (instagramStatus != null) instagramStatus.setText("Opening official Instagram authorization…");
+        request("GET", "/api/instagram/connect?platform=native", null, (data, error) -> {
+            if (error != null) {
+                if (instagramStatus != null) { instagramStatus.setText(error); instagramStatus.setTextColor(RED); }
+                return;
+            }
+            String url = data.optString("authorization_url", "");
+            if (url.isEmpty()) {
+                if (instagramStatus != null) { instagramStatus.setText("The authorization link was not returned."); instagramStatus.setTextColor(RED); }
+                return;
+            }
+            try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url))); }
+            catch (Exception ex) {
+                if (instagramStatus != null) { instagramStatus.setText("Could not open Instagram authorization."); instagramStatus.setTextColor(RED); }
+            }
         });
     }
 
-    private void generateMediaKitPdf(boolean linked, String verifiedHandle) {
-        PdfDocument pdf = new PdfDocument();
+    private void handleInstagramCallback(Intent intent) {
+        if (!isInstagramCallback(intent)) return;
+        String result = intent.getData().getQueryParameter("instagram");
+        if ("connected".equals(result)) toast("Instagram connected. Refreshing status…");
+        else if ("denied".equals(result)) toast("Instagram connection was cancelled.");
+        else toast("Instagram could not be connected. Check the Meta app setup.");
+        instagramLoaded = false;
+        showApp("profile");
+    }
+
+    private boolean isInstagramCallback(Intent intent) {
+        if (intent == null || intent.getData() == null) return false;
+        Uri uri = intent.getData();
+        return "collabzy".equals(uri.getScheme()) && "instagram".equals(uri.getHost()) && "/callback".equals(uri.getPath());
+    }
+
+    private void refreshCurrentTab() {
+        if (!"app".equals(screen)) return;
+        if ("discover".equals(tab)) { statsLoaded = false; campaignsLoaded = false; }
+        else if ("work".equals(tab)) { applicationsLoaded = false; brandCampaignsLoaded = false; }
+        else if ("profile".equals(tab)) { billingLoaded = false; instagramLoaded = false; }
+        showApp(tab);
+    }
+
+    private void clearCaches() {
+        stats = new JSONObject();
+        billing = new JSONObject();
+        instagram = new JSONObject();
+        campaigns = new JSONArray();
+        applications = new JSONArray();
+        brandCampaigns = new JSONArray();
+        statsLoaded = campaignsLoaded = applicationsLoaded = brandCampaignsLoaded = false;
+        billingLoaded = instagramLoaded = false;
+    }
+
+    private void signOutLocal() {
+        token = "";
+        me = new JSONObject();
+        prefs.edit().remove("token").apply();
+        clearCaches();
+    }
+
+    private void showStartupFailure() {
         try {
-            PdfDocument.PageInfo info = new PdfDocument.PageInfo.Builder(595, 842, 1).create();
-            PdfDocument.Page page = pdf.startPage(info);
-            Canvas canvas = page.getCanvas();
-            Paint background = new Paint(Paint.ANTI_ALIAS_FLAG);
-            background.setColor(Color.rgb(245, 242, 255));
-            canvas.drawColor(background.getColor());
-            Paint sheet = new Paint(Paint.ANTI_ALIAS_FLAG);
-            sheet.setColor(Color.WHITE);
-            canvas.drawRoundRect(new RectF(22, 22, 573, 820), 25, 25, sheet);
-
-            Paint tag = pdfPaint(Color.rgb(112, 86, 232), 10, true);
-            Paint namePaint = pdfPaint(Color.rgb(35, 27, 58), 31, true);
-            Paint body = pdfPaint(Color.rgb(73, 69, 101), 12, false);
-            Paint muted = pdfPaint(Color.rgb(111, 106, 133), 10, false);
-            Paint labelPaint = pdfPaint(Color.rgb(112, 86, 232), 12, true);
-            Paint statPaint = pdfPaint(Color.rgb(35, 27, 58), 20, true);
-            Paint cardPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-            cardPaint.setColor(Color.rgb(250, 249, 255));
-            cardPaint.setStyle(Paint.Style.FILL);
-
-            canvas.drawText("COLLABZY  ·  CREATOR MEDIA KIT", 45, 63, tag);
-            canvas.drawRoundRect(new RectF(45, 82, 103, 140), 17, 17, cardPaint);
-            Paint avatarPaint = pdfPaint(Color.rgb(33, 25, 64), 24, true);
-            String fullName = user.optString("name", "Creator").trim();
-            if (fullName.isEmpty()) fullName = "Creator";
-            String initial = fullName.substring(0, 1).toUpperCase(Locale.ROOT);
-            canvas.drawText(initial, 64, 119, avatarPaint);
-
-            float nameY = 177;
-            canvas.drawText(pdfSafe(fullName, 42), 45, nameY, namePaint);
-            String niche = user.optString("niche", "Creator");
-            String location = user.optString("location", "");
-            canvas.drawText(pdfSafe(niche + (location.isEmpty() ? "" : "  ·  " + location), 90), 45, 202, muted);
-
-            String followers = String.format(Locale.US, "%,d", user.optLong("followers", 0));
-            String engagement = String.format(Locale.US, "%.1f%%", user.optDouble("engagement", 0));
-            String status = linked ? "Linked" : "Profile";
-            String[] statValues = new String[]{followers, engagement, status};
-            String[] statLabels = new String[]{"FOLLOWERS", "ENGAGEMENT", "INSTAGRAM"};
-            int[] xs = new int[]{45, 222, 399};
-            for (int i = 0; i < 3; i++) {
-                canvas.drawRoundRect(new RectF(xs[i], 224, xs[i] + 151, 300), 14, 14, cardPaint);
-                canvas.drawText(statValues[i], xs[i] + 13, 256, statPaint);
-                canvas.drawText(statLabels[i], xs[i] + 13, 281, muted);
-            }
-
-            canvas.drawText("ABOUT", 45, 338, labelPaint);
-            String bio = user.optString("bio", "").trim();
-            if (bio.isEmpty()) bio = "Add a creator bio in your Collabzy profile to tell brands about your style, audience and work.";
-            float afterBio = drawWrappedText(canvas, pdfSafe(bio, 650), body, 45, 362, 500, 18);
-            float instaY = Math.max(500, afterBio + 28);
-            canvas.drawText("INSTAGRAM", 45, instaY, labelPaint);
-            String handle = String.valueOf(verifiedHandle == null ? "" : verifiedHandle).trim();
-            if (!handle.isEmpty() && !handle.startsWith("@")) handle = "@" + handle;
-            canvas.drawText(pdfSafe(handle.isEmpty() ? "Add your handle in Profile" : handle, 100), 45, instaY + 24, body);
-            canvas.drawText(linked ? "Account connected via Meta authorization" : "Instagram account not yet verified as connected", 45, instaY + 44, muted);
-
-            Paint divider = new Paint(Paint.ANTI_ALIAS_FLAG);
-            divider.setColor(Color.rgb(238, 236, 244));
-            canvas.drawRect(45, 770, 550, 771, divider);
-            canvas.drawText("Prepared with Collabzy · Verify all profile details before sharing with brands.", 45, 792, muted);
-            pdf.finishPage(page);
-            ByteArrayOutputStream output = new ByteArrayOutputStream();
-            pdf.writeTo(output);
-            pendingMediaKitPdf = output.toByteArray();
-            String safeName = fullName.replaceAll("[^A-Za-z0-9_-]+", "_");
-            Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
-            intent.addCategory(Intent.CATEGORY_OPENABLE);
-            intent.setType("application/pdf");
-            intent.putExtra(Intent.EXTRA_TITLE, (safeName.isEmpty() ? "Creator" : safeName) + "-Collabzy-Media-Kit.pdf");
-            startActivityForResult(intent, MEDIA_KIT_CREATE_REQUEST);
-        } catch (Exception error) {
-            pendingMediaKitPdf = null;
-            toast("Could not create the media kit PDF. Please try again.");
-        } finally {
-            pdf.close();
+            screen = "failure";
+            FrameLayout frame = new FrameLayout(this);
+            frame.setBackgroundColor(BG);
+            LinearLayout center = col();
+            center.setGravity(Gravity.CENTER);
+            center.setPadding(dp(28), dp(28), dp(28), dp(28));
+            TextView logo = txt("collabzy", 27, INK, true);
+            logo.setGravity(Gravity.CENTER);
+            center.addView(logo, new LinearLayout.LayoutParams(-1, -2));
+            gap(center, 16);
+            TextView title = txt("We couldn't open Collabzy.", 21, INK, true);
+            title.setGravity(Gravity.CENTER);
+            center.addView(title);
+            gap(center, 10);
+            TextView details = txt("The app hit a startup problem. Close and reopen it. If this keeps happening, share your Android version and this message with support.", 13, MUTED, false);
+            details.setGravity(Gravity.CENTER);
+            details.setLineSpacing(dp(4), 1f);
+            center.addView(details);
+            gap(center, 17);
+            center.addView(button("Open welcome screen", true, this::showWelcome));
+            frame.addView(center, new FrameLayout.LayoutParams(-1, -1));
+            setContentView(frame);
+        } catch (Throwable fatal) {
+            android.util.Log.e("CollabzyStartup", "Unable to show startup fallback.", fatal);
         }
     }
 
-    private Paint pdfPaint(int color, float size, boolean bold) {
-        Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
-        p.setColor(color);
-        p.setTextSize(size);
-        p.setTypeface(Typeface.create("sans-serif", bold ? Typeface.BOLD : Typeface.NORMAL));
-        return p;
+    private void message(LinearLayout parent, String value, boolean error) {
+        TextView v = txt(value, 12, error ? RED : TEAL, false);
+        v.setPadding(dp(12), dp(10), dp(12), dp(10));
+        v.setLineSpacing(dp(3), 1f);
+        v.setBackground(shape(error ? Color.rgb(255, 239, 242) : LIGHT_TEAL, 12, 0));
+        parent.addView(v);
     }
 
-    private String pdfSafe(String value, int maxLength) {
-        String cleaned = String.valueOf(value == null ? "" : value).replaceAll("[\\r\\n\\t]+", " ").trim();
-        return cleaned.length() > maxLength ? cleaned.substring(0, maxLength - 1) + "…" : cleaned;
-    }
-
-    private float drawWrappedText(Canvas canvas, String value, Paint paint, float x, float y, float maxWidth, float lineHeight) {
-        String[] words = String.valueOf(value).split("\\s+");
-        StringBuilder line = new StringBuilder();
-        for (String word : words) {
-            String candidate = line.length() == 0 ? word : line + " " + word;
-            if (line.length() > 0 && paint.measureText(candidate) > maxWidth) {
-                canvas.drawText(line.toString(), x, y, paint);
-                y += lineHeight;
-                line.setLength(0);
-                line.append(word);
-            } else {
-                if (line.length() > 0) line.append(' ');
-                line.append(word);
-            }
-        }
-        if (line.length() > 0) {
-            canvas.drawText(line.toString(), x, y, paint);
-            y += lineHeight;
-        }
-        return y;
-    }
-
-    private void showPasswordDialog() {
-        android.app.Dialog dialog = new android.app.Dialog(this);
-        LinearLayout box = column();
-        box.setPadding(dp(20), dp(20), dp(20), dp(20));
-        box.setBackground(rounded(PANEL, 22, Color.rgb(224, 220, 238)));
-        box.addView(text("Change password", 20, WHITE, true));
-        gap(box, 12);
-        EditText current = field("Current password", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD, "");
-        EditText next = field("New password (8+ characters)", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD, "");
-        box.addView(current); gap(box, 9); box.addView(next); gap(box, 12);
-        TextView save = button("Update password", true);
-        box.addView(save);
-        save.setOnClickListener(v -> {
-            String currentPassword = current.getText().toString();
-            String newPassword = next.getText().toString();
-            if (currentPassword.isEmpty() || newPassword.length() < 8) {
-                toast("Enter your current password and a new password of at least 8 characters.");
-                return;
-            }
-            JSONObject payload = new JSONObject();
-            try { payload.put("current_password", currentPassword); payload.put("new_password", newPassword); }
-            catch (Exception ignored) {}
-            save.setEnabled(false);
-            api("PATCH", "/api/me/password", payload, (data, error) -> {
-                save.setEnabled(true);
-                if (error != null) toast(error);
-                else {
-                    String refreshed = data.optString("token", "");
-                    if (!refreshed.isEmpty()) { token = refreshed; storage.edit().putString("token", token).apply(); }
-                    dialog.dismiss();
-                    toast("Password updated successfully.");
-                }
-            });
-        });
-        dialog.setContentView(box);
-        dialog.show();
-        if (dialog.getWindow() != null) {
-            dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
-            dialog.getWindow().setLayout(getResources().getDisplayMetrics().widthPixels - dp(32), -2);
-        }
-    }
-
-    private void exportAccountData() {
-        api("GET", "/api/me/export", null, (data, error) -> {
-            if (error != null) toast(error);
-            else {
-                String output;
-                try { output = data.toString(2); } catch (Exception ex) { output = data.toString(); }
-                showTextDialog("Account data export", output);
-            }
-        });
-    }
-
-    private void confirmDeleteAccount() {
-        EditText password = field("Confirm your password", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD, "");
-        LinearLayout box = card();
-        box.addView(text("Delete your Collabzy account", 20, WHITE, true));
-        gap(box, 7);
-        box.addView(text("This permanently deletes your profile and associated campaigns, applications and messages. This cannot be undone.", 12, MUTED, false));
-        gap(box, 12);
-        box.addView(password);
-        new android.app.AlertDialog.Builder(this)
-            .setTitle("Delete account permanently?")
-            .setView(box)
-            .setNegativeButton("Cancel", null)
-            .setPositiveButton("Delete account", (d, w) -> {
-                JSONObject payload = json("password", password.getText().toString());
-                api("DELETE", "/api/me", payload, (data, error) -> {
-                    if (error != null) toast(error);
-                    else {
-                        token = "";
-                        user = new JSONObject();
-                        storage.edit().remove("token").apply();
-                        dashboardLoaded = false;
-                        toast("Your account was deleted.");
-                        showWelcome();
-                    }
-                });
-            }).show();
-    }
-
-    private void renderAI() {
-        boolean creator = "creator".equals(user.optString("role", "creator"));
-        heading("AI Studio", "A native workspace for your next draft. Review outputs before publishing.");
-        LinearLayout panel = card();
-        panel.addView(text("CHOOSE A TOOL", 11, MUTED, true));
-        gap(panel, 8);
-        String[] labels = creator
-            ? new String[]{"Creator bio optimizer", "Reel hooks", "Caption & hashtags", "7-day content calendar", "Brand pitch"}
-            : new String[]{"Campaign brief builder", "Creator outreach", "UGC video script", "Campaign launch plan"};
-        String[] keys = creator
-            ? new String[]{"creator_bio", "reel_hooks", "caption_hashtags", "content_calendar", "brand_pitch"}
-            : new String[]{"brand_campaign_brief", "brand_outreach", "ugc_script", "brand_campaign_plan"};
-        if (aiTool.isEmpty()) aiTool = keys[0];
-        for (int i = 0; i < labels.length; i++) {
-            final String key = keys[i];
-            TextView choice = smallButton((key.equals(aiTool) ? "✓  " : "") + labels[i]);
-            choice.setGravity(Gravity.LEFT | Gravity.CENTER_VERTICAL);
-            choice.setOnClickListener(v -> { aiTool = key; showShell("ai"); });
-            LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1, -2);
-            p.bottomMargin = dp(7);
-            panel.addView(choice, p);
-        }
-        content.addView(panel);
-        gap(content, 14);
-        LinearLayout briefCard = card();
-        briefCard.addView(text("GIVE IT CONTEXT", 11, MUTED, true));
-        gap(briefCard, 8);
-        EditText brief = field("What are you creating? Add the brand, topic, audience or goal.", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE, "");
-        brief.setSingleLine(false);
-        brief.setMinLines(4);
-        brief.setGravity(Gravity.TOP | Gravity.START);
-        briefCard.addView(brief);
-        gap(briefCard, 12);
-        EditText audience = field("Audience (optional)", InputType.TYPE_CLASS_TEXT, "");
-        briefCard.addView(audience);
-        gap(briefCard, 10);
-        CheckBox consent = new CheckBox(this);
-        consent.setText("I understand this context will be sent to the AI service to generate a draft.");
-        consent.setTextColor(MUTED);
-        consent.setTextSize(12);
-        consent.setButtonTintList(new android.content.res.ColorStateList(
-            new int[][]{new int[]{android.R.attr.state_checked}, new int[]{}},
-            new int[]{MINT, MUTED}));
-        briefCard.addView(consent);
-        gap(briefCard, 12);
-        TextView run = button("Generate draft  ✦", true);
-        briefCard.addView(run);
-        content.addView(briefCard);
-        run.setOnClickListener(v -> {
-            if (brief.getText().toString().trim().length() < 4) { toast("Add a little context first."); return; }
-            if (!consent.isChecked()) { toast("Please confirm the AI data-use note."); return; }
-            JSONObject payload = json("tool", aiTool);
-            try {
-                payload.put("brief", brief.getText().toString().trim());
-                payload.put("audience", audience.getText().toString().trim());
-                payload.put("confirmed_ai_disclosure", true);
-            } catch (Exception ignored) {}
-            run.setEnabled(false);
-            run.setText("Creating your draft…");
-            api("POST", "/api/ai/studio", payload, (data, error) -> {
-                run.setEnabled(true);
-                run.setText("Generate draft  ✦");
-                if (error != null) {
-                    toast(error);
-                    return;
-                }
-                String output = data.optString("output", data.optString("content", data.optString("draft", "")));
-                if (output.isEmpty()) output = data.toString();
-                showAIResult(output, data.optString("mode", ""));
-            });
-        });
-    }
-
-    private void showAIResult(String output, String mode) {
-        android.app.Dialog dialog = new android.app.Dialog(this);
-        LinearLayout box = column();
-        box.setPadding(dp(22), dp(22), dp(22), dp(22));
-        box.setBackground(rounded(PANEL, 24, Color.rgb(224, 220, 238)));
-        box.addView(text("Your draft is ready", 22, WHITE, true));
-        gap(box, 5);
-        box.addView(text(mode.isEmpty() ? "Review and refine before publishing." : mode, 11, MINT, true));
-        gap(box, 12);
-        ScrollView scroll = new ScrollView(this);
-        TextView result = text(output, 14, Color.rgb(73, 69, 101), false);
-        result.setTextIsSelectable(true);
-        result.setLineSpacing(dp(4), 1f);
-        scroll.addView(result);
-        box.addView(scroll, new LinearLayout.LayoutParams(-1, dp(270)));
-        gap(box, 14);
-        TextView close = button("Done", true);
-        box.addView(close);
-        close.setOnClickListener(v -> dialog.dismiss());
-        dialog.setContentView(box);
-        dialog.show();
-        if (dialog.getWindow() != null) {
-            dialog.getWindow().setBackgroundDrawableResource(android.R.color.transparent);
-            dialog.getWindow().setLayout(getResources().getDisplayMetrics().widthPixels - dp(32), -2);
-        }
-    }
-
-    private void renderCreateCampaign() {
-        heading("Create a campaign", "Share a clear brief so creators know what you need.");
-        LinearLayout panel = card();
-        EditText title = field("Campaign title", InputType.TYPE_CLASS_TEXT, "");
-        EditText description = field("What is the collaboration about?", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE, "");
-        description.setSingleLine(false);
-        description.setMinLines(4);
-        description.setGravity(Gravity.TOP | Gravity.START);
-        EditText category = field("Category (e.g. Beauty, Tech, Food)", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS, "");
-        EditText low = field("Minimum budget in ₹", InputType.TYPE_CLASS_NUMBER, "");
-        EditText high = field("Maximum budget in ₹", InputType.TYPE_CLASS_NUMBER, "");
-        addField(panel, "CAMPAIGN TITLE", title);
-        addField(panel, "BRIEF", description);
-        addField(panel, "CATEGORY", category);
-        addField(panel, "MINIMUM BUDGET", low);
-        addField(panel, "MAXIMUM BUDGET", high);
-        String[] selectedType = new String[]{"Paid"};
-        panel.addView(text("COLLABORATION TYPE", 11, MUTED, true));
-        gap(panel, 7);
-        LinearLayout typeRow = row();
-        String[] types = new String[]{"Paid", "Barter", "Hybrid"};
-        for (String type : types) {
-            TextView b = button(type, type.equals(selectedType[0]));
-            LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(0, -2, 1);
-            p.rightMargin = dp(5);
-            typeRow.addView(b, p);
-            b.setOnClickListener(v -> {
-                selectedType[0] = type;
-                for (int j = 0; j < typeRow.getChildCount(); j++) {
-                    TextView child = (TextView) typeRow.getChildAt(j);
-                    boolean chosen = child.getText().toString().equals(type);
-                    child.setBackground(rounded(chosen ? MINT : PANEL_ALT, 15, chosen ? 0 : Color.rgb(224, 220, 238)));
-                    child.setTextColor(chosen ? BG : WHITE);
-                }
-            });
-        }
-        panel.addView(typeRow);
-        gap(panel, 14);
-        TextView post = button("Publish campaign  →", true);
-        panel.addView(post);
-        content.addView(panel);
-        post.setOnClickListener(v -> {
-            if (title.getText().toString().trim().isEmpty() || description.getText().toString().trim().isEmpty() || category.getText().toString().trim().isEmpty()) {
-                toast("Add a title, brief and category first.");
-                return;
-            }
-            JSONObject payload = new JSONObject();
-            try {
-                payload.put("title", title.getText().toString().trim());
-                payload.put("description", description.getText().toString().trim());
-                payload.put("category", category.getText().toString().trim());
-                payload.put("collaboration_type", selectedType[0]);
-                payload.put("budget_min", low.getText().toString().trim().isEmpty() ? 0 : Long.parseLong(low.getText().toString().trim()));
-                payload.put("budget_max", high.getText().toString().trim().isEmpty() ? 0 : Long.parseLong(high.getText().toString().trim()));
-                payload.put("location", user.optString("location", "India"));
-            } catch (Exception ignored) {}
-            post.setEnabled(false);
-            post.setText("Publishing…");
-            api("POST", "/api/campaigns", payload, (data, error) -> {
-                post.setEnabled(true);
-                post.setText("Publish campaign  →");
-                if (error != null) toast(error);
-                else {
-                    toast("Campaign published.");
-                    showShell("my_campaigns");
-                }
-            });
-        });
-    }
-
-    private void showEmpty(String title, String body) {
-        LinearLayout c = card();
-        c.setGravity(Gravity.CENTER);
-        c.setPadding(dp(24), dp(27), dp(24), dp(27));
-        TextView glyph = text("✦", 30, MINT, true);
-        glyph.setGravity(Gravity.CENTER);
-        c.addView(glyph);
-        gap(c, 9);
-        TextView h = text(title, 17, WHITE, true);
-        h.setGravity(Gravity.CENTER);
-        c.addView(h);
-        gap(c, 7);
-        TextView b = text(body, 12, MUTED, false);
-        b.setGravity(Gravity.CENTER);
-        b.setLineSpacing(dp(3), 1f);
-        c.addView(b);
-        content.addView(c);
-    }
-
-    private void showInlineMessage(String title, String message) {
-        LinearLayout c = card();
-        c.setBackground(rounded(Color.rgb(255, 236, 241), 18, Color.rgb(240, 199, 212)));
-        c.addView(text(title, 15, RED, true));
-        gap(c, 6);
-        c.addView(text(message, 12, Color.rgb(158, 47, 73), false));
-        content.addView(c);
-    }
-
-    private JSONObject json(String key, String value) {
-        JSONObject o = new JSONObject();
-        try { o.put(key, value); } catch (Exception ignored) {}
-        return o;
-    }
-
-    private JSONObject jsonBoolean(String key, boolean value) {
-        JSONObject o = new JSONObject();
-        try { o.put(key, value); } catch (Exception ignored) {}
-        return o;
-    }
-
-    private void api(String method, String path, JSONObject payload, ApiCallback callback) {
+    private void request(String method, String path, JSONObject payload, Callback callback) {
         network.execute(() -> {
-            JSONObject result = null;
+            JSONObject data = null;
             String error = null;
             try {
                 Request.Builder builder = new Request.Builder().url(API + path).header("Accept", "application/json");
                 if (!token.isEmpty()) builder.header("Authorization", "Bearer " + token);
-                RequestBody body = payload == null ? null : RequestBody.create(payload.toString(), JSON_MEDIA);
+                RequestBody body = payload == null ? null : RequestBody.create(payload.toString(), JSON);
                 builder.method(method, body);
-                try (Response response = httpClient.newCall(builder.build()).execute()) {
-                    String responseText = response.body() == null ? "" : response.body().string();
-                    if (!responseText.isEmpty()) {
-                        try { result = new JSONObject(responseText); }
-                        catch (Exception notJson) { result = new JSONObject().put("message", responseText); }
+                try (Response response = client.newCall(builder.build()).execute()) {
+                    String content = response.body() == null ? "" : response.body().string();
+                    if (!content.isEmpty()) {
+                        try { data = new JSONObject(content); }
+                        catch (Exception ignored) { data = new JSONObject().put("message", content); }
                     }
-                    if (!response.isSuccessful()) {
-                        error = result != null ? result.optString("error", result.optString("message", "Request failed (" + response.code() + ").")) : "Request failed (" + response.code() + ").";
-                    } else if (result == null) result = new JSONObject();
+                    if (!response.isSuccessful()) error = data == null
+                        ? "Request failed (" + response.code() + ")."
+                        : data.optString("error", data.optString("message", "Request failed (" + response.code() + ")."));
+                    else if (data == null) data = new JSONObject();
                 }
             } catch (Exception ex) {
                 error = "Could not reach Collabzy. Check your internet connection and try again.";
+                android.util.Log.w("CollabzyNetwork", method + " " + path + " failed.", ex);
             }
-            final JSONObject data = result;
-            final String problem = error;
-            runOnUiThread(() -> { if (!isFinishing()) callback.complete(data, problem); });
+            JSONObject finalData = data;
+            String finalError = error;
+            main.post(() -> { if (!isFinishing() && callback != null) callback.done(finalData, finalError); });
         });
     }
 
-    private void toast(String value) {
-        Toast.makeText(this, value, Toast.LENGTH_LONG).show();
+    private void toast(String text) {
+        if (text != null && !text.trim().isEmpty()) Toast.makeText(this, text, Toast.LENGTH_LONG).show();
     }
-
-    private void fadeIn(View v) {
-        if (v == null) return;
-        v.setAlpha(0f);
-        v.setTranslationY(dp(8));
-        v.animate().alpha(1f).translationY(0f).setDuration(220).start();
+    private String initial(String name) {
+        return name == null || name.trim().isEmpty() ? "C" : name.trim().substring(0, 1).toUpperCase();
     }
-
-    @Override
-    public void onBackPressed() {
-        if ("welcome".equals(screen)) {
-            super.onBackPressed();
-        } else if ("login".equals(screen) || "register".equals(screen)) {
-            showWelcome();
-        } else if ("conversation".equals(screen)) {
-            showShell("inbox");
-        } else if ("create_campaign".equals(screen)) {
-            showShell("explore");
-        } else {
-            showShell("home");
-        }
+    private String shorten(String value, int max) {
+        if (value == null) return "";
+        String s = value.trim();
+        return s.length() <= max ? s : s.substring(0, max - 1).trim() + "…";
+    }
+    private int number(String value) {
+        try { return Math.max(0, Integer.parseInt(value.trim())); } catch (Exception ignored) { return 0; }
+    }
+    private String titleCase(String value) {
+        if (value == null || value.isEmpty()) return "";
+        String s = value.trim().toLowerCase();
+        return Character.toUpperCase(s.charAt(0)) + s.substring(1);
     }
 }

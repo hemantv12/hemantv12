@@ -6,17 +6,22 @@ const path = require('node:path');
 
 const source = fs.readFileSync(path.join(__dirname, '..', 'native-android', 'MainActivity.java'), 'utf8');
 
-test('native startup avoids Android API 28-only TextView calls', () => {
-  assert.doesNotMatch(source, /\.setAllCaps\s*\(/, 'TextView.setAllCaps is not safe on older supported Android versions');
-  assert.match(source, /b\.setTransformationMethod\(null\)/, 'buttons should keep their supplied casing using an API-compatible call');
+test('fresh native startup is not dependent on a WebView or remote HTML', () => {
+  assert.match(source, /private void showWelcome\(\)/);
+  assert.match(source, /Your next brand deal starts here/);
+  assert.match(source, /setContentView\(root\)/);
+  assert.doesNotMatch(source, /WebView\s+\w+/);
 });
 
-test('native welcome screen installs visible content before starting its animation', () => {
-  const start = source.indexOf('private void showWelcome()');
-  const end = source.indexOf('private void addFeature(', start);
-  assert.ok(start >= 0 && end > start, 'welcome screen should exist');
-  const welcome = source.slice(start, end);
-  assert.match(welcome, /setContentView\(frame\)/, 'welcome content must be installed');
-  assert.match(welcome, /Create your account/, 'welcome screen must offer account creation');
-  assert.match(welcome, /₹299 \/ year/, 'welcome screen must show the annual plan');
+test('startup errors have a visible fallback screen', () => {
+  assert.match(source, /private void showStartupFailure\(\)/);
+  assert.match(source, /We couldn't open Collabzy/);
+});
+
+test('native client retains core collaboration workflows', () => {
+  for (const phrase of [
+    '/api/auth/register', '/api/auth/login', '/api/campaigns',
+    '/api/campaigns/', '/api/applications', '/api/my-campaigns',
+    '/api/ai/studio', '/api/instagram/status', '₹299 / year'
+  ]) assert.ok(source.includes(phrase), 'missing workflow marker: ' + phrase);
 });

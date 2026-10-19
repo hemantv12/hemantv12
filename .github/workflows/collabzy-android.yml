@@ -158,4 +158,4 @@ jobs:
           profile: pixel_2
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
-          script: cd collabzy-app/android && ./gradlew connectedDebugAndroidTest --no-daemon
+          script: cd collabzy-app/android && ./gradlew :app:connectedDebugAndroidTest --no-daemon
