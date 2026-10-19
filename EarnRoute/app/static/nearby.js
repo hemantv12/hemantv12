@@ -591,6 +591,10 @@ function erSetWorkplacePin(latitude, longitude, accuracy, source) {
   }
   if (mapEl) erMapStatus(mapEl, 'Selected workplace pin: ' + lat.toFixed(5) + ', ' + lon.toFixed(5) + '. Check the map before publishing.');
 }
+function locationSourceColor(el) {
+  const current = erGetLocation();
+  return current && current.source === 'manual' ? '#9b6a24' : '#2978bd';
+}
 function erInitializeLiveMap(el) {
   if (!el || el._erMapInstance || !window.L || !document.body.contains(el)) return;
   const L = window.L;
@@ -650,7 +654,7 @@ function erInitializeLiveMap(el) {
     const radius = Number(el.dataset.erMapRadius) || 3;
     if (hasLocation) {
       L.circle([lat,lon], {radius:radius*1000,color:'#6d9133',weight:2,fillColor:'#c9f451',fillOpacity:.09,dashArray:'5 6'}).addTo(map);
-      L.circleMarker([lat,lon], {radius:7,color:'#ffffff',weight:3,fillColor:'#2978bd',fillOpacity:1}).bindTooltip('Your device location').addTo(map);
+      L.circleMarker([lat,lon], {radius:7,color:'#ffffff',weight:3,fillColor:locationSourceColor(el),fillOpacity:1}).bindTooltip((el.dataset.erMapHasLocation === '1' && erGetLocation() && erGetLocation().source === 'manual') ? t('manualAreaSelected') : t('mapDeviceLocation')).addTo(map);
     }
     points.forEach(function(job) {
       const point = [Number(job.latitude),Number(job.longitude)];
@@ -801,7 +805,7 @@ renderDiscover = async function(filters) {
     soonest:t('sortSoonest').toLowerCase(), 'open-spots':t('sortOpenSpots').toLowerCase()
   }[sortBy];
   return pageHeading('NEARBY WORK','Find work close to you.','No far-away listings. Compare distance, shift time and estimated take-home before applying.','<button type="button" class="btn btn-outline" data-er-enable-location>↻ Refresh location</button>') +
-    '<div class="er-discover-toolbar"><div><span class="er-control-label">Distance limit</span>' + erRadiusButtons(radius) + '</div><div><span class="er-control-label">Work type</span>' + erCategoryButtons(category) + '</div><span class="er-location-note">⌖ Using device location · ' + radius + ' km maximum</span></div>' +
+    '<div class="er-discover-toolbar"><div><span class="er-control-label">Distance limit</span>' + erRadiusButtons(radius) + '</div><div><span class="er-control-label">Work type</span>' + erCategoryButtons(category) + '</div><span class="er-location-note">⌖ ' + escapeHtml(location.source === 'manual' ? t('manualAreaSelected') : t('mapDeviceLocation')) + ' · ' + radius + ' km maximum</span></div>' +
     '<form id="er-nearby-filter" class="er-search-row"><input name="search" placeholder="Search a local gig" aria-label="Search nearby jobs" value="' + escapeHtml(filters.search || '') + '">' +
     '<input name="min_pay" type="number" min="0" step="50" placeholder="' + escapeHtml(t('minimumPay')) + '" value="' + escapeHtml(filters.min_pay || '') + '" aria-label="' + escapeHtml(t('minimumPay')) + '">' +
     '<label class="er-commute-field"><span class="er-control-label">' + escapeHtml(t('commuteBudgetLabel')) + '</span><input name="commute_cost_per_km" type="number" min="0" max="500" step="0.5" inputmode="decimal" placeholder="' + escapeHtml(t('commuteBudgetPlaceholder')) + '" value="' + (commuteRate > 0 ? commuteRate : '') + '" aria-label="' + escapeHtml(t('commuteBudgetLabel')) + '"></label>' +
@@ -1004,6 +1008,16 @@ document.addEventListener('click', function(event) {
 document.addEventListener('click', async function(event) {
   const target = event.target.closest('button');
   if (!target) return;
+  if (target.hasAttribute('data-er-manual-center')) {
+    erCenterManualArea();
+    return;
+  }
+  if (target.hasAttribute('data-er-use-manual-location')) {
+    if (!erCommitManualAreaCandidate()) return;
+    showToast(t('manualAreaActivated'));
+    await renderPage();
+    return;
+  }
   if (target.hasAttribute('data-er-report-job')) {
     const jobId = Number(target.dataset.erReportJob);
     const title = String(target.dataset.erReportTitle || 'Local shift').slice(0,140);
@@ -1178,6 +1192,21 @@ document.addEventListener('click', async function(event) {
     }
   }
 });
+document.addEventListener('change', function(event) {
+  const target = event.target;
+  if (!target || target.id !== 'er-manual-city') return;
+  const centerButton = document.querySelector('[data-er-manual-center]');
+  const useButton = document.querySelector('[data-er-use-manual-location]');
+  if (centerButton) centerButton.disabled = !target.value;
+  if (useButton) useButton.disabled = true;
+  sessionStorage.removeItem('earnroute_manual_location_candidate');
+  const status = document.getElementById('er-manual-location-status');
+  if (status) status.textContent = t('manualAreaNotSelected');
+});
+document.addEventListener('toggle', function(event) {
+  const target = event.target;
+  if (target && target.id === 'er-manual-area-picker' && target.open) erEnhanceLiveMaps();
+}, true);
 document.addEventListener('submit', async function(event) {
   const form = event.target;
   if (form && form.id === 'er-nearby-filter') {
