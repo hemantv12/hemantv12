@@ -1200,6 +1200,18 @@ window.addEventListener('load', init, { once: true });
    notifications and prompts while leaving user-entered content and business/job names intact. */
 const ER_HI_UI = Object.freeze({
   "WORKSPACE":"कार्य क्षेत्र","ACCOUNT":"अकाउंट","FOUNDER CONTROL":"संस्थापक कंट्रोल",
+  "User accounts":"यूज़र अकाउंट","System health":"सिस्टम हेल्थ","ACCOUNT MANAGEMENT":"अकाउंट मैनेजमेंट","OPERATIONS":"सिस्टम संचालन",
+  "Search the real account inventory and suspend or restore access with a recorded reason. These actions never delete the account or its history.":"असली अकाउंट सूची खोजें और कारण दर्ज करके एक्सेस रोकें या बहाल करें। इससे अकाउंट या उसका इतिहास नहीं मिटता।",
+  "Search name or email":"नाम या ईमेल खोजें","Filter account name or email":"नाम या ईमेल से फ़िल्टर करें","Filter account role":"अकाउंट की भूमिका चुनें","Filter account status":"अकाउंट का स्टेटस चुनें",
+  "All roles":"सभी भूमिकाएँ","Workers":"वर्कर","Businesses":"बिज़नेस","Admins":"एडमिन","All statuses":"सभी स्टेटस","Active":"सक्रिय","Inactive":"निष्क्रिय","Apply filters":"फ़िल्टर लागू करें",
+  "matching account(s)":"मिलते हुए अकाउंट","Newest accounts first · protected by server-side admin permissions.":"नए अकाउंट पहले · सर्वर-साइड एडमिन परमिशन से सुरक्षित।",
+  "Account inventory":"अकाउंट सूची","Suspend access":"एक्सेस रोकें","Restore access":"एक्सेस बहाल करें","Current session":"मौजूदा सेशन",
+  "Read-only readiness checks. This page never exposes secret values and does not claim that a provider is delivering until a real smoke test confirms it.":"सिर्फ़ पढ़ने वाली तैयारी जाँच। यहाँ सीक्रेट वैल्यू नहीं दिखाई जाती और असली टेस्ट के बिना डिलीवरी का दावा नहीं किया जाता।",
+  "Integration readiness":"इंटीग्रेशन की तैयारी","Presence of required configuration only, not proof of successful delivery.":"कॉन्फ़िगरेशन मौजूद है या नहीं—यह सफल डिलीवरी का प्रमाण नहीं है।",
+  "Razorpay webhook":"Razorpay वेबहुक","Error monitoring":"एरर मॉनिटरिंग","Email delivery":"ईमेल डिलीवरी","SMS / OTP":"SMS / OTP",
+  "Production items still gated":"प्रोडक्शन के लिए अभी बाकी","Secrets are not shown":"सीक्रेट वैल्यू नहीं दिखाई जाती","Configuration present · functionality still needs a real provider smoke test":"कॉन्फ़िगरेशन मौजूद है · असली प्रोवाइडर टेस्ट फिर भी ज़रूरी है",
+  "No accounts match these filters.":"इन फ़िल्टर में कोई अकाउंट नहीं मिला।","Email marked verified":"ईमेल वेरिफ़ाइड दिखाया गया","Email not verified":"ईमेल वेरिफ़ाइड नहीं",
+
   "Overview":"डैशबोर्ड","Discover work":"काम खोजें","Applications":"आवेदन","My schedule":"मेरा शेड्यूल",
   "Earnings":"कमाई","My profile":"मेरी प्रोफ़ाइल","Post a shift":"शिफ्ट पोस्ट करें","Manage jobs":"काम मैनेज करें",
   "Applicants":"आवेदक","Assignments":"असाइनमेंट","Business verification":"बिज़नेस वेरिफ़िकेशन",
