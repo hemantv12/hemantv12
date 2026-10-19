@@ -600,3 +600,76 @@ def test_privacy_requests_validate_type_and_message(client, register_worker):
         "message": "short",
     })
     assert short_message.status_code == 422
+
+
+def test_admin_account_inventory_status_changes_and_last_admin_protection(client, register_worker, register_business, create_admin):
+    worker_data, worker_headers = register_worker(email="searchable-worker@example.com", name="Test Worker")
+    business_data, business_headers = register_business(email="listed-business@example.com", name="Listed Business")
+    admin = create_admin()
+    admin_headers = token_headers(client, "admin@earnroute.test", "StrongAdminPass123")
+
+    # Account inventory is admin-only, searchable and does not expose password hashes.
+    searched = client.get("/api/admin/users?role_filter=worker&status_filter=active&search=searchable-worker", headers=admin_headers)
+    assert searched.status_code == 200, searched.text
+    assert searched.json()["total"] == 1
+    account = searched.json()["items"][0]
+    assert account["id"] == worker_data["user"]["id"]
+    assert account["email"] == "searchable-worker@example.com"
+    assert account["role"] == "worker" and account["active"] is True
+    assert "password_hash" not in account and "access_token" not in account
+    assert client.get("/api/admin/users").status_code == 401
+    assert client.get("/api/admin/users", headers=worker_headers).status_code == 403
+    assert client.get("/api/admin/users", headers=business_headers).status_code == 403
+
+    # The current admin cannot suspend its own session or lock the founder out.
+    self_suspend = client.patch(f"/api/admin/users/{admin.id}/status", headers=admin_headers,
+                                json={"active": False, "reason": "Testing self lockout protection"})
+    assert self_suspend.status_code == 409
+
+    suspended = client.patch(f"/api/admin/users/{worker_data['user']['id']}/status", headers=admin_headers,
+                             json={"active": False, "reason": "Duplicate account review"})
+    assert suspended.status_code == 200, suspended.text
+    assert suspended.json()["active"] is False and suspended.json()["changed"] is True
+    assert client.post("/api/auth/login", json={"email": "searchable-worker@example.com", "password": "WorkerPass1234"}).status_code == 401
+
+    audit = client.get("/api/admin/audit", headers=admin_headers)
+    assert audit.status_code == 200
+    assert any(item["action"] == "account_status_changed" and item["entity_id"] == str(worker_data["user"]["id"]) and
+               item["detail"].get("reason") == "Duplicate account review" for item in audit.json()["items"])
+
+    restored = client.patch(f"/api/admin/users/{worker_data['user']['id']}/status", headers=admin_headers,
+                            json={"active": True, "reason": "Support review completed"})
+    assert restored.status_code == 200 and restored.json()["active"] is True
+    assert client.post("/api/auth/login", json={"email": "searchable-worker@example.com", "password": "WorkerPass1234"}).status_code == 200
+
+
+def test_suspending_business_pauses_published_jobs_and_system_health_is_admin_only(client, register_business, create_admin):
+    business, business_headers = register_business()
+    admin = create_admin()
+    admin_headers = token_headers(client, "admin@earnroute.test", "StrongAdminPass123")
+    verified = client.patch(f"/api/admin/businesses/{business['user']['id']}/verification", headers=admin_headers,
+                            json={"status": "verified", "reason": "Reviewed business details."})
+    assert verified.status_code == 200
+    created = client.post("/api/jobs", headers=business_headers, json=future_job_payload(title="Business suspension test"))
+    assert created.status_code == 201, created.text
+    job_id = created.json()["job"]["id"]
+    assert created.json()["job"]["status"] == "published"
+
+    suspended = client.patch(f"/api/admin/users/{business['user']['id']}/status", headers=admin_headers,
+                             json={"active": False, "reason": "Business access review"})
+    assert suspended.status_code == 200, suspended.text
+    assert suspended.json()["paused_published_jobs"] == 1
+    inventory = client.get("/api/admin/jobs?status_filter=all", headers=admin_headers)
+    assert next(j for j in inventory.json()["items"] if j["id"] == job_id)["status"] == "paused"
+
+    system = client.get("/api/admin/system", headers=admin_headers)
+    assert system.status_code == 200, system.text
+    payload = system.json()
+    assert payload["api"] == "ok"
+    assert payload["database"]["status"] == "ok"
+    assert payload["accounts"]["total"] >= 2
+    assert "RAZORPAY_WEBHOOK_SECRET" not in str(payload)
+    assert "DATABASE_URL" not in str(payload)
+    assert payload["integrations"]["email_delivery"]["configured"] is False
+    assert client.get("/api/admin/system", headers=business_headers).status_code == 403
+    assert client.get("/api/admin/system", headers=business_headers).status_code == 403
