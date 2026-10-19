@@ -549,6 +549,28 @@ class JobBody(BaseModel):
         return self
 
 
+class NearbyJobsSearchBody(BaseModel):
+    """Nearby search criteria in a POST body so precise worker coordinates aren't placed in URL query logs."""
+    city: str | None = Field(default=None, max_length=100)
+    category: str | None = Field(default=None, max_length=70)
+    search: str | None = Field(default=None, max_length=120)
+    min_pay: float | None = Field(default=None, ge=0, le=1_000_000)
+    max_pay: float | None = Field(default=None, ge=0, le=1_000_000)
+    latitude: float | None = Field(default=None, ge=-90, le=90)
+    longitude: float | None = Field(default=None, ge=-180, le=180)
+    radius_km: float | None = Field(default=None, gt=0, le=15)
+    page: int = Field(default=1, ge=1, le=10000)
+    page_size: int = Field(default=12, ge=1, le=50)
+
+    @model_validator(mode="after")
+    def validate_nearby_coordinates(self):
+        if (self.latitude is None) != (self.longitude is None):
+            raise ValueError("Provide both latitude and longitude for nearby search.")
+        if self.radius_km is not None and self.latitude is None:
+            raise ValueError("Nearby search requires a selected location.")
+        return self
+
+
 class WorkplaceLocationBody(BaseModel):
     latitude: float = Field(ge=-90, le=90)
     longitude: float = Field(ge=-180, le=180)
@@ -1028,6 +1050,36 @@ def list_jobs(
     jobs = db.scalars(query.order_by(Job.start_at.asc()).offset((page - 1) * page_size).limit(page_size)).all()
     return {"items": [serialize_job(db, job, worker_profile) for job in jobs], "total": total,
             "page": page, "page_size": page_size, "nearby": False}
+
+
+@app.post("/api/jobs/nearby")
+def list_nearby_jobs(
+    body: NearbyJobsSearchBody,
+    request: Request,
+    db: Session = Depends(get_db),
+    authorization: str | None = Header(default=None),
+):
+    """Search public nearby jobs without putting precise coordinates into URL query strings."""
+    enforce_rate_limit(
+        request,
+        "nearby_jobs",
+        90,
+        "Too many nearby searches. Please wait a moment and try again.",
+    )
+    return list_jobs(
+        city=body.city,
+        category=body.category,
+        search=body.search,
+        min_pay=body.min_pay,
+        max_pay=body.max_pay,
+        latitude=body.latitude,
+        longitude=body.longitude,
+        radius_km=body.radius_km,
+        page=body.page,
+        page_size=body.page_size,
+        db=db,
+        authorization=authorization,
+    )
 
 
 @app.get("/api/jobs/{job_id}")
