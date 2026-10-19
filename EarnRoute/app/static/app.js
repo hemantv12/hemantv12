@@ -860,12 +860,101 @@ document.addEventListener('focusin', event => {
 document.addEventListener('focusout', () => {
   window.setTimeout(erSyncKeyboardViewport, 120);
 });
+
+document.addEventListener('input', event => {
+  if (event.target && event.target.id === 'auth-password') erUpdatePasswordStrength();
+});
 window.addEventListener('orientationchange', () => {
   window.setTimeout(() => {
     erLastNonKeyboardViewportHeight = erCurrentVisibleViewportHeight();
     erSyncKeyboardViewport();
   }, 250);
 });
+
+function erPasswordText(key) {
+  const hindi = document.documentElement.lang === 'hi-IN';
+  const dictionary = {
+    show: hindi ? 'दिखाएँ' : 'Show',
+    hide: hindi ? 'छिपाएँ' : 'Hide',
+    enter: hindi ? 'पासवर्ड की मजबूती यहाँ दिखेगी।' : 'Enter a password to check strength.',
+    weak: hindi ? 'कमज़ोर' : 'Weak',
+    fair: hindi ? 'ठीक' : 'Fair',
+    good: hindi ? 'अच्छा' : 'Good',
+    strong: hindi ? 'मज़बूत' : 'Strong',
+    chars: hindi ? 'अक्षर' : 'characters'
+  };
+  return dictionary[key] || key;
+}
+
+function erUpdatePasswordStrength() {
+  const input = $('#auth-password');
+  const panel = $('#password-strength');
+  const label = $('#password-strength-label');
+  if (!input || !panel || !label) return;
+  const password = String(input.value || '');
+  const enabled = authMode === 'register';
+  panel.hidden = !enabled || !password.length;
+  const bar = panel.querySelector('.password-strength-track span');
+  if (!enabled || !password.length) {
+    panel.dataset.level = '';
+    if (bar) bar.style.width = '0%';
+    label.textContent = erPasswordText('enter');
+    return;
+  }
+  const checks = [
+    password.length >= 10,
+    password.length >= 14,
+    /[a-z]/.test(password) && /[A-Z]/.test(password),
+    /[0-9]/.test(password),
+    /[^A-Za-z0-9]/.test(password)
+  ];
+  const score = checks.filter(Boolean).length;
+  const level = score <= 1 ? 'weak' : score === 2 ? 'fair' : score <= 4 ? 'good' : 'strong';
+  panel.dataset.level = level;
+  if (bar) bar.style.width = (score / checks.length * 100) + '%';
+  label.textContent = erPasswordText(level.charAt(0).toUpperCase() + level.slice(1).toLowerCase()) +
+    ' · ' + password.length + ' ' + erPasswordText('chars');
+}
+
+function erSetNativeBackHandling(enabled) {
+  try {
+    const bridge = window.EarnRouteNative;
+    if (bridge && typeof bridge.setBackHandlingEnabled === 'function') {
+      bridge.setBackHandlingEnabled(Boolean(enabled));
+    }
+  } catch (_) { /* The browser version has no native back bridge. */ }
+}
+
+function erSyncNativeBackHandling() {
+  const authOpen = !!($('#auth-modal') && !$('#auth-modal').hidden);
+  const drawerOpen = document.documentElement.classList.contains('er-drawer-open');
+  const notificationOpen = !!$('#notification-panel');
+  erSetNativeBackHandling(authOpen || drawerOpen || notificationOpen);
+}
+
+window.erHandleNativeBack = function() {
+  const root = document.documentElement;
+  if (root.classList.contains('er-keyboard-open')) {
+    const active = document.activeElement;
+    if (active && typeof active.blur === 'function') active.blur();
+    erSyncKeyboardViewport();
+    return;
+  }
+  if (root.classList.contains('er-drawer-open')) {
+    erSetMobileDrawerOpen(false);
+    return;
+  }
+  const auth = $('#auth-modal');
+  if (auth && !auth.hidden && !isAdminPortal) {
+    closeAuth();
+    return;
+  }
+  if ($('#notification-panel')) {
+    $('#notification-panel').remove();
+    erSyncNativeBackHandling();
+    return;
+  }
+};
 
 function openAuth(mode = 'login', role = 'worker') {
   if (isAdminPortal) mode = 'login';
@@ -876,6 +965,7 @@ function openAuth(mode = 'login', role = 'worker') {
   setAuthMode(mode);
   $('#auth-modal').hidden = false;
   document.body.style.overflow = 'hidden';
+  erSyncNativeBackHandling();
   const authSheet = $('#auth-modal .auth-modal');
   if (authSheet) authSheet.scrollTop = 0;
   erSyncKeyboardViewport();
@@ -892,6 +982,7 @@ function closeAuth() {
   document.body.style.overflow = '';
   document.documentElement.classList.remove('er-keyboard-open');
   $('#auth-error').hidden = true;
+  erSyncNativeBackHandling();
 }
 function setAuthMode(mode) {
   if (isAdminPortal) mode = 'login';
@@ -909,6 +1000,17 @@ function setAuthMode(mode) {
   $('#auth-password').autocomplete = mode === 'login' ? 'current-password' : 'new-password';
   $('#auth-password').minLength = mode === 'login' ? 1 : 10;
   $('#password-hint').textContent = mode === 'login' ? 'Keep your password private.' : 'Use at least 10 characters.';
+  const passwordInput = $('#auth-password');
+  const visibilityToggle = $('#auth-password-toggle');
+  if (passwordInput) passwordInput.type = 'password';
+  if (visibilityToggle) {
+    visibilityToggle.textContent = erPasswordText('show');
+    visibilityToggle.setAttribute('aria-label', erPasswordText('show') + ' password');
+    visibilityToggle.setAttribute('aria-pressed', 'false');
+  }
+  const strengthPanel = $('#password-strength');
+  if (strengthPanel) strengthPanel.hidden = mode !== 'register' || !String(passwordInput && passwordInput.value || '').length;
+  erUpdatePasswordStrength();
   $('#auth-submit').innerHTML = mode === 'login' ? 'Log in <span>↗</span>' : 'Create account <span>↗</span>';
   $$('[data-auth-mode]').forEach(el=>el.classList.toggle('active',el.dataset.authMode===mode));
   $('#auth-error').hidden = true;
@@ -1010,7 +1112,7 @@ async function showNotifications() {
     const result=await api('/api/notifications'); const items=result.items||[];
     panel=document.createElement('div'); panel.id='notification-panel'; panel.className='notification-panel';
     panel.innerHTML=`<div class="panel-header"><div><h2 class="panel-title">Notifications</h2><div class="panel-subtitle">Recorded status updates for your account.</div></div><button class="icon-btn" data-close-notifications aria-label="Close notifications">×</button></div><div class="panel-body">${items.length?items.map(n=>`<button class="notification-item ${n.read?'read':''}" data-read-notification="${n.id}" style="display:flex;text-align:left;gap:10px;width:100%;padding:12px 0;border:0;border-bottom:1px solid #eef2ee;background:transparent;cursor:pointer"><span class="list-row-icon">${n.read?'✓':'•'}</span><span class="list-row-main"><b>${escapeHtml(n.title)}</b><small>${escapeHtml(n.body)}<br>${escapeHtml(formatDate(n.created_at))}</small></span></button>`).join(''):emptyState('No notifications','Application, offer, attendance and payment updates will be shown here.','♧')}</div>`;
-    document.body.appendChild(panel); const unread=items.filter(i=>!i.read).length;$('#notification-count').hidden=!unread;
+    document.body.appendChild(panel); erSyncNativeBackHandling(); const unread=items.filter(i=>!i.read).length;$('#notification-count').hidden=!unread;
   } catch(error){showToast(friendlyError(error),'error');}
 }
 
@@ -1024,6 +1126,7 @@ function erSetMobileDrawerOpen(open) {
   const next = Boolean(open);
   sidebar.classList.toggle('mobile-open', next);
   root.classList.toggle('er-drawer-open', next);
+  erSyncNativeBackHandling();
   if (next) {
     let scrim = $('#er-sidebar-scrim');
     if (!scrim) {
@@ -1036,6 +1139,7 @@ function erSetMobileDrawerOpen(open) {
     $('#er-sidebar-scrim')?.remove();
     if (menuButton) menuButton.setAttribute('aria-expanded', 'false');
   }
+  erSyncNativeBackHandling();
 }
 document.addEventListener('keydown', event => {
   if (event.key === 'Escape' && document.documentElement.classList.contains('er-drawer-open')) {
@@ -1047,6 +1151,21 @@ document.addEventListener('keydown', event => {
 document.addEventListener('click', async event => {
   const target=event.target.closest('button,a,[data-open-auth]');
   if(!target)return;
+  if (target.dataset.passwordToggle) {
+    const input = document.getElementById(target.dataset.passwordToggle);
+    if (input && input.matches('input[type="password"],input[type="text"]')) {
+      const revealing = input.type === 'password';
+      const start = input.selectionStart;
+      const end = input.selectionEnd;
+      input.type = revealing ? 'text' : 'password';
+      target.textContent = erPasswordText(revealing ? 'hide' : 'show');
+      target.setAttribute('aria-label', erPasswordText(revealing ? 'hide' : 'show') + ' password');
+      target.setAttribute('aria-pressed', revealing ? 'true' : 'false');
+      try { input.focus({preventScroll:true}); } catch (_) { input.focus(); }
+      try { if (start !== null && end !== null) input.setSelectionRange(start,end); } catch (_) { /* Password fields may not expose a caret. */ }
+    }
+    return;
+  }
   if(target.dataset.openAuth){event.preventDefault();openAuth(target.dataset.openAuth,target.dataset.role||'worker');return;}
   if(target.dataset.authMode){setAuthMode(target.dataset.authMode);return;}
   if((target.id==='close-auth' || (target.classList.contains('modal-backdrop')&&target.id==='auth-modal')) && !isAdminPortal){closeAuth();return;}
@@ -1072,7 +1191,7 @@ document.addEventListener('click', async event => {
     return;
   }
   if(target.id==='notifications-btn'){showNotifications();return;}
-  if(target.dataset.closeNotifications!==undefined){$('#notification-panel')?.remove();return;}
+  if(target.dataset.closeNotifications!==undefined){$('#notification-panel')?.remove();erSyncNativeBackHandling();return;}
   if(target.dataset.screen){
     event.preventDefault();
     if(document.documentElement.classList.contains('er-drawer-open')) erSetMobileDrawerOpen(false);
