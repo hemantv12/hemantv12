@@ -817,10 +817,12 @@ document.addEventListener('focusin', event => {
   const target = event.target;
   erSyncKeyboardViewport();
   // Re-check after keyboard animation; some keyboards update their final insets in stages.
-  [80, 180, 320].forEach(delay => window.setTimeout(() => {
-    if (document.activeElement !== target) return;
+  // Android keyboards can animate/settle in multiple stages, especially on lower-memory phones.
+  // Re-measure after each stage so the password/submit controls never remain behind the IME.
+  [40, 100, 180, 300, 480, 720, 1000].forEach(delay => window.setTimeout(() => {
+    if (document.activeElement !== target || !document.documentElement.classList.contains('er-native-app')) return;
     erSyncKeyboardViewport();
-    erKeepFocusedControlVisible(target);
+    window.requestAnimationFrame(() => erKeepFocusedControlVisible(target));
   }, delay));
 });
 document.addEventListener('focusout', () => {
