@@ -108,7 +108,7 @@ def test_saved_shifts_discovery_sorting_and_india_safety_are_wired():
     assert "t('sortHourlyRate')" in nearby_js
     assert "mode === 'hourly-rate'" in nearby_js
     assert "er-hourly-estimate" in nearby_js
-    assert "Most open spots" in nearby_js
+    assert "t('sortOpenSpots')" in nearby_js
     assert "href=\"tel:112\"" in nearby_js
     assert "href=\"tel:1930\"" in nearby_js
     assert "https://www.ncs.gov.in/" in nearby_js
