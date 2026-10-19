@@ -1573,3 +1573,137 @@ html.er-native-app.er-drawer-open .er-mobile-nav,
 html.er-native-app.er-drawer-open .workspace-footer { display:none !important; }
 html.er-native-app.er-drawer-open { overscroll-behavior:none; }
 html.er-native-app.er-drawer-open .sidebar { touch-action:pan-y; }
+
+
+/* RELEASE 1.6.5 — deterministic Android system bars, drawer stacking and auth controls.
+   The native WebView owns top/side padding; CSS alone positions the fixed bottom navigation. */
+html.er-native-app {
+  --er-mobile-header-height:62px;
+  --er-mobile-nav-height:68px;
+  --er-system-bottom-inset:0px;
+}
+html.er-native-app .workspace,
+html.er-native-app .workspace-main {
+  min-height:100dvh;
+  min-width:0;
+  max-width:100%;
+}
+html.er-native-app .workspace-topbar {
+  position:sticky !important;
+  top:0 !important;
+  z-index:210 !important;
+  flex:0 0 var(--er-mobile-header-height,62px) !important;
+  height:var(--er-mobile-header-height,62px) !important;
+  min-height:var(--er-mobile-header-height,62px) !important;
+}
+html.er-native-app .sidebar {
+  z-index:540 !important;
+  top:var(--er-mobile-header-height,62px) !important;
+  bottom:var(--er-system-bottom-inset,0px) !important;
+  height:auto !important;
+  max-height:calc(100dvh - var(--er-mobile-header-height,62px) - var(--er-system-bottom-inset,0px)) !important;
+  padding-bottom:calc(16px + env(safe-area-inset-bottom,0px)) !important;
+}
+html.er-native-app .sidebar.mobile-open {
+  z-index:540 !important;
+  left:0 !important;
+}
+html.er-native-app .er-sidebar-scrim {
+  z-index:530 !important;
+  top:var(--er-mobile-header-height,62px) !important;
+  bottom:var(--er-system-bottom-inset,0px) !important;
+}
+html.er-native-app.er-drawer-open .er-mobile-nav,
+html.er-native-app.er-drawer-open .workspace-footer { display:none !important; }
+html.er-native-app .er-mobile-nav {
+  z-index:500 !important;
+  bottom:var(--er-system-bottom-inset,0px) !important;
+  min-height:var(--er-mobile-nav-height,68px) !important;
+  padding:7px 7px 7px !important;
+}
+html.er-native-app .view-root {
+  box-sizing:border-box;
+  padding-bottom:calc(var(--er-mobile-nav-height,68px) + 18px + var(--er-system-bottom-inset,0px)) !important;
+}
+html.er-native-app.er-keyboard-open .er-mobile-nav { display:none !important; }
+html.er-native-app.er-keyboard-open .view-root {
+  padding-bottom:14px !important;
+  scroll-padding-bottom:28px !important;
+}
+html.er-native-app .sidebar .workspace-label { display:none !important; }
+
+/* Password reveal and live strength feedback. No password value is stored or transmitted by this UI. */
+.password-input-wrap {
+  display:flex;
+  align-items:stretch;
+  gap:7px;
+  width:100%;
+  min-width:0;
+}
+.password-input-wrap input {
+  flex:1 1 auto;
+  width:100%;
+  min-width:0;
+}
+.password-visibility-toggle {
+  flex:0 0 auto;
+  min-width:61px;
+  min-height:44px;
+  padding:0 11px;
+  border:1px solid #dfe8dc;
+  border-radius:11px;
+  background:#f7faf2;
+  color:#31563a;
+  font-size:11px;
+  font-weight:850;
+  touch-action:manipulation;
+}
+.password-visibility-toggle:focus-visible {
+  outline:3px solid rgba(201,244,81,.65);
+  outline-offset:2px;
+}
+.password-strength {
+  display:grid;
+  gap:6px;
+  margin-top:1px;
+}
+.password-strength[hidden] { display:none !important; }
+.password-strength-track {
+  width:100%;
+  height:5px;
+  overflow:hidden;
+  border-radius:99px;
+  background:#edf1e8;
+}
+.password-strength-track span {
+  display:block;
+  width:0;
+  height:100%;
+  border-radius:inherit;
+  transition:width .16s ease,background-color .16s ease;
+}
+.password-strength[data-level="weak"] .password-strength-track span { background:#d96a5f; }
+.password-strength[data-level="fair"] .password-strength-track span { background:#d5a342; }
+.password-strength[data-level="good"] .password-strength-track span { background:#7baf40; }
+.password-strength[data-level="strong"] .password-strength-track span { background:#25845b; }
+.password-strength-label {
+  color:#7a897b;
+  font-size:10px;
+  line-height:1.45;
+}
+html.er-native-app #auth-modal .password-input-wrap { gap:6px; }
+html.er-native-app #auth-modal .password-visibility-toggle {
+  min-height:48px;
+  min-width:63px;
+}
+html.er-native-app.er-keyboard-open #auth-modal .password-visibility-toggle {
+  min-height:43px;
+  height:43px;
+}
+@media(max-width:390px) {
+  .password-visibility-toggle { min-width:55px; padding:0 8px; }
+  html.er-native-app .workspace-topbar { z-index:210 !important; }
+}
+@media(prefers-reduced-motion:reduce) {
+  .password-strength-track span { transition:none !important; }
+}
