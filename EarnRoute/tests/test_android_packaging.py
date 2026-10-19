@@ -163,3 +163,20 @@ def test_native_header_controls_fit_and_hidden_server_button_stays_hidden():
     assert 'data-connect-server aria-label="Connect server"' in html
     assert "html.er-native-app .topbar-actions > #profile-btn > span:nth-child(2)" in css
     assert "html.er-native-app .view-root {\n  min-width:0;" in css
+
+
+def test_commute_aware_estimate_is_explicit_and_optional():
+    nearby_js = (ROOT / "app/static/nearby.js").read_text()
+    app_js = (ROOT / "app/static/app.js").read_text()
+    nearby_css = (ROOT / "app/static/nearby.css").read_text()
+    assert "function erGetCommuteCostPerKm(value)" in nearby_js
+    assert "function erEstimatedCommuteCost(job, rate)" in nearby_js
+    assert "return Math.round(distance * 2 * perKm)" in nearby_js
+    assert "mode === 'after-commute'" in nearby_js
+    assert "erSortSelectMarkup(sortBy, commuteRate)" in nearby_js
+    assert 'name="commute_cost_per_km"' in nearby_js
+    assert "road route and actual transport fare may differ" in nearby_js
+    assert "sortAfterCommute: 'Best after commute estimate'" in app_js
+    assert "sortAfterCommute: 'यात्रा खर्च के बाद सबसे ज़्यादा'" in app_js
+    assert ".er-commute-estimate" in nearby_css
+    assert ".connect-server-btn[hidden] { display:none !important; }" in nearby_css
