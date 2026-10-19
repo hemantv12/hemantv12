@@ -947,7 +947,7 @@ public final class MainActivity extends Activity {
             if (error != null) { studioOutput.setText(error); studioOutput.setTextColor(RED); }
             else {
                 studioOutput.setText(data.optString("output",
-                    data.optString("draft", data.optString("text", data.optString("message", "The draft could not be displayed."))));
+                    data.optString("draft", data.optString("text", data.optString("message", "The draft could not be displayed.")))));
                 studioOutput.setTextColor(INK);
             }
         });
