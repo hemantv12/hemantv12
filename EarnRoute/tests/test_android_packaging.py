@@ -350,3 +350,34 @@ def test_keyboard_layout_has_single_scroll_owner_and_keyboard_resizes_content():
     assert css.count("html.er-native-app.er-keyboard-open #auth-modal .auth-modal {") == 1
     assert 'android:windowSoftInputMode="adjustResize"' in (ANDROID / "app/src/main/AndroidManifest.xml").read_text()
     assert "WindowInsetsCompat.Type.ime()" in activity
+
+
+def test_mobile_header_drawer_and_bottom_navigation_respect_android_system_bars():
+    css = (ROOT / "app/static/nearby.css").read_text()
+    js = (ROOT / "app/static/app.js").read_text()
+    html = (ROOT / "app/static/index.html").read_text()
+    activity = (ANDROID / "app/src/main/java/in/earnroute/app/MainActivity.java").read_text()
+    assert "top:var(--er-mobile-header-height,62px);" in css
+    assert "bottom:var(--er-system-bottom-inset,0px) !important;" in css
+    assert "padding:7px 7px 7px !important;" in css
+    assert "html.er-native-app.er-drawer-open .er-mobile-nav" in css
+    assert "html.er-native-app .sidebar > .workspace-label { display:none !important; }" in css
+    assert "function erSetMobileDrawerOpen(open)" in js
+    assert "id=\\"er-sidebar-scrim\\"" in js
+    assert "event.key === 'Escape' && document.documentElement.classList.contains('er-drawer-open')" in js
+    assert "if(document.documentElement.classList.contains('er-drawer-open')) erSetMobileDrawerOpen(false);" in js
+    assert 'aria-controls="sidebar" aria-expanded="false"' in html
+    assert "getSystemBottomInsetDp()" in activity
+
+
+def test_auth_keyboard_layout_keeps_password_and_submit_in_scrollable_sheet():
+    css = (ROOT / "app/static/nearby.css").read_text()
+    js = (ROOT / "app/static/app.js").read_text()
+    assert "html.er-native-app.er-keyboard-open #auth-modal .auth-modal" in css
+    assert "overflow-y:auto !important;" in css
+    assert "max-height:calc(var(--er-visual-viewport-height, 100dvh) - 6px) !important;" in css
+    assert "function erSyncKeyboardViewport()" in js
+    assert "window.visualViewport.addEventListener('resize', erSyncKeyboardViewport" in js
+    assert "window.requestAnimationFrame(() => erKeepFocusedControlVisible(document.activeElement));" in js
+    assert "getSystemImeInsetDp()" in js
+
