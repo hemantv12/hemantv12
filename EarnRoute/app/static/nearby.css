@@ -957,3 +957,26 @@ html.er-native-app .er-mobile-nav button small {
   html.er-native-app .topbar-actions > #lang-btn { display:none !important; }
   html.er-native-app .mobile-brand-title { font-size:12px; }
 }
+
+
+/* Commute-aware earning estimate — user-defined budget, never a claimed fare quote. */
+.er-commute-field { display:flex; flex-direction:column; gap:6px; min-width:0; }
+.er-commute-field input {
+  box-sizing:border-box; width:100%; min-width:0; min-height:42px; padding:10px 11px;
+  border:1px solid #dfe6d9; border-radius:11px; background:#fff; color:#25392a;
+  font:inherit; font-size:11px; font-weight:750;
+}
+.er-commute-field input:focus { outline:3px solid rgba(201,244,81,.3); outline-offset:1px; border-color:#89a947; }
+.er-commute-estimate { display:block; margin-top:5px; color:#52723c!important; font-size:10px!important; font-weight:850; line-height:1.45; }
+@media(min-width:1001px) {
+  .er-search-row { grid-template-columns:minmax(0,1fr) 112px 142px minmax(165px,.8fr) auto auto; }
+}
+@media(max-width:1000px) {
+  .er-search-row { grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:8px; }
+  .er-search-row input[name="search"],.er-search-row .er-sort-field { grid-column:1 / -1; }
+  .er-search-row input[name="min_pay"],.er-search-row .er-commute-field { grid-column:auto; min-width:0; }
+  .er-search-row button[type="submit"],.er-search-row button[type="reset"] { width:100%; }
+}
+@media(max-width:390px) {
+  .er-commute-field input { padding-left:9px; padding-right:8px; font-size:10px; }
+}
