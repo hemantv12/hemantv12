@@ -1086,6 +1086,8 @@ async function submitJob(form) {
     const datetime = value => { const date=new Date(value); if(Number.isNaN(date.getTime())) throw new Error('Please enter valid dates and times.'); return date.toISOString(); };
     const payload={title:d.title,description:d.description,category:d.category,city:d.city,address:d.address||'',slots:Number(d.slots),start_at:datetime(d.start_at),end_at:datetime(d.end_at),pay_amount:Number(d.pay_amount),pay_basis:d.pay_basis,payment_terms:d.payment_terms,requirements:parseCommaList(d.requirements),min_experience:Number(d.min_experience||0),breaks_info:d.breaks_info||'',equipment_info:d.equipment_info||'',safety_info:d.safety_info||'',application_deadline:datetime(d.application_deadline),cancellation_policy:d.cancellation_policy,publish:$('#job-publish').checked};
     const result=await api('/api/jobs',{method:'POST',body:payload});
+    const draftKey = erBusinessJobDraftKey();
+    if (draftKey) { try { sessionStorage.removeItem(draftKey); } catch (_) { } }
     showToast(payload.publish?'Job published.':'Draft saved.');
     setActiveScreen('business-jobs');
   } catch(error) {errorEl.textContent=friendlyError(error);errorEl.hidden=false;}
@@ -1107,7 +1109,7 @@ async function actionApi(path, method='POST', body=undefined, success='Updated s
 }
 async function showNotifications() {
   let panel=$('#notification-panel');
-  if(panel){panel.remove();return;}
+  if(panel){panel.remove();erSyncNativeBackHandling();return;}
   try {
     const result=await api('/api/notifications'); const items=result.items||[];
     panel=document.createElement('div'); panel.id='notification-panel'; panel.className='notification-panel';
@@ -1859,3 +1861,147 @@ if (typeof MutationObserver !== 'undefined' && document.body) {
 window.addEventListener('beforeunload', () => {
   try { localStorage.setItem('earnroute_language', selectedLanguage); } catch (_) {}
 });
+
+
+/* Offline/reconnection status. navigator.onLine is a hint; the Retry action also probes the API. */
+function erEnsureNetworkBanner() {
+  let banner = $('#er-network-banner');
+  if (banner) return banner;
+  banner = document.createElement('section');
+  banner.id = 'er-network-banner';
+  banner.className = 'er-network-banner';
+  banner.hidden = true;
+  banner.setAttribute('role', 'status');
+  banner.setAttribute('aria-live', 'polite');
+  const message = document.createElement('span');
+  message.className = 'er-network-banner-message';
+  message.textContent = 'No internet connection detected.';
+  const retry = document.createElement('button');
+  retry.type = 'button';
+  retry.className = 'er-network-retry';
+  retry.textContent = 'Check again';
+  const dismiss = document.createElement('button');
+  dismiss.type = 'button';
+  dismiss.className = 'er-network-dismiss';
+  dismiss.setAttribute('aria-label', 'Dismiss connection message');
+  dismiss.textContent = '×';
+  banner.append(message, retry, dismiss);
+  document.body.appendChild(banner);
+  retry.addEventListener('click', async () => {
+    retry.disabled = true;
+    retry.textContent = 'Checking…';
+    message.textContent = navigator.onLine
+      ? 'Checking the EarnRoute service…'
+      : 'Your device reports no internet connection yet.';
+    if (!navigator.onLine) {
+      retry.disabled = false;
+      retry.textContent = 'Check again';
+      return;
+    }
+    try {
+      await api('/api/health');
+      message.textContent = 'EarnRoute responded. Retry any action that failed while offline.';
+      banner.dataset.state = 'online';
+      window.setTimeout(() => { banner.hidden = true; }, 5000);
+    } catch (_) {
+      message.textContent = 'Internet is detected, but EarnRoute has not responded yet. Try again shortly.';
+      banner.dataset.state = 'offline';
+    } finally {
+      retry.disabled = false;
+      retry.textContent = 'Check again';
+    }
+  });
+  dismiss.addEventListener('click', () => { banner.hidden = true; });
+  return banner;
+}
+function erUpdateNetworkBanner(isOnline) {
+  const banner = erEnsureNetworkBanner();
+  if (!isOnline) {
+    banner.dataset.state = 'offline';
+    banner.querySelector('.er-network-banner-message').textContent =
+      'Internet connection lost. Live shifts and submissions may not update.';
+    banner.hidden = false;
+    return;
+  }
+  if (!banner.hidden) {
+    banner.dataset.state = 'online';
+    banner.querySelector('.er-network-banner-message').textContent =
+      'Internet connection detected again. Check the server before retrying a failed submission.';
+  }
+}
+window.addEventListener('offline', () => erUpdateNetworkBanner(false));
+window.addEventListener('online', () => erUpdateNetworkBanner(true));
+if (navigator.onLine === false) erUpdateNetworkBanner(false);
+
+/* Business job form recovery: draft stays on this device for the current session.
+   It is never published, and the publish toggle is deliberately never restored. */
+function erBusinessJobDraftKey() {
+  const id = currentUser && currentUser.id;
+  return id ? 'earnroute_job_draft_session_' + String(id) : '';
+}
+function erInitializeBusinessJobDraft() {
+  const form = $('#job-form');
+  const key = erBusinessJobDraftKey();
+  if (!form || !key || form.dataset.erDraftReady === '1') return;
+  form.dataset.erDraftReady = '1';
+  let restored = false;
+  try {
+    const raw = sessionStorage.getItem(key);
+    const draft = raw ? JSON.parse(raw) : null;
+    if (draft && typeof draft === 'object' && !Array.isArray(draft)) {
+      form.querySelectorAll('[name]').forEach(control => {
+        const name = control.name;
+        if (!name || name === 'publish' || !(name in draft)) return;
+        if (control.type === 'checkbox') control.checked = Boolean(draft[name]);
+        else if (control.type === 'radio') control.checked = String(draft[name]) === control.value;
+        else if (typeof draft[name] === 'string' || typeof draft[name] === 'number') control.value = String(draft[name]);
+      });
+      restored = true;
+    }
+  } catch (_) { /* Invalid or unavailable session storage must not block job creation. */ }
+  const notice = document.createElement('div');
+  notice.className = 'er-job-draft-notice';
+  notice.setAttribute('role', 'status');
+  const message = document.createElement('span');
+  message.textContent = restored
+    ? 'Draft restored from this session. Review the details before saving or publishing.'
+    : 'Your unfinished form auto-saves on this device for this session only.';
+  const clear = document.createElement('button');
+  clear.type = 'button';
+  clear.className = 'er-job-draft-clear';
+  clear.textContent = 'Clear draft';
+  notice.append(message, clear);
+  const intro = form.querySelector('p');
+  if (intro) intro.insertAdjacentElement('afterend', notice);
+  else form.prepend(notice);
+
+  const save = () => {
+    try {
+      const draft = {};
+      form.querySelectorAll('[name]').forEach(control => {
+        const name = control.name;
+        if (!name || name === 'publish' || ['submit','button','reset','file','password'].includes(control.type)) return;
+        if (control.type === 'checkbox') draft[name] = control.checked;
+        else if (control.type === 'radio') { if (control.checked) draft[name] = control.value; }
+        else draft[name] = String(control.value || '').slice(0, 6000);
+      });
+      const serialized = JSON.stringify(draft);
+      if (serialized.length <= 24000) {
+        sessionStorage.setItem(key, serialized);
+        message.textContent = 'Draft auto-saved on this device · session only. Publishing is always manual.';
+      }
+    } catch (_) {
+      message.textContent = 'Draft could not be saved by this browser. Please save it before leaving.';
+    }
+  };
+  form.addEventListener('input', save);
+  form.addEventListener('change', save);
+  clear.addEventListener('click', () => {
+    try { sessionStorage.removeItem(key); } catch (_) { }
+    form.reset();
+    const latitude = $('#job-latitude'), longitude = $('#job-longitude');
+    if (latitude) latitude.value = '';
+    if (longitude) longitude.value = '';
+    message.textContent = 'Local draft cleared. Review the form before saving or publishing.';
+  });
+}
