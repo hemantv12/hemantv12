@@ -32,6 +32,7 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.webkit.WebViewAssetLoader;
 
@@ -66,6 +67,7 @@ public final class MainActivity extends Activity {
     private final ExecutorService ioExecutor = Executors.newSingleThreadExecutor();
     private volatile int systemBottomInsetDp = 0;
     private volatile int systemImeInsetDp = 0;
+    private volatile boolean backHandlingEnabled = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -157,8 +159,17 @@ public final class MainActivity extends Activity {
 
     private void configureSystemBars() {
         Window window = getWindow();
-        window.setStatusBarColor(Color.rgb(18, 45, 33));
-        window.setNavigationBarColor(Color.rgb(18, 45, 33));
+        // Android 15+ enforces edge-to-edge for targetSdk 35+. Make it explicit on all
+        // supported versions so the WebView and CSS agree on who owns each system inset.
+        WindowCompat.setDecorFitsSystemWindows(window, false);
+        window.setStatusBarColor(Color.TRANSPARENT);
+        window.setNavigationBarColor(Color.TRANSPARENT);
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            // Keep three-button navigation readable without allowing a system scrim to cover
+            // the app's own bottom navigation. The WebView root paints the bar background.
+            window.setNavigationBarContrastEnforced(false);
+            window.setStatusBarContrastEnforced(false);
+        }
         window.getDecorView().setSystemUiVisibility(0);
         window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
     }
@@ -250,24 +261,31 @@ public final class MainActivity extends Activity {
         ViewCompat.setOnApplyWindowInsetsListener(view, (target, windowInsets) -> {
             int systemBarsAndCutout = WindowInsetsCompat.Type.systemBars()
                     | WindowInsetsCompat.Type.displayCutout();
+            int navigationBarType = WindowInsetsCompat.Type.navigationBars();
             Insets bars = windowInsets.getInsets(systemBarsAndCutout);
-            Insets navigationBars = windowInsets.getInsets(WindowInsetsCompat.Type.navigationBars());
+            Insets visibleNavigationBars = windowInsets.getInsets(navigationBarType);
+            Insets stableNavigationBars = windowInsets.getInsetsIgnoringVisibility(navigationBarType);
+            Insets tappableElements = windowInsets.getInsets(WindowInsetsCompat.Type.tappableElement());
             Insets ime = windowInsets.getInsets(WindowInsetsCompat.Type.ime());
             boolean imeVisible = windowInsets.isVisible(WindowInsetsCompat.Type.ime());
             float density = getResources().getDisplayMetrics().density;
-            if (!imeVisible || navigationBars.bottom > 0) {
-                systemBottomInsetDp = Math.max(0, Math.round(navigationBars.bottom / density));
-            }
-            // The normal web viewport already excludes the navigation-bar inset. Use only
-            // the extra keyboard obstruction to avoid subtracting the bottom bar twice.
+
+            // Use the largest reliable bottom inset. On gesture navigation the visible bar
+            // can report zero during transient visibility; stable/tappable insets still reserve
+            // room for 3-button navigation and the gesture handle.
+            int bottomInsetPx = Math.max(
+                    Math.max(bars.bottom, visibleNavigationBars.bottom),
+                    Math.max(stableNavigationBars.bottom, tappableElements.bottom));
+            systemBottomInsetDp = Math.max(0, Math.round(bottomInsetPx / density));
+
+            // Do not pad the WebView's bottom and also offset CSS fixed elements: that double
+            // counts the navigation bar. Instead, the web viewport extends edge-to-edge and CSS
+            // places its fixed navigation above the exact inset. Leave IME insets unconsumed so
+            // modern WebView versions can resize the visual viewport when the keyboard opens.
             systemImeInsetDp = imeVisible
                     ? Math.max(0, Math.round(ime.bottom / density) - systemBottomInsetDp)
                     : 0;
-
-            // This native WebView already applies system bar/cutout padding. Consume those insets
-            // after padding so CSS safe-area-inset values do not add the same bars a second time.
-            // Keep IME insets unconsumed so modern WebView versions can still resize visualViewport.
-            target.setPadding(bars.left, bars.top, bars.right, bars.bottom);
+            target.setPadding(bars.left, bars.top, bars.right, 0);
             applyCssSystemBottomInset(target);
             return new WindowInsetsCompat.Builder(windowInsets)
                     .setInsets(systemBarsAndCutout, Insets.NONE)
@@ -292,6 +310,7 @@ public final class MainActivity extends Activity {
         @JavascriptInterface public String getApiBaseUrl() { return preferences.getString(API_BASE_KEY, DEFAULT_API_BASE_URL); }
         @JavascriptInterface public int getSystemBottomInsetDp() { return systemBottomInsetDp; }
         @JavascriptInterface public int getSystemImeInsetDp() { return systemImeInsetDp; }
+        @JavascriptInterface public void setBackHandlingEnabled(boolean enabled) { backHandlingEnabled = enabled; }
         @JavascriptInterface public void openServerSettings() { runOnUiThread(() -> showServerSettings()); }
 
         /** Share work/shift details using Android's native share sheet. */
