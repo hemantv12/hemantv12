@@ -71,6 +71,14 @@ function erGetLocation() {
     return value;
   } catch (_) { return null; }
 }
+function erLocationLabel(location) {
+  if (!location) return t('mapDeviceLocation');
+  if (location.source === 'manual') {
+    const label = location.approximate ? t('manualAreaApproximate') : t('manualAreaSelected');
+    return label + (location.label ? ' · ' + location.label : '');
+  }
+  return t('mapTemporaryLocation');
+}
 function erSetManualAreaCandidate(latitude, longitude) {
   const lat = Number(latitude), lon = Number(longitude);
   if (!Number.isFinite(lat) || lat < -90 || lat > 90 || !Number.isFinite(lon) || lon < -180 || lon > 180) {
@@ -447,7 +455,7 @@ function erLiveMapSectionMarkup(options) {
   const statusText = kind === 'pin'
     ? 'Map pins are a guide. Confirm the marker is on the actual workplace before publishing.'
     : kind === 'origin' ? t('manualAreaTapMap')
-    : location ? (location.source === 'manual' ? t('manualAreaSelected') : t('mapTemporaryLocation')) + ' and public workplace pins.'
+    : location ? erLocationLabel(location) + ' and public workplace pins.'
     : 'Map shows published workplace pins; choose a starting area before nearby filtering.';
   return '<section class="er-live-map-card" aria-label="' + escapeHtml(heading) + '">' +
     '<div class="er-live-map-head"><div><span class="er-map-kicker">' + escapeHtml(count) + '</span><h3>' + escapeHtml(heading) + '</h3><p>' + escapeHtml(copy) + '</p></div>' +
@@ -461,7 +469,7 @@ function erLiveMapSectionMarkup(options) {
     '<div class="er-map-legend">' + (kind === 'pin'
       ? '<span><i class="er-map-legend-pin"></i> Selected workplace</span>'
       : kind === 'origin' ? '<span><i class="er-map-legend-you"></i> Your selected search area</span>'
-      : '<span><i class="er-map-legend-you"></i> ' + escapeHtml(location && location.source === 'manual' ? t('manualAreaSelected') : t('mapDeviceLocation')) + '</span><span><i class="er-map-legend-job"></i> Published shift</span>') +
+      : '<span><i class="er-map-legend-you"></i> ' + escapeHtml(erLocationLabel(location)) + '</span><span><i class="er-map-legend-job"></i> Published shift</span>') +
     '<small>© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a> · <a href="https://www.openstreetmap.org/fixthemap" target="_blank" rel="noopener noreferrer">Report a map issue</a></small></div></div></section>';
 }
 
@@ -670,7 +678,7 @@ function erInitializeLiveMap(el) {
     const radius = Number(el.dataset.erMapRadius) || 3;
     if (hasLocation) {
       L.circle([lat,lon], {radius:radius*1000,color:'#6d9133',weight:2,fillColor:'#c9f451',fillOpacity:.09,dashArray:'5 6'}).addTo(map);
-      L.circleMarker([lat,lon], {radius:7,color:'#ffffff',weight:3,fillColor:locationSourceColor(el),fillOpacity:1}).bindTooltip((el.dataset.erMapHasLocation === '1' && erGetLocation() && erGetLocation().source === 'manual') ? t('manualAreaSelected') : t('mapDeviceLocation')).addTo(map);
+      L.circleMarker([lat,lon], {radius:7,color:'#ffffff',weight:3,fillColor:locationSourceColor(el),fillOpacity:1}).bindTooltip(erLocationLabel(erGetLocation())).addTo(map);
     }
     points.forEach(function(job) {
       const point = [Number(job.latitude),Number(job.longitude)];
@@ -821,7 +829,7 @@ renderDiscover = async function(filters) {
     soonest:t('sortSoonest').toLowerCase(), 'open-spots':t('sortOpenSpots').toLowerCase()
   }[sortBy];
   return pageHeading('NEARBY WORK','Find work close to you.','No far-away listings. Compare distance, shift time and estimated take-home before applying.','<button type="button" class="btn btn-outline" data-er-enable-location>↻ Refresh location</button>') +
-    '<div class="er-discover-toolbar"><div><span class="er-control-label">Distance limit</span>' + erRadiusButtons(radius) + '</div><div><span class="er-control-label">Work type</span>' + erCategoryButtons(category) + '</div><span class="er-location-note">⌖ ' + escapeHtml(location.source === 'manual' ? t('manualAreaSelected') : t('mapDeviceLocation')) + ' · ' + radius + ' km maximum</span></div>' +
+    '<div class="er-discover-toolbar"><div><span class="er-control-label">Distance limit</span>' + erRadiusButtons(radius) + '</div><div><span class="er-control-label">Work type</span>' + erCategoryButtons(category) + '</div><span class="er-location-note">⌖ ' + escapeHtml(erLocationLabel(location)) + ' · ' + radius + ' km maximum</span></div>' +
     '<form id="er-nearby-filter" class="er-search-row"><input name="search" placeholder="Search a local gig" aria-label="Search nearby jobs" value="' + escapeHtml(filters.search || '') + '">' +
     '<input name="min_pay" type="number" min="0" step="50" placeholder="' + escapeHtml(t('minimumPay')) + '" value="' + escapeHtml(filters.min_pay || '') + '" aria-label="' + escapeHtml(t('minimumPay')) + '">' +
     '<label class="er-commute-field"><span class="er-control-label">' + escapeHtml(t('commuteBudgetLabel')) + '</span><input name="commute_cost_per_km" type="number" min="0" max="500" step="0.5" inputmode="decimal" placeholder="' + escapeHtml(t('commuteBudgetPlaceholder')) + '" value="' + (commuteRate > 0 ? commuteRate : '') + '" aria-label="' + escapeHtml(t('commuteBudgetLabel')) + '"></label>' +
