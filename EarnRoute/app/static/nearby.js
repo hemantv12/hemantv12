@@ -923,12 +923,12 @@ function erMobileNavLabel(screen, fallback) {
   const english = {
     'overview':'Home','discover':'Nearby','saved-shifts':'Saved','applications':'Applied','schedule':'Schedule','earnings':'Earnings',
     'business-overview':'Home','post-job':'Post','business-jobs':'Shifts','business-applicants':'People','business-assignments':'Work',
-    'admin-overview':'Home','admin-verifications':'Verify','admin-jobs':'Jobs','admin-disputes':'Issues','admin-audit':'Audit'
+    'admin-overview':'Home','admin-verifications':'Verify','admin-jobs':'Jobs','admin-users':'Users','admin-support':'Support','admin-system':'System','admin-disputes':'Issues','admin-audit':'Audit'
   };
   const hindi = {
     'overview':'होम','discover':'पास में','saved-shifts':'सेव्ड','applications':'आवेदन','schedule':'शेड्यूल','earnings':'कमाई',
     'business-overview':'होम','post-job':'पोस्ट','business-jobs':'शिफ्ट','business-applicants':'आवेदक','business-assignments':'काम',
-    'admin-overview':'होम','admin-verifications':'जाँच','admin-jobs':'जॉब्स','admin-disputes':'समस्याएँ','admin-audit':'ऑडिट'
+    'admin-overview':'होम','admin-verifications':'जाँच','admin-jobs':'जॉब्स','admin-users':'यूज़र','admin-support':'सपोर्ट','admin-system':'सिस्टम','admin-disputes':'समस्याएँ','admin-audit':'ऑडिट'
   };
   const labels = document.documentElement.lang === 'hi-IN' ? hindi : english;
   return labels[screen] || fallback;
