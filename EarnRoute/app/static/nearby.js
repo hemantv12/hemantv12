@@ -109,10 +109,19 @@ function erDistanceKm(aLat, aLon, bLat, bLon) {
     Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
   return 6371.0088 * 2 * Math.asin(Math.sqrt(Math.min(1, Math.max(0, a))));
 }
+function erTakeHomePerHour(job) {
+  const net = Number(job.estimated_net_pay !== undefined ? job.estimated_net_pay : job.pay_amount || 0);
+  const hours = Number(job.duration_hours || 0);
+  return Number.isFinite(net) && Number.isFinite(hours) && hours > 0 ? net / hours : 0;
+}
 function erSortJobs(jobs, mode) {
   const items = (jobs || []).slice();
   if (mode === 'take-home') items.sort(function(a,b) {
     return Number(b.estimated_net_pay || b.pay_amount || 0) - Number(a.estimated_net_pay || a.pay_amount || 0) ||
+      Number(a.distance_km ?? Infinity) - Number(b.distance_km ?? Infinity);
+  });
+  else if (mode === 'hourly-rate') items.sort(function(a,b) {
+    return erTakeHomePerHour(b) - erTakeHomePerHour(a) ||
       Number(a.distance_km ?? Infinity) - Number(b.distance_km ?? Infinity);
   });
   else if (mode === 'soonest') items.sort(function(a,b) {
@@ -154,7 +163,7 @@ function erNearbyCard(job) {
     '<div class="er-job-title-wrap"><div><h3>' + escapeHtml(job.title) + '</h3><p>' + escapeHtml(job.business_name || 'Local business') +
     (job.business_verified ? ' <span class="er-verified-chip">✓ Checked</span>' : '') + '</p></div><span class="er-work-type">' + escapeHtml(job.category || 'Local work') + '</span></div>' +
     '<div class="er-pay-row"><div><small>GROSS / SHIFT</small><strong>' + formatMoney(gross) + '</strong><em>before platform fee</em></div>' +
-    '<div class="er-net-pay"><small>EST. YOU RECEIVE</small><strong>' + formatMoney(net) + '</strong><em>after estimated fee</em></div></div>' +
+    '<div class="er-net-pay"><small>EST. YOU RECEIVE</small><strong>' + formatMoney(net) + '</strong><em>after estimated fee</em><small class="er-hourly-estimate">' + (Number(job.duration_hours) > 0 ? formatMoney(net / Number(job.duration_hours)) + '/hr estimated' : 'Hourly estimate unavailable') + '</small></div></div>' +
     '<div class="er-job-facts"><span>◷ ' + escapeHtml(formatDate(job.start_at)) + '</span><span>◴ ' + escapeHtml(job.duration_hours) + ' hrs</span><span>◎ ' + slots + ' spot' + (slots === 1 ? '' : 's') + '</span></div>' +
     (mismatch ? '<p class="er-match-note">Review your skills and availability before applying.</p>' : '') +
     '<div class="er-job-action-row">' + saveButton +
@@ -167,12 +176,14 @@ function erNearbyCard(job) {
     (job.equipment_info ? '<p><b>Equipment / dress:</b> ' + escapeHtml(job.equipment_info) + '</p>' : '') +
     (job.safety_info ? '<p><b>Safety instructions:</b> ' + escapeHtml(job.safety_info) + '</p>' : '') +
     '<p><b>Apply by:</b> ' + escapeHtml(formatDate(job.application_deadline)) + '</p><p><b>Payment:</b> ' + escapeHtml(job.payment_terms || 'Confirm terms before accepting.') + '</p>' +
+    '<p><b>Hourly comparison:</b> ' + (Number(job.duration_hours) > 0 ? formatMoney(net / Number(job.duration_hours)) + ' estimated take-home per paid hour' : 'not available') + '. This excludes travel time, fares and waiting time.</p>' +
     '<small>Distance is straight-line GPS distance, not driving distance or ETA. Take-home pay is an estimate, not payment confirmation.</small></details></div></article>';
 }
 function erSortSelectMarkup(selected) {
   const options = [
     ['closest', 'Closest first'],
     ['take-home', 'Highest estimated take-home'],
+    ['hourly-rate', 'Best estimated take-home / hour'],
     ['soonest', 'Soonest start'],
     ['open-spots', 'Most open spots']
   ];
@@ -505,7 +516,7 @@ function erWorkerSafetyPanel() {
     '<a class="er-safety-link" href="https://www.ncs.gov.in/" target="_blank" rel="noopener noreferrer">National Career Service ↗</a></div></div></section>';
 }
 
-renderSavedShifts = async function() {
+async function renderSavedShifts() {
   let result;
   try {
     result = await api('/api/worker/saved-shifts');
@@ -575,7 +586,7 @@ renderDiscover = async function(filters) {
   const requestedRadius = Number(filters.radius_km || erRadius());
   const radius = ER_RADIUS_OPTIONS.includes(requestedRadius) ? requestedRadius : erRadius();
   const category = filters.category || erCategory();
-  const allowedSorts = ['closest','take-home','soonest','open-spots'];
+  const allowedSorts = ['closest','take-home','hourly-rate','soonest','open-spots'];
   const requestedSort = String(filters.sort_by || sessionStorage.getItem('earnroute_nearby_sort') || 'closest');
   const sortBy = allowedSorts.includes(requestedSort) ? requestedSort : 'closest';
   if (!location) {
@@ -590,7 +601,7 @@ renderDiscover = async function(filters) {
   const visibleJobs = erSortJobs(result.items || [], sortBy);
   const sortDescription = {
     closest:'closest first', 'take-home':'highest estimated take-home first',
-    soonest:'soonest start first', 'open-spots':'most open spots first'
+    'hourly-rate':'best estimated take-home per paid hour', soonest:'soonest start first', 'open-spots':'most open spots first'
   }[sortBy];
   return pageHeading('NEARBY WORK','Find work close to you.','No far-away listings. Compare distance, shift time and estimated take-home before applying.','<button type="button" class="btn btn-outline" data-er-enable-location>↻ Refresh location</button>') +
     '<div class="er-discover-toolbar"><div><span class="er-control-label">Distance limit</span>' + erRadiusButtons(radius) + '</div><div><span class="er-control-label">Work type</span>' + erCategoryButtons(category) + '</div><span class="er-location-note">⌖ Using device location · ' + radius + ' km maximum</span></div>' +
@@ -930,7 +941,7 @@ document.addEventListener('submit', async function(event) {
   if (form && form.id === 'er-nearby-filter') {
     event.preventDefault();
     const data = formObject(form);
-    if (['closest','take-home','soonest','open-spots'].includes(String(data.sort_by || ''))) {
+    if (['closest','take-home','hourly-rate','soonest','open-spots'].includes(String(data.sort_by || ''))) {
       sessionStorage.setItem('earnroute_nearby_sort', String(data.sort_by));
     }
     erDisposeLiveMaps($('#view-root'));
