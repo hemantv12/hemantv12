@@ -44,8 +44,8 @@ jobs:
         working-directory: gavyuh-app
         run: |
           cp pubspec.yaml build_app/pubspec.yaml
-          cp -R lib build_app/lib
-          cp -R test build_app/test
+          cp -R lib/. build_app/lib/
+          cp -R test/. build_app/test/
           sed -i 's/android:label="gavyuh_dairy"/android:label="Gavyuh Dairy Farm"/' build_app/android/app/src/main/AndroidManifest.xml
 
       - name: Resolve dependencies
