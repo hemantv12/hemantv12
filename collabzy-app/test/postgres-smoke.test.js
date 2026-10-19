@@ -5,6 +5,9 @@ const net=require('node:net');
 const path=require('node:path');
 const os=require('node:os');
 const fs=require('node:fs');
+const crypto=require('node:crypto');
+const adminBootstrapCode=crypto.randomBytes(36).toString('base64url');
+const adminTestPassword='TestOwner_'+crypto.randomBytes(24).toString('base64url')+'!';
 const Database=require('better-sqlite3');
 const bcrypt=require('bcryptjs');
 
@@ -23,7 +26,7 @@ test('PostgreSQL production backend supports creator-brand collaboration workflo
   legacy.close();
   let child=spawn(process.execPath,['src/server.js'],{
     cwd:path.join(__dirname,'..'),
-    env:{...process.env,NODE_ENV:'test',PORT:String(port),JWT_SECRET:'postgres-test-secret-at-least-32-characters-long',PGSSLMODE:'disable',MIGRATE_SQLITE_ON_START:'true',SQLITE_MIGRATION_PATH:sqlitePath},
+    env:{...process.env,NODE_ENV:'test',PORT:String(port),JWT_SECRET:'postgres-test-secret-at-least-32-characters-long',PGSSLMODE:'disable',MIGRATE_SQLITE_ON_START:'true',SQLITE_MIGRATION_PATH:sqlitePath,COLLABZY_ADMIN_EMAIL:'',COLLABZY_ADMIN_PASSWORD_HASH:'',COLLABZY_ADMIN_BOOTSTRAP_TOKEN:adminBootstrapCode},
     stdio:['ignore','pipe','pipe']
   });
   let logs='';
@@ -133,6 +136,25 @@ test('PostgreSQL production backend supports creator-brand collaboration workflo
   const dashboard=(await (await fetch(base+'/api/dashboard',{headers:{authorization:'Bearer '+brand.token}})).json()).stats;
   assert.equal(Number(dashboard.myCampaigns),2);
   assert.equal(Number(dashboard.receivedApplications),2);
+
+  assert.ok(adminBootstrapCode.length>=48,'the test-only owner setup code meets the minimum length');
+  const adminCreate=await fetch(base+'/api/admin/bootstrap',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({bootstrap_token:adminBootstrapCode,email:'collabzy-smoke-owner@example.com',password:adminTestPassword})});
+  assert.equal(adminCreate.status,201,'first owner admin should be created through the one-time bootstrap route: '+await adminCreate.clone().text());
+  const ownerToken=(await adminCreate.json()).token;
+  assert.ok(ownerToken,'owner setup should return a short-lived authenticated admin token');
+  const adminHeaders={'content-type':'application/json',authorization:'Bearer '+ownerToken};
+  const ownerBrandsResponse=await fetch(base+'/api/admin/brand-options',{headers:adminHeaders});
+  assert.equal(ownerBrandsResponse.status,200,'owner can load registered brand accounts for campaign publishing');
+  const ownerBrands=(await ownerBrandsResponse.json()).brands;
+  assert.ok(ownerBrands.some(b=>String(b.id)===String(brand.user.id)),'campaign composer must use an existing active brand');
+  const adminAdResponse=await fetch(base+'/api/admin/campaigns',{method:'POST',headers:adminHeaders,body:JSON.stringify({brand_id:brand.user.id,title:'Owner Published Beauty Campaign',description:'A real owner-created marketplace test campaign for registered creator discovery.',category:'Beauty',collaboration_type:'Paid',budget_min:7000,budget_max:15000,deliverables:'1 Reel plus 2 Stories',location:'India'})});
+  assert.equal(adminAdResponse.status,201,'owner can publish a campaign to the selected brand account: '+await adminAdResponse.clone().text());
+  const adminAd=(await adminAdResponse.json()).campaign;
+  assert.equal(adminAd.status,'active','owner campaign should be published as active');
+  const publicCampaignsAfterAdminPost=(await (await fetch(base+'/api/campaigns')).json()).campaigns;
+  assert.ok(publicCampaignsAfterAdminPost.some(c=>String(c.id)===String(adminAd.id)),'admin-published ad should appear in the public creator marketplace');
+  const noAdminToken=await fetch(base+'/api/admin/campaigns',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({brand_id:brand.user.id,title:'Unauthorized Campaign',description:'This publication attempt should not succeed.',category:'Beauty',collaboration_type:'Paid',budget_min:100,budget_max:200})});
+  assert.equal(noAdminToken.status,401,'campaign publishing must reject requests without an owner token');
   const exportResponse=await fetch(base+'/api/me/export',{headers:{authorization:'Bearer '+creator.token}});
   assert.equal(exportResponse.status,200);
   assert.equal((await exportResponse.json()).profile.email,creator.user.email);
