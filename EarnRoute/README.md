@@ -2,7 +2,7 @@
 
 EarnRoute is an India-first, mobile-first hyperlocal earning marketplace for finding genuine paid shifts within a selectable 1 km, 3 km or 5 km radius, plus expanded 8 km, 10 km and 15 km options. This repository is a runnable launch candidate: it includes a responsive public website, worker/business/admin workspaces, API, PostgreSQL-compatible schema, migration, tests, and deployment assets. It must **not** be represented as a fully production-verified marketplace until the remaining integrations and operating procedures in this README are completed.
 
-## Version 1.6.6 — native inset-safe mobile layout — native inset fix, safer auth and mobile recovery
+## Version 1.6.7 — system-bar-safe drawer and bottom navigation
 
 - Android system-bar handling now uses a padded native parent around the WebView and passes zeroed system-bar insets to the web content while preserving IME insets. This keeps fixed headers, the drawer, and bottom navigation inside the real visible WebView viewport instead of trying to correct system bars with CSS alone.
 
