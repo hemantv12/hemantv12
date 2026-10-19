@@ -8,6 +8,7 @@ let activeScreen = 'overview';
 let activeApplicationJob = null;
 let activeSupportTicketId = null;
 let activeAdminSupportTicketId = null;
+let adminUserFilters = { search:'', role_filter:'all', status_filter:'all' };
 let selectedLanguage = (() => {
   try { return localStorage.getItem('earnroute_language') || sessionStorage.getItem('earnroute_language') || 'en'; }
   catch (_) { return sessionStorage.getItem('earnroute_language') || 'en'; }
@@ -22,7 +23,7 @@ const TRANSLATIONS = {
     signOut: 'Sign out', overviewSub: 'Your work, organized around your life.', findShifts: 'Find shifts', profileSettings: 'Edit profile', recommended: 'Recommended for you', upcoming: 'Upcoming assignments',
     applied: 'Applications', confirmed: 'Confirmed shifts', completed: 'Completed work', pending: 'Pending settlement',
     noJobs: 'No published opportunities yet', noJobsCopy: 'New, verified opportunities will appear here when businesses publish genuine shifts. Try another category or check back later.',
-    language: 'हि', myAccount: 'My account', workerRole: 'Worker', businessRole: 'Business', adminRole: 'Admin', support: 'Help & support', adminSupport: 'Support tickets',
+    language: 'हि', myAccount: 'My account', workerRole: 'Worker', businessRole: 'Business', adminRole: 'Admin', support: 'Help & support', adminSupport: 'Support tickets', adminUsers: 'User accounts', systemHealth: 'System health',
     savedShifts: 'Saved shifts', savedShiftsSub: 'Keep promising shifts in one private list and compare them before you apply.', saveShift: 'Save shift', savedShift: 'Saved', removeSaved: 'Remove', noSavedShifts: 'No saved shifts yet', noSavedShiftsCopy: 'Save a published shift while browsing and it will appear here for later.', jobSafety: 'Work safely. Get paid fairly.', safetyIntro: 'A few checks can help you avoid common job scams and stay prepared while travelling to a shift.', safetyRule: 'Never pay a recruiter or employer to get a job, registration, or an interview.', emergency112: 'Emergency help · 112', cyberHelp: 'Cyber fraud helpline · 1930', officialSafety: 'Official safety guidance',
     reportConcern: 'Report a concern', reportMinChars: 'Please describe the concern in at least 20 characters. Do not include passwords, OTPs or identity numbers.', safetyReportSent: 'Your safety concern was sent to EarnRoute support. For immediate danger, call 112.',
     minimumPay: 'Minimum pay ₹', search: 'Search', clear: 'Clear',
@@ -66,7 +67,7 @@ const TRANSLATIONS = {
     signOut: 'साइन आउट', overviewSub: 'आपका काम, आपकी ज़िंदगी के हिसाब से।', findShifts: 'शिफ्ट खोजें', profileSettings: 'प्रोफ़ाइल एडिट करें', recommended: 'आपके लिए सही काम', upcoming: 'आने वाले असाइनमेंट',
     applied: 'आवेदन', confirmed: 'कन्फ़र्म शिफ्ट', completed: 'पूरा किया काम', pending: 'पेमेंट लंबित',
     noJobs: 'अभी कोई प्रकाशित अवसर नहीं', noJobsCopy: 'बिज़नेस द्वारा वास्तविक शिफ्ट प्रकाशित होने पर अवसर यहाँ दिखेंगे। फ़िल्टर बदलकर देखें या बाद में वापस आएँ।',
-    language: 'EN', myAccount: 'मेरा अकाउंट', workerRole: 'वर्कर', businessRole: 'बिज़नेस', adminRole: 'एडमिन', support: 'सहायता', adminSupport: 'सपोर्ट टिकट',
+    language: 'EN', myAccount: 'मेरा अकाउंट', workerRole: 'वर्कर', businessRole: 'बिज़नेस', adminRole: 'एडमिन', support: 'सहायता', adminSupport: 'सपोर्ट टिकट', adminUsers: 'यूज़र अकाउंट', systemHealth: 'सिस्टम हेल्थ',
     savedShifts: 'सेव की गई शिफ्ट', savedShiftsSub: 'अच्छी शिफ्ट को एक निजी सूची में रखें और आवेदन से पहले तुलना करें।', saveShift: 'शिफ्ट सेव करें', savedShift: 'सेव है', removeSaved: 'हटाएँ', noSavedShifts: 'अभी कोई सेव की गई शिफ्ट नहीं', noSavedShiftsCopy: 'ब्राउज़ करते समय किसी प्रकाशित शिफ्ट को सेव करें, वह यहाँ दिखेगी।', jobSafety: 'सुरक्षित काम करें। सही भुगतान पाएँ।', safetyIntro: 'कुछ सावधानियाँ आम जॉब स्कैम से बचने और शिफ्ट पर जाते समय तैयारी में मदद कर सकती हैं।', safetyRule: 'नौकरी, रजिस्ट्रेशन या इंटरव्यू पाने के लिए किसी रिक्रूटर या नियोक्ता को पैसे न दें।', emergency112: 'आपातकालीन मदद · 112', cyberHelp: 'साइबर धोखाधड़ी हेल्पलाइन · 1930', officialSafety: 'आधिकारिक सुरक्षा जानकारी',
     reportConcern: 'शिकायत दर्ज करें', reportMinChars: 'कृपया कम-से-कम 20 अक्षरों में समस्या बताएँ। पासवर्ड, OTP या पहचान नंबर न लिखें।', safetyReportSent: 'आपकी सुरक्षा संबंधी शिकायत EarnRoute सपोर्ट को भेज दी गई है। तुरंत खतरा हो तो 112 पर कॉल करें।',
     minimumPay: 'न्यूनतम भुगतान ₹', search: 'खोजें', clear: 'हटाएँ',
@@ -205,7 +206,7 @@ function navItems() {
     { group:'ACCOUNT', items:[['profile','profile','○'],['support','support','?']] }
   ];
   if (currentUser?.role === 'admin') return [
-    { group:'FOUNDER CONTROL', items:[['admin-overview','overview','◫'],['admin-verifications','verify','✓'],['admin-jobs','manageJobs','▤'],['admin-disputes','disputes','⚑'],['admin-support','adminSupport','✉'],['admin-audit','audit','≋']] }
+    { group:'FOUNDER CONTROL', items:[['admin-overview','overview','◫'],['admin-verifications','verify','✓'],['admin-jobs','manageJobs','▤'],['admin-users','adminUsers','◎'],['admin-disputes','disputes','⚑'],['admin-support','adminSupport','✉'],['admin-system','systemHealth','⌁'],['admin-audit','audit','≋']] }
   ];
   return [
     { group:'WORKSPACE', items:[['overview','overview','◫'],['discover','discover','⌕'],['saved-shifts','savedShifts','♡'],['applications','applications','▤'],['schedule','schedule','▦'],['earnings','earnings','₹']] },
@@ -227,7 +228,7 @@ function setLanguageButton() {
 const TITLES = {
   overview:'Overview', discover:'Discover work', 'saved-shifts':'Saved shifts', applications:'Applications', schedule:'My schedule', earnings:'Earnings', profile:'My profile',
   'business-overview':'Business overview','post-job':'Post a shift','business-jobs':'Manage jobs','business-applicants':'Applicants','business-assignments':'Assignments',
-  'admin-overview':'Founder overview','admin-verifications':'Business verification','admin-jobs':'Job moderation','admin-disputes':'Dispute review','admin-support':'Support tickets','support':'Help & support','admin-audit':'Audit history'
+  'admin-overview':'Founder overview','admin-verifications':'Business verification','admin-jobs':'Job moderation','admin-users':'User accounts','admin-disputes':'Dispute review','admin-support':'Support tickets','admin-system':'System health','support':'Help & support','admin-audit':'Audit history'
 };
 function setActiveScreen(screen) {
   activeScreen = screen;
@@ -345,7 +346,10 @@ async function renderPage() {
       case 'admin-overview': html = await renderAdminOverview(); break;
       case 'admin-verifications': html = await renderAdminVerifications(); break;
       case 'admin-jobs': html = await renderAdminJobs(); break;
+      case 'admin-users': html = await renderAdminUsers(); break;
       case 'admin-disputes': html = await renderAdminDisputes(); break;
+      case 'admin-support': html = await renderAdminSupport(); break;
+      case 'admin-system': html = await renderAdminSystem(); break;
       case 'admin-audit': html = await renderAdminAudit(); break;
       case 'support': html = await renderSupport(); break;
       case 'admin-support': html = await renderAdminSupport(); break;
@@ -481,9 +485,9 @@ async function renderProfile() {
 }
 async function renderAdminOverview() {
   const s=await api('/api/admin/overview');
-  return `${pageHeading('FOUNDER CONTROL PANEL','Know what needs your attention.','Review platform operations, verification requests, reported issues and settlement exceptions without changing data from a client-side role toggle.', '<button class="btn btn-outline" data-screen="admin-audit">View audit history →</button>')}
+  return `${pageHeading('FOUNDER CONTROL PANEL','Know what needs your attention.','Review platform operations, verification requests, reported issues and settlement exceptions without changing data from a client-side role toggle.', '<button class="btn btn-outline" data-screen="admin-users">Manage accounts →</button><button class="btn btn-outline" data-screen="admin-system">System health →</button><button class="btn btn-outline" data-screen="admin-audit">View audit history →</button>')}
   <div class="admin-banner"><span class="admin-banner-icon">✳</span><div><h3>Founder access is active</h3><p>Handle verification and disputes carefully. Payout state is never changed to Paid by a simple dashboard action; reconciliation must be backed by provider-verified settlement records.</p></div></div>
-  <div class="dashboard-grid">${metricCard('Active workers',s.active_workers,'Registered worker accounts','◎')}${metricCard('Verified businesses',s.verified_businesses,`${s.pending_business_verifications} awaiting review`,'✓')}${metricCard('Published jobs',s.published_jobs,'Current published shifts','▤')}${metricCard('Assignments',s.assignments,`${s.completed_assignments} completed`,'◷')}${metricCard('Open disputes',s.open_disputes,'Require careful review','⚑')}${metricCard('Pending settlement',formatMoney(s.pending_settlements),'Outstanding recorded amount','₹')}${metricCard('Recognized platform revenue',formatMoney(s.recognized_platform_revenue),'Only reconciled completed assignments','↗')}${metricCard('Business accounts',s.business_accounts,'All registered business accounts','⌂')}</div>
+  <div class="dashboard-grid">${metricCard('Active workers',s.active_workers,'Registered worker accounts','◎')}${metricCard('Verified businesses',s.verified_businesses,`${s.pending_business_verifications} awaiting review`,'✓')}${metricCard('Published jobs',s.published_jobs,'Current published shifts','▤')}${metricCard('Assignments',s.assignments,`${s.completed_assignments} completed`,'◷')}${metricCard('Open disputes',s.open_disputes,'Require careful review','⚑')}${metricCard('Pending settlement',formatMoney(s.pending_settlements),'Outstanding recorded amount','₹')}${metricCard('Recognized platform revenue',formatMoney(s.recognized_platform_revenue),'Only reconciled completed assignments','↗')}${metricCard('Business accounts',s.business_accounts,'All registered business accounts','⌂')}${metricCard('Active accounts',s.active_accounts,'Accounts able to sign in','◎')}${metricCard('Inactive accounts',s.inactive_accounts,'Suspended or disabled accounts','⊘')}${metricCard('Open support tickets',s.open_support_tickets,'Need a support follow-up','✉')}${metricCard('Safety reports',s.open_safety_reports,'Open safety-category tickets','⚑')}</div>
   <div class="dashboard-columns"><div class="panel"><div class="panel-header"><div><h2 class="panel-title">What to review</h2><div class="panel-subtitle">Use the queues for human review of exceptional cases.</div></div></div><div class="panel-body"><div class="list-row"><span class="list-row-icon">✓</span><span class="list-row-main"><b>Business verification</b><small>${s.pending_business_verifications} profiles waiting for review</small></span><button class="btn btn-light btn-sm" data-screen="admin-verifications">Open queue →</button></div><div class="list-row"><span class="list-row-icon">⚑</span><span class="list-row-main"><b>Assignment disputes</b><small>${s.open_disputes} open disputes to investigate</small></span><button class="btn btn-light btn-sm" data-screen="admin-disputes">Review →</button></div><div class="list-row"><span class="list-row-icon">▤</span><span class="list-row-main"><b>Job moderation</b><small>Review listing details and safety information.</small></span><button class="btn btn-light btn-sm" data-screen="admin-jobs">Open jobs →</button></div></div></div><div class="panel"><div class="panel-header"><div><h2 class="panel-title">Metric definitions</h2><div class="panel-subtitle">Keep operational values distinct.</div></div></div><div class="panel-body"><div class="hint-card"><div class="hint-mark">₹</div><h4>Revenue is not transaction volume</h4><p>${escapeHtml(s.revenue_note||'Recognized revenue is based on recorded completed and reconciled assignments. This is not profit.')}</p></div></div></div></div>`;
 }
 async function renderAdminVerifications() {
@@ -507,6 +511,71 @@ async function renderAdminAudit() {
   return `${pageHeading('ACCOUNTABILITY','Audit history','Sensitive changes and lifecycle transitions are recorded with the actor and entity reference.', '<button class="btn btn-outline" data-screen="admin-overview">Back to overview →</button>')}
   <div class="panel"><div class="panel-header"><div><h2 class="panel-title">Recent audit events</h2><div class="panel-subtitle">Latest ${items.length} events.</div></div></div><div class="table-wrap"><table class="data-table"><thead><tr><th>When</th><th>Actor</th><th>Action</th><th>Entity</th><th>Details</th></tr></thead><tbody>${items.length?items.map(e=>`<tr><td>${escapeHtml(formatDate(e.created_at))}</td><td>${escapeHtml(e.actor_user_id ?? 'Provider / system')}</td><td><b>${escapeHtml(e.action)}</b></td><td>${escapeHtml(e.entity_type)} #${escapeHtml(e.entity_id)}</td><td><small>${escapeHtml(JSON.stringify(e.detail||{}))}</small></td></tr>`).join(''):'<tr><td colspan="5">No events recorded yet.</td></tr>'}</tbody></table></div></div>`;
 }
+async function renderAdminUsers() {
+  const filters = Object.assign({search:'',role_filter:'all',status_filter:'all'}, adminUserFilters);
+  const query = new URLSearchParams(filters).toString();
+  const result = await api('/api/admin/users' + (query ? '?' + query : ''));
+  const items = result.items || [];
+  const rows = items.map(function(account) {
+    const context = account.role === 'business'
+      ? [account.business_name, account.city, account.verification_status ? 'verification: ' + account.verification_status : ''].filter(Boolean).join(' · ')
+      : [account.city, account.role === 'worker' ? 'worker profile' : 'admin account'].filter(Boolean).join(' · ');
+    const action = account.id === currentUser.id
+      ? '<span class="admin-current-session">Current session</span>'
+      : '<button type="button" class="btn btn-sm ' + (account.active ? 'btn-danger' : 'btn-primary') +
+        '" data-admin-user-status="' + account.id + '" data-active="' + (!account.active) + '" data-role="' + escapeHtml(account.role) + '">' +
+        (account.active ? 'Suspend access' : 'Restore access') + '</button>';
+    return '<tr><td><b>' + escapeHtml(account.full_name) + '</b><small>#' + account.id + ' · ' + escapeHtml(context || 'No profile details') + '</small></td>' +
+      '<td>' + escapeHtml(account.email) + '<small>' + (account.email_verified ? 'Email marked verified' : 'Email not verified') + '</small></td>' +
+      '<td>' + statusPill(account.role) + '</td><td>' + statusPill(account.active ? 'active' : 'suspended') + '</td>' +
+      '<td>' + escapeHtml(formatDate(account.created_at)) + '</td><td><div class="admin-user-actions">' + action + '</div></td></tr>';
+  }).join('');
+  const roleFilter = '<select name="role_filter" aria-label="Filter account role">' +
+    [['all','All roles'],['worker','Workers'],['business','Businesses'],['admin','Admins']].map(function(o){return '<option value="' + o[0] + '"' + (filters.role_filter === o[0] ? ' selected' : '') + '>' + o[1] + '</option>';}).join('') + '</select>';
+  const statusFilter = '<select name="status_filter" aria-label="Filter account status">' +
+    [['all','All statuses'],['active','Active'],['inactive','Inactive']].map(function(o){return '<option value="' + o[0] + '"' + (filters.status_filter === o[0] ? ' selected' : '') + '>' + o[1] + '</option>';}).join('') + '</select>';
+  return pageHeading('ACCOUNT MANAGEMENT','User accounts','Search the real account inventory and suspend or restore access with a recorded reason. These actions never delete the account or its history.',
+    '<button class="btn btn-outline" data-screen="admin-audit">View audit history →</button>') +
+    '<form id="admin-user-filter-form" class="filter-bar" role="search"><input type="search" name="search" maxlength="120" value="' + escapeHtml(filters.search) + '" placeholder="Search name or email" aria-label="Search account name or email">' +
+    roleFilter + statusFilter + '<button type="submit" class="btn btn-primary">Apply filters</button><button type="reset" class="btn btn-outline">Clear</button></form>' +
+    '<div class="admin-account-summary"><b>' + Number(result.total || 0) + '</b><span> matching account(s)</span>' +
+    (result.truncated ? '<small>Showing latest 200. Narrow the search to find older accounts.</small>' : '<small>Search covers display name and email · no passwords or private tokens are exposed.</small>') + '</div>' +
+    '<div class="callout-warning">Suspending a business pauses its currently published listings. It does not erase records or automatically cancel existing assignments. Review assignments and support reports separately before taking further action.</div>' +
+    '<div class="panel"><div class="panel-header"><div><h2 class="panel-title">Account inventory</h2><div class="panel-subtitle">Newest accounts first · protected by server-side admin permissions.</div></div></div>' +
+    '<div class="table-wrap admin-users-table"><table class="data-table"><thead><tr><th>Name / context</th><th>Email</th><th>Role</th><th>Status</th><th>Created</th><th>Access</th></tr></thead><tbody>' +
+    (rows || '<tr><td colspan="6">No accounts match these filters.</td></tr>') + '</tbody></table></div></div>';
+}
+
+async function renderAdminSystem() {
+  const system = await api('/api/admin/system');
+  const databaseOk = system.database && system.database.status === 'ok';
+  const integrations = system.integrations || {};
+  function readiness(name, item) {
+    const configured = Boolean(item && item.configured);
+    return '<article class="integration-status"><span class="integration-status-dot ' + (configured ? 'is-ready' : 'is-missing') + '"></span>' +
+      '<div><b>' + escapeHtml(name) + '</b><small>' + (configured ? 'Configuration present · functionality still needs a real provider smoke test' : escapeHtml(item && item.note ? item.note : 'Not configured')) + '</small></div>' +
+      statusPill(configured ? 'configured' : 'not_configured') + '</article>';
+  }
+  return pageHeading('OPERATIONS','System health','Read-only readiness checks. This page never exposes secret values and does not claim that a provider is delivering until a real smoke test confirms it.',
+    '<button class="btn btn-outline" data-retry>Refresh status ↻</button><button class="btn btn-outline" data-screen="admin-audit">Audit history →</button>') +
+    '<div class="dashboard-grid admin-system-grid">' +
+      metricCard('API',system.api || 'unknown','Admin-only health response','⌁', system.api === 'ok' ? 'positive' : '') +
+      metricCard('Database',databaseOk ? 'Connected' : 'Issue',Number(system.database && system.database.latency_ms || 0) + ' ms response time','▤',databaseOk ? 'positive' : '') +
+      metricCard('Environment',system.environment || 'unknown','Configured application mode','⚙') +
+      metricCard('Release',system.release || 'not set','Reported release label; not a Git commit guarantee','↗') +
+      metricCard('Active accounts',system.accounts ? system.accounts.active : 0,'Can currently sign in','◎') +
+      metricCard('Inactive accounts',system.accounts ? system.accounts.inactive : 0,'Access is disabled','⊘') +
+      metricCard('Open safety reports',system.support ? system.support.open_safety_reports : 0,'Safety-category tickets awaiting review','⚑') +
+      metricCard('Open support',system.support ? system.support.open_tickets : 0,'Tickets awaiting follow-up','✉') +
+    '</div>' +
+    '<div class="dashboard-columns"><section class="panel"><div class="panel-header"><div><h2 class="panel-title">Integration readiness</h2><div class="panel-subtitle">Presence of required configuration only, not proof of successful delivery.</div></div></div><div class="panel-body"><div class="integration-status-list">' +
+      readiness('Razorpay webhook',integrations.razorpay_webhook) +
+      readiness('Error monitoring',integrations.error_monitoring) +
+      readiness('Email delivery',integrations.email_delivery) +
+      readiness('SMS / OTP',integrations.sms_otp) +
+    '</div></div></section><section class="panel"><div class="panel-header"><div><h2 class="panel-title">Release notes</h2><div class="panel-subtitle">Honest launch readiness.</div></div></div><div class="panel-body"><div class="hint-card"><div class="hint-mark">✓</div><h4>Secrets are not shown</h4><p>' + escapeHtml(system.note || 'Readiness indicators show configuration presence, not live provider health.') + '</p></div><div class="hint-card" style="margin-top:12px"><div class="hint-mark">!</div><h4>Production items still gated</h4><p>Email/OTP delivery, payment-webhook approval and real provider smoke tests must be completed before public launch if those features are required.</p></div></div></section></div>';
+}
+
 async function renderSupport() {
   const result = await api('/api/support/tickets/me');
   const items = result.items || [];
@@ -885,6 +954,24 @@ document.addEventListener('click', async event => {
   if(target.dataset.closeNotifications!==undefined){$('#notification-panel')?.remove();return;}
   if(target.dataset.screen){event.preventDefault();setActiveScreen(target.dataset.screen);return;}
   if(target.dataset.supportOpen){activeSupportTicketId=Number(target.dataset.supportOpen);setActiveScreen('support');return;}
+  if(target.dataset.adminUserStatus) {
+    const targetId = Number(target.dataset.adminUserStatus);
+    const makeActive = target.dataset.active === 'true';
+    if (!makeActive && !window.confirm('Suspend this account? The account and audit history will remain. Existing assignments are not automatically cancelled.')) return;
+    const reason = window.prompt(makeActive ? 'Reason for restoring access (at least 5 characters):' : 'Reason for suspending access (at least 5 characters):');
+    if (reason === null) return;
+    if (reason.trim().length < 5) { showToast('Enter a reason of at least 5 characters.', 'error'); return; }
+    loadingButtons(target, true);
+    try {
+      const result = await api('/api/admin/users/' + targetId + '/status', {method:'PATCH',body:{active:makeActive,reason:reason.trim()}});
+      showToast(result.changed ? (makeActive ? 'Account access restored.' : 'Account suspended. Published business listings were paused where applicable.') : (result.message || 'No status change was needed.'));
+      await renderPage();
+    } catch (error) {
+      showToast(friendlyError(error), 'error');
+      loadingButtons(target, false);
+    }
+    return;
+  }
   if(target.dataset.adminSupportOpen){activeAdminSupportTicketId=Number(target.dataset.adminSupportOpen);setActiveScreen('admin-support');return;}
   if(target.dataset.supportStatus){
     const id=Number(target.dataset.supportTicketId);
@@ -1031,6 +1118,17 @@ document.addEventListener('submit', async event => {
   if(form.id==='discover-filter-form'){event.preventDefault();const d=formObject(form);const clean=Object.fromEntries(Object.entries(d).filter(([k,v])=>String(v).trim()));$('#view-root').innerHTML='<div class="loading-surface"><span class="loading-spinner"></span><span>Searching published opportunities…</span></div>';try{$('#view-root').innerHTML=await renderDiscover(clean);}catch(error){showToast(friendlyError(error),'error');}return;}
   if(form.id==='worker-profile-form'){event.preventDefault();await submitWorkerProfile(form);return;}
   if(form.id==='business-profile-form'){event.preventDefault();await submitBusinessProfile(form);return;}
+  if(form.id==='admin-user-filter-form'){
+    event.preventDefault();
+    const values = formObject(form);
+    adminUserFilters = {
+      search:String(values.search || '').trim(),
+      role_filter:['all','worker','business','admin'].includes(String(values.role_filter)) ? String(values.role_filter) : 'all',
+      status_filter:['all','active','inactive'].includes(String(values.status_filter)) ? String(values.status_filter) : 'all'
+    };
+    await renderPage();
+    return;
+  }
   if(form.id==='support-ticket-form'){
     event.preventDefault();
     const data=formObject(form);
@@ -1057,7 +1155,13 @@ document.addEventListener('submit', async event => {
   if(form.id==='job-form'){event.preventDefault();await submitJob(form);return;}
 });
 document.addEventListener('change',event=>{if(event.target.matches('#auth-form input[name="role"]'))setAuthMode(authMode);});
-document.addEventListener('reset',event=>{if(event.target.id==='discover-filter-form')window.setTimeout(()=>setActiveScreen('discover'),10);});
+document.addEventListener('reset',event=>{
+  if(event.target.id==='discover-filter-form') window.setTimeout(()=>setActiveScreen('discover'),10);
+  if(event.target.id==='admin-user-filter-form') window.setTimeout(()=>{
+    adminUserFilters = {search:'',role_filter:'all',status_filter:'all'};
+    renderPage();
+  },10);
+});
 document.addEventListener('keydown',event=>{if(event.key==='Escape'){if(!isAdminPortal)closeAuth();$('#notification-panel')?.remove();$('#sidebar').classList.remove('mobile-open');}});
 
 async function init() {
