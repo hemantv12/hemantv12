@@ -30,6 +30,26 @@ jobs:
           unzip -oq /tmp/gavyuh-source.zip -d /tmp/gavyuh-unpacked
           cp -R /tmp/gavyuh-unpacked/gavyuh-app/. gavyuh-app/
 
+      - name: Repair UI syntax before compiling
+        working-directory: gavyuh-app
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          path = "lib/main.dart"
+          lines = open(path, encoding="utf-8").read().splitlines()
+          for number in (602, 672, 809, 880):
+              line = lines[number - 1]
+              if not line.endswith(","):
+                  raise SystemExit(f"Unexpected source at line {number}")
+              lines[number - 1] = line[:-1] + "),"
+          target = "Color(0xFFFFD995)])),"
+          if target not in lines[919]:
+              raise SystemExit("Could not locate account banner icon closure")
+          lines[919] = lines[919].replace(target, "Color(0xFFFFD995))])),", 1)
+          with open(path, "w", encoding="utf-8") as output:
+              output.write("\n".join(lines) + "\n")
+          PY
+
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
