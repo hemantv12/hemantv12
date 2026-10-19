@@ -395,20 +395,16 @@ function erLiveMapSectionMarkup(options) {
   const id = options.id || 'er-nearby-map';
   const kind = options.kind || 'nearby';
   const location = options.location && Number.isFinite(Number(options.location.latitude)) && Number.isFinite(Number(options.location.longitude))
-    ? {latitude:Number(options.location.latitude), longitude:Number(options.location.longitude)} : null;
+    ? {latitude:Number(options.location.latitude), longitude:Number(options.location.longitude), source:options.location.source || 'device'} : null;
   const radius = ER_RADIUS_OPTIONS.includes(Number(options.radius)) ? Number(options.radius) : 3;
   const points = (options.jobs || []).filter(function(job) {
     return Number.isFinite(Number(job.latitude)) && Number.isFinite(Number(job.longitude));
   }).map(function(job) {
     return {
-      id:Number(job.id),
-      title:String(job.title || 'Local shift').slice(0,140),
+      id:Number(job.id), title:String(job.title || 'Local shift').slice(0,140),
       business_name:String(job.business_name || 'Local business').slice(0,140),
-      category:String(job.category || 'Local work').slice(0,70),
-      address:String(job.address || '').slice(0,300),
-      city:String(job.city || '').slice(0,100),
-      latitude:Number(job.latitude),
-      longitude:Number(job.longitude),
+      category:String(job.category || 'Local work').slice(0,70), address:String(job.address || '').slice(0,300),
+      city:String(job.city || '').slice(0,100), latitude:Number(job.latitude), longitude:Number(job.longitude),
       distance_km:Number.isFinite(Number(job.distance_km)) ? Number(job.distance_km) : null,
       pay_amount:Number(job.estimated_net_pay !== undefined ? job.estimated_net_pay : job.pay_amount || 0)
     };
@@ -416,31 +412,41 @@ function erLiveMapSectionMarkup(options) {
   const center = location || (kind === 'pin' ? erGetLocation() : null);
   const lat = center && Number.isFinite(Number(center.latitude)) ? Number(center.latitude) : '';
   const lon = center && Number.isFinite(Number(center.longitude)) ? Number(center.longitude) : '';
+  const hasCenter = lat !== '' && lon !== '';
+  const hasUserLocation = kind !== 'origin' && Boolean(location);
   const zoom = location ? (radius <= 1 ? 14 : radius <= 3 ? 13 : radius <= 5 ? 12 : radius <= 10 ? 11 : 10) : (kind === 'pin' && center ? 15 : 5);
-  const openMapUrl = lat !== '' && lon !== ''
+  const openMapUrl = hasCenter
     ? 'https://www.openstreetmap.org/?mlat=' + lat + '&mlon=' + lon + '#map=' + zoom + '/' + lat + '/' + lon
     : 'https://www.openstreetmap.org/#map=5/22.5/79.0';
-  const heading = kind === 'pin' ? 'Set the exact workplace pin' : 'Explore shifts around you';
+  const heading = kind === 'pin' ? 'Set the exact workplace pin' : kind === 'origin' ? t('manualMapHeading') : 'Explore shifts around you';
   const copy = kind === 'pin'
     ? 'Tap the map to choose the real work location, or use GPS when you are at the workplace. The chosen pin is shown with the published shift.'
+    : kind === 'origin' ? t('manualAreaTapMap')
     : 'Real published workplace pins inside your selected radius. Tap a marker to see the shift and open directions.';
-  const count = kind === 'pin' ? 'PIN SETUP' : points.length + ' PIN' + (points.length === 1 ? '' : 'S');
+  const count = kind === 'pin' ? 'PIN SETUP' : kind === 'origin' ? t('manualAreaPickerKicker') : points.length + ' PIN' + (points.length === 1 ? '' : 'S');
+  const actions = kind === 'pin'
+    ? '<button type="button" class="btn btn-outline btn-sm" data-er-map-geolocate>' + escapeHtml(t('useMyLocation')) + '</button>'
+    : kind === 'origin' ? ''
+    : '<button type="button" class="btn btn-outline btn-sm" data-er-map-recenter="' + id + '">' + escapeHtml(t('mapRecenter')) + '</button>';
+  const statusText = kind === 'pin'
+    ? 'Map pins are a guide. Confirm the marker is on the actual workplace before publishing.'
+    : kind === 'origin' ? t('manualAreaTapMap')
+    : location ? (location.source === 'manual' ? t('manualAreaSelected') : t('mapTemporaryLocation')) + ' and public workplace pins.'
+    : 'Map shows published workplace pins; choose a starting area before nearby filtering.';
   return '<section class="er-live-map-card" aria-label="' + escapeHtml(heading) + '">' +
-    '<div class="er-live-map-head"><div><span class="er-map-kicker">' + (kind === 'pin' ? 'WORKPLACE LOCATION' : 'LIVE LOCAL MAP') + '</span><h3>' + escapeHtml(heading) + '</h3><p>' + escapeHtml(copy) + '</p></div>' +
-    '<div class="er-live-map-actions">' + (kind === 'pin'
-      ? '<button type="button" class="btn btn-outline btn-sm" data-er-map-geolocate>Use my location</button>'
-      : '<button type="button" class="btn btn-outline btn-sm" data-er-map-recenter="' + id + '">My location</button>') +
+    '<div class="er-live-map-head"><div><span class="er-map-kicker">' + escapeHtml(count) + '</span><h3>' + escapeHtml(heading) + '</h3><p>' + escapeHtml(copy) + '</p></div>' +
+    '<div class="er-live-map-actions">' + actions +
       '<a class="er-map-open-link" href="' + openMapUrl + '" target="_blank" rel="noopener noreferrer">Open map ↗</a></div></div>' +
     '<div id="' + id + '" class="er-live-map" data-er-map-kind="' + kind + '" data-er-map-lat="' + lat + '" data-er-map-lon="' + lon +
-      '" data-er-map-radius="' + radius + '" data-er-map-points="' + encodeURIComponent(JSON.stringify(points)) +
-      '" role="application" aria-label="' + escapeHtml(kind === 'pin' ? 'Interactive workplace pin map' : 'Interactive nearby shift map') + '" tabindex="0">' +
+      '" data-er-map-has-location="' + (hasUserLocation ? '1' : '0') + '" data-er-map-initial-zoom="' + zoom + '" data-er-map-radius="' + radius + '" data-er-map-points="' + encodeURIComponent(JSON.stringify(points)) +
+      '" role="application" aria-label="' + escapeHtml(kind === 'pin' ? 'Interactive workplace pin map' : kind === 'origin' ? 'Interactive manual area selection map' : 'Interactive nearby shift map') + '" tabindex="0">' +
       '<div class="er-live-map-loading"><span class="loading-spinner"></span><span>Loading live map…</span></div></div>' +
-    '<div class="er-live-map-bottom"><p id="' + id + '-status" role="status" aria-live="polite">' +
-      (kind === 'pin' ? 'Map pins are a guide. Confirm the marker is on the actual workplace before publishing.' : 'Map uses your temporary device location and public workplace pins.') + '</p>' +
+    '<div class="er-live-map-bottom"><p id="' + id + '-status" role="status" aria-live="polite">' + escapeHtml(statusText) + '</p>' +
     '<div class="er-map-legend">' + (kind === 'pin'
       ? '<span><i class="er-map-legend-pin"></i> Selected workplace</span>'
-      : '<span><i class="er-map-legend-you"></i> Your location</span><span><i class="er-map-legend-job"></i> Published shift</span>') +
-    '<small>© OpenStreetMap contributors</small></div></div></section>';
+      : kind === 'origin' ? '<span><i class="er-map-legend-you"></i> Your selected search area</span>'
+      : '<span><i class="er-map-legend-you"></i> ' + escapeHtml(location && location.source === 'manual' ? t('manualAreaSelected') : t('mapDeviceLocation')) + '</span><span><i class="er-map-legend-job"></i> Published shift</span>') +
+    '<small>© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a> · <a href="https://www.openstreetmap.org/fixthemap" target="_blank" rel="noopener noreferrer">Report a map issue</a></small></div></div></section>';
 }
 
 let erLeafletLoadPromise = null;
@@ -590,7 +596,8 @@ function erInitializeLiveMap(el) {
   const L = window.L;
   const kind = el.dataset.erMapKind || 'nearby';
   const lat = Number(el.dataset.erMapLat), lon = Number(el.dataset.erMapLon);
-  const hasLocation = el.dataset.erMapLat !== '' && el.dataset.erMapLon !== '' && Number.isFinite(lat) && Number.isFinite(lon);
+  const hasMapCenter = el.dataset.erMapLat !== '' && el.dataset.erMapLon !== '' && Number.isFinite(lat) && Number.isFinite(lon);
+  const hasLocation = el.dataset.erMapHasLocation === '0' ? false : hasMapCenter;
   let points = [];
   try { points = JSON.parse(decodeURIComponent(el.dataset.erMapPoints || '%5B%5D')); } catch (_) { points = []; }
   points = Array.isArray(points) ? points.filter(function(job) {
@@ -606,13 +613,13 @@ function erInitializeLiveMap(el) {
     Number.isFinite(storedWorkplaceLon) && Math.abs(storedWorkplaceLon) <= 180 &&
     String(latInput && latInput.value || '').trim() !== '' &&
     String(lonInput && lonInput.value || '').trim() !== '';
-  const startLat = hasWorkplacePin ? storedWorkplaceLat : (hasLocation ? lat : 22.9734);
-  const startLon = hasWorkplacePin ? storedWorkplaceLon : (hasLocation ? lon : 78.6569);
-  const startZoom = hasWorkplacePin ? 16 : (hasLocation ? (kind === 'pin' ? 15 : (Number(el.dataset.erMapRadius) <= 1 ? 14 : Number(el.dataset.erMapRadius) <= 3 ? 13 : Number(el.dataset.erMapRadius) <= 5 ? 12 : Number(el.dataset.erMapRadius) <= 10 ? 11 : 10)) : 5);
+  const startLat = hasWorkplacePin ? storedWorkplaceLat : (kind === 'origin' && hasMapCenter ? lat : (hasLocation ? lat : 22.9734));
+  const startLon = hasWorkplacePin ? storedWorkplaceLon : (kind === 'origin' && hasMapCenter ? lon : (hasLocation ? lon : 78.6569));
+  const startZoom = hasWorkplacePin ? 16 : (kind === 'origin' ? (hasMapCenter ? Number(el.dataset.erMapInitialZoom || 12) : 5) : (hasLocation ? (kind === 'pin' ? 15 : (Number(el.dataset.erMapRadius) <= 1 ? 14 : Number(el.dataset.erMapRadius) <= 3 ? 13 : Number(el.dataset.erMapRadius) <= 5 ? 12 : Number(el.dataset.erMapRadius) <= 10 ? 11 : 10)) : 5));
   el.innerHTML = '';
   const map = L.map(el, {zoomControl:true, preferCanvas:true, scrollWheelZoom:false}).setView([startLat,startLon], startZoom);
   el._erMapInstance = map;
-  const tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  const tileLayer = L.tileLayer(erMapTileUrl(), {
     maxZoom:19,
     attribution:'&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>',
     crossOrigin:true
@@ -622,7 +629,13 @@ function erInitializeLiveMap(el) {
     tileErrors += 1;
     if (tileErrors >= 3) erMapStatus(el, 'Map tiles are unavailable on this network. Try again later or use the OpenStreetMap link above.');
   });
-  if (kind === 'pin') {
+  if (kind === 'origin') {
+    erMapStatus(el, t('manualAreaTapMap'));
+    map.on('click', function(event) {
+      try { erSetManualAreaCandidate(event.latlng.lat,event.latlng.lng); }
+      catch (error) { showToast(friendlyError(error), 'error'); }
+    });
+  } else if (kind === 'pin') {
     if (hasWorkplacePin) {
       el._erPinMarker = L.circleMarker([storedWorkplaceLat,storedWorkplaceLon], {radius:9,color:'#ffffff',weight:3,fillColor:'#244b32',fillOpacity:1}).addTo(map);
       erMapStatus(el, 'Workplace pin loaded. Tap the map to adjust its exact position.');
@@ -663,12 +676,14 @@ function erDisposeLiveMaps(root) {
     }
     el._erMapInstance = null;
     el._erPinMarker = null;
+    el._erOriginMarker = null;
     el.dataset.erMapLoading = '';
   });
 }
 function erEnhanceLiveMaps() {
   const maps = Array.from(document.querySelectorAll('.er-live-map[data-er-map-kind]')).filter(function(el) {
-    return !el._erMapInstance && el.dataset.erMapLoading !== '1';
+    return !el._erMapInstance && el.dataset.erMapLoading !== '1' &&
+      !el.closest('[hidden]') && !el.closest('details:not([open])');
   });
   if (!maps.length) return;
   maps.forEach(function(el) { el.dataset.erMapLoading = '1'; });
