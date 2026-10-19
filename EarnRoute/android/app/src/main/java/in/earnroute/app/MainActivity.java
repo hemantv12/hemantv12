@@ -508,9 +508,22 @@ public final class MainActivity extends Activity {
 
     private int dp(int value) { return Math.round(value * getResources().getDisplayMetrics().density); }
 
-    @Override public void onBackPressed() {
-        if (webView != null && webView.canGoBack()) webView.goBack();
-        else super.onBackPressed();
+    @Override
+    @SuppressWarnings("deprecation")
+    public void onBackPressed() {
+        if (backHandlingEnabled && webView != null) {
+            // Let the web layer close the topmost transient surface first (keyboard/auth,
+            // drawer, notifications). The page reports whether a modal state is active.
+            webView.evaluateJavascript(
+                    "(function(){if(typeof window.erHandleNativeBack==='function'){window.erHandleNativeBack();}})();",
+                    null);
+            return;
+        }
+        if (webView != null && webView.canGoBack()) {
+            webView.goBack();
+            return;
+        }
+        super.onBackPressed();
     }
 
     @Override protected void onDestroy() {
