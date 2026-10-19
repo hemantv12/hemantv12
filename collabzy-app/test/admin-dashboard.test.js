@@ -28,6 +28,8 @@ test('owner admin dashboard is responsive, real-data-only and JavaScript parses'
   assert.match(adminHtml, /campaign-create-form/);
   assert.match(adminHtml, /Collabzy Official/);
   assert.match(adminHtml, /Owner publisher/);
+  assert.match(adminHtml, /Collabzy Official/);
+  assert.match(adminHtml, /Owner publisher/);
   assert.doesNotMatch(adminHtml, /COLLABZY_ADMIN_PASSWORD_HASH|process\.env|RAZORPAY_KEY_SECRET|OPENAI_API_KEY/);
 });
 
