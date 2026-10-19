@@ -363,7 +363,7 @@ def test_mobile_header_drawer_and_bottom_navigation_respect_android_system_bars(
     assert "html.er-native-app.er-drawer-open .er-mobile-nav" in css
     assert "html.er-native-app .sidebar > .workspace-label { display:none !important; }" in css
     assert "function erSetMobileDrawerOpen(open)" in js
-    assert "id=\\"er-sidebar-scrim\\"" in js
+    assert 'id="er-sidebar-scrim"' in js
     assert "event.key === 'Escape' && document.documentElement.classList.contains('er-drawer-open')" in js
     assert "if(document.documentElement.classList.contains('er-drawer-open')) erSetMobileDrawerOpen(false);" in js
     assert 'aria-controls="sidebar" aria-expanded="false"' in html
