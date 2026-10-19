@@ -181,8 +181,10 @@ function safeStorageGet(key){try{return localStorage.getItem(key)||''}catch{retu
 function safeStorageSet(key,value){try{localStorage.setItem(key,value)}catch{}}
 function safeStorageRemove(key){try{localStorage.removeItem(key)}catch{}}
 let token=safeStorageGet('collabzy_token'),me=null,role='creator',mode='login',campaigns=[],page='discover',apps=[],savedCampaigns=[],conversations=[],notifications=[],myCampaigns=[],creators=[],invitations=[],dashboard={},smartMatches=[],smartMatchInfo={},automationRules=[],automationEvents=[],automationMeta={configured:false,connected:false},aiStudioLatestOutput='',activeConversation=null,chatMessages=[];
+let creatorBillingState=null,proReturnPage='discover',razorpayScriptPromise=null,subscriptionCheckFailed=false;
+const CREATOR_PRO_PAGES=new Set(['matches','messages','applications','invitations','saved','notifications','instagram','ai','autodm']);
 const $=s=>document.querySelector(s), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-async function api(path,opts={}){const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),25000);try{const r=await fetch(API+path,{...opts,signal:controller.signal,headers:{'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{}),...(opts.headers||{})}});let d={};try{d=await r.json()}catch{}if(!r.ok)throw Error(d.error||'Request failed. Please try again.');return d}catch(error){if(error?.name==='AbortError')throw Error('Collabzy server is taking too long to respond. Please try again.');if(error instanceof TypeError)throw Error('Cannot reach Collabzy right now. Check your internet connection and try again.');throw error}finally{clearTimeout(timer)}}
+async function api(path,opts={}){const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),25000);try{const r=await fetch(API+path,{...opts,signal:controller.signal,headers:{'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{}),...(opts.headers||{})}});let d={};try{d=await r.json()}catch{}if(!r.ok){const e=Error(d.error||'Request failed. Please try again.');e.status=r.status;e.code=d.code||'';throw e;}return d}catch(error){if(error?.name==='AbortError')throw Error('Collabzy server is taking too long to respond. Please try again.');if(error instanceof TypeError)throw Error('Cannot reach Collabzy right now. Check your internet connection and try again.');throw error}finally{clearTimeout(timer)}}
 function toast(t){$('#toast').textContent=t;$('#toast').classList.remove('hidden');setTimeout(()=>$('#toast').classList.add('hidden'),2600)}
 
 function renderNativeWelcome(){
@@ -232,7 +234,7 @@ async function resendVerification(){
  catch(error){toast(error.message)}
 }
 function setRole(r){role=r;auth()}
-document.addEventListener('click',event=>{const control=event.target?.closest?.('[data-collabzy-action]');if(!control)return;const action=control.getAttribute('data-collabzy-action');if(action==='join-creator'){mode='register';role='creator';auth()}else if(action==='join-brand'){mode='register';role='brand';auth()}else if(action==='show-register'){mode='register';auth()}else if(action==='show-login'){mode='login';auth()}});
+document.addEventListener('click',event=>{const control=event.target?.closest?.('[data-collabzy-action]');if(!control)return;const action=control.getAttribute('data-collabzy-action');if(action==='join-creator'){mode='register';role='creator';auth()}else if(action==='join-brand'){mode='register';role='brand';auth()}else if(action==='show-register'){mode='register';auth()}else if(action==='show-login'){mode='login';auth()}else if(action==='subscribe-pro'){subscribeToPro()}else if(action==='continue-after-pro'){go(proReturnPage||'discover')}else if(action==='refresh-billing'){go('subscription')}});
 function logout(){token='';me=null;safeStorageRemove('collabzy_token');mode='login';auth()}
 function money(a,b){return a&&b?'₹'+Number(a).toLocaleString('en-IN')+'–₹'+Number(b).toLocaleString('en-IN'):a?'From ₹'+Number(a).toLocaleString('en-IN'):b?'Up to ₹'+Number(b).toLocaleString('en-IN'):'Barter / negotiable'}
 function card(c){const saved=savedCampaigns.some(x=>Number(x.id)===Number(c.id));return `<article class="card"><div class="cardtop"><div class="avatar">${esc((c.brand_name||'B').slice(0,1).toUpperCase())}</div><span class="pill ${c.collaboration_type==='Paid'?'green':''}">${esc(c.collaboration_type)}</span></div><div><h3>${esc(c.title)}</h3><p>${esc(c.brand_name)} · ${esc(c.category)}</p></div><div class="desc">${esc(c.description)}</div><div class="meta"><span>📍 ${esc(c.location||'India')}</span><span class="money">${money(c.budget_min,c.budget_max)}</span></div><div class="meta"><span>Deliverables</span><b>${esc(c.deliverables||'Discuss with brand')}</b></div><div class="actions"><button class="btn" onclick="applyCampaign(${c.id})">${me.role==='creator'?'Apply to campaign':'View campaign'}</button><button class="btn alt" onclick="toggleSaved(${c.id})">${saved?'★ Saved':'☆ Save'}</button></div></article>`}
@@ -252,7 +254,13 @@ async function openConversation(id){activeConversation=Number(id);try{chatMessag
 async function sendMessage(e){e.preventDefault();const form=e.target,field=form.elements.body,body=field.value.trim();if(!body)return;const button=form.querySelector('button[type=submit]');button.disabled=true;try{await api('/conversations/'+activeConversation+'/messages',{method:'POST',body:JSON.stringify({body})});field.value='';chatMessages=(await api('/conversations/'+activeConversation+'/messages')).messages||[];await Promise.all([loadConversations(),loadDashboard()]);shell()}catch(err){toast(err.message)}finally{if(button)button.disabled=false}}
 async function markNotificationsRead(){try{await api('/notifications/read-all',{method:'PATCH'});await loadNotifications();await loadDashboard();shell();toast('Notifications marked as read.')}catch(e){toast(e.message)}}
 async function toggleCampaignStatus(id,status){try{await api('/campaigns/'+id+'/manage',{method:'PATCH',body:JSON.stringify({status})});await Promise.all([loadMyCampaigns(),loadCampaigns(),loadDashboard()]);renderPage();toast(status==='closed'?'Campaign closed.':'Campaign is live again.')}catch(e){toast(e.message)}}
-async function toggleSaved(id){const saved=savedCampaigns.some(x=>Number(x.id)===Number(id));try{await api('/campaigns/'+id+'/save',{method:saved?'DELETE':'POST'});await loadSaved();if(page==='saved')renderPage();else renderPage();toast(saved?'Removed from saved campaigns.':'Campaign saved for later.')}catch(e){toast(e.message)}}
+async function toggleSaved(id){
+ if(me?.role==='creator'&&!(await requireCreatorPro(page==='saved'?'saved':'discover')))return;
+ const saved=savedCampaigns.some(x=>Number(x.id)===Number(id));
+ try{await api('/campaigns/'+id+'/save',{method:saved?'DELETE':'POST'});await loadSaved();renderPage();toast(saved?'Removed from saved campaigns.':'Campaign saved for later.')}
+ catch(e){if(e.status===402||e.code==='PRO_REQUIRED'){await requireCreatorPro('discover');return}toast(e.message)}
+}
+
 function profileProgress(){const items=[['Niche',me.niche],['Bio',me.bio],['Location',me.location],['Instagram handle',me.instagram_handle]],done=items.filter(x=>String(x[1]||'').trim()).length;return {percent:Math.round(done/items.length*100),missing:items.filter(x=>!String(x[1]||'').trim()).map(x=>x[0])}}
 
 function renderAppNavigation(){
@@ -271,7 +279,7 @@ function renderAppNavigation(){
     {key:'instagram',label:'Instagram insights',icon:'◎'},
     {key:'ai',label:'AI Studio',icon:'✧'}
   ];
-  if(me.role==='creator')extra.push({key:'autodm',label:'Instagram Auto DM',icon:'↗'});
+  if(me.role==='creator')extra.push({key:'subscription',label:'Creator Pro',icon:'◇'},{key:'autodm',label:'Instagram Auto DM',icon:'↗'});
   if(me.role==='brand'){extra.push({key:'mycampaigns',label:'My campaigns',icon:'▣'},{key:'creators',label:'Find creators',icon:'♙'});}
   const moreActive=!['discover','matches','messages','profile'].includes(page);
   return '<nav class="nav app-tabbar" aria-label="Collabzy navigation">'+[...core,...extra].map(item=>{
@@ -292,7 +300,7 @@ function openMoreSheet(){
     {key:'instagram',label:'Instagram insights',icon:'◎',desc:'Official connected-account data'},
     {key:'ai',label:'AI Studio',icon:'✧',desc:'Ideas, briefs, pitches and content'}
   ];
-  if(me.role==='creator')links.push({key:'autodm',label:'Auto DM',icon:'↗',desc:'Keyword replies and delivery activity'});
+  if(me.role==='creator')links.push({key:'subscription',label:'Creator Pro · ₹299/year',icon:'◇',desc:'Unlock applications, matching and creator tools'},{key:'autodm',label:'Auto DM',icon:'↗',desc:'Keyword replies and delivery activity'});
   if(me.role==='brand')links.push({key:'mycampaigns',label:'My campaigns',icon:'▣',desc:'Manage briefs and applicants'},{key:'creators',label:'Find creators',icon:'♙',desc:'Discover talent for your brand'});
   const sheet=document.createElement('div');sheet.id='appMoreSheet';sheet.className='app-sheet-backdrop';
   sheet.innerHTML='<section class="app-sheet" role="dialog" aria-modal="true" aria-label="More tools"><div class="sheet-handle"></div><div class="sheet-header"><div><span class="eyebrow">YOUR WORKSPACE</span><h2>More tools</h2><p>Everything you need for the next collaboration.</p></div><button type="button" class="sheet-close" aria-label="Close" onclick="closeMoreSheet()">×</button></div><div class="sheet-links">'+links.map(item=>'<button type="button" class="sheet-link" onclick="go(\''+item.key+'\')"><span class="sheet-link-icon">'+item.icon+'</span><span class="sheet-link-copy"><b>'+item.label+'</b><small>'+item.desc+'</small></span><span class="sheet-chevron">›</span></button>').join('')+'</div><button type="button" class="sheet-signout" onclick="closeMoreSheet();logout()">Sign out of Collabzy</button></section>';
@@ -301,10 +309,24 @@ function openMoreSheet(){
 }
 function shell(){ $('#accountBtn').classList.remove('hidden');$('#root').innerHTML=`<div class="hero"><div><div class="eyebrow">YOUR NEXT COLLAB STARTS HERE</div>${me.role==='brand'?'<h1>Find your next<br>great creator.</h1><p>Publish briefs, discover talent and manage partnerships in one workspace.</p>':'<h1>Make your influence<br>work for you.</h1><p>Discover paid campaigns, barter deals and long-term brand partnerships.</p>'}</div><div class="actions">${me.role==='brand'?'<button class="btn" onclick="newCampaign()">＋ Post a campaign</button>':''}<button class="btn alt" onclick="go('profile')">My profile</button></div></div><div class="stats">${me.role==='brand'?'<div class="stat"><strong>'+Number(dashboard.myCampaigns||0)+'</strong><span>My campaigns</span></div><div class="stat"><strong>'+Number(dashboard.receivedApplications||0)+'</strong><span>Creator applications</span></div><div class="stat"><strong>'+Number(dashboard.unreadMessages||0)+'</strong><span>Unread messages</span></div>':'<div class="stat"><strong>'+Number(dashboard.activeCampaigns||campaigns.length)+'</strong><span>Active campaigns</span></div><div class="stat"><strong>'+Number(dashboard.myApplications||apps.length)+'</strong><span>My applications</span></div><div class="stat"><strong>'+Number(dashboard.accepted||apps.filter(a=>a.status==='accepted').length)+'</strong><span>Accepted</span></div>'}</div><section class="quick-grid">${me.role==='brand'?'<button class="quick-card" onclick="newCampaign()"><span class="quick-kicker">CREATE</span><strong>Post a campaign</strong><p>Share a brief, budget and deliverables with creators.</p><span class="quick-link">Create campaign →</span></button><button class="quick-card" onclick="go(\'creators\')"><span class="quick-kicker">DISCOVER</span><strong>Find creators</strong><p>Search profiles and send personal invitations.</p><span class="quick-link">Browse creators →</span></button><button class="quick-card" onclick="go(\'mycampaigns\')"><span class="quick-kicker">MANAGE</span><strong>Your campaigns</strong><p>Edit briefs, close listings and review applicant totals.</p><span class="quick-link">Manage campaigns →</span></button>':'<div class="quick-card profile-progress"><div class="progress-row"><span class="quick-kicker">YOUR PROFILE</span><b>'+profileProgress().percent+'% complete</b></div><strong>Make your profile stand out</strong><p>'+(profileProgress().missing.length?'Add '+profileProgress().missing.slice(0,2).join(' and ').toLowerCase()+' to help brands discover you.':'Your basic profile is complete. Keep it current for brands.')+'</p><div class="progress-track"><span style="width:'+profileProgress().percent+'%"></span></div><button class="quick-link" onclick="go(\'profile\')">Improve profile →</button></div><button class="quick-card" onclick="go(\'discover\')"><span class="quick-kicker">OPPORTUNITIES</span><strong>Explore campaigns</strong><p>Search by category, collaboration type and budget.</p><span class="quick-link">Browse campaigns →</span></button><button class="quick-card" onclick="go(\'saved\')"><span class="quick-kicker">SHORTLIST</span><strong>Saved campaigns</strong><p>Keep interesting opportunities close at hand.</p><span class="quick-link">View saved →</span></button>'}</section>${renderAppNavigation()}<section id="view"></section><div class="foot">Collabzy · Built for creators and brands · Be genuine. Create impact.</div>`;renderPage()}
 async function go(p){
-  closeMoreSheet();page=p;
+  closeMoreSheet();
+  let target=p;
+  if(me?.role==='creator'&&(CREATOR_PRO_PAGES.has(p)||p==='subscription')){
+    if(CREATOR_PRO_PAGES.has(p))proReturnPage=p;
+    subscriptionCheckFailed=false;
+    try{
+      creatorBillingState=await api('/billing/status');
+      if(CREATOR_PRO_PAGES.has(p)&&!creatorBillingState.active)target='subscription';
+    }catch(error){
+      subscriptionCheckFailed=true;
+      creatorBillingState={active:false,checkout_ready:false,error:error.message||'Could not verify your subscription.'};
+      if(CREATOR_PRO_PAGES.has(p))target='subscription';
+    }
+  }
+  page=target;
   document.querySelectorAll('[data-nav-key]').forEach(button=>{
     const key=button.getAttribute('data-nav-key');
-    button.classList.toggle('active',key===p||(key==='more'&&!['discover','matches','messages','profile'].includes(p)));
+    button.classList.toggle('active',key===target||(key==='more'&&!['discover','matches','messages','profile'].includes(target)));
   });
   renderPage();
   const view=$('#view');
@@ -408,7 +430,96 @@ async function setupInstagramAutomation(){
   try{const d=await api('/instagram/automations/setup',{method:'POST',body:JSON.stringify({})});toast(d.message||'Instagram comment webhook subscription requested.');await loadAutomations()}
   catch(error){toast(error.message||'Meta setup is incomplete.')}
 }
-function renderPage(){const v=$('#view');if(!v)return;if(page==='discover'){v.innerHTML=`<h2>Campaign marketplace</h2><p>Find opportunities that fit your niche.</p><div class="toolbar"><input id="q" placeholder="Search campaigns or brands…" style="flex:2;min-width:180px"><select id="category" aria-label="Filter by category"><option value="All">All categories</option><option>Beauty</option><option>Fashion</option><option>Food</option><option>Fitness</option><option>Travel</option><option>Technology</option><option>Lifestyle</option><option>Gaming</option><option>Finance</option><option>Other</option></select><select id="type" aria-label="Filter collaboration type"><option value="All">All types</option><option>Paid</option><option>Barter</option><option>Hybrid</option></select><select id="sort" aria-label="Sort campaigns"><option value="newest">Newest</option><option value="budget_low">Lowest budget</option><option value="budget_high">Highest budget</option></select><button class="btn" onclick="filter()">Apply filters</button></div><div id="campaignGrid" class="grid">${campaigns.length?campaigns.map(card).join(''):'<div class="empty">No campaigns yet. Brands can publish the first opportunity.</div>'}</div>`;return}
+
+function renderSubscriptionPage(){
+ const v=$('#view');if(!v)return;
+ const billing=creatorBillingState||{},active=!!billing.active,checkoutReady=!!billing.checkout_ready;
+ const features=['Apply to active creator campaigns','Smart Match recommendations','Brand and creator Inbox','Saved campaigns, invitations and activity alerts','AI Studio tools and creator media kit','Instagram insights and creator automations after official Meta setup'];
+ const featuresHtml=features.map(item=>'<li>'+esc(item)+'</li>').join('');
+ const statusHtml=subscriptionCheckFailed
+  ?'<div class="note">Your subscription status could not be verified right now. Please check your connection and retry. Premium tools remain locked until the server confirms your active plan.</div>'
+  :active
+   ?'<div class="pill green">Creator Pro active</div><p class="muted">'+(billing.expires_at?'Valid until '+esc(new Date(billing.expires_at).toLocaleDateString('en-IN')):'Your annual plan is active.')+'</p>'
+   :checkoutReady
+    ?'<div class="note">Browse campaigns before subscribing. Applying and all Creator Pro tools unlock only after the ₹299 payment is captured and verified by Collabzy.</div>'
+    :'<div class="note">Secure checkout is not configured yet. The app owner must configure Razorpay API keys and webhook verification. No payment will be taken until setup is complete.</div>';
+ const actionHtml=active
+   ?'<button class="btn" data-collabzy-action="continue-after-pro">Continue to your workspace →</button>'
+   :checkoutReady
+    ?'<button class="btn" data-collabzy-action="subscribe-pro">Subscribe securely · ₹299/year</button>'
+    :'<button class="btn" disabled>Checkout setup required</button>';
+ v.innerHTML='<div class="eyebrow">CREATOR MEMBERSHIP</div><h2>Unlock every Creator Pro feature.</h2><p>Campaign previews stay visible. Subscribe for ₹299 per year to apply and access the creator workspace.</p><section class="card" style="border:1px solid var(--line);padding:22px;background:linear-gradient(135deg,#21163f,#6746a5);color:#fff"><div class="eyebrow" style="color:#8af0dc">COLLABZY PRO · 365 DAYS</div><div style="font-size:36px;font-weight:800;margin:9px 0">₹299 <span style="font-size:14px;font-weight:500">/ year</span></div><p style="color:#e7e0f4">One clear annual plan. No fake earning promises and no premium access before verification.</p>'+actionHtml+'</section><section class="card" style="margin-top:16px"><h3>What gets unlocked</h3><ul>'+featuresHtml+'</ul>'+statusHtml+'</section><div class="actions" style="margin-top:16px"><button class="btn alt" onclick="go(\'discover\')">Back to campaign previews</button>'+(active?'':'<button class="btn alt" data-collabzy-action="refresh-billing">Refresh subscription status</button>')+'</div>';
+}
+function loadRazorpayCheckoutScript(){
+ if(window.Razorpay)return Promise.resolve();
+ if(razorpayScriptPromise)return razorpayScriptPromise;
+ razorpayScriptPromise=new Promise((resolve,reject)=>{
+  const script=document.createElement('script');
+  script.src='https://checkout.razorpay.com/v1/checkout.js';
+  script.async=true;
+  script.onload=()=>window.Razorpay?resolve():reject(new Error('Razorpay checkout script loaded but was not available.'));
+  script.onerror=()=>reject(new Error('Secure checkout did not load. Check your connection and try again.'));
+  document.head.appendChild(script);
+ });
+ return razorpayScriptPromise;
+}
+async function subscribeToPro(){
+ let button=document.querySelector('[data-collabzy-action="subscribe-pro"]');
+ if(button){button.disabled=true;button.textContent='Preparing secure checkout…'}
+ try{
+  const order=await api('/billing/order',{method:'POST',body:JSON.stringify({plan_code:'creator_annual_299'})});
+  await loadRazorpayCheckoutScript();
+  const details=order.checkout_options||{};
+  const options={
+   key:order.key_id,
+   order_id:order.order_id,
+   amount:order.amount,
+   currency:order.currency,
+   name:'Collabzy',
+   description:'Creator Pro · 1 year',
+   prefill:details.prefill||{},
+   notes:details.notes||{plan_code:'creator_annual_299'},
+   theme:details.theme||{color:'#6746E8'},
+   handler:async function(response){
+    try{
+     const verified=await api('/billing/verify',{method:'POST',body:JSON.stringify({
+      order_id:response.razorpay_order_id,
+      payment_id:response.razorpay_payment_id,
+      signature:response.razorpay_signature
+     })});
+     if(!verified.ok||!verified.active)throw new Error('The server has not confirmed an active subscription yet. Premium access remains locked.');
+     creatorBillingState=await api('/billing/status');
+     if(!creatorBillingState.active)throw new Error('Payment activation is still pending. Refresh subscription status before using Pro features.');
+     toast('Payment verified. Creator Pro is active.');
+     await go(proReturnPage||'discover');
+    }catch(error){toast(error.message||'Payment verification could not be completed.');await go('subscription')}
+   },
+   modal:{ondismiss:function(){
+    toast('Checkout closed. Creator Pro stays locked until payment is verified.');
+    const cta=document.querySelector('[data-collabzy-action="subscribe-pro"]');
+    if(cta){cta.disabled=false;cta.textContent='Subscribe securely · ₹299/year'}
+   }}
+  };
+  const checkout=new window.Razorpay(options);
+  checkout.on('payment.failed',function(){toast('Payment failed or was cancelled. No Pro access was activated.')});
+  checkout.open();
+ }catch(error){
+  toast(error.message||'Secure checkout is not available right now.');
+  const cta=document.querySelector('[data-collabzy-action="subscribe-pro"]');
+  if(cta){cta.disabled=false;cta.textContent='Subscribe securely · ₹299/year'}
+ }
+}
+async function requireCreatorPro(returnPage){
+ if(me?.role!=='creator')return true;
+ try{creatorBillingState=await api('/billing/status');subscriptionCheckFailed=false}
+ catch(error){creatorBillingState={active:false,checkout_ready:false,error:error.message||'Could not verify subscription status.'};subscriptionCheckFailed=true}
+ if(creatorBillingState.active)return true;
+ proReturnPage=returnPage||page||'discover';
+ await go('subscription');
+ return false;
+}
+
+function renderPage(){const v=$('#view');if(!v)return;if(page==='subscription'){renderSubscriptionPage();return}if(page==='discover'){v.innerHTML=`<h2>Campaign marketplace</h2><p>Find opportunities that fit your niche.</p><div class="toolbar"><input id="q" placeholder="Search campaigns or brands…" style="flex:2;min-width:180px"><select id="category" aria-label="Filter by category"><option value="All">All categories</option><option>Beauty</option><option>Fashion</option><option>Food</option><option>Fitness</option><option>Travel</option><option>Technology</option><option>Lifestyle</option><option>Gaming</option><option>Finance</option><option>Other</option></select><select id="type" aria-label="Filter collaboration type"><option value="All">All types</option><option>Paid</option><option>Barter</option><option>Hybrid</option></select><select id="sort" aria-label="Sort campaigns"><option value="newest">Newest</option><option value="budget_low">Lowest budget</option><option value="budget_high">Highest budget</option></select><button class="btn" onclick="filter()">Apply filters</button></div><div id="campaignGrid" class="grid">${campaigns.length?campaigns.map(card).join(''):'<div class="empty">No campaigns yet. Brands can publish the first opportunity.</div>'}</div>`;return}
 if(page==='creators'){v.innerHTML='<h2>Find creators</h2><p>Discover talent by niche, location and creator profile. Instagram-linked profiles are marked when authorized.</p><div class="toolbar"><input id="creatorQ" placeholder="Search name, niche or bio…" style="flex:2"><input id="creatorNiche" placeholder="Niche" style="flex:1"><input id="creatorLocation" placeholder="Location" style="flex:1"><button class="btn" onclick="searchCreators()">Search</button></div><div class="grid">'+(creators.length?creators.map(c=>'<article class="card"><div class="cardtop"><div class="avatar">'+esc((c.name||'C').slice(0,1).toUpperCase())+'</div><span class="pill '+(Number(c.instagram_connected)?'green':'')+'">'+(Number(c.instagram_connected)?'Instagram linked':'Profile')+'</span></div><h3>'+esc(c.name)+'</h3><p>'+esc(c.niche||'Creator')+' · '+esc(c.location||'Location not set')+'</p><div class="stats" style="grid-template-columns:repeat(2,1fr);margin:12px 0"><div class="stat"><strong>'+Number(c.followers||0).toLocaleString('en-IN')+'</strong><span>Followers</span></div><div class="stat"><strong>'+Number(c.engagement||0).toLocaleString('en-IN')+'%</strong><span>Engagement (profile)</span></div></div><div class="desc">'+esc(c.bio||'This creator has not added a bio yet.')+'</div>'+(c.instagram_handle?'<p>Instagram: @'+esc(c.instagram_handle)+'</p>':'')+'<button class="btn" onclick="inviteCreator('+c.id+')">Invite to campaign</button></article>').join(''):'<div class="empty">No creator profiles match this search yet. Try another niche or location.</div>')+'</div>';return}
 if(page==='invitations'){v.innerHTML='<div class="panel"><div class="eyebrow">PARTNERSHIP INVITATIONS</div><h2>'+(me.role==='creator'?'Brand invitations':'Invitations sent')+'</h2><p>'+(me.role==='creator'?'Review invitations from brands and accept the collaborations that fit.':'Track the invitations you have sent to creators.')+'</p>'+(invitations.length?invitations.map(i=>'<article class="card" style="margin:12px 0"><div class="cardtop"><span class="pill '+(i.status==='pending'?'':'green')+'">'+esc(i.status)+'</span><span class="pill">'+esc(i.collaboration_type||'Collaboration')+'</span></div><h3>'+esc(i.campaign_title||'Campaign')+'</h3><p>'+(me.role==='creator'?'From '+esc(i.brand_name||'Brand'):'To '+esc(i.creator_name||'Creator')+(i.niche?' · '+esc(i.niche):''))+' · '+esc(i.category||'')+'</p><div class="money">'+money(i.budget_min,i.budget_max)+'</div><p>'+esc(i.message||'No message added.')+'</p>'+(me.role==='creator'&&i.status==='pending'?'<div class="actions"><button class="btn" onclick="respondInvitation('+i.id+',\'accepted\')">Accept invitation</button><button class="btn alt" onclick="respondInvitation('+i.id+',\'declined\')">Decline</button></div>':'')+'</article>').join(''):'<div class="empty">No invitations yet. Brands can send invitations from Find creators.</div>')+'</div>';return}
 if(page==='mycampaigns'){v.innerHTML='<h2>My campaigns</h2><p>Manage your brand briefs, see applications and pause listings when you are done.</p><div class="grid">'+(myCampaigns.length?myCampaigns.map(c=>'<article class="card"><div class="cardtop"><span class="pill '+(c.status==='active'?'green':'')+'">'+esc(c.status)+'</span><span class="pill">'+Number(c.application_count||0)+' applications</span></div><h3>'+esc(c.title)+'</h3><p>'+esc(c.category)+' · '+esc(c.collaboration_type)+'</p><div class="money">'+money(c.budget_min,c.budget_max)+'</div><div class="actions"><button class="btn" onclick="go(\'applications\')">Review applicants</button><button class="btn alt" onclick="editCampaign('+c.id+')">Edit brief</button><button class="btn alt" onclick="toggleCampaignStatus('+c.id+',\''+(c.status==='active'?'closed':'active')+'\')">'+(c.status==='active'?'Close campaign':'Reopen')+'</button></div></article>').join(''):'<div class="empty">No campaigns yet. Publish your first campaign to start finding creators.</div>')+'</div>';return}
@@ -438,6 +549,7 @@ function filter(){const q=($('#q')?.value||'').toLowerCase(),t=$('#type')?.value
 async function loadApps(){try{apps=(await api('/applications')).applications||[]}catch{apps=[]}}
 async function applyCampaign(id){
  if(me.role!=='creator'){const c=campaigns.find(x=>Number(x.id)===Number(id));toast(c?'Campaign: '+c.title+' · Use Post a campaign to publish your own.':'Brand workspace');return}
+ if(!(await requireCreatorPro('discover')))return;
  const c=campaigns.find(x=>Number(x.id)===Number(id));if(!c){toast('Campaign not found. Refresh and try again.');return}
  document.querySelector('#applicationModal')?.remove();
  document.body.insertAdjacentHTML('beforeend','<div id="applicationModal" class="modal"><section class="modalcard"><button id="closeApply" class="modalclose" aria-label="Close">×</button><div class="eyebrow">CAMPAIGN APPLICATION</div><h2>'+esc(c.title)+'</h2><p>'+esc(c.brand_name)+' · '+esc(c.category)+' · '+esc(c.collaboration_type)+'</p><form id="applyForm"><div class="field"><label>Your pitch</label><textarea name="pitch" rows="4" maxlength="1000" required placeholder="Explain why you are a great fit for this collaboration."></textarea></div><div class="field"><label>Your proposed rate (INR)</label><input name="proposed_rate" type="number" min="0" max="100000000" value="'+(c.collaboration_type==='Barter'?'0':String(c.budget_min||0))+'" required></div><div class="actions"><button class="btn" type="submit">Send application</button><button class="btn alt" type="button" id="cancelApply">Cancel</button></div></form></section></div>');
