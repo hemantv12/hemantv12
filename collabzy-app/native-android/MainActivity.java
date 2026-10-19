@@ -230,7 +230,7 @@ public final class MainActivity extends Activity {
         b.setBackground(rounded(primary ? MINT : PANEL_ALT, 17, primary ? 0 : Color.rgb(224, 220, 238)));
         b.setClickable(true);
         b.setFocusable(true);
-        // This is a TextView, not an AppCompatButton. Avoid TextView.setAllCaps(), which is API 28+.
+        // This is a TextView, not an AppCompatButton. Avoid the API-28-only all-caps helper.
         b.setTransformationMethod(null);
         return b;
     }
