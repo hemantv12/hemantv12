@@ -2,7 +2,7 @@
 
 EarnRoute is an India-first, mobile-first hyperlocal earning marketplace for finding genuine paid shifts within a selectable 1 km, 3 km or 5 km radius, plus expanded 8 km, 10 km and 15 km options. This repository is a runnable launch candidate: it includes a responsive public website, worker/business/admin workspaces, API, PostgreSQL-compatible schema, migration, tests, and deployment assets. It must **not** be represented as a fully production-verified marketplace until the remaining integrations and operating procedures in this README are completed.
 
-## Version 1.5.3 — account data export, policy audit and privacy requests
+## Version 1.6.0 — admin account management, system health and Android auth fit
 
 - Account privacy controls: signed-in users can export a JSON copy of their own profile, work records, notifications, support tickets/messages, reviews and recorded policy acceptances. Password hashes and session tokens are excluded; each activity section is capped at 500 records, support-ticket exports are capped at 100 tickets, and truncation is explicitly reported.
 - New sign-ups record the exact draft Terms and Privacy notice revision IDs accepted in the audit history. Existing accounts are not retroactively assigned a revision they did not accept.
@@ -14,6 +14,13 @@ EarnRoute is an India-first, mobile-first hyperlocal earning marketplace for fin
 - GPS fallback: if a worker denies or cannot use device location, they can choose a nearby city, tap their intended locality on the map, and keep that search point in the current device session for up to 30 minutes. A city-centre-only option is clearly marked approximate; the chosen coordinates are sent to EarnRoute to find nearby shifts and are not added to the worker profile.
 - Nearby coordinates are now sent to a validated, rate-limited POST endpoint rather than query-string URLs, reducing exposure of precise search points in URL access logs. The existing GET endpoint remains available for backwards compatibility.
 - OpenStreetMap uses the canonical raster tile URL by default, with a configurable provider URL meta setting, visible attribution/map-issue link, and an app/version User-Agent for Android WebView tile requests. Public OpenStreetMap tiles are best-effort and do not provide a production SLA; select an appropriate hosted/self-hosted provider as map usage grows.
+
+- New admin-only user account inventory with search by name/email, role/status filters, active/inactive status, safe account suspension/restoration, reason capture, audit events, self-lockout prevention, and a guard against suspending the only active admin.
+- Suspending a business pauses its currently published listings; it does not delete accounts or automatically cancel existing assignments. Re-enabled business listings remain paused until the operator reviews them.
+- New admin system-health screen reports database probe latency, release label, account/marketplace/support counts, and whether supported environment-based integrations are configured. It never displays secret values and explicitly distinguishes configuration presence from a successful provider smoke test.
+- Founder overview now includes active/inactive account and support/safety queue metrics, with direct links to user accounts, support and system health.
+- Admin mobile navigation includes accounts, support and system screens; Hindi labels are available for the new admin navigation and dashboard UI.
+- Admin sign-in / account-create sheet now follows Android's visual viewport and keyboard height so focused fields can scroll into view instead of remaining obscured behind the keyboard. Keyboard behaviour still needs physical-device QA.
 
 ## What works in this release
 
@@ -90,7 +97,7 @@ In development/test mode, app startup can create any missing tables for convenie
 
 ## Open the live admin dashboard
 
-Open `/admin` on the deployed HTTPS origin: `https://earnroute-api.onrender.com/admin`. The route opens a dedicated admin-only sign-in screen; after a valid admin login it loads Founder overview, business verification, job moderation, dispute review, support tickets and audit history. It does not grant administrator permission to an ordinary worker or business account. The backend enforces the admin role for every admin API request.
+Open `/admin` on the deployed HTTPS origin: `https://earnroute-api.onrender.com/admin`. The route opens a dedicated admin-only sign-in screen; after a valid admin login it loads Founder overview, business verification, job moderation, user account management, dispute review, support tickets, system health and audit history. It does not grant administrator permission to an ordinary worker or business account. The backend enforces the admin role for every admin API request.
 
 If the sign-in page opens but no founder account can log in, create the first founder account through the secure provisioning procedure below. Admin account creation is intentionally not available in public sign-up. The production database currently has no administrator account, so a one-time owner bootstrap is required before the console can show live metrics.
 
