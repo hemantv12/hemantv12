@@ -43,3 +43,73 @@ body.admin-portal-mode .auth-safe{line-height:1.7}
 body.admin-portal-mode .modal-close{display:none!important}
 body.admin-portal-mode #auth-mode-tabs[hidden]{display:none!important}
 @media(max-width:520px){body.admin-portal-mode #auth-modal{padding:14px}body.admin-portal-mode .auth-modal{padding:27px 21px 21px;border-radius:17px}body.admin-portal-mode .auth-modal h2{font-size:25px}}
+
+
+/* Final admin console usability and Android keyboard-resize safeguards. */
+.admin-account-summary {
+  display:flex; align-items:center; flex-wrap:wrap; gap:7px 10px; margin:0 0 14px;
+  padding:13px 15px; background:#fff; border:1px solid #e4ebe5; border-radius:12px;
+  color:#617367; font-size:10px;
+}
+.admin-account-summary>b { display:grid; place-items:center; min-width:31px; height:31px; padding:0 8px; border-radius:9px; background:#edf6ef; color:#24583a; font-size:15px; }
+.admin-account-summary>span { font-weight:800; color:#36513f; }
+.admin-account-summary>small { margin-left:auto; color:#89978d; font-size:9px; }
+.admin-users-table .data-table { min-width:830px; }
+.admin-users-table .data-table td { vertical-align:top; }
+.admin-users-table .data-table td small { max-width:270px; line-height:1.5; overflow-wrap:anywhere; }
+.admin-user-actions { display:flex; align-items:center; justify-content:flex-start; min-width:115px; }
+.admin-current-session { display:inline-flex; padding:6px 8px; border:1px solid #e2e9e3; border-radius:7px; color:#829087; background:#f8faf8; font-size:9px; white-space:nowrap; }
+.integration-status-list { display:grid; gap:8px; }
+.integration-status { display:flex; align-items:center; gap:10px; padding:12px; border:1px solid #e9eee9; border-radius:11px; background:#fcfdfc; min-width:0; }
+.integration-status>div { flex:1; min-width:0; }
+.integration-status b,.integration-status small { display:block; }
+.integration-status b { color:#314839; font-size:10px; }
+.integration-status small { margin-top:4px; color:#849288; font-size:9px; line-height:1.5; }
+.integration-status-dot { flex:0 0 8px; width:8px; height:8px; border-radius:50%; background:#d6a044; }
+.integration-status-dot.is-ready { background:#319566; box-shadow:0 0 0 3px #e3f3e9; }
+.integration-status-dot.is-missing { background:#d19b45; box-shadow:0 0 0 3px #fff3dc; }
+.admin-system-grid .metric-value { overflow-wrap:anywhere; }
+
+/* Android IME: size the sign-in backdrop to the visual viewport, not the hidden area behind the keyboard. */
+html.er-native-app #auth-modal {
+  box-sizing:border-box;
+  top:var(--er-visual-viewport-top,0px);
+  bottom:auto;
+  height:var(--er-visual-viewport-height,100vh);
+  max-height:var(--er-visual-viewport-height,100vh);
+  min-height:0;
+  overflow-y:auto;
+  overscroll-behavior:contain;
+  -webkit-overflow-scrolling:touch;
+  align-items:start;
+  padding:12px;
+}
+html.er-native-app #auth-modal .auth-modal {
+  box-sizing:border-box;
+  width:min(445px,100%);
+  max-height:calc(var(--er-visual-viewport-height,100vh) - 24px);
+  margin:0 auto;
+  overflow-x:hidden;
+  overflow-y:auto;
+  overscroll-behavior:contain;
+  -webkit-overflow-scrolling:touch;
+  scroll-padding-top:18px;
+  scroll-padding-bottom:34px;
+}
+html.er-native-app.er-keyboard-open #auth-modal { align-items:start; padding-top:8px; padding-bottom:8px; }
+html.er-native-app.er-keyboard-open #auth-modal .auth-modal {
+  max-height:calc(var(--er-visual-viewport-height,100vh) - 16px);
+  margin-bottom:0;
+  scroll-padding-bottom:45px;
+}
+html.er-native-app #auth-form .form-field input,
+html.er-native-app #auth-form .form-field textarea,
+html.er-native-app #auth-form .form-field select { scroll-margin-top:18px; scroll-margin-bottom:40px; }
+@media(max-width:520px) {
+  .admin-account-summary>small { flex-basis:100%; margin-left:0; }
+  .admin-users-table .data-table { min-width:790px; }
+  .integration-status { align-items:flex-start; }
+  .integration-status .status-pill { margin-left:auto; }
+  html.er-native-app #auth-modal { padding:8px; }
+  html.er-native-app #auth-modal .auth-modal { max-height:calc(var(--er-visual-viewport-height,100vh) - 16px); padding:23px 18px 20px; }
+}
