@@ -32,8 +32,8 @@ public final class StartupScreenTest {
                 View root = activity.findViewById(android.R.id.content);
                 assertNotNull("Activity content root must exist", root);
                 String visible = collectText(root);
-                assertTrue("New user headline must render: " + visible, visible.contains("Your next brand deal starts here."));
-                assertTrue("Join beta action must render: " + visible, visible.contains("Join private beta"));
+                assertTrue("Welcome headline must render: " + visible, visible.contains("Turn your content"));
+                assertTrue("Create-account action must render: " + visible, visible.contains("Create your account"));
                 assertTrue("Existing-account action must render: " + visible, visible.contains("I already have an account"));
                 assertTrue("Annual plan must render: " + visible, visible.contains("₹299 / year"));
             });

@@ -55,31 +55,35 @@ test('Capacitor Android uses an app-first welcome screen and mobile tab navigati
  assert.match(html,/function closeMoreSheet\(\)/,'the More sheet must be dismissible');
 });
 
-test('Rebuilt native Android app covers core creator, brand and account workflows',()=>{
+test('Native Android app includes the complete creator-brand marketplace and account features',()=>{
  const native=fs.readFileSync(path.join(root,'native-android','MainActivity.java'),'utf8');
  const workflow=fs.readFileSync(path.join(root,'..','.github','workflows','collabzy-android.yml'),'utf8');
  const configScript=fs.readFileSync(path.join(root,'scripts','configure-android.js'),'utf8');
  const requiredScreens=[
-  'showWelcome','showAuth','showForgotPassword','showApp','renderDiscover','renderWork',
-  'renderStudio','renderProfile','showCampaignComposer','showApply','connectInstagram',
-  'handleInstagramCallback','showStartupFailure','refreshCurrentTab','clearCaches'
+  'showWelcome','showAuth','showForgotPasswordDialog','showShell','renderHome','renderExplore',
+  'renderMatches','renderInbox','renderConversation','renderSavedCampaigns','renderInvitations',
+  'renderNotifications','renderMyCampaigns','renderInstagram','renderAutoDM','renderApplications',
+  'renderProfile','renderAI','renderCreateCampaign','renderBilling','renderSupport',
+  'showPasswordDialog','exportAccountData','confirmDeleteAccount','showInviteDialog',
+  'showEditCampaignDialog','showForgotPasswordDialog','loadExploreResults','loadAutomationEvents',
+  'downloadMediaKit','generateMediaKitPdf'
  ];
  for(const screen of requiredScreens) assert.ok(native.includes('private void '+screen+'('),'native screen/function '+screen+' must exist');
  for(const endpoint of [
-  '/api/auth/register','/api/auth/login','/api/dashboard','/api/campaigns',
-  '/api/applications','/api/my-campaigns','/api/me','/api/instagram/connect',
-  '/api/instagram/status','/api/ai/studio','/api/billing/status','/api/campaigns/',
-  '/api/auth/forgot-password'
+  '/api/auth/register','/api/auth/login','/api/dashboard','/api/campaigns','/api/matches',
+  '/api/applications','/api/invitations','/api/notifications','/api/conversations',
+  '/api/me/password','/api/me/export','/api/instagram/connect','/api/instagram/insights',
+  '/api/instagram/automations','/api/ai/studio','/api/billing/status','/api/support',
+  '/api/campaigns/','/api/auth/forgot-password','/api/invitations/'
  ]) assert.ok(native.includes(endpoint),'native client should use '+endpoint);
  assert.ok(native.includes('class MainActivity extends Activity'),'main screen must use Android native Activity');
- assert.ok(native.includes('private void request('),'network requests must be handled by the native API client');
- assert.ok(native.includes('private void showStartupFailure('),'startup must have a visible fallback');
- assert.ok(native.includes('setContentView(root)'),'native screens must install their content');
- assert.equal(native.includes('import android.webkit.WebView'),false,'native main Activity must not embed the website in a WebView');
- assert.ok(workflow.includes('cp native-android/MainActivity.java android/app/src/main/java/com/collabzy/creator/MainActivity.java'),'APK build must install the native Activity source');
+ assert.ok(native.includes('PdfDocument'),'creator media kit must be generated as a PDF');
+ assert.ok(native.includes('Intent.ACTION_CREATE_DOCUMENT'),'media kit must offer a user-controlled save destination');
+ assert.equal(native.includes('android.webkit.WebView'),false,'native client must not embed the website');
+ assert.ok(workflow.includes('cp native-android/MainActivity.java android/app/src/main/java/com/collabzy/creator/MainActivity.java'),'APK build must install native Activity source');
  assert.ok(workflow.includes('com.squareup.okhttp3:okhttp:4.12.0'),'native HTTP dependency must be installed at build time');
- assert.ok(workflow.includes('Verify native launcher in APK'),'build must verify that the native Android Activity is packaged');
+ assert.ok(workflow.includes('Verify native launcher in APK'),'build must verify native Activity is packaged');
  assert.ok(workflow.includes(':app:connectedDebugAndroidTest'),'emulator test must target the Collabzy app module');
- assert.ok(configScript.includes('android:launchMode="singleTask"'),'OAuth deep link must return to the existing Android Activity safely');
- assert.ok(configScript.includes('android:scheme="collabzy"'),'OAuth callback must be registered as an Android deep link');
+ assert.ok(configScript.includes('android:launchMode="singleTask"'),'OAuth callback must return to the existing Activity');
+ assert.ok(configScript.includes('android:scheme="collabzy"'),'OAuth callback must be registered as a deep link');
 });
