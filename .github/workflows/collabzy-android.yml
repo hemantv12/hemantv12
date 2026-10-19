@@ -118,6 +118,8 @@ jobs:
           EOF
           mkdir -p android/app/src/androidTest/java/com/collabzy/creator
           cp native-android-tests/StartupScreenTest.java android/app/src/androidTest/java/com/collabzy/creator/StartupScreenTest.java
+          # Capacitor's generated sample asserts its template package id and is unrelated to Collabzy.
+          find android/app/src/androidTest -type f -name 'ExampleInstrumentedTest.java' -delete
       - name: Build debug APK
         run: cd android && chmod +x gradlew && ./gradlew assembleDebug --no-daemon
       - name: Verify native launcher in APK
