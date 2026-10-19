@@ -2,12 +2,15 @@
 
 EarnRoute is an India-first, mobile-first hyperlocal earning marketplace for finding genuine paid shifts within a selectable 1 km, 3 km or 5 km radius, plus expanded 8 km, 10 km and 15 km options. This repository is a runnable launch candidate: it includes a responsive public website, worker/business/admin workspaces, API, PostgreSQL-compatible schema, migration, tests, and deployment assets. It must **not** be represented as a fully production-verified marketplace until the remaining integrations and operating procedures in this README are completed.
 
-## Version 1.5.1 — tighter mobile header, commute-aware earnings and live maps
+## Version 1.5.2 — GPS fallback, privacy-safe nearby search and compliant map configuration
 
 - App-first welcome and workspace layouts have narrower-device constraints, Devanagari font/line-height treatment, safe-area handling, wrapping controls, and horizontal overflow prevention.
 - English/Hindi preference is persisted locally. The UI localization pass covers the welcome screen, role navigation, forms, dynamic labels, job statuses, common prompts, and notifications. Device/browser rendering still needs physical-device QA to catch any remaining string or font differences.
 - Workers can use the OS share sheet/browser sharing to send nearby or accepted-shift details, compensation estimates, workplace information, and a Maps destination link. It does not track the other party live.
 - More nearby distance choices are 8 km, 10 km and 15 km beyond 1/3/5 km presets; the UI and API validate supported values.
+- GPS fallback: if a worker denies or cannot use device location, they can choose a nearby city, tap their intended locality on the map, and keep that search point in the current device session for up to 30 minutes. A city-centre-only option is clearly marked approximate; the chosen coordinates are sent to EarnRoute to find nearby shifts and are not added to the worker profile.
+- Nearby coordinates are now sent to a validated, rate-limited POST endpoint rather than query-string URLs, reducing exposure of precise search points in URL access logs. The existing GET endpoint remains available for backwards compatibility.
+- OpenStreetMap uses the canonical raster tile URL by default, with a configurable provider URL meta setting, visible attribution/map-issue link, and an app/version User-Agent for Android WebView tile requests. Public OpenStreetMap tiles are best-effort and do not provide a production SLA; select an appropriate hosted/self-hosted provider as map usage grows.
 
 ## What works in this release
 
