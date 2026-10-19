@@ -1792,3 +1792,36 @@ html.er-native-app .er-job-draft-clear { min-height:38px; }
 @media(prefers-reduced-motion:reduce) {
   .er-network-banner,.er-job-draft-notice { scroll-behavior:auto; transition:none !important; }
 }
+
+
+/* RELEASE 1.6.6 — Android's native parent already handles status/navigation-bar insets.
+   Fixed web controls use the safe WebView viewport; never add the system inset a second time. */
+html.er-native-app { --er-system-bottom-inset:0px; }
+html.er-native-app .workspace-topbar {
+  top:0 !important;
+  flex:0 0 var(--er-mobile-header-height,62px) !important;
+  height:var(--er-mobile-header-height,62px) !important;
+  min-height:var(--er-mobile-header-height,62px) !important;
+}
+html.er-native-app .er-mobile-nav { bottom:0 !important; }
+html.er-native-app .view-root {
+  padding-bottom:calc(var(--er-mobile-nav-height,68px) + 18px) !important;
+  scroll-padding-bottom:calc(var(--er-mobile-nav-height,68px) + 18px);
+}
+html.er-native-app .sidebar,
+html.er-native-app .sidebar.mobile-open {
+  top:var(--er-mobile-header-height,62px) !important;
+  bottom:0 !important;
+  max-height:calc(100dvh - var(--er-mobile-header-height,62px)) !important;
+}
+html.er-native-app .er-sidebar-scrim {
+  top:var(--er-mobile-header-height,62px) !important;
+  bottom:0 !important;
+}
+html.er-native-app.er-drawer-open .workspace-topbar {
+  z-index:560 !important;
+}
+html.er-native-app.er-drawer-open .sidebar,
+html.er-native-app.er-drawer-open .sidebar.mobile-open { z-index:550 !important; }
+html.er-native-app.er-drawer-open .er-sidebar-scrim { z-index:540 !important; }
+html.er-native-app.er-keyboard-open .er-mobile-nav { display:none !important; }
