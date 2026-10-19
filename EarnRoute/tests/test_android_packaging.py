@@ -350,6 +350,13 @@ def test_keyboard_layout_has_single_scroll_owner_and_keyboard_resizes_content():
     assert css.count("html.er-native-app.er-keyboard-open #auth-modal .auth-modal {") == 1
     assert 'android:windowSoftInputMode="adjustResize"' in (ANDROID / "app/src/main/AndroidManifest.xml").read_text()
     assert "WindowInsetsCompat.Type.ime()" in activity
+    assert "Keyboard viewport alignment: the auth backdrop is a grid when the keyboard is closed." in css
+    assert "html.er-native-app.er-keyboard-open #auth-modal.modal-backdrop:not([hidden])" in css
+    assert "display:flex !important;\n  flex-direction:column !important;" in css
+    assert "justify-content:flex-end !important;" in css
+    assert "top:var(--er-visual-viewport-top,0px) !important;" in css
+    assert "height:var(--er-visual-viewport-height,100dvh) !important;" in css
+    assert "scroll-margin-bottom:32px;" in css
 
 
 def test_mobile_header_drawer_and_bottom_navigation_respect_android_system_bars():
