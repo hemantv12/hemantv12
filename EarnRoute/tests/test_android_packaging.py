@@ -140,7 +140,7 @@ def test_saved_shift_and_safety_report_frontend_are_wired():
     assert "data-er-report-job" in nearby_js
     assert "category:'safety'" in nearby_js
     assert "message:'Published shift ID: ' + jobId + '\\nShift title: '" in nearby_js
-    assert "earnroute-shell-v16" in (ROOT / "app/static/sw.js").read_text()
+    assert "earnroute-shell-v17" in (ROOT / "app/static/sw.js").read_text()
     assert "t('sortHourlyRate')" in nearby_js
     assert "api('/api/support/tickets'" in nearby_js
     assert "reportConcern: 'Report a concern'" in app_js
@@ -158,7 +158,7 @@ def test_safety_report_uses_existing_private_ticket_workflow_and_cache_bust():
     assert "api('/api/support/tickets'" in nearby_js
     assert "reportConcern: 'Report a concern'" in app_js
     assert "safetyReportSent: 'आपकी सुरक्षा संबंधी शिकायत" in app_js
-    assert "earnroute-shell-v16" in sw_js
+    assert "earnroute-shell-v17" in sw_js
     assert "function erMobileNavLabel(screen, fallback)" in nearby_js
     assert "'saved-shifts':'सेव्ड'" in nearby_js
     assert "escapeHtml(erMobileNavLabel(item[0], item[2]))" in nearby_js
@@ -234,7 +234,7 @@ def test_android_generates_versioned_buildconfig_for_map_user_agent():
     gradle = (ANDROID / "app/build.gradle").read_text()
     activity = (ANDROID / "app/src/main/java/in/earnroute/app/MainActivity.java").read_text()
     assert "buildFeatures {\n        buildConfig true\n    }" in gradle
-    assert "versionName '1.6.6'" in gradle
+    assert "versionName '1.6.7'" in gradle
     assert 'EarnRouteAndroid/" + BuildConfig.VERSION_NAME' in activity
 
 
@@ -257,7 +257,7 @@ def test_account_export_and_privacy_controls_are_wired():
     assert "saveTextFile(String fileName, String mimeType, String content)" in activity
     assert "Intent.ACTION_CREATE_DOCUMENT" in activity
     assert "SAVE_TEXT_FILE_REQUEST" in activity
-    assert "earnroute-shell-v16" in sw
+    assert "earnroute-shell-v17" in sw
 
 
 def test_android_keyboard_resize_and_auth_sheet_visibility_are_wired():
@@ -361,7 +361,10 @@ def test_mobile_header_drawer_and_bottom_navigation_respect_android_system_bars(
     assert "bottom:var(--er-system-bottom-inset,0px) !important;" in css
     assert "padding:7px 7px 7px !important;" in css
     assert "html.er-native-app.er-drawer-open .er-mobile-nav" in css
-    assert "html.er-native-app .sidebar > .workspace-label { display:none !important; }" in css
+    assert "html.er-native-app .sidebar > .workspace-label" in css
+    assert "display:none !important;" in css
+    assert "top:calc(var(--er-system-top-inset,0px) + var(--er-mobile-header-height,62px)) !important;" in css
+    assert "getSystemTopInsetDp()" in activity
     assert "function erSetMobileDrawerOpen(open)" in js
     assert 'id="er-sidebar-scrim"' in js
     assert "event.key === 'Escape' && document.documentElement.classList.contains('er-drawer-open')" in js
@@ -396,6 +399,8 @@ def test_android_system_insets_are_applied_once_and_mobile_footer_clears_system_
     assert "window.setNavigationBarContrastEnforced(true)" in activity
     assert "bottom:var(--er-system-bottom-inset,0px) !important" in css
     assert "padding-bottom:calc(var(--er-mobile-nav-height,68px) + 18px + var(--er-system-bottom-inset,0px))" in css
+    assert "systemBottomInsetDp = Math.max(0, Math.round(bottomInsetPx / density));" in activity
+    assert "style.setProperty('--er-system-bottom-inset','\" + bottomInset + \"px');" in activity
     assert "z-index:530 !important" in css
     assert "z-index:540 !important" in css
 
@@ -451,10 +456,31 @@ def test_android_safe_viewport_container_prevents_fixed_controls_overlapping_sys
     assert "private void setSafeContentView(WebView view)" in activity
     assert "container.setPadding(bars.left, bars.top, bars.right, contentBottomInset)" in activity
     assert "setInsets(systemBarsAndCutout, Insets.NONE)" in activity
-    assert "documentElement.style.setProperty(\"--er-system-bottom-inset\", \"0px\")" in html
-    assert "RELEASE 1.6.6 — Android's native parent" in css
-    assert "html.er-native-app .er-mobile-nav { bottom:0 !important; }" in css
+    assert "setProperty(\"--er-system-top-inset\", Math.max(0, topInset) + \"px\")" in html
+    assert "setProperty(\"--er-system-bottom-inset\", Math.max(0, bottomInset) + \"px\")" in html
+    assert "RELEASE 1.6.7 — fixed web overlays" in css
+    assert "top:calc(var(--er-system-top-inset,0px) + var(--er-mobile-header-height,62px)) !important;" in css
+    assert "bottom:var(--er-system-bottom-inset,0px) !important;" in css
+    assert "getSystemTopInsetDp()" in activity
+    assert "private volatile int systemTopInsetDp = 0;" in activity
     assert "html.er-native-app .sidebar.mobile-open" in css
     assert "html.er-native-app .er-sidebar-scrim" in css
 
 
+
+
+def test_fixed_android_overlays_use_live_insets_instead_of_zero_offsets():
+    activity = (ANDROID / "app/src/main/java/in/earnroute/app/MainActivity.java").read_text()
+    html = (ROOT / "app/static/index.html").read_text()
+    css = (ROOT / "app/static/nearby.css").read_text()
+    assert "private volatile int systemTopInsetDp = 0;" in activity
+    assert "getSystemTopInsetDp()" in activity
+    assert "systemTopInsetDp = Math.max(0, Math.round(bars.top / density));" in activity
+    assert "style.setProperty('--er-system-top-inset','\" + topInset + \"px');" in activity
+    assert "style.setProperty('--er-system-bottom-inset','\" + bottomInset + \"px');" in activity
+    assert 'getSystemTopInsetDp ? window.EarnRouteNative.getSystemTopInsetDp() : 0' in html
+    assert 'getSystemBottomInsetDp ? window.EarnRouteNative.getSystemBottomInsetDp() : 0' in html
+    assert "bottom:var(--er-system-bottom-inset,0px) !important;" in css
+    assert "top:calc(var(--er-system-top-inset,0px) + var(--er-mobile-header-height,62px)) !important;" in css
+    assert "html.er-native-app .sidebar > .workspace-label" in css
+    assert "earnroute-shell-v17" in (ROOT / "app/static/sw.js").read_text()
