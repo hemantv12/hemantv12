@@ -300,3 +300,26 @@ def test_admin_user_management_and_system_health_are_server_protected():
     assert "Final admin console usability and Android keyboard-resize safeguards" in css
     assert "er-visual-viewport-height" in css
     assert "er-keyboard-open #auth-modal" in css
+
+
+
+def test_native_keyboard_insets_resize_forms_without_double_system_bar_padding():
+    manifest = (ANDROID / "app/src/main/AndroidManifest.xml").read_text()
+    activity = (ANDROID / "app/src/main/java/in/earnroute/app/MainActivity.java").read_text()
+    app_js = (ROOT / "app/static/app.js").read_text()
+    css = (ROOT / "app/static/nearby.css").read_text()
+    assert 'android:windowSoftInputMode="adjustResize"' in manifest
+    assert "WindowInsetsCompat.Type.ime()" in activity
+    assert "getSystemImeInsetDp()" in activity
+    assert "systemImeInsetDp = imeVisible" in activity
+    assert "setInsets(systemBarsAndCutout, Insets.NONE)" in activity
+    assert "windowInsets.isVisible(WindowInsetsCompat.Type.ime())" in activity
+    assert "function erNativeImeInsetCssPx()" in app_js
+    assert "Math.min(observedHeight, nativeVisibleHeight)" in app_js
+    assert "nativeImeInset > 110" in app_js
+    assert "[80, 180, 320].forEach(delay =>" in app_js
+    assert "MOBILE OVERLAP + KEYBOARD HOTFIX" in css
+    assert "html.er-native-app.er-keyboard-open .view-root" in css
+    assert "html.er-native-app.er-keyboard-open .er-mobile-nav" in css
+    assert "max-height:calc(var(--er-visual-viewport-height, 100dvh) - 6px)" in css
+
