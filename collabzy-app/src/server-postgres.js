@@ -296,6 +296,26 @@ async function start(PORT,SECRET){
     const rows=await pool.query("SELECT id,name,email,role,niche,location,instagram_handle,followers,engagement,account_status,(email_verified_at IS NOT NULL) AS email_verified,created_at FROM users"+clause+" ORDER BY created_at DESC,id DESC LIMIT $"+(params.length-1)+" OFFSET $"+params.length,params);
     s.json({users:rows.rows,total:count.rows[0].total,page,limit,pages:Math.max(1,Math.ceil(count.rows[0].total/limit))});
   }));
+  app.get('/api/admin/brand-options',adminAuth,asyncRoute(async(q,s)=>{
+    const r=await pool.query("SELECT id,name,email FROM users WHERE role='brand' AND account_status='active' ORDER BY name,id LIMIT 100");
+    s.setHeader('Cache-Control','no-store');
+    s.json({brands:r.rows});
+  }));
+  app.post('/api/admin/campaigns',adminAuth,asyncRoute(async(q,s)=>{
+    const b=q.body||{},brandId=String(b.brand_id||'');
+    if(!/^[1-9]\d{0,17}$/.test(brandId))return s.status(400).json({error:'Select a valid registered brand account.'});
+    const title=String(b.title||'').trim(),description=String(b.description||'').trim(),category=String(b.category||'').trim().slice(0,60),type=String(b.collaboration_type||'');
+    const low=Number(b.budget_min),high=Number(b.budget_max);
+    if(title.length<4||title.length>120||description.length<20||description.length>1500||!category||!['Paid','Barter','Hybrid'].includes(type))return s.status(400).json({error:'Add a clear title, campaign brief, category and collaboration type.'});
+    if(!Number.isSafeInteger(low)||!Number.isSafeInteger(high)||low<0||high<low||high>100000000)return s.status(400).json({error:'Enter a valid budget range in INR; maximum must be at least minimum.'});
+    const brand=await pool.query("SELECT id,name,email FROM users WHERE id=$1 AND role='brand' AND account_status='active'",[brandId]);
+    if(!brand.rows.length)return s.status(404).json({error:'That active brand account was not found. Refresh the form and select a registered brand.'});
+    const deliverables=String(b.deliverables||'').trim().slice(0,300),location=String(b.location||'India').trim().slice(0,100)||'India';
+    const created=await pool.query("INSERT INTO campaigns(brand_id,title,brand_name,description,category,collaboration_type,budget_min,budget_max,deliverables,location,status) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'active') RETURNING id,title,brand_name,category,collaboration_type,budget_min,budget_max,status,created_at",[brandId,title,brand.rows[0].name,description,category,type,low,high,deliverables,location]);
+    const campaign=created.rows[0];
+    await recordAdminAction(q,'publish_campaign','campaign',campaign.id,{brand_id:Number(brandId),brand_email:brand.rows[0].email,title:campaign.title,status:'active'});
+    s.status(201).json({campaign,message:'Campaign published to the creator marketplace.'});
+  }));
   app.patch('/api/admin/users/:id/status',adminAuth,asyncRoute(async(q,s)=>{
     const id=String(q.params.id||'');if(!/^[1-9]\d{0,17}$/.test(id))return s.status(400).json({error:'Invalid user ID.'});
     const status=String(q.body?.status||'');if(!['active','suspended'].includes(status))return s.status(400).json({error:'Choose active or suspended.'});

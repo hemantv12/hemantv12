@@ -10,6 +10,7 @@
 @media(max-width:1150px){.main{padding:0 20px 30px}.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.overview-grid{grid-template-columns:1fr}.integration-list{grid-template-columns:1fr 1fr;column-gap:20px}.lower-grid{grid-template-columns:1fr}}
 @media(max-width:780px){.shell{grid-template-columns:1fr}.sidebar{height:auto;position:sticky;z-index:20;top:0;padding:9px 11px;border-right:0;border-bottom:1px solid #ffffff12;background:#0b0c16f2;backdrop-filter:blur(15px);gap:7px}.sidebar .brand{display:none}.side-label,.sidebar-bottom{display:none}.nav{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}.nav::-webkit-scrollbar{display:none}.nav button{white-space:nowrap;padding:9px 11px;font-size:11px;gap:7px}.nav button .glyph{font-size:13px;width:auto}.main{padding:0 13px 28px}.topbar{height:63px}.crumb{font-size:11px}.admin-chip{padding-left:9px}.admin-chip strong{max-width:118px}.top-actions .btn{padding:8px 10px;font-size:11px}.content{padding-top:23px}.page-head{align-items:flex-start;flex-direction:column}.head-actions{width:100%}.kpis{gap:9px}.kpi{padding:13px}.kpi-value{font-size:25px;margin-top:11px}.kpi-top{font-size:10px}.kpi-icon{width:25px;height:25px}.integration-list{grid-template-columns:1fr}.panel{padding:15px}.panel-head{margin-bottom:12px}.chart{gap:5px;padding-left:0;padding-right:0}.toolbar .search{max-width:none}.toolbar .field{max-width:none;flex:1}.login-card{padding:25px}.login-card h1{font-size:26px}}
 @media(max-width:420px){.nav button{padding:8px 9px}.nav button .glyph{display:none}.kpis{grid-template-columns:1fr 1fr}.kpi-value{font-size:22px}.head-actions .btn{flex:1}.admin-chip small{display:none}.admin-avatar{display:none}}
+.campaign-create-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 14px}.campaign-create-grid .wide{grid-column:1/-1}.campaign-create-grid label{min-width:0}.campaign-create-grid .field{display:block;margin-top:7px}.campaign-create-grid textarea{resize:vertical;min-height:95px}@media(max-width:620px){.campaign-create-grid{grid-template-columns:1fr}.campaign-create-grid .wide{grid-column:auto}.modal{max-height:92vh;overflow:auto}.modal-head{align-items:flex-start}}
 </style>
 </head>
 <body>
@@ -125,11 +126,38 @@ function userMarkup(d){
 }
 function campaignMarkup(d){
  const rows=d.campaigns.map(c=>{
- const next=c.status==='active'?'paused':'active',action=c.status==='active'?'Pause':c.status==='paused'?'Publish':c.status==='removed'?'Restore':'Publish',desired=c.status==='active'?'paused':'active';
+ const desired=c.status==='active'?'paused':'active',action=c.status==='active'?'Pause':c.status==='paused'?'Publish':c.status==='removed'?'Restore':'Publish';
  return '<tr><td><div class="campaign-title"><strong>'+esc(c.title)+'</strong><span class="cell-sub">'+esc(c.category)+' · '+esc(c.collaboration_type)+'</span></div></td><td>'+esc(c.brand_name)+'<span class="cell-sub">'+esc(c.brand_email)+'</span></td><td>'+money(c.budget_min)+'–'+money(c.budget_max)+'</td><td>'+number(c.applications_count)+'</td><td>'+statusBadge(c.status)+'</td><td>'+date(c.created_at)+'</td><td><button class="btn small '+(c.status==='active'?'red':'')+'" type="button" data-campaign-id="'+esc(c.id)+'" data-next-status="'+desired+'">'+action+'</button></td></tr>';
  }).join('');
- return pageHead('MARKETPLACE','Campaign control','Moderate campaigns and restore visibility without deleting campaign records.','')+
+ return pageHead('MARKETPLACE','Campaign control','Create campaign ads for a registered brand, publish them to creators, and manage live listings.','<button class="btn" type="button" data-create-campaign>+ Create campaign ad</button>')+
  '<section class="panel"><form class="toolbar" id="campaign-filter"><input class="field search" name="search" value="'+esc(state.campaignsSearch)+'" placeholder="Search campaigns, brands or categories…"><select class="field" name="status"><option value="all">All statuses</option><option value="active" '+(state.campaignsStatus==='active'?'selected':'')+'>Active</option><option value="paused" '+(state.campaignsStatus==='paused'?'selected':'')+'>Paused</option><option value="removed" '+(state.campaignsStatus==='removed'?'selected':'')+'>Removed</option></select><button class="btn" type="submit">Filter</button></form><div class="table-wrap"><table><thead><tr><th>Campaign</th><th>Brand</th><th>Budget range</th><th>Applicants</th><th>Status</th><th>Created</th><th>Action</th></tr></thead><tbody>'+(rows||'<tr><td colspan="7">'+emptyState('No campaigns match your filters.')+'</td></tr>')+'</tbody></table></div>'+pagination('campaigns',d)+'</section>';
+}
+async function openCampaignComposer(trigger){
+ if(trigger)trigger.disabled=true;
+ try{
+  const result=await api('/brand-options'),brands=Array.isArray(result.brands)?result.brands:[];
+  const close=()=>{$('modal-root').innerHTML=''};
+  if(!brands.length){
+   $('modal-root').innerHTML='<div class="modal-backdrop" id="campaign-create-backdrop"><section class="modal" role="dialog" aria-modal="true"><div class="modal-head"><div><div class="eyebrow">CAMPAIGN STUDIO</div><h2>Add a brand account first</h2></div><button class="btn ghost small" id="campaign-create-close" type="button">Close ✕</button></div><p class="sub">Register a Brand account in the Collabzy app using your private-beta invite code, then return here.</p><div class="head-actions" style="margin-top:18px"><a class="btn" href="/" target="_blank" rel="noreferrer" style="text-decoration:none">Open Collabzy app ↗</a><button class="btn ghost" id="campaign-create-retry" type="button">Check again</button></div></section></div>';
+   $('campaign-create-close').onclick=close;
+   $('campaign-create-backdrop').onclick=e=>{if(e.target.id==='campaign-create-backdrop')close()};
+   $('campaign-create-retry').onclick=()=>{close();openCampaignComposer(trigger)};
+   return;
+  }
+  const brandOptions=brands.map(b=>'<option value="'+esc(b.id)+'">'+esc(b.name)+' · '+esc(b.email)+'</option>').join('');
+  $('modal-root').innerHTML='<div class="modal-backdrop" id="campaign-create-backdrop"><section class="modal" role="dialog" aria-modal="true"><div class="modal-head"><div><div class="eyebrow">BRAND CAMPAIGN STUDIO</div><h2>Publish a campaign ad</h2><p class="sub">A published active campaign appears in creator Explore immediately.</p></div><button class="btn ghost small" id="campaign-create-close" type="button" aria-label="Close">✕</button></div><form id="campaign-create-form"><div class="campaign-create-grid"><label class="field-label wide">Brand account<select class="field" name="brand_id" required>'+brandOptions+'</select></label><label class="field-label wide">Campaign title<input class="field" name="title" minlength="4" maxlength="120" required placeholder="e.g. New skincare launch"></label><label class="field-label">Category<select class="field" name="category" required><option value="">Choose category</option><option>Beauty</option><option>Fashion</option><option>Food</option><option>Fitness</option><option>Travel</option><option>Technology</option><option>Lifestyle</option><option>Gaming</option><option>Finance</option><option>Other</option></select></label><label class="field-label">Collaboration type<select class="field" name="collaboration_type" required><option value="Paid">Paid</option><option value="Barter">Barter</option><option value="Hybrid">Hybrid</option></select></label><label class="field-label wide">Campaign brief<textarea class="field" name="description" minlength="20" maxlength="1500" rows="4" required placeholder="Product, audience, goal, dates and what creators should deliver."></textarea></label><label class="field-label">Minimum budget (₹)<input class="field" name="budget_min" type="number" min="0" max="100000000" step="1" value="3000" required></label><label class="field-label">Maximum budget (₹)<input class="field" name="budget_max" type="number" min="0" max="100000000" step="1" value="10000" required></label><label class="field-label wide">Deliverables<input class="field" name="deliverables" maxlength="300" placeholder="e.g. 1 Reel + 3 Stories"></label><label class="field-label wide">Location<input class="field" name="location" maxlength="100" value="India" placeholder="India / remote"></label></div><p class="muted small" style="margin:13px 0 0">Publish only for a brand you represent. Check the budget and deliverables before publishing.</p><div class="head-actions" style="margin-top:18px"><button class="btn" type="submit">Publish to creator marketplace →</button><button class="btn ghost" type="button" id="campaign-create-cancel">Cancel</button></div></form></section></div>';
+  $('campaign-create-close').onclick=close;
+  $('campaign-create-cancel').onclick=close;
+  $('campaign-create-backdrop').onclick=e=>{if(e.target.id==='campaign-create-backdrop')close()};
+  $('campaign-create-form').onsubmit=async e=>{
+   e.preventDefault();
+   const form=e.currentTarget,b=Object.fromEntries(new FormData(form)),low=Number(b.budget_min),high=Number(b.budget_max),submit=form.querySelector('button[type="submit"]');
+   if(!Number.isSafeInteger(low)||!Number.isSafeInteger(high)||low<0||high<low){toast('Please enter a valid INR budget range.');return}
+   b.brand_id=Number(b.brand_id);b.budget_min=low;b.budget_max=high;submit.disabled=true;submit.textContent='Publishing campaign…';
+   try{const published=await api('/campaigns',{method:'POST',body:JSON.stringify(b)});close();toast(published.message||'Campaign is live in creator Explore.');state.campaignsPage=1;await loadView('campaigns')}
+   catch(e){toast(e.message);submit.disabled=false;submit.textContent='Publish to creator marketplace →'}
+  };
+ }catch(e){toast(e.message)}
 }
 function supportMarkup(d){
  state.supportRows=d.requests;
@@ -163,6 +191,7 @@ async function loadView(view){
 function bindScreenEvents(){
  document.querySelectorAll('[data-navigate]').forEach(b=>b.addEventListener('click',()=>loadView(b.dataset.navigate)));
  const fUsers=$('users-filter');if(fUsers)fUsers.addEventListener('submit',e=>{e.preventDefault();const f=new FormData(fUsers);state.usersSearch=String(f.get('search')||'').trim();state.usersRole=String(f.get('role')||'all');state.usersStatus=String(f.get('status')||'all');state.usersPage=1;loadView('users')});
+ document.querySelectorAll('[data-create-campaign]').forEach(b=>b.addEventListener('click',()=>openCampaignComposer(b)));
  const fCampaigns=$('campaign-filter');if(fCampaigns)fCampaigns.addEventListener('submit',e=>{e.preventDefault();const f=new FormData(fCampaigns);state.campaignsSearch=String(f.get('search')||'').trim();state.campaignsStatus=String(f.get('status')||'all');state.campaignsPage=1;loadView('campaigns')});
  const fSupport=$('support-filter');if(fSupport)fSupport.addEventListener('submit',e=>{e.preventDefault();const f=new FormData(fSupport);state.supportSearch=String(f.get('search')||'').trim();state.supportStatus=String(f.get('status')||'all');state.supportPage=1;loadView('support')});
  document.querySelectorAll('[data-page-type]').forEach(b=>b.addEventListener('click',()=>{const type=b.dataset.pageType;state[type+'Page']=Number(b.dataset.page)||1;loadView(type)}));
