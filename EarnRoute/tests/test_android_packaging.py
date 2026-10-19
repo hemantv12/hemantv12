@@ -217,3 +217,22 @@ def test_manual_area_selection_and_map_provider_compliance_are_wired():
     assert ".er-manual-location-confirm" in css
     assert "expiresAt:Date.now() + 30 * 60 * 1000" in nearby_js
 
+
+
+def test_nearby_search_filters_persist_across_radius_and_category_changes():
+    nearby_js = (ROOT / "app/static/nearby.js").read_text()
+    assert "function erGetNearbyFilterState()" in nearby_js
+    assert "function erSaveNearbyFilterState(value)" in nearby_js
+    assert "Object.assign({}, erGetNearbyFilterState(), filters || {})" in nearby_js
+    assert "erSaveNearbyFilterState(data)" in nearby_js
+    assert "sessionStorage.removeItem('earnroute_nearby_filters')" in nearby_js
+    assert 'name="search" maxlength="120"' in nearby_js
+    assert 'name="min_pay" type="number" min="0" max="1000000"' in nearby_js
+
+
+def test_android_generates_versioned_buildconfig_for_map_user_agent():
+    gradle = (ANDROID / "app/build.gradle").read_text()
+    activity = (ANDROID / "app/src/main/java/in/earnroute/app/MainActivity.java").read_text()
+    assert "buildFeatures {\n        buildConfig true\n    }" in gradle
+    assert "versionName '1.5.2'" in gradle
+    assert 'EarnRouteAndroid/" + BuildConfig.VERSION_NAME' in activity
