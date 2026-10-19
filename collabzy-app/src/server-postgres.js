@@ -220,6 +220,19 @@ async function start(PORT,SECRET){
     q.adminEmail=credentials.email;n();
   });
   const recordAdminAction=(q,action,targetType,targetId,details={})=>pool.query('INSERT INTO admin_audit_log(actor_email,action,target_type,target_id,details) VALUES($1,$2,$3,$4,$5::jsonb)',[q.adminEmail,action,targetType,targetId===undefined?null:targetId,JSON.stringify(details)]);
+  const platformBrandEmail='collabzy-official-brand@internal.collabzy.invalid';
+  const getOrCreatePlatformBrand=async()=>{
+    const existing=await pool.query('SELECT id,name,email,is_platform_account,role,account_status FROM users WHERE email=$1',[platformBrandEmail]);
+    if(existing.rows.length){
+      if(existing.rows[0].is_platform_account&&existing.rows[0].role==='brand'&&existing.rows[0].account_status==='active')return existing.rows[0];
+      throw Error('The reserved Collabzy Official publisher identity is already occupied. Contact support.');
+    }
+    const passwordHash=await bcrypt.hash(crypto.randomBytes(48).toString('base64url'),12);
+    await pool.query("INSERT INTO users(name,email,password_hash,role,niche,bio,location,email_verified_at,terms_accepted_at,terms_version,account_status,is_platform_account) VALUES('Collabzy Official',$1,$2,'brand','Brand Partnerships','Official Collabzy-owned campaign publisher','India',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,'platform-managed','active',TRUE) ON CONFLICT(email) DO NOTHING",[platformBrandEmail,passwordHash]);
+    const created=await pool.query('SELECT id,name,email,is_platform_account,role,account_status FROM users WHERE email=$1',[platformBrandEmail]);
+    if(!created.rows.length||!created.rows[0].is_platform_account||created.rows[0].role!=='brand')throw Error('Could not create the reserved Collabzy Official publisher identity.');
+    return created.rows[0];
+  };
   const auth=asyncRoute(async(q,s,n)=>{
     const raw=String(q.headers.authorization||'').replace(/^Bearer\s+/i,'');
     if(!raw)return s.status(401).json({error:'Please sign in to continue.'});
@@ -273,7 +286,7 @@ async function start(PORT,SECRET){
   }));
   app.get('/api/admin/overview',adminAuth,asyncRoute(async(q,s)=>{
     const [users,campaigns,applications,billing,support,trend,audit]=await Promise.all([
-      pool.query("SELECT COUNT(*)::int total,COUNT(*) FILTER(WHERE role='creator')::int creators,COUNT(*) FILTER(WHERE role='brand')::int brands,COUNT(*) FILTER(WHERE account_status='suspended')::int suspended,COUNT(*) FILTER(WHERE email_verified_at IS NOT NULL)::int verified FROM users"),
+      pool.query("SELECT COUNT(*)::int total,COUNT(*) FILTER(WHERE role='creator')::int creators,COUNT(*) FILTER(WHERE role='brand')::int brands,COUNT(*) FILTER(WHERE account_status='suspended')::int suspended,COUNT(*) FILTER(WHERE email_verified_at IS NOT NULL)::int verified FROM users WHERE is_platform_account=FALSE"),
       pool.query("SELECT COUNT(*)::int total,COUNT(*) FILTER(WHERE status='active')::int active,COUNT(*) FILTER(WHERE status='paused')::int paused,COUNT(*) FILTER(WHERE status='removed')::int removed FROM campaigns"),
       pool.query("SELECT COUNT(*)::int total,COUNT(*) FILTER(WHERE status='pending')::int pending,COUNT(*) FILTER(WHERE status='accepted')::int accepted FROM applications"),
       pool.query("SELECT COUNT(*) FILTER(WHERE status='paid')::int paid_orders,COALESCE(SUM(amount_paise) FILTER(WHERE status='paid'),0)::bigint paid_revenue_paise FROM billing_orders"),
@@ -295,7 +308,7 @@ async function start(PORT,SECRET){
     s.json({users:users.rows[0],campaigns:campaigns.rows[0],applications:applications.rows[0],billing:{paid_orders:Number(billing.rows[0].paid_orders||0),paid_revenue_inr:Number(billing.rows[0].paid_revenue_paise||0)/100},support:support.rows[0],trend:trend.rows,integrations,registration:registrationReady()&&publicLaunchApproved()?'open':'invite_only',audit:audit.rows});
   }));
   app.get('/api/admin/users',adminAuth,asyncRoute(async(q,s)=>{
-    const page=Math.max(1,Math.min(10000,parseInt(q.query.page,10)||1)),limit=25,values=[],where=[];
+    const page=Math.max(1,Math.min(10000,parseInt(q.query.page,10)||1)),limit=25,values=[],where=['is_platform_account=FALSE'];
     const search=String(q.query.search||'').trim().slice(0,100),role=String(q.query.role||'all'),status=String(q.query.status||'all');
     if(search){values.push('%'+search+'%');const k='$'+values.length;where.push('(name ILIKE '+k+' OR email ILIKE '+k+' OR instagram_handle ILIKE '+k+')')}
     if(['creator','brand'].includes(role)){values.push(role);where.push('role=$'+values.length)}
@@ -307,23 +320,28 @@ async function start(PORT,SECRET){
     s.json({users:rows.rows,total:count.rows[0].total,page,limit,pages:Math.max(1,Math.ceil(count.rows[0].total/limit))});
   }));
   app.get('/api/admin/brand-options',adminAuth,asyncRoute(async(q,s)=>{
-    const r=await pool.query("SELECT id,name,email FROM users WHERE role='brand' AND account_status='active' ORDER BY name,id LIMIT 100");
+    const r=await pool.query("SELECT id,name,email FROM users WHERE role='brand' AND account_status='active' AND is_platform_account=FALSE ORDER BY name,id LIMIT 100");
     s.setHeader('Cache-Control','no-store');
-    s.json({brands:r.rows});
+    s.json({brands:[{id:'collabzy_official',name:'Collabzy Official',email:'Owner campaign publisher'},...r.rows]});
   }));
   app.post('/api/admin/campaigns',adminAuth,asyncRoute(async(q,s)=>{
-    const b=q.body||{},brandId=String(b.brand_id||'');
-    if(!/^[1-9]\d{0,17}$/.test(brandId))return s.status(400).json({error:'Select a valid registered brand account.'});
+    const b=q.body||{},brandId=String(b.brand_id||''),platformOwner=brandId==='collabzy_official';
+    if(!platformOwner&&!/^[1-9]\d{0,17}$/.test(brandId))return s.status(400).json({error:'Choose Collabzy Official or a valid registered brand account.'});
     const title=String(b.title||'').trim(),description=String(b.description||'').trim(),category=String(b.category||'').trim().slice(0,60),type=String(b.collaboration_type||'');
     const low=Number(b.budget_min),high=Number(b.budget_max);
     if(title.length<4||title.length>120||description.length<20||description.length>1500||!category||!['Paid','Barter','Hybrid'].includes(type))return s.status(400).json({error:'Add a clear title, campaign brief, category and collaboration type.'});
     if(!Number.isSafeInteger(low)||!Number.isSafeInteger(high)||low<0||high<low||high>100000000)return s.status(400).json({error:'Enter a valid budget range in INR; maximum must be at least minimum.'});
-    const brand=await pool.query("SELECT id,name,email FROM users WHERE id=$1 AND role='brand' AND account_status='active'",[brandId]);
-    if(!brand.rows.length)return s.status(404).json({error:'That active brand account was not found. Refresh the form and select a registered brand.'});
+    let brand;
+    if(platformOwner)brand=await getOrCreatePlatformBrand();
+    else{
+      const found=await pool.query("SELECT id,name,email FROM users WHERE id=$1 AND role='brand' AND account_status='active' AND is_platform_account=FALSE",[brandId]);
+      if(!found.rows.length)return s.status(404).json({error:'That active brand account was not found. Refresh the form and select a registered brand.'});
+      brand=found.rows[0];
+    }
     const deliverables=String(b.deliverables||'').trim().slice(0,300),location=String(b.location||'India').trim().slice(0,100)||'India';
-    const created=await pool.query("INSERT INTO campaigns(brand_id,title,brand_name,description,category,collaboration_type,budget_min,budget_max,deliverables,location,status) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'active') RETURNING id,title,brand_name,category,collaboration_type,budget_min,budget_max,status,created_at",[brandId,title,brand.rows[0].name,description,category,type,low,high,deliverables,location]);
+    const created=await pool.query("INSERT INTO campaigns(brand_id,title,brand_name,description,category,collaboration_type,budget_min,budget_max,deliverables,location,status) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'active') RETURNING id,title,brand_name,category,collaboration_type,budget_min,budget_max,status,created_at",[brand.id,title,brand.name,description,category,type,low,high,deliverables,location]);
     const campaign=created.rows[0];
-    await recordAdminAction(q,'publish_campaign','campaign',campaign.id,{brand_id:Number(brandId),brand_email:brand.rows[0].email,title:campaign.title,status:'active'});
+    await recordAdminAction(q,'publish_campaign','campaign',campaign.id,{brand_id:Number(brand.id),brand_email:brand.email,publisher_mode:platformOwner?'collabzy_official':'registered_brand',title:campaign.title,status:'active'});
     s.status(201).json({campaign,message:'Campaign published to the creator marketplace.'});
   }));
   app.patch('/api/admin/users/:id/status',adminAuth,asyncRoute(async(q,s)=>{
