@@ -1054,187 +1054,308 @@ html.er-native-app .er-mobile-nav button small {
 }
 
 
-/* ANDROID KEYBOARD-SAFE AUTH SHEET
-   Resize the sheet to the real visible viewport and keep focused form fields reachable. */
+/* ANDROID KEYBOARD-SAFE AUTH SHEET — SINGLE SCROLL OWNER (v3)
+   MOBILE OVERLAP + KEYBOARD HOTFIX
+   FINAL MOBILE FORM + KEYBOARD LAYER (v3)
+   Native Android handles system bars once; the visual viewport controls keyboard layout. */
 html.er-native-app {
   --er-visual-viewport-height: 100dvh;
   --er-visual-viewport-top: 0px;
+  --er-system-ime-inset: 0px;
+  --er-mobile-nav-height: 68px;
 }
-html.er-native-app #auth-modal.modal-backdrop:not([hidden]) {
-  position:fixed !important;
-  top:var(--er-visual-viewport-top, 0px) !important;
-  right:0 !important;
-  bottom:auto !important;
-  left:0 !important;
-  box-sizing:border-box;
-  display:flex !important;
-  flex-direction:column;
-  align-items:center !important;
-  justify-content:flex-end !important;
-  width:100% !important;
-  height:var(--er-visual-viewport-height, 100dvh) !important;
-  max-height:var(--er-visual-viewport-height, 100dvh) !important;
-  padding:6px 0 calc(6px + env(safe-area-inset-bottom)) !important;
-  overflow-x:hidden !important;
-  overflow-y:auto !important;
-  overscroll-behavior:contain;
-  touch-action:pan-y;
-}
-html.er-native-app #auth-modal .auth-modal {
-  box-sizing:border-box;
-  flex:0 1 auto;
+html.er-native-app,
+html.er-native-app body {
+  width:100%;
   min-width:0;
-  min-height:0 !important;
-  width:100% !important;
-  max-width:480px;
-  max-height:calc(var(--er-visual-viewport-height, 100dvh) - 12px) !important;
-  padding:22px 20px calc(18px + env(safe-area-inset-bottom)) !important;
-  overflow-x:hidden !important;
-  overflow-y:auto !important;
-  overscroll-behavior-y:contain;
-  -webkit-overflow-scrolling:touch;
-  scroll-padding-top:14px;
-  scroll-padding-bottom:calc(24px + env(safe-area-inset-bottom));
+  overflow-x:hidden;
 }
-html.er-native-app #auth-modal .auth-modal .form-field {
-  min-width:0;
-  scroll-margin-block:16px;
-}
-html.er-native-app #auth-modal .auth-modal input,
-html.er-native-app #auth-modal .auth-modal select,
-html.er-native-app #auth-modal .auth-modal textarea {
-  scroll-margin-block:18px;
-}
-html.er-native-app.er-keyboard-open #auth-modal.modal-backdrop:not([hidden]) {
-  padding-top:3px !important;
-  padding-bottom:3px !important;
-}
-html.er-native-app.er-keyboard-open #auth-modal .auth-modal {
-  max-height:calc(var(--er-visual-viewport-height, 100dvh) - 6px) !important;
-  padding-top:17px !important;
-  padding-bottom:calc(10px + env(safe-area-inset-bottom)) !important;
-  border-radius:20px 20px 0 0;
-}
-html.er-native-app.er-keyboard-open .er-mobile-nav {
-  display:none !important;
-}
-@media(max-height:560px) {
-  html.er-native-app #auth-modal .auth-modal {
-    padding-top:14px !important;
-    padding-right:17px !important;
-    padding-left:17px !important;
-  }
-  html.er-native-app #auth-modal .modal-brand { margin-bottom:12px; }
-  html.er-native-app #auth-modal .auth-subheading { margin-bottom:12px; }
-  html.er-native-app #auth-modal .auth-mode-tabs { margin-bottom:12px; }
-  html.er-native-app #auth-form { gap:10px; }
-  html.er-native-app #auth-modal .auth-safe { margin-top:10px; }
-}
-
-
-/* MOBILE OVERLAP + KEYBOARD HOTFIX
-   Native Android consumes system-bar padding once and supplies the real IME inset to the web UI. */
-html.er-native-app { --er-system-ime-inset: 0px; }
-html.er-native-app .workspace-main {
-  box-sizing:border-box;
-  min-width:0;
+html.er-native-app body { min-height:100dvh; }
+html.er-native-app .workspace {
   min-height:100dvh;
+  width:100%;
 }
-html.er-native-app .workspace-topbar {
-  position:sticky;
-  top:0;
-  z-index:200;
-  flex-shrink:0;
-}
-html.er-native-app .view-root {
+html.er-native-app .workspace-main {
+  display:flex;
+  flex-direction:column;
   box-sizing:border-box;
   width:100%;
   min-width:0;
-  padding-bottom:calc(92px + env(safe-area-inset-bottom)) !important;
-  scroll-padding-top:78px;
-  scroll-padding-bottom:calc(96px + env(safe-area-inset-bottom));
+  min-height:100dvh;
+  padding-bottom:0 !important;
 }
-html.er-native-app .workspace-footer { display:none !important; }
-html.er-native-app .modal-backdrop:not([hidden]) {
-  position:fixed !important;
-  top:var(--er-visual-viewport-top, 0px) !important;
-  right:0 !important;
-  bottom:auto !important;
-  left:0 !important;
-  height:var(--er-visual-viewport-height, 100dvh) !important;
-  max-height:var(--er-visual-viewport-height, 100dvh) !important;
+html.er-native-app .workspace-topbar {
   box-sizing:border-box;
-  overflow-x:hidden !important;
-  overflow-y:auto !important;
-  overscroll-behavior:contain;
+  flex:0 0 62px;
+  width:100%;
+  height:62px;
+  min-height:62px;
+  position:sticky;
+  top:0;
+  z-index:210;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:6px;
+  padding:0 12px;
+  flex-wrap:nowrap;
+  overflow:visible;
+  background:#fbfcf7 !important;
+  border-bottom:1px solid #e3e9dc;
+  box-shadow:0 2px 10px rgba(24,59,43,.035);
+  backdrop-filter:none !important;
+  -webkit-backdrop-filter:none !important;
 }
-html.er-native-app #auth-modal .auth-modal {
-  flex-shrink:1;
-  min-height:0 !important;
-  max-height:calc(var(--er-visual-viewport-height, 100dvh) - 12px) !important;
-  overflow-x:hidden !important;
-  overflow-y:auto !important;
-  overscroll-behavior-y:contain;
-  -webkit-overflow-scrolling:touch;
+html.er-native-app .topbar-context { display:none !important; }
+html.er-native-app .mobile-brand {
+  display:flex;
+  flex:1 1 0;
+  width:auto;
+  min-width:0;
+  max-width:none !important;
+  gap:6px;
+  overflow:hidden;
 }
-html.er-native-app.er-keyboard-open #auth-modal.modal-backdrop:not([hidden]) {
-  justify-content:flex-end !important;
-  padding-top:3px !important;
-  padding-bottom:3px !important;
+html.er-native-app .mobile-brand #mobile-menu {
+  flex:0 0 36px;
+  width:36px;
+  min-width:36px;
+  height:36px;
+  min-height:36px;
+  padding:0;
+  display:grid;
+  place-items:center;
+  font-size:17px;
 }
-html.er-native-app.er-keyboard-open #auth-modal .auth-modal {
-  max-height:calc(var(--er-visual-viewport-height, 100dvh) - 6px) !important;
-  padding-top:12px !important;
-  padding-bottom:10px !important;
-  border-radius:18px 18px 0 0;
+html.er-native-app .mobile-brand .mini-mark {
+  display:grid;
+  place-items:center;
+  flex:0 0 30px;
+  width:30px;
+  min-width:30px;
+  height:30px;
+  min-height:30px;
+  border-radius:9px;
 }
-html.er-native-app.er-keyboard-open .er-mobile-nav,
-html.er-native-app.er-keyboard-open .workspace-footer { display:none !important; }
-html.er-native-app.er-keyboard-open .view-root {
-  padding-bottom:calc(12px + env(safe-area-inset-bottom)) !important;
+html.er-native-app .mobile-brand .mini-mark svg { width:23px; height:23px; }
+html.er-native-app .mobile-brand-title {
+  flex:1 1 auto;
+  min-width:0;
+  max-width:none;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  font-size:clamp(13px,3.6vw,15px);
+  line-height:1.1;
+  letter-spacing:-.4px;
+}
+html.er-native-app .topbar-actions {
+  display:flex;
+  flex:0 0 auto;
+  width:auto;
+  min-width:0;
+  margin:0 0 0 auto;
+  gap:5px;
+  flex-wrap:nowrap;
+  align-items:center;
+}
+html.er-native-app .connect-server-btn[hidden] { display:none !important; }
+html.er-native-app .topbar-actions > #lang-btn,
+html.er-native-app .topbar-actions > #notifications-btn,
+html.er-native-app .topbar-actions > #profile-btn,
+html.er-native-app .topbar-actions > .connect-server-btn:not([hidden]) {
+  box-sizing:border-box;
+  flex:0 0 32px;
+  width:32px;
+  min-width:32px;
+  max-width:32px;
+  height:34px;
+  min-height:34px;
+  max-height:34px;
+  padding:0;
+  margin:0;
+  border-radius:10px;
+}
+html.er-native-app .topbar-actions > .connect-server-btn:not([hidden]) {
+  display:inline-flex !important;
+  font-size:0 !important;
+  line-height:0;
+  align-items:center;
+  justify-content:center;
+}
+html.er-native-app .topbar-actions > .connect-server-btn:not([hidden])::before {
+  content:"↔";
+  display:block;
+  font-size:18px;
+  line-height:1;
+}
+html.er-native-app .topbar-actions > #lang-btn {
+  display:grid;
+  place-items:center;
+  font-size:10px;
+  font-weight:900;
+}
+html.er-native-app .topbar-actions > #notifications-btn svg { display:block; width:17px; height:17px; }
+html.er-native-app .topbar-actions > #profile-btn {
+  border:0;
+  padding:0;
+  min-width:30px;
+  width:30px;
+  flex-basis:30px;
+}
+html.er-native-app .topbar-actions > #profile-btn .avatar-small {
+  width:30px;
+  height:30px;
+  min-width:30px;
+  border-radius:10px;
+}
+html.er-native-app .topbar-actions > #profile-btn > span:nth-child(2),
+html.er-native-app .topbar-actions > #profile-btn > .user-caret { display:none !important; }
+
+html.er-native-app .view-root {
+  box-sizing:border-box;
+  flex:1 0 auto;
+  width:100%;
+  max-width:780px;
+  min-width:0;
+  margin:0 auto;
+  padding:19px 14px calc(var(--er-mobile-nav-height,68px) + 22px + env(safe-area-inset-bottom)) !important;
   scroll-padding-top:78px;
-  scroll-padding-bottom:18px;
+  scroll-padding-bottom:calc(var(--er-mobile-nav-height,68px) + 22px + env(safe-area-inset-bottom));
+  overflow-wrap:anywhere;
 }
-html.er-native-app.er-keyboard-open .workspace-topbar { position:sticky; top:0; }
+html.er-native-app #view-root { min-width:0; max-width:780px; }
+html.er-native-app .workspace-footer { display:none !important; }
+html.er-native-app .er-mobile-nav {
+  position:fixed;
+  z-index:500;
+  left:0;
+  right:0;
+  bottom:0 !important;
+  box-sizing:border-box;
+  min-height:var(--er-mobile-nav-height,68px);
+  padding:7px 7px calc(7px + env(safe-area-inset-bottom)) !important;
+  display:grid;
+  grid-template-columns:repeat(5,minmax(0,1fr));
+  gap:2px;
+  border-top:1px solid #e4eadb;
+  background:rgba(250,251,246,.98);
+  box-shadow:0 -8px 25px rgba(20,47,25,.07);
+  backdrop-filter:blur(16px);
+}
+html.er-native-app .er-mobile-nav button {
+  min-width:0;
+  overflow:hidden;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:4px;
+}
+html.er-native-app .er-mobile-nav button span { font-size:20px; line-height:1.1; }
+html.er-native-app .er-mobile-nav button small {
+  display:block;
+  max-width:100%;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  font-size:clamp(8px,2.4vw,10px);
+}
+html.er-native-app .er-mobile-nav button.is-active { background:#eaf3d4; color:#1d4129; }
+html.er-native-app .er-mobile-nav button:active { transform:scale(.96); }
+
+html.er-native-app .page-heading,
+html.er-native-app .heading-actions,
+html.er-native-app .panel-header,
+html.er-native-app .er-live-map-head,
+html.er-native-app .er-results-note,
+html.er-native-app .er-saved-summary,
+html.er-native-app .er-safety-panel {
+  box-sizing:border-box;
+  min-width:0;
+  max-width:100%;
+}
+html.er-native-app .page-heading { align-items:flex-start; gap:10px; flex-wrap:wrap; }
+html.er-native-app .page-heading > div:first-child { min-width:0; flex:1 1 100%; }
+html.er-native-app .heading-actions { flex-wrap:wrap; }
+html.er-native-app .heading-actions .btn { min-width:0; max-width:100%; white-space:normal; }
+html.er-native-app .data-table-wrap,
+html.er-native-app .table-wrap { max-width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; }
 html.er-native-app .form-panel,
 html.er-native-app .form-grid,
 html.er-native-app .form-field,
-html.er-native-app .auth-modal,
-html.er-native-app .modal-backdrop { min-width:0; }
+html.er-native-app .panel,
+html.er-native-app .panel-body {
+  box-sizing:border-box;
+  min-width:0;
+  max-width:100%;
+}
+html.er-native-app .form-panel { padding:15px 13px; }
+html.er-native-app .form-grid {
+  display:grid;
+  grid-template-columns:minmax(0,1fr) !important;
+  gap:12px;
+}
+html.er-native-app .form-grid > .span-2,
+html.er-native-app .form-grid > [class*="span-"] { grid-column:1 / -1 !important; }
+html.er-native-app .form-field { width:100%; gap:6px; }
+html.er-native-app .form-field label,
+html.er-native-app .form-label { line-height:1.45; overflow-wrap:anywhere; }
+html.er-native-app .form-field input,
+html.er-native-app .form-field select,
+html.er-native-app .form-field textarea,
+html.er-native-app .form-field button,
+html.er-native-app .form-grid input,
+html.er-native-app .form-grid select,
+html.er-native-app .form-grid textarea {
+  box-sizing:border-box;
+  width:100%;
+  min-width:0;
+  max-width:100%;
+  font-size:16px;
+  line-height:1.35;
+}
 html.er-native-app .form-field input,
 html.er-native-app .form-field select,
 html.er-native-app .form-field textarea {
   scroll-margin-top:78px;
   scroll-margin-bottom:24px;
 }
-@media(max-height:560px) {
-  html.er-native-app #auth-modal .auth-modal {
-    padding-top:10px !important;
-    padding-right:15px !important;
-    padding-left:15px !important;
-  }
-  html.er-native-app #auth-modal .modal-brand { margin-bottom:8px; }
-  html.er-native-app #auth-modal .auth-subheading { margin-bottom:8px; }
-  html.er-native-app #auth-modal .auth-mode-tabs { margin-bottom:8px; }
-  html.er-native-app #auth-form { gap:8px; }
-  html.er-native-app #auth-modal .auth-safe { margin-top:8px; }
+html.er-native-app .form-actions { justify-content:stretch; flex-wrap:wrap; }
+html.er-native-app .form-actions > * { flex:1 1 120px; max-width:100%; }
+html.er-native-app .btn,
+html.er-native-app .nav-link { min-height:43px; max-width:100%; }
+html.er-native-app .job-management-actions { max-width:100%; flex-wrap:wrap; }
+html.er-native-app .job-management-actions .btn { white-space:normal; }
+
+html.er-native-app .modal-backdrop:not([hidden]) {
+  position:fixed !important;
+  top:var(--er-visual-viewport-top, 0px) !important;
+  right:0 !important;
+  bottom:auto !important;
+  left:0 !important;
+  box-sizing:border-box;
+  width:100% !important;
+  height:var(--er-visual-viewport-height, 100dvh) !important;
+  max-height:var(--er-visual-viewport-height, 100dvh) !important;
+  padding:10px !important;
+  overflow-x:hidden !important;
+  overflow-y:auto !important;
+  overscroll-behavior:contain;
+  -webkit-overflow-scrolling:touch;
 }
-
-
-/* FINAL MOBILE FORM + KEYBOARD LAYER (v2)
-   One scroll owner for the auth sheet prevents the backdrop and form from fighting
-   over touch/keyboard scroll. Keep the active input above the Android IME. */
 html.er-native-app #auth-modal.modal-backdrop:not([hidden]) {
   display:flex !important;
   flex-direction:column !important;
   align-items:center !important;
   justify-content:center !important;
-  padding:6px !important;
+  padding:8px !important;
   overflow:hidden !important;
   overscroll-behavior:none !important;
   touch-action:pan-y;
 }
 html.er-native-app #auth-modal .auth-modal {
+  position:relative;
   box-sizing:border-box !important;
   display:block;
   flex:0 1 auto !important;
@@ -1242,19 +1363,18 @@ html.er-native-app #auth-modal .auth-modal {
   min-width:0 !important;
   min-height:0 !important;
   max-width:480px !important;
-  max-height:calc(var(--er-visual-viewport-height, 100dvh) - 12px) !important;
+  max-height:var(--er-visual-viewport-height, 100dvh) !important;
+  max-height:calc(var(--er-visual-viewport-height, 100dvh) - 16px) !important;
   margin:0 auto;
+  padding:20px 18px 16px !important;
   overflow-x:hidden !important;
   overflow-y:auto !important;
   overscroll-behavior:contain !important;
   -webkit-overflow-scrolling:touch;
-  scroll-padding-block:24px;
+  scroll-padding-block:22px;
 }
 html.er-native-app #auth-modal .auth-modal #auth-form,
-html.er-native-app #auth-modal .auth-modal #auth-form .form-field {
-  min-width:0;
-  max-width:100%;
-}
+html.er-native-app #auth-modal .auth-modal #auth-form .form-field { min-width:0; max-width:100%; }
 html.er-native-app #auth-modal .auth-modal #auth-form .form-field input,
 html.er-native-app #auth-modal .auth-modal #auth-form .form-field select,
 html.er-native-app #auth-modal .auth-modal #auth-form .form-field textarea {
@@ -1262,32 +1382,34 @@ html.er-native-app #auth-modal .auth-modal #auth-form .form-field textarea {
   width:100%;
   min-width:0;
   max-width:100%;
+  min-height:48px;
+  font-size:16px;
 }
+html.er-native-app #auth-modal .auth-modal .btn-full { min-height:49px; }
+html.er-native-app #auth-modal .modal-close { z-index:5; }
+
 html.er-native-app.er-keyboard-open #auth-modal.modal-backdrop:not([hidden]) {
   justify-content:flex-end !important;
   padding:0 !important;
   overflow:hidden !important;
 }
 html.er-native-app.er-keyboard-open #auth-modal .auth-modal {
-  align-self:center;
   flex:0 1 auto !important;
   width:100% !important;
   max-width:480px !important;
-  max-height:calc(var(--er-visual-viewport-height, 100dvh) - 2px) !important;
+  max-height:calc(var(--er-visual-viewport-height, 100dvh) - 6px) !important;
   margin:0 auto;
-  padding:11px 16px calc(10px + env(safe-area-inset-bottom)) !important;
+  padding:10px 16px 10px !important;
   border-radius:18px 18px 0 0;
   overflow-x:hidden !important;
   overflow-y:auto !important;
-  scroll-padding-block:30px;
+  scroll-padding-block:28px;
 }
 html.er-native-app.er-keyboard-open #auth-modal .modal-brand,
 html.er-native-app.er-keyboard-open #auth-modal .auth-eyebrow,
-html.er-native-app.er-keyboard-open #auth-modal .auth-safe {
-  display:none !important;
-}
+html.er-native-app.er-keyboard-open #auth-modal .auth-safe { display:none !important; }
 html.er-native-app.er-keyboard-open #auth-modal .auth-modal h2 {
-  margin:0 34px 5px 0;
+  margin:0 38px 5px 0;
   font-size:20px;
   line-height:1.25;
   letter-spacing:-.4px;
@@ -1302,16 +1424,13 @@ html.er-native-app.er-keyboard-open #auth-modal .auth-mode-tabs {
   margin-bottom:9px;
   padding:3px;
 }
-html.er-native-app.er-keyboard-open #auth-modal .auth-mode {
-  padding:8px 6px;
-}
+html.er-native-app.er-keyboard-open #auth-modal .auth-mode { padding:8px 6px; }
 html.er-native-app.er-keyboard-open #auth-modal #auth-form {
+  display:grid;
   gap:9px;
   padding-bottom:6px;
 }
-html.er-native-app.er-keyboard-open #auth-modal #auth-form .form-field {
-  gap:4px;
-}
+html.er-native-app.er-keyboard-open #auth-modal #auth-form .form-field { gap:4px; }
 html.er-native-app.er-keyboard-open #auth-modal #auth-form .form-field input,
 html.er-native-app.er-keyboard-open #auth-modal #auth-form .form-field select {
   min-height:43px;
@@ -1323,23 +1442,22 @@ html.er-native-app.er-keyboard-open #auth-modal #auth-form .terms-check {
   font-size:10px;
   line-height:1.5;
 }
-html.er-native-app.er-keyboard-open #auth-modal #auth-submit {
-  min-height:46px;
-  margin-top:2px;
-}
+html.er-native-app.er-keyboard-open #auth-modal #auth-submit { min-height:46px; margin-top:2px; }
 html.er-native-app.er-keyboard-open #auth-modal .modal-close {
-  position:absolute;
-  top:8px;
-  right:10px;
-  z-index:4;
+  position:sticky;
+  top:0;
+  margin:0 0 -28px auto;
+  display:grid;
+  place-items:center;
+  width:28px;
+  height:28px;
+  min-height:28px;
 }
 html.er-native-app.er-keyboard-open .er-mobile-nav,
-html.er-native-app.er-keyboard-open .workspace-footer {
-  display:none !important;
-}
+html.er-native-app.er-keyboard-open .workspace-footer { display:none !important; }
 html.er-native-app.er-keyboard-open .view-root {
-  padding-bottom:8px !important;
-  scroll-padding-top:68px;
+  padding-bottom:12px !important;
+  scroll-padding-top:78px;
   scroll-padding-bottom:22px;
 }
 html.er-native-app.er-keyboard-open .form-field input,
@@ -1362,53 +1480,40 @@ html.er-native-app.er-keyboard-open .form-field textarea {
     min-width:0;
     max-width:100%;
   }
-  html.er-native-app .workspace-main { overflow-x:hidden; }
-  html.er-native-app .form-grid {
-    grid-template-columns:minmax(0,1fr) !important;
-    gap:12px;
+}
+@media(max-width:390px) {
+  html.er-native-app .workspace-topbar { padding-left:9px; padding-right:9px; gap:4px; }
+  html.er-native-app .mobile-brand { gap:4px; }
+  html.er-native-app .mobile-brand #mobile-menu { flex-basis:33px; width:33px; min-width:33px; }
+  html.er-native-app .mobile-brand .mini-mark { flex-basis:28px; width:28px; min-width:28px; height:28px; min-height:28px; }
+  html.er-native-app .topbar-actions { gap:3px; }
+  html.er-native-app .topbar-actions > #lang-btn,
+  html.er-native-app .topbar-actions > #notifications-btn,
+  html.er-native-app .topbar-actions > .connect-server-btn:not([hidden]) {
+    flex-basis:29px; width:29px; min-width:29px; max-width:29px;
   }
-  html.er-native-app .form-grid > .span-2,
-  html.er-native-app .form-grid > [class*="span-"] {
-    grid-column:1 / -1 !important;
-  }
-  html.er-native-app .form-field input,
-  html.er-native-app .form-field select,
-  html.er-native-app .form-field textarea,
-  html.er-native-app .form-field button,
-  html.er-native-app .form-grid input,
-  html.er-native-app .form-grid select,
-  html.er-native-app .form-grid textarea {
-    box-sizing:border-box;
-    width:100%;
-    min-width:0;
-    max-width:100%;
-  }
-  html.er-native-app .panel-header {
-    min-width:0;
-    flex-wrap:wrap;
-    align-items:flex-start;
-    gap:10px;
-  }
-  html.er-native-app .panel-header > * { min-width:0; max-width:100%; }
-  html.er-native-app .page-heading,
-  html.er-native-app .heading-actions { min-width:0; max-width:100%; }
-  html.er-native-app .data-table-wrap,
-  html.er-native-app .table-wrap { max-width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; }
+  html.er-native-app .topbar-actions > #profile-btn { flex-basis:29px; width:29px; min-width:29px; }
+  html.er-native-app .topbar-actions > #profile-btn .avatar-small { width:28px; height:28px; min-width:28px; }
+  html.er-native-app .view-root { padding-left:11px; padding-right:11px; }
+}
+@media(max-width:340px) {
+  html.er-native-app .topbar-actions > #lang-btn { display:none !important; }
+  html.er-native-app .mobile-brand-title { font-size:12px; }
+}
+@media(max-height:560px) {
+  html.er-native-app #auth-modal .auth-modal { padding-top:11px !important; padding-right:14px !important; padding-left:14px !important; }
+  html.er-native-app #auth-modal .modal-brand { margin-bottom:8px; }
+  html.er-native-app #auth-modal .auth-subheading { margin-bottom:8px; }
+  html.er-native-app #auth-modal .auth-mode-tabs { margin-bottom:7px; }
+  html.er-native-app #auth-form { gap:8px; }
+  html.er-native-app #auth-modal .auth-safe { margin-top:8px; }
 }
 @media(max-height:520px) {
-  html.er-native-app #auth-modal .auth-modal {
-    padding-top:10px !important;
-    padding-right:12px !important;
-    padding-left:12px !important;
-  }
-  html.er-native-app.er-keyboard-open #auth-modal .auth-modal {
-    padding-top:8px !important;
-    padding-bottom:8px !important;
-  }
   html.er-native-app.er-keyboard-open #auth-modal .auth-subheading { display:none !important; }
   html.er-native-app.er-keyboard-open #auth-modal .auth-mode-tabs { margin-bottom:6px; }
   html.er-native-app.er-keyboard-open #auth-modal #auth-form { gap:7px; }
 }
 @media(prefers-reduced-motion:reduce) {
   html.er-native-app #auth-modal .auth-modal { scroll-behavior:auto !important; }
+  html.er-native-app .er-mobile-nav button:active { transform:none !important; }
 }

@@ -2,7 +2,12 @@
 
 EarnRoute is an India-first, mobile-first hyperlocal earning marketplace for finding genuine paid shifts within a selectable 1 km, 3 km or 5 km radius, plus expanded 8 km, 10 km and 15 km options. This repository is a runnable launch candidate: it includes a responsive public website, worker/business/admin workspaces, API, PostgreSQL-compatible schema, migration, tests, and deployment assets. It must **not** be represented as a fully production-verified marketplace until the remaining integrations and operating procedures in this README are completed.
 
-## Version 1.6.2 — keyboard-safe sign-up and mobile layout stability
+## Version 1.6.3 — single-scroll keyboard layout and mobile overlap fixes
+
+- Consolidated the Android auth sheet into one scroll owner so the backdrop and sign-in/sign-up form do not scroll against each other.
+- Accounted for both `visualViewport.offsetTop` and viewport height when positioning the active field above the software keyboard.
+- Requested `interactive-widget=resizes-content`, kept the Android IME inset fallback, and aligned mobile content padding with the fixed navigation height.
+- Bumped the service-worker shell cache and Android app version so existing installs can receive the new layout.
 
 - Account privacy controls: signed-in users can export a JSON copy of their own profile, work records, notifications, support tickets/messages, reviews and recorded policy acceptances. Password hashes and session tokens are excluded; each activity section is capped at 500 records, support-ticket exports are capped at 100 tickets, and truncation is explicitly reported.
 - New sign-ups record the exact draft Terms and Privacy notice revision IDs accepted in the audit history. Existing accounts are not retroactively assigned a revision they did not accept.

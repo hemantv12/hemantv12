@@ -140,7 +140,7 @@ def test_saved_shift_and_safety_report_frontend_are_wired():
     assert "data-er-report-job" in nearby_js
     assert "category:'safety'" in nearby_js
     assert "message:'Published shift ID: ' + jobId + '\\nShift title: '" in nearby_js
-    assert "earnroute-shell-v12" in (ROOT / "app/static/sw.js").read_text()
+    assert "earnroute-shell-v13" in (ROOT / "app/static/sw.js").read_text()
     assert "t('sortHourlyRate')" in nearby_js
     assert "api('/api/support/tickets'" in nearby_js
     assert "reportConcern: 'Report a concern'" in app_js
@@ -158,7 +158,7 @@ def test_safety_report_uses_existing_private_ticket_workflow_and_cache_bust():
     assert "api('/api/support/tickets'" in nearby_js
     assert "reportConcern: 'Report a concern'" in app_js
     assert "safetyReportSent: 'आपकी सुरक्षा संबंधी शिकायत" in app_js
-    assert "earnroute-shell-v12" in sw_js
+    assert "earnroute-shell-v13" in sw_js
     assert "function erMobileNavLabel(screen, fallback)" in nearby_js
     assert "'saved-shifts':'सेव्ड'" in nearby_js
     assert "escapeHtml(erMobileNavLabel(item[0], item[2]))" in nearby_js
@@ -234,7 +234,7 @@ def test_android_generates_versioned_buildconfig_for_map_user_agent():
     gradle = (ANDROID / "app/build.gradle").read_text()
     activity = (ANDROID / "app/src/main/java/in/earnroute/app/MainActivity.java").read_text()
     assert "buildFeatures {\n        buildConfig true\n    }" in gradle
-    assert "versionName '1.6.2'" in gradle
+    assert "versionName '1.6.3'" in gradle
     assert 'EarnRouteAndroid/" + BuildConfig.VERSION_NAME' in activity
 
 
@@ -257,7 +257,7 @@ def test_account_export_and_privacy_controls_are_wired():
     assert "saveTextFile(String fileName, String mimeType, String content)" in activity
     assert "Intent.ACTION_CREATE_DOCUMENT" in activity
     assert "SAVE_TEXT_FILE_REQUEST" in activity
-    assert "earnroute-shell-v12" in sw
+    assert "earnroute-shell-v13" in sw
 
 
 def test_android_keyboard_resize_and_auth_sheet_visibility_are_wired():
@@ -322,10 +322,31 @@ def test_native_keyboard_insets_resize_forms_without_double_system_bar_padding()
     assert "html.er-native-app.er-keyboard-open .view-root" in css
     assert "html.er-native-app.er-keyboard-open .er-mobile-nav" in css
     assert "max-height:calc(var(--er-visual-viewport-height, 100dvh) - 6px)" in css
-    assert "FINAL MOBILE FORM + KEYBOARD LAYER (v2)" in css
+    assert "FINAL MOBILE FORM + KEYBOARD LAYER (v3)" in css
     assert "overflow:hidden !important;\n  overscroll-behavior:none !important;" in css
     assert "html.er-native-app.er-keyboard-open #auth-modal .auth-safe" in css
     assert "html.er-native-app.er-keyboard-open #auth-modal .auth-subheading" in css
     assert "grid-template-columns:minmax(0,1fr) !important" in css
     assert "720, 1000].forEach(delay =>" in app_js
 
+
+
+def test_keyboard_layout_has_single_scroll_owner_and_keyboard_resizes_content():
+    html = (ROOT / "app/static/index.html").read_text()
+    app_js = (ROOT / "app/static/app.js").read_text()
+    css = (ROOT / "app/static/nearby.css").read_text()
+    activity = (ANDROID / "app/src/main/java/in/earnroute/app/MainActivity.java").read_text()
+    assert 'interactive-widget=resizes-content' in html
+    assert "const remainingLayoutHeight = Math.max(1, layoutHeight - viewportTop)" in app_js
+    assert "function erKeepFocusedControlVisible(target)" in app_js
+    assert "const sheetRect = sheet.getBoundingClientRect()" in app_js
+    assert "const maxScroll = Math.max(0, sheet.scrollHeight - sheet.clientHeight)" in app_js
+    assert "target.scrollIntoView({block:'nearest', inline:'nearest', behavior:'auto'})" in app_js
+    assert "FINAL MOBILE FORM + KEYBOARD LAYER (v3)" in css
+    assert "overflow:hidden !important;\n  overscroll-behavior:none !important;" in css
+    assert "max-height:calc(var(--er-visual-viewport-height, 100dvh) - 6px) !important" in css
+    assert "html.er-native-app.er-keyboard-open #auth-modal .auth-modal" in css
+    assert css.count("html.er-native-app #auth-modal.modal-backdrop:not([hidden])") == 1
+    assert css.count("html.er-native-app.er-keyboard-open #auth-modal .auth-modal") == 1
+    assert 'android:windowSoftInputMode="adjustResize"' in (ANDROID / "app/src/main/AndroidManifest.xml").read_text()
+    assert "WindowInsetsCompat.Type.ime()" in activity

@@ -717,12 +717,14 @@ function erNativeImeInsetCssPx() {
 let erLastNonKeyboardViewportHeight = 0;
 function erCurrentVisibleViewportHeight() {
   const vv = window.visualViewport;
-  const layoutHeight = Number(window.innerHeight || document.documentElement.clientHeight || 1);
-  const visualHeight = vv && Number(vv.height) > 0 ? Number(vv.height) : layoutHeight;
-  const observedHeight = Math.max(1, Math.round(Math.min(layoutHeight, visualHeight)));
+  const layoutHeight = Math.max(1, Number(window.innerHeight || document.documentElement.clientHeight || 1));
+  const viewportTop = vv ? Math.max(0, Number(vv.offsetTop || 0)) : 0;
+  const remainingLayoutHeight = Math.max(1, layoutHeight - viewportTop);
+  const rawVisualHeight = vv && Number(vv.height) > 0 ? Number(vv.height) : remainingLayoutHeight;
+  const observedHeight = Math.max(1, Math.round(Math.min(remainingLayoutHeight, rawVisualHeight)));
   const imeInset = erNativeImeInsetCssPx();
-  // Use native insets as a fallback, but take the smaller value so modern WebView's
-  // visual-viewport resize is never subtracted twice.
+  // On pre-M139 Android WebView versions, native IME insets remain the fallback.
+  // On newer versions, the visual viewport is authoritative and avoids double subtraction.
   if (imeInset > 110 && erLastNonKeyboardViewportHeight > 0) {
     const nativeVisibleHeight = Math.max(1, Math.round(erLastNonKeyboardViewportHeight - imeInset));
     return Math.max(1, Math.min(observedHeight, nativeVisibleHeight));
@@ -739,44 +741,74 @@ function erIsEditableControl(target) {
 function erKeepFocusedControlVisible(target) {
   if (!document.documentElement.classList.contains('er-native-app') || !erIsEditableControl(target)) return;
   const vv = window.visualViewport;
-  const viewportTop = Math.max(0, Math.round(vv ? vv.offsetTop : 0));
+  const viewportTop = vv ? Math.max(0, Math.round(vv.offsetTop || 0)) : 0;
   const visibleHeight = erCurrentVisibleViewportHeight();
-  const visibleBottom = viewportTop + visibleHeight - 18;
-  let visibleTop = viewportTop + 8;
+  const viewportBottom = viewportTop + visibleHeight;
   const sheet = target.closest('.auth-modal');
-  if (!sheet) {
-    // Keep controls clear of the sticky app header while the keyboard is open.
-    const header = document.querySelector('.workspace-topbar');
-    if (header) {
-      const headerRect = header.getBoundingClientRect();
-      if (headerRect.bottom > visibleTop && headerRect.top < visibleBottom) {
-        visibleTop = Math.min(visibleBottom - 40, headerRect.bottom + 8);
+
+  function bounds() {
+    let top = viewportTop + 10;
+    let bottom = viewportBottom - 22;
+    if (sheet) {
+      const sheetRect = sheet.getBoundingClientRect();
+      top = Math.max(top, sheetRect.top + sheet.clientTop + 8);
+      bottom = Math.min(bottom, sheetRect.bottom - 10);
+    } else {
+      // Workspace forms must remain below the sticky header.
+      const header = document.querySelector('.workspace-topbar');
+      if (header) {
+        const headerRect = header.getBoundingClientRect();
+        if (headerRect.bottom > top && headerRect.top < bottom) top = Math.max(top, headerRect.bottom + 8);
       }
     }
-  }
-  const rect = target.getBoundingClientRect();
-  if (rect.top >= visibleTop && rect.bottom <= visibleBottom) return;
-
-  // Scroll the form sheet for sign-in/sign-up. On workspace forms, center the field
-  // in the visible viewport instead of leaving it underneath the sticky header.
-  if (sheet) {
-    if (rect.bottom > visibleBottom) {
-      sheet.scrollTop += rect.bottom - visibleBottom + 20;
-    } else if (rect.top < visibleTop) {
-      sheet.scrollTop -= visibleTop - rect.top + 14;
+    if (bottom <= top + 30) {
+      top = viewportTop + 6;
+      bottom = Math.max(top + 31, viewportBottom - 14);
     }
+    return {top, bottom};
+  }
+
+  function moveFocusedField() {
+    if (document.activeElement !== target || !document.body.contains(target)) return;
+    const safe = bounds();
+    const rect = target.getBoundingClientRect();
+    let delta = 0;
+    if (rect.bottom > safe.bottom) delta = rect.bottom - safe.bottom + 18;
+    else if (rect.top < safe.top) delta = rect.top - safe.top - 12;
+    if (Math.abs(delta) < 1) return;
+
+    if (sheet) {
+      // Only the form sheet scrolls while auth is open; the backdrop/body do not compete.
+      const maxScroll = Math.max(0, sheet.scrollHeight - sheet.clientHeight);
+      sheet.scrollTop = Math.max(0, Math.min(maxScroll, sheet.scrollTop + delta));
+      window.requestAnimationFrame(() => {
+        if (document.activeElement !== target) return;
+        const secondSafe = bounds();
+        const secondRect = target.getBoundingClientRect();
+        let secondDelta = 0;
+        if (secondRect.bottom > secondSafe.bottom) secondDelta = secondRect.bottom - secondSafe.bottom + 14;
+        else if (secondRect.top < secondSafe.top) secondDelta = secondRect.top - secondSafe.top - 10;
+        if (Math.abs(secondDelta) > 1) {
+          const secondMax = Math.max(0, sheet.scrollHeight - sheet.clientHeight);
+          sheet.scrollTop = Math.max(0, Math.min(secondMax, sheet.scrollTop + secondDelta));
+        }
+      });
+      return;
+    }
+
+    // In workspace forms the document/view root is the scroll owner.
+    target.scrollIntoView({block:'nearest', inline:'nearest', behavior:'auto'});
     window.requestAnimationFrame(() => {
-      if (document.activeElement === target) {
-        const after = target.getBoundingClientRect();
-        if (after.bottom > visibleBottom) sheet.scrollTop += after.bottom - visibleBottom + 12;
-        else if (after.top < visibleTop) sheet.scrollTop -= visibleTop - after.top + 10;
-      }
+      if (document.activeElement !== target) return;
+      const secondSafe = bounds();
+      const secondRect = target.getBoundingClientRect();
+      if (secondRect.bottom > secondSafe.bottom) window.scrollBy({top:secondRect.bottom-secondSafe.bottom+14,behavior:'auto'});
+      else if (secondRect.top < secondSafe.top) window.scrollBy({top:secondRect.top-secondSafe.top-10,behavior:'auto'});
     });
-  } else {
-    target.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'auto' });
   }
-}
 
+  moveFocusedField();
+}
 function erSyncKeyboardViewport() {
   const root = document.documentElement;
   if (!root.classList.contains('er-native-app')) return;
