@@ -46,7 +46,10 @@ jobs:
           if (!Array.isArray(data.settings.portfolioItems)) {
             throw new Error('Portfolio collection is missing from public settings.');
           }
-          console.log('Public site OK:', data.settings.brandName, '| services:', data.services.length, '| portfolio items:', data.settings.portfolioItems.length);
+          if (!data.settings.pageContent || Object.keys(data.settings.pageContent).length < 11) {
+            throw new Error('Page-by-page editable copy is missing from public settings.');
+          }
+          console.log('Public site OK:', data.settings.brandName, '| services:', data.services.length, '| portfolio items:', data.settings.portfolioItems.length, '| editable pages:', Object.keys(data.settings.pageContent).length);
           NODE
           curl --connect-timeout 8 --max-time 15 -fsS "$CMS_API_URL/public/blogs" >/tmp/cms-blogs.json
           node -e "const d=require('/tmp/cms-blogs.json'); if(!Array.isArray(d.posts)) process.exit(1); console.log('Public blog API OK:',d.posts.length,'published posts')"
@@ -55,7 +58,11 @@ jobs:
           curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/blog/index.html" >/tmp/cms-blog.html
           grep -q 'Latest thinking' /tmp/cms-blog.html
           curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/assets/cms-client.js" >/dev/null
-          echo "Public website, admin shell, blog shell and CMS client assets are reachable."
+          for page in "services/" "work/" "studio/" "team/" "contact/" "services/social-media/" "services/video-motion/" "services/brand-design/" "services/websites/" "services/app-uiux/" "services/paid-media/"; do
+            curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/$page" >/tmp/cms-page.html
+            grep -q 'src="/assets/cms-client.js"' /tmp/cms-page.html || { echo "CMS client script missing on $page"; exit 1; }
+          done
+          echo "Homepage, admin, blog, all 11 editable sub-pages and CMS assets are reachable."
 
       - name: Check browser cross-origin connection
         env:
