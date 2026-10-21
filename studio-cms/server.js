@@ -56,7 +56,7 @@ const defaults = {
  founderImage:'',
  contactEyebrow:'Your move starts here',contactTitleLineOne:"Let's make",contactTitleLineTwo:'some noise.',
  contactDescription:'Have a business, a launch, a brand in need of a refresh or a big idea you want to build? Tell us what you’re thinking.',
- contactEmail:'',contactPhone:'+91 74660 39959',contactAddressLineOne:'Office 302, Third Floor, Building 1644',contactAddressLineTwo:'Sector 15, Gurugram, Haryana, India',
+ contactEmail:'',contactPhone:'+91 74660 39959',contactAddressLineOne:'Gurugram, Haryana, India',contactAddressLineTwo:'Serving clients across India and worldwide',
  mapUrl:'https://www.google.com/maps?q=28.4619959,77.0417564&z=17&hl=en',
  footerTagline:'Gurugram-made. World-facing. Idea-led.',instagramUrl:'',linkedinUrl:'',
  seoTitle:'AA Growth Studio — Make people stop scrolling.',
