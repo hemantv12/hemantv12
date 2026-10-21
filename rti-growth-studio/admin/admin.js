@@ -50,18 +50,36 @@ async function uploadMediaFile(file,box){
  if(!['image/jpeg','image/png','image/webp','image/gif','video/mp4','video/webm'].includes(mime)){if(progress)progress.textContent='Choose a JPG, PNG, WebP, GIF, MP4 or WebM file.';return}
  if(file.size>max){if(progress)progress.textContent=isVideo?'Video must be 15 MB or less.':'Image must be 8 MB or less.';return}
  box.dataset.uploading='true';if(drop)drop.classList.add('is-uploading');if(progress)progress.textContent='Uploading '+file.name+'…';
+ var savedAsset=null;
  try{
   var res=await fetch(API+'/admin/media?name='+encodeURIComponent(file.name),{method:'POST',headers:{'Authorization':'Bearer '+token,'Content-Type':mime},body:file}),data={};try{data=await res.json()}catch(e){}
   if(!res.ok)throw new Error(data.error||'Upload failed. Try again.');
-  var root=box.closest('.collection-editor')||box.closest('form')||view,sel=isVideo?box.dataset.videoSelector:box.dataset.inputSelector,target=sel?root.querySelector(sel):null;
-  if(!target)throw new Error('Upload field not found. Refresh the editor and try again.');target.value=data.asset.url;
-  var im=box.dataset.inputSelector?root.querySelector(box.dataset.inputSelector):null,vi=box.dataset.videoSelector?root.querySelector(box.dataset.videoSelector):null,preview=box.querySelector('.media-preview');
+  if(!data.asset||!data.asset.url)throw new Error('The server saved the upload but did not return its media URL. Refresh the media library.');
+  savedAsset=data.asset;
+  var root=box.closest('.collection-editor')||box.closest('form')||view,sel=isVideo?box.dataset.videoSelector:box.dataset.inputSelector;
+  function findField(selector){if(!selector)return null;try{return(root&&root.querySelector(selector))||view.querySelector(selector)||null}catch(e){return null}}
+  var target=findField(sel);
+  if(!target){
+   if(progress)progress.textContent='Upload saved to the media library. Refresh this editor to attach the file.';
+   toast('Upload saved to the media library. Refresh this editor to attach the file.');
+   return;
+  }
+  target.value=savedAsset.url;
+  var im=findField(box.dataset.inputSelector),vi=findField(box.dataset.videoSelector),preview=box.querySelector('.media-preview');
   if(preview)preview.innerHTML=mediaPreviewMarkup(im?im.value:'',vi?vi.value:'');
   if(progress)progress.textContent='Saved to the studio media library · '+formatBytes(file.size);
   toast(isVideo?'Video uploaded. Save website content to publish it.':'Image uploaded. Save website content to publish it.');
- }catch(err){if(progress)progress.textContent=err.message;toast(err.message,true)}finally{box.dataset.uploading='false';if(drop)drop.classList.remove('is-uploading')}
+ }catch(err){
+  if(savedAsset){
+   if(progress)progress.textContent='Upload saved to the media library. Refresh the editor if the preview did not update.';
+   toast(isVideo?'Video uploaded and saved.':'Image uploaded and saved.');
+   console.warn('Media upload succeeded; editor refresh needs attention:',err);
+  }else{
+   if(progress)progress.textContent=err.message;
+   toast(err.message,true);
+  }
+ }finally{box.dataset.uploading='false';if(drop)drop.classList.remove('is-uploading')}
 }
-
 function navActive(key){document.querySelectorAll('.nav-item').forEach(function(b){b.classList.toggle('active',b.dataset.view===key)});document.getElementById('pageTitle').textContent=titles[key]||'Studio admin'}
 function pageHeading(title,desc,button){return '<div class="page-heading"><div><div class="eyebrow mini">AA / CONTROL ROOM</div><h2>'+esc(title)+'</h2><p>'+esc(desc)+'</p></div>'+(button||'')+'</div>'}
 function btn(label,action,kind){return '<button class="'+(kind||'secondary')+'" type="button" data-action="'+esc(action)+'">'+esc(label)+'</button>'}
