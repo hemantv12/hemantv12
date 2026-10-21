@@ -60,7 +60,14 @@ const defaults = {
  footerTagline:'Gurugram-made. World-facing. Idea-led.',instagramUrl:'',linkedinUrl:'',
  seoTitle:'AA Growth Studio — Make people stop scrolling.',
  seoDescription:'Social media, content, motion, brand design, websites, product UI/UX and performance campaigns from AA Growth Studio, Gurugram.',
- customSections:[],showBlogLink:true
+ portfolioItems:[
+  {id:'work-social',title:'Make the feed feel like your brand.',category:'Social creative',label:'Concept exploration',description:'A recognisable creative system for campaigns, carousels, reels and everyday social content. One visual voice, multiple ways to tell the story.',imageUrl:'',href:'/services/social-media/',visible:true},
+  {id:'work-motion',title:'Creative that has rhythm.',category:'Motion & video',label:'Visual study',description:'From sharp short-form edits to campaign films, every frame carries the idea forward.',imageUrl:'',href:'/services/video-motion/',visible:true},
+  {id:'work-brand',title:'Build a brand you can spot in a second.',category:'Brand & identity',label:'Identity study',description:'Distinctive typography, identity systems and visual assets that stay consistent wherever people meet you.',imageUrl:'',href:'/services/brand-design/',visible:true},
+  {id:'work-web',title:'Your website should do more than look good.',category:'Website design',label:'Web concept',description:'Considered digital journeys with crisp hierarchy and interaction that moves the visitor forward.',imageUrl:'',href:'/services/websites/',visible:true},
+  {id:'work-product',title:'Make complicated feel clear.',category:'App & UI/UX',label:'Product concept',description:'Mobile-first interfaces, smart user flows and products people can work out without a manual.',imageUrl:'',href:'/services/app-uiux/',visible:true}
+ ],
+ teamMembers:[],customSections:[],showBlogLink:true
 };
 const defaultServices = [
  {slug:'social-media',title:'Social media & content',category:'SOCIAL',icon:'↗',short_description:'Strategy, creative systems, calendars, captions, reels and consistent publishing.',detail_text:'Social-first strategy, content planning and creative production built around your brand voice.',href:'/services/social-media/',visible:true,sort_order:1,image_url:''},
@@ -108,7 +115,7 @@ function validateBlog(body){
 async function initialize(){
  for(const q of schema)await pool.query(q);
  await pool.query('INSERT INTO admin_users(username,password_hash) VALUES($1,$2) ON CONFLICT(username) DO NOTHING',[ADMIN_USERNAME,ADMIN_PASSWORD_HASH]);
- await pool.query('INSERT INTO site_settings(id,data) VALUES(1,$1::jsonb) ON CONFLICT(id) DO NOTHING',[JSON.stringify(defaults)]);
+ await pool.query('INSERT INTO site_settings(id,data) VALUES(1,$1::jsonb) ON CONFLICT(id) DO UPDATE SET data=$1::jsonb || site_settings.data,updated_at=now()',[JSON.stringify(defaults)]);
  for(const s of defaultServices)await pool.query('INSERT INTO services(slug,title,category,icon,short_description,detail_text,href,visible,sort_order,image_url) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT(slug) DO NOTHING',[s.slug,s.title,s.category,s.icon,s.short_description,s.detail_text,s.href,s.visible,s.sort_order,s.image_url]);
 }
 app.get('/api/health',(req,res)=>res.json({ok:true,service:'AA Growth Studio CMS API'}));
@@ -150,6 +157,15 @@ app.patch('/api/admin/site',asyncRoute(async(req,res)=>{
   if(key==='customSections'){
    if(!Array.isArray(value)||value.length>20)return res.status(400).json({error:'Custom sections limit is 20.'});
    clean[key]=value.map((s,i)=>({id:safeText(s.id||('section-'+(i+1)),80),title:safeText(s.title,180),body:safeText(s.body,4000),visible:s.visible!==false})).filter(s=>s.title&&s.body);
+  }else if(key==='portfolioItems'){
+   if(!Array.isArray(value)||value.length>40)return res.status(400).json({error:'You can manage up to 40 portfolio items.'});
+   if(value.some(x=>x.imageUrl&&!validHttpUrl(x.imageUrl)))return res.status(400).json({error:'Portfolio image URLs must be HTTP(S) links.'});
+   if(value.some(x=>x.href&&!((String(x.href).startsWith('/')&&!String(x.href).startsWith('//'))||validHttpUrl(x.href))))return res.status(400).json({error:'Portfolio links must be internal paths or HTTP(S) URLs.'});
+   clean[key]=value.map((x,i)=>({id:safeText(x.id||('work-'+(i+1)),100),title:safeText(x.title,180),category:safeText(x.category||'CREATIVE',100),label:safeText(x.label||'Concept exploration',100),description:safeText(x.description,2000),imageUrl:safeText(x.imageUrl,1000),href:safeText(x.href||'/contact/',500),visible:x.visible!==false})).filter(x=>x.title&&x.description);
+  }else if(key==='teamMembers'){
+   if(!Array.isArray(value)||value.length>30)return res.status(400).json({error:'You can manage up to 30 additional team profiles.'});
+   if(value.some(x=>x.imageUrl&&!validHttpUrl(x.imageUrl)))return res.status(400).json({error:'Team photo URLs must be HTTP(S) links.'});
+   clean[key]=value.map((x,i)=>({id:safeText(x.id||('member-'+(i+1)),100),name:safeText(x.name,150),role:safeText(x.role,150),bio:safeText(x.bio,1200),imageUrl:safeText(x.imageUrl,1000),visible:x.visible!==false})).filter(x=>x.name&&x.role);
   }else if(key==='showBlogLink')clean[key]=Boolean(value);
   else if(typeof value==='string'){
    if(['mapUrl','instagramUrl','linkedinUrl','founderImage'].includes(key)&&value&&!validHttpUrl(value))return res.status(400).json({error:key+' must be an HTTP(S) URL.'});
