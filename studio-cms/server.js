@@ -126,7 +126,7 @@ async function initialize(){
  await pool.query('INSERT INTO site_settings(id,data) VALUES(1,$1::jsonb) ON CONFLICT(id) DO UPDATE SET data=$1::jsonb || site_settings.data,updated_at=now()',[JSON.stringify(defaults)]);
  for(const s of defaultServices)await pool.query('INSERT INTO services(slug,title,category,icon,short_description,detail_text,href,visible,sort_order,image_url) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT(slug) DO NOTHING',[s.slug,s.title,s.category,s.icon,s.short_description,s.detail_text,s.href,s.visible,s.sort_order,s.image_url]);
 }
-app.get('/api/health',(req,res)=>res.json({ok:true,service:'AA Growth Studio CMS API'}));
+app.get('/api/health',asyncRoute(async(req,res)=>{await pool.query('SELECT 1');res.setHeader('Cache-Control','no-store');res.json({ok:true,service:'AA Growth Studio CMS API',database:'connected'});}));
 app.get('/api/public/site',asyncRoute(async(req,res)=>{
  const [settings,services]=await Promise.all([pool.query('SELECT data, updated_at FROM site_settings WHERE id=1'),pool.query('SELECT id,slug,title,category,icon,short_description,href,image_url,visible,sort_order FROM services WHERE visible=true ORDER BY sort_order,id')]);
  res.setHeader('Cache-Control','public, max-age=60, stale-while-revalidate=300');res.json({settings:settings.rows[0]?.data||defaults,services:services.rows});
