@@ -30,6 +30,36 @@ function renderServices(items){
   var cta=make('span','service-cta','Explore service');cta.appendChild(make('span','','↗'));a.appendChild(cta);grid.appendChild(a);
  });
 }
+function renderPortfolio(items){
+ var grid=q('.work-grid');if(!grid||!Array.isArray(items)||!items.length)return;
+ grid.textContent='';
+ items.filter(function(x){return x&&x.visible!==false&&x.title&&x.description}).forEach(function(p,i){
+  var card=make('article','work-card reveal is-visible'+(i===0?' wide':''));
+  var art=make('div','work-art cms-work-art work-theme-'+(i%5));
+  var imgUrl=p.imageUrl?hrefSafe(p.imageUrl):'';
+  if(imgUrl&&imgUrl!=='#contact'){var img=make('img','cms-work-image');img.src=imgUrl;img.alt='';img.loading='lazy';img.onerror=function(){img.remove()};art.appendChild(img)}
+  var motif=make('div','cms-art-motif');motif.appendChild(make('span','cms-art-ring'));motif.appendChild(make('span','cms-art-letter',(p.category||'AA').replace(/[^a-z0-9 ]/gi,'').split(/\\s+/).map(function(w){return w.charAt(0)}).join('').slice(0,3).toUpperCase()||'AA'));art.appendChild(motif);
+  var sticker=make('span','art-sticker',(p.label||'Concept exploration').toUpperCase());art.appendChild(sticker);
+  var info=make('div','work-info'),meta=make('div','work-meta');meta.appendChild(make('span','',String(i+1).padStart(2,'0')+' / '+(p.category||'CREATIVE')));meta.appendChild(make('span','work-tag',p.label||'Concept exploration'));
+  info.appendChild(meta);info.appendChild(make('h3','',p.title));info.appendChild(make('p','',p.description));
+  var link=make('a','text-link','Explore this work');link.href=hrefSafe(p.href);var arrow=make('span','','↗');link.appendChild(arrow);info.appendChild(link);
+  card.appendChild(art);card.appendChild(info);grid.appendChild(card);
+ });
+}
+function renderTeam(items,settings){
+ var grid=q('.team-grid');if(!grid)return;
+ var founder=q('.founder-card',grid);if(!founder)return;
+ grid.textContent='';grid.appendChild(founder);
+ (Array.isArray(items)?items:[]).filter(function(m){return m&&m.visible!==false&&m.name&&m.role}).forEach(function(m,i){
+  var card=make('article','team-card reveal is-visible');
+  var portrait=make('div','team-portrait');
+  if(m.imageUrl&&hrefSafe(m.imageUrl)!=='#contact'){var img=make('img','team-photo ready');img.src=hrefSafe(m.imageUrl);img.alt=m.name;img.loading='lazy';img.onerror=function(){img.remove();portrait.appendChild(make('div','cms-team-monogram',m.name.split(/\\s+/).map(function(w){return w.charAt(0)}).join('').slice(0,2).toUpperCase()))};portrait.appendChild(img)}
+  else{var monogram=make('div','cms-team-monogram',m.name.split(/\\s+/).map(function(w){return w.charAt(0)}).join('').slice(0,2).toUpperCase());portrait.appendChild(monogram)}
+  portrait.appendChild(make('span','portrait-stamp','Team profile'));card.appendChild(portrait);
+  var meta=make('div','team-info');meta.appendChild(make('span','team-role',m.role));meta.appendChild(make('h3','',m.name));meta.appendChild(make('p','',m.bio||''));card.appendChild(meta);grid.appendChild(card);
+ });
+ var note=q('.team-note');if(note)note.textContent=(items||[]).filter(function(m){return m&&m.visible!==false}).length?'Team profiles are managed directly from the studio dashboard.':'Team profiles are managed directly from the studio dashboard. Add names, roles, bios and photo URLs whenever your team grows.';
+}
 function renderSections(items){
  qa('.cms-custom-section').forEach(function(e){e.remove()});
  if(!Array.isArray(items))return;
@@ -81,6 +111,8 @@ function apply(data){
  var og=q('meta[property="og:description"]');if(og&&s.seoDescription)og.setAttribute('content',s.seoDescription);
  addBlogLinks(s.showBlogLink!==false);
  renderServices(data.services);
+ renderPortfolio(s.portfolioItems);
+ renderTeam(s.teamMembers,s);
  renderSections(s.customSections);
  var formFoot=q('.form-footnote');if(formFoot)formFoot.textContent='Submitting sends your project details to the studio dashboard so the team can review your enquiry. Your details are not published publicly.';
  var social= q('.footer-links');if(social){
