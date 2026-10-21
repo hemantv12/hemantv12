@@ -64,7 +64,7 @@ async function uploadMediaFile(file,box){
    toast('Upload saved to the media library. Refresh this editor to attach the file.');
    return;
   }
-  target.value=savedAsset.url;
+  target.value=savedAsset.id ? API+'/public/media/'+encodeURIComponent(savedAsset.id) : savedAsset.url;
   var im=findField(box.dataset.inputSelector),vi=findField(box.dataset.videoSelector),preview=box.querySelector('.media-preview');
   if(preview)preview.innerHTML=mediaPreviewMarkup(im?im.value:'',vi?vi.value:'');
   if(progress)progress.textContent='Saved to the studio media library · '+formatBytes(file.size);
