@@ -1,6 +1,8 @@
 (function(){
 'use strict';
 const body=document.body;
+const siteIntro=document.getElementById('siteIntro');
+if(siteIntro&&document.documentElement.classList.contains('aa-intro-pending')){try{sessionStorage.setItem('aaIntroSeen','1')}catch(e){}window.setTimeout(function(){siteIntro.classList.add('is-done');document.documentElement.classList.remove('aa-intro-pending');window.setTimeout(function(){siteIntro.remove()},460)},1030)}else if(siteIntro){siteIntro.remove()}
 const reduced=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 body.classList.add('js-motion');
 document.querySelectorAll('[data-year]').forEach(function(el){el.textContent=String(new Date().getFullYear())});
