@@ -100,6 +100,16 @@ function updatePageHeading(el,lineOne,lineTwo){
  }
  el.textContent=[a,b].filter(Boolean).join(' ');
 }
+function updateServiceSectionHeading(el,lineOne,lineTwo){
+ if(!el){return}
+ var a=String(lineOne||'').trim(),b=String(lineTwo||'').trim(),br=q('br',el),em=q('em',el);
+ if(!br||!em){updatePageHeading(el,a,b);return}
+ var nodes=Array.prototype.slice.call(el.childNodes),brAt=nodes.indexOf(br),emAt=nodes.indexOf(em);
+ for(var i=0;i<brAt;i++)if(nodes[i].nodeType===3&&nodes[i].nodeValue.trim()){nodes[i].nodeValue=a+' ';break}
+ var words=b.split(/\s+/).filter(Boolean),last=words.pop()||'';
+ for(var j=brAt+1;j<emAt;j++)if(nodes[j].nodeType===3){nodes[j].nodeValue=words.length?words.join(' ')+' ':' ';break}
+ em.textContent=last;
+}
 function applyPageContent(all,path){
  var key=contentPageKey(path);if(!key)return;
  var v=all&&all[key];if(!v)return;
@@ -125,7 +135,7 @@ function applyPageContent(all,path){
   if(panel){
    var sectionEye=q('.eyebrow',panel),sectionTitle=q('h2',panel),paras=qa('p',panel);
    if(sectionEye&&v.sectionEyebrow)sectionEye.textContent=v.sectionEyebrow;
-   if(sectionTitle&&(v.sectionTitleLineOne||v.sectionTitleLineTwo)&&!key.startsWith('services/'))updatePageHeading(sectionTitle,v.sectionTitleLineOne,v.sectionTitleLineTwo);
+   if(sectionTitle&&(v.sectionTitleLineOne||v.sectionTitleLineTwo)){if(key.startsWith('services/'))updateServiceSectionHeading(sectionTitle,v.sectionTitleLineOne,v.sectionTitleLineTwo);else updatePageHeading(sectionTitle,v.sectionTitleLineOne,v.sectionTitleLineTwo)}
    if(paras[0]&&v.sectionBody)paras[0].textContent=v.sectionBody;
   }
  }
