@@ -8,6 +8,7 @@ const jwt = require('jsonwebtoken');
 
 const app = express();
 const PORT = process.env.PORT || 10000;
+const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || 'https://aa-growth-studio-cms-api.onrender.com').replace(/\/+$/, '');
 const JWT_SECRET = process.env.JWT_SECRET;
 const DATABASE_URL = process.env.DATABASE_URL;
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'studioadmin';
@@ -133,7 +134,7 @@ app.get('/api/public/site',asyncRoute(async(req,res)=>{
 app.get('/api/public/media/:id',asyncRoute(async(req,res)=>{
  const id=Number(req.params.id);if(!Number.isSafeInteger(id)||id<1)return res.status(404).json({error:'Media not found.'});
  const result=await pool.query('SELECT mime_type,file_data FROM studio_media WHERE id=$1',[id]);if(!result.rows.length)return res.status(404).json({error:'Media not found.'});
- const asset=result.rows[0],data=asset.file_data;res.setHeader('Content-Type',asset.mime_type);res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Cache-Control','public, max-age=31536000, immutable');res.setHeader('Accept-Ranges','bytes');res.setHeader('Content-Disposition','inline');
+ const asset=result.rows[0],data=asset.file_data;res.setHeader('Content-Type',asset.mime_type);res.setHeader('Cross-Origin-Resource-Policy','cross-origin');res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Cache-Control','public, max-age=31536000, immutable');res.setHeader('Accept-Ranges','bytes');res.setHeader('Content-Disposition','inline');
  const range=req.headers.range;if(range){const m=/^bytes=(\d*)-(\d*)$/.exec(range);if(!m)return res.status(416).setHeader('Content-Range','bytes */'+data.length).end();const start=m[1]?Number(m[1]):Math.max(0,data.length-Number(m[2])),finish=m[1]&&m[2]?Math.min(Number(m[2]),data.length-1):data.length-1;if(start<0||start>=data.length||finish<start)return res.status(416).setHeader('Content-Range','bytes */'+data.length).end();const chunk=data.subarray(start,finish+1);res.status(206).setHeader('Content-Range','bytes '+start+'-'+finish+'/'+data.length);res.setHeader('Content-Length',chunk.length);return res.end(chunk)}
  res.setHeader('Content-Length',data.length);return res.end(data);
 }));
@@ -160,7 +161,7 @@ app.post('/api/admin/login',asyncRoute(async(req,res)=>{
 app.use('/api/admin',adminAuth);
 app.get('/api/admin/media',asyncRoute(async(req,res)=>{
  const result=await pool.query('SELECT id,original_name,mime_type,file_size,created_at FROM studio_media ORDER BY created_at DESC LIMIT 200');
- res.json({assets:result.rows.map(x=>({id:x.id,name:x.original_name,mimeType:x.mime_type,size:x.file_size,createdAt:x.created_at,url:req.protocol+'://'+req.get('host')+'/api/public/media/'+x.id}))});
+ res.json({assets:result.rows.map(x=>({id:x.id,name:x.original_name,mimeType:x.mime_type,size:x.file_size,createdAt:x.created_at,url:PUBLIC_BASE_URL+'/api/public/media/'+x.id}))});
 }));
 app.post('/api/admin/media',rateLimit({windowMs:60*60*1000,limit:80,standardHeaders:'draft-7',legacyHeaders:false}),express.raw({type:['image/jpeg','image/png','image/webp','image/gif','video/mp4','video/webm'],limit:'15mb'}),asyncRoute(async(req,res)=>{
  const mime=(req.get('content-type')||'').split(';')[0].trim().toLowerCase(),data=Buffer.isBuffer(req.body)?req.body:Buffer.alloc(0);
@@ -177,7 +178,7 @@ app.post('/api/admin/media',rateLimit({windowMs:60*60*1000,limit:80,standardHead
  if(!valid)return res.status(400).json({error:'The file does not match its declared media format.'});
  const original=safeText(req.query.name,180).replace(/[\\/\u0000-\u001f]/g,'_')||('studio-media-'+Date.now());
  const result=await pool.query('INSERT INTO studio_media(original_name,mime_type,file_size,file_data) VALUES($1,$2,$3,$4) RETURNING id,created_at',[original,mime,data.length,data]);const asset=result.rows[0];
- res.status(201).json({asset:{id:asset.id,name:original,mimeType:mime,size:data.length,createdAt:asset.created_at,url:req.protocol+'://'+req.get('host')+'/api/public/media/'+asset.id}});
+ res.status(201).json({asset:{id:asset.id,name:original,mimeType:mime,size:data.length,createdAt:asset.created_at,url:PUBLIC_BASE_URL+'/api/public/media/'+asset.id}});
 }));
 app.get('/api/admin/me',(req,res)=>res.json({username:req.admin.username}));
 app.get('/api/admin/overview',asyncRoute(async(req,res)=>{
