@@ -37,7 +37,7 @@ if(form){
  const result=document.getElementById('briefResult'),textEl=document.getElementById('briefText'),status=document.getElementById('formStatus'),copy=document.getElementById('copyBrief');let brief='';
  form.addEventListener('submit',function(e){
   e.preventDefault();if(!form.reportValidity())return;const d=new FormData(form);
-  brief='PROJECT ENQUIRY — AA GROWTH STUDIO\n\nName: '+d.get('name')+'\nBusiness: '+d.get('company')+'\nEmail: '+d.get('email')+'\nService: '+d.get('service')+'\n\nProject goal:\n'+d.get('goal')+'\n\nPrepared: '+new Date().toLocaleDateString();
+  brief='PROJECT ENQUIRY — AA GROWTH STUDIO\n\nName: '+d.get('name')+'\nBusiness: '+d.get('company')+'\nEmail: '+d.get('email')+'\nMobile: '+d.get('mobile_number')+'\nService: '+d.get('service')+'\n\nProject goal:\n'+d.get('goal')+'\n\nPrepared: '+new Date().toLocaleDateString();
   textEl.textContent=brief;result.classList.add('show');status.textContent='';copy.textContent='Copy brief';
   result.scrollIntoView({behavior:reduced?'auto':'smooth',block:'nearest'});
  });
