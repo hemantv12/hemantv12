@@ -82,9 +82,12 @@ const schema = [
  'CREATE TABLE IF NOT EXISTS site_settings (id INTEGER PRIMARY KEY DEFAULT 1 CHECK (id = 1), data JSONB NOT NULL DEFAULT \'{}\'::jsonb, updated_at TIMESTAMPTZ NOT NULL DEFAULT now())',
  'CREATE TABLE IF NOT EXISTS services (id BIGSERIAL PRIMARY KEY, slug TEXT NOT NULL UNIQUE, title TEXT NOT NULL, category TEXT NOT NULL DEFAULT \'SERVICE\', icon TEXT NOT NULL DEFAULT \'✳\', short_description TEXT NOT NULL DEFAULT \'\', detail_text TEXT NOT NULL DEFAULT \'\', href TEXT NOT NULL DEFAULT \'/contact/\', image_url TEXT NOT NULL DEFAULT \'\', visible BOOLEAN NOT NULL DEFAULT true, sort_order INTEGER NOT NULL DEFAULT 0, created_at TIMESTAMPTZ NOT NULL DEFAULT now(), updated_at TIMESTAMPTZ NOT NULL DEFAULT now())',
  'CREATE TABLE IF NOT EXISTS blog_posts (id BIGSERIAL PRIMARY KEY, slug TEXT NOT NULL UNIQUE, title TEXT NOT NULL, category TEXT NOT NULL DEFAULT \'INSIGHTS\', excerpt TEXT NOT NULL DEFAULT \'\', content TEXT NOT NULL DEFAULT \'\', cover_image TEXT NOT NULL DEFAULT \'\', status TEXT NOT NULL DEFAULT \'draft\' CHECK(status IN (\'draft\',\'published\')), published_at TIMESTAMPTZ, created_at TIMESTAMPTZ NOT NULL DEFAULT now(), updated_at TIMESTAMPTZ NOT NULL DEFAULT now())',
- 'CREATE TABLE IF NOT EXISTS contact_enquiries (id BIGSERIAL PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL, company TEXT NOT NULL DEFAULT \'\', service TEXT NOT NULL DEFAULT \'\', goal TEXT NOT NULL DEFAULT \'\', status TEXT NOT NULL DEFAULT \'new\' CHECK(status IN (\'new\',\'in_progress\',\'replied\',\'closed\')), created_at TIMESTAMPTZ NOT NULL DEFAULT now())',
+ 'CREATE TABLE IF NOT EXISTS contact_enquiries (id BIGSERIAL PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL, company TEXT NOT NULL DEFAULT \'\', service TEXT NOT NULL DEFAULT \'\', mobile_number TEXT NOT NULL DEFAULT \'\', goal TEXT NOT NULL DEFAULT \'\', status TEXT NOT NULL DEFAULT \'new\' CHECK(status IN (\'new\',\'in_progress\',\'replied\',\'closed\')), created_at TIMESTAMPTZ NOT NULL DEFAULT now())',
  'CREATE INDEX IF NOT EXISTS blog_posts_public_idx ON blog_posts(status, published_at DESC)',
- 'CREATE INDEX IF NOT EXISTS contact_enquiries_created_idx ON contact_enquiries(created_at DESC)'
+ 'CREATE INDEX IF NOT EXISTS contact_enquiries_created_idx ON contact_enquiries(created_at DESC)',
+ 'ALTER TABLE contact_enquiries ADD COLUMN IF NOT EXISTS mobile_number TEXT NOT NULL DEFAULT \'\'',
+ 'CREATE TABLE IF NOT EXISTS studio_media (id BIGSERIAL PRIMARY KEY, original_name TEXT NOT NULL, mime_type TEXT NOT NULL, file_size INTEGER NOT NULL, file_data BYTEA NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now())',
+ 'CREATE INDEX IF NOT EXISTS studio_media_created_idx ON studio_media(created_at DESC)'
 ];
 function b64url(buf){return Buffer.from(buf).toString('base64url');}
 function verifyPass(password,stored){
@@ -127,6 +130,13 @@ app.get('/api/public/site',asyncRoute(async(req,res)=>{
  const [settings,services]=await Promise.all([pool.query('SELECT data, updated_at FROM site_settings WHERE id=1'),pool.query('SELECT id,slug,title,category,icon,short_description,href,image_url,visible,sort_order FROM services WHERE visible=true ORDER BY sort_order,id')]);
  res.setHeader('Cache-Control','public, max-age=60, stale-while-revalidate=300');res.json({settings:settings.rows[0]?.data||defaults,services:services.rows});
 }));
+app.get('/api/public/media/:id',asyncRoute(async(req,res)=>{
+ const id=Number(req.params.id);if(!Number.isSafeInteger(id)||id<1)return res.status(404).json({error:'Media not found.'});
+ const result=await pool.query('SELECT mime_type,file_data FROM studio_media WHERE id=$1',[id]);if(!result.rows.length)return res.status(404).json({error:'Media not found.'});
+ const asset=result.rows[0],data=asset.file_data;res.setHeader('Content-Type',asset.mime_type);res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Cache-Control','public, max-age=31536000, immutable');res.setHeader('Accept-Ranges','bytes');res.setHeader('Content-Disposition','inline');
+ const range=req.headers.range;if(range){const m=/^bytes=(\d*)-(\d*)$/.exec(range);if(!m)return res.status(416).setHeader('Content-Range','bytes */'+data.length).end();const start=m[1]?Number(m[1]):Math.max(0,data.length-Number(m[2])),finish=m[1]&&m[2]?Math.min(Number(m[2]),data.length-1):data.length-1;if(start<0||start>=data.length||finish<start)return res.status(416).setHeader('Content-Range','bytes */'+data.length).end();const chunk=data.subarray(start,finish+1);res.status(206).setHeader('Content-Range','bytes '+start+'-'+finish+'/'+data.length);res.setHeader('Content-Length',chunk.length);return res.end(chunk)}
+ res.setHeader('Content-Length',data.length);return res.end(data);
+}));
 app.get('/api/public/blogs',asyncRoute(async(req,res)=>{
  const result=await pool.query("SELECT slug,title,category,excerpt,cover_image,published_at,created_at FROM blog_posts WHERE status='published' AND published_at <= now() ORDER BY published_at DESC LIMIT 100");
  res.setHeader('Cache-Control','public, max-age=60, stale-while-revalidate=300');res.json({posts:result.rows});
@@ -136,9 +146,10 @@ app.get('/api/public/blogs/:slug',asyncRoute(async(req,res)=>{
  if(!result.rows.length)return res.status(404).json({error:'Post not found.'});res.setHeader('Cache-Control','public, max-age=60, stale-while-revalidate=300');res.json({post:result.rows[0]});
 }));
 app.post('/api/public/enquiries',asyncRoute(async(req,res)=>{
- const body=req.body||{};const name=safeText(body.name,120),email=safeText(body.email,250).toLowerCase(),company=safeText(body.company,180),service=safeText(body.service,180),goal=safeText(body.goal,5000);
- if(!name||!email||!company||!service||!goal||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return res.status(400).json({error:'Please complete all required fields with a valid email.'});
- const result=await pool.query('INSERT INTO contact_enquiries(name,email,company,service,goal) VALUES($1,$2,$3,$4,$5) RETURNING id,created_at',[name,email,company,service,goal]);res.status(201).json({ok:true,message:'Your enquiry has been saved securely.',enquiryId:result.rows[0].id});
+ const body=req.body||{};const name=safeText(body.name,120),email=safeText(body.email,250).toLowerCase(),mobile=safeText(body.mobile_number||body.mobile,32),company=safeText(body.company,180),service=safeText(body.service,180),goal=safeText(body.goal,5000);
+ const digits=mobile.replace(/\D/g,'');
+ if(!name||!email||!mobile||digits.length<7||digits.length>15||!/^[+0-9().\s-]+$/.test(mobile)||!company||!service||!goal||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return res.status(400).json({error:'Please complete all required fields with a valid email and mobile number.'});
+ const result=await pool.query('INSERT INTO contact_enquiries(name,email,mobile_number,company,service,goal) VALUES($1,$2,$3,$4,$5,$6) RETURNING id,created_at',[name,email,mobile,company,service,goal]);res.status(201).json({ok:true,message:'Your enquiry has been saved securely.',enquiryId:result.rows[0].id});
 }));
 app.post('/api/admin/login',asyncRoute(async(req,res)=>{
  const username=safeText(req.body?.username,120),password=typeof req.body?.password==='string'?req.body.password:'';
@@ -147,9 +158,30 @@ app.post('/api/admin/login',asyncRoute(async(req,res)=>{
  res.json({token:tokenFor(user),username:user.username,expiresIn:28800});
 }));
 app.use('/api/admin',adminAuth);
+app.get('/api/admin/media',asyncRoute(async(req,res)=>{
+ const result=await pool.query('SELECT id,original_name,mime_type,file_size,created_at FROM studio_media ORDER BY created_at DESC LIMIT 200');
+ res.json({assets:result.rows.map(x=>({id:x.id,name:x.original_name,mimeType:x.mime_type,size:x.file_size,createdAt:x.created_at,url:req.protocol+'://'+req.get('host')+'/api/public/media/'+x.id}))});
+}));
+app.post('/api/admin/media',rateLimit({windowMs:60*60*1000,limit:80,standardHeaders:'draft-7',legacyHeaders:false}),express.raw({type:['image/jpeg','image/png','image/webp','image/gif','video/mp4','video/webm'],limit:'15mb'}),asyncRoute(async(req,res)=>{
+ const mime=(req.get('content-type')||'').split(';')[0].trim().toLowerCase(),data=Buffer.isBuffer(req.body)?req.body:Buffer.alloc(0);
+ const allowed=new Set(['image/jpeg','image/png','image/webp','image/gif','video/mp4','video/webm']);
+ if(!allowed.has(mime))return res.status(415).json({error:'Upload a JPG, PNG, WebP, GIF, MP4 or WebM file.'});
+ const max=mime.startsWith('video/')?15*1024*1024:8*1024*1024;if(!data.length)return res.status(400).json({error:'The selected file is empty.'});if(data.length>max)return res.status(413).json({error:'Images must be 8 MB or less; videos must be 15 MB or less.'});
+ let valid=false;
+ if(mime==='image/jpeg')valid=data.length>3&&data[0]===0xff&&data[1]===0xd8&&data[2]===0xff;
+ else if(mime==='image/png')valid=data.length>8&&data.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10]));
+ else if(mime==='image/gif')valid=data.subarray(0,6).toString('ascii').startsWith('GIF8');
+ else if(mime==='image/webp')valid=data.length>12&&data.subarray(0,4).toString('ascii')==='RIFF'&&data.subarray(8,12).toString('ascii')==='WEBP';
+ else if(mime==='video/mp4')valid=data.length>12&&data.subarray(4,8).toString('ascii')==='ftyp';
+ else if(mime==='video/webm')valid=data.length>4&&data.subarray(0,4).equals(Buffer.from([0x1a,0x45,0xdf,0xa3]));
+ if(!valid)return res.status(400).json({error:'The file does not match its declared media format.'});
+ const original=safeText(req.query.name,180).replace(/[\\/\u0000-\u001f]/g,'_')||('studio-media-'+Date.now());
+ const result=await pool.query('INSERT INTO studio_media(original_name,mime_type,file_size,file_data) VALUES($1,$2,$3,$4) RETURNING id,created_at',[original,mime,data.length,data]);const asset=result.rows[0];
+ res.status(201).json({asset:{id:asset.id,name:original,mimeType:mime,size:data.length,createdAt:asset.created_at,url:req.protocol+'://'+req.get('host')+'/api/public/media/'+asset.id}});
+}));
 app.get('/api/admin/me',(req,res)=>res.json({username:req.admin.username}));
 app.get('/api/admin/overview',asyncRoute(async(req,res)=>{
- const [posts,services,leads,newLeads,recent]=await Promise.all([pool.query('SELECT count(*)::int n FROM blog_posts'),pool.query('SELECT count(*)::int n FROM services'),pool.query('SELECT count(*)::int n FROM contact_enquiries'),pool.query("SELECT count(*)::int n FROM contact_enquiries WHERE status='new'"),pool.query('SELECT id,name,email,company,service,status,created_at FROM contact_enquiries ORDER BY created_at DESC LIMIT 6')]);
+ const [posts,services,leads,newLeads,recent]=await Promise.all([pool.query('SELECT count(*)::int n FROM blog_posts'),pool.query('SELECT count(*)::int n FROM services'),pool.query('SELECT count(*)::int n FROM contact_enquiries'),pool.query("SELECT count(*)::int n FROM contact_enquiries WHERE status='new'"),pool.query('SELECT id,name,email,mobile_number,company,service,status,created_at FROM contact_enquiries ORDER BY created_at DESC LIMIT 6')]);
  res.json({posts:posts.rows[0].n,services:services.rows[0].n,enquiries:leads.rows[0].n,newEnquiries:newLeads.rows[0].n,recentEnquiries:recent.rows});
 }));
 app.get('/api/admin/site',asyncRoute(async(req,res)=>{const r=await pool.query('SELECT data,updated_at FROM site_settings WHERE id=1');res.json({settings:r.rows[0]?.data||defaults,updatedAt:r.rows[0]?.updated_at||null});}));
@@ -173,9 +205,9 @@ app.patch('/api/admin/site',asyncRoute(async(req,res)=>{
    clean[key]=value.map((s,i)=>({id:safeText(s.id||('section-'+(i+1)),80),title:safeText(s.title,180),body:safeText(s.body,4000),visible:s.visible!==false})).filter(s=>s.title&&s.body);
   }else if(key==='portfolioItems'){
    if(!Array.isArray(value)||value.length>40)return res.status(400).json({error:'You can manage up to 40 portfolio items.'});
-   if(value.some(x=>x.imageUrl&&!validHttpUrl(x.imageUrl)))return res.status(400).json({error:'Portfolio image URLs must be HTTP(S) links.'});
+   if(value.some(x=>(x.imageUrl&&!validHttpUrl(x.imageUrl))||(x.videoUrl&&!validHttpUrl(x.videoUrl))))return res.status(400).json({error:'Portfolio media URLs must be HTTP(S) links.'});
    if(value.some(x=>x.href&&!((String(x.href).startsWith('/')&&!String(x.href).startsWith('//'))||validHttpUrl(x.href))))return res.status(400).json({error:'Portfolio links must be internal paths or HTTP(S) URLs.'});
-   clean[key]=value.map((x,i)=>({id:safeText(x.id||('work-'+(i+1)),100),title:safeText(x.title,180),category:safeText(x.category||'CREATIVE',100),label:safeText(x.label||'Concept exploration',100),description:safeText(x.description,2000),imageUrl:safeText(x.imageUrl,1000),href:safeText(x.href||'/contact/',500),visible:x.visible!==false})).filter(x=>x.title&&x.description);
+   clean[key]=value.map((x,i)=>({id:safeText(x.id||('work-'+(i+1)),100),title:safeText(x.title,180),category:safeText(x.category||'CREATIVE',100),label:safeText(x.label||'Concept exploration',100),description:safeText(x.description,2000),imageUrl:safeText(x.imageUrl,1000),videoUrl:safeText(x.videoUrl,1000),href:safeText(x.href||'/contact/',500),visible:x.visible!==false})).filter(x=>x.title&&x.description);
   }else if(key==='teamMembers'){
    if(!Array.isArray(value)||value.length>30)return res.status(400).json({error:'You can manage up to 30 additional team profiles.'});
    if(value.some(x=>x.imageUrl&&!validHttpUrl(x.imageUrl)))return res.status(400).json({error:'Team photo URLs must be HTTP(S) links.'});
