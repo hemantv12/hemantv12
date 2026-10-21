@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://rti-growth-studio.onrender.com/sitemap.xml
