@@ -4,3 +4,15 @@
 .collection-editor .field-grid{gap:0 13px}
 .collection-editor textarea{min-height:80px}
 .mini-grid .field label{margin-top:12px}
+
+.page-editor{border:1px solid var(--line);border-radius:12px;background:#fbfcf8;margin:10px 0;overflow:hidden}
+.page-editor summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:15px 16px}
+.page-editor summary::-webkit-details-marker{display:none}
+.page-editor summary:after{content:"＋";font-size:18px;color:#71833d}
+.page-editor[open] summary:after{content:"−"}
+.page-editor summary strong{display:block;font-size:12px}
+.page-editor summary small{display:block;font-size:10px;color:var(--muted);margin-top:4px;line-height:1.5}
+.page-edit-label{font-size:10px;font-weight:750;color:#778647;margin-left:auto;white-space:nowrap}
+.page-editor-fields{padding:0 16px 16px;border-top:1px solid var(--line)}
+.page-editor-fields .field label{margin-top:13px}
+@media(max-width:720px){.page-editor summary{padding:13px}.page-editor-fields{padding:0 12px 13px}}
