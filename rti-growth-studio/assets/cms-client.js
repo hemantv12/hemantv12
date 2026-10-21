@@ -21,23 +21,19 @@ function addBlogLinks(show){
 }
 function renderServices(items){
  var grid=q('.services-grid');if(!grid||!Array.isArray(items)||!items.length)return;
- grid.textContent='';
- items.forEach(function(s,i){
-  var a=make('a','service-card reveal is-visible');a.href=hrefSafe(s.href);
-  var top=make('div','service-card-top');top.appendChild(make('span','service-number',String(i+1).padStart(2,'0')+' / '+(s.category||'SERVICE')));
-  top.appendChild(make('span','service-mark',s.icon||'✳'));
-  a.appendChild(top);a.appendChild(make('h3','',s.title||'Service'));a.appendChild(make('p','',s.short_description||''));
-  var cta=make('span','service-cta','Explore service');cta.appendChild(make('span','','↗'));a.appendChild(cta);grid.appendChild(a);
- });
+ var stock=["https://images.unsplash.com/photo-1611162616475-46b635cb6868?auto=format&fit=crop&w=1500&q=85","https://images.unsplash.com/photo-1492619375914-88005aa9e8fb?auto=format&fit=crop&w=1500&q=85","https://images.unsplash.com/photo-1558655146-9f40138edfeb?auto=format&fit=crop&w=1500&q=85","https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=1500&q=85","https://images.unsplash.com/photo-1559028012-481c04fa702d?auto=format&fit=crop&w=1500&q=85","https://images.unsplash.com/photo-1552664730-d307ca884978?auto=format&fit=crop&w=1500&q=85"];grid.textContent='';items.forEach(function(s,i){
+ var a=make('a','service-card reveal is-visible');a.href=hrefSafe(s.href);var visual=make('div','service-visual'),img=make('img','service-visual-image');img.src=s.image_url?hrefSafe(s.image_url):stock[i%stock.length];img.alt=s.title||'Creative service';img.loading='lazy';img.onerror=function(){visual.remove()};visual.appendChild(img);a.appendChild(visual);
+ var top=make('div','service-card-top');top.appendChild(make('span','service-number',String(i+1).padStart(2,'0')+' / '+(s.category||'SERVICE')));top.appendChild(make('span','service-mark',s.icon||'✳'));a.appendChild(top);a.appendChild(make('h3','',s.title||'Service'));a.appendChild(make('p','',s.short_description||''));var cta=make('span','service-cta','Explore service');cta.appendChild(make('span','','↗'));a.appendChild(cta);grid.appendChild(a)});
 }
+
 function renderPortfolio(items){
  var grid=q('.work-grid');if(!grid||!Array.isArray(items)||!items.length)return;
  grid.textContent='';
  items.filter(function(x){return x&&x.visible!==false&&x.title&&x.description}).forEach(function(p,i){
   var card=make('article','work-card reveal is-visible'+(i===0?' wide':''));
   var art=make('div','work-art cms-work-art work-theme-'+(i%5));
-  var imgUrl=p.imageUrl?hrefSafe(p.imageUrl):'';
-  if(imgUrl&&imgUrl!=='#contact'){var img=make('img','cms-work-image');img.src=imgUrl;img.alt='';img.loading='lazy';img.onerror=function(){img.remove()};art.appendChild(img)}
+  var stockImages=["https://images.unsplash.com/photo-1611162616475-46b635cb6868?auto=format&fit=crop&w=1500&q=85","https://images.unsplash.com/photo-1492619375914-88005aa9e8fb?auto=format&fit=crop&w=1500&q=85","https://images.unsplash.com/photo-1558655146-9f40138edfeb?auto=format&fit=crop&w=1500&q=85","https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=1500&q=85","https://images.unsplash.com/photo-1559028012-481c04fa702d?auto=format&fit=crop&w=1500&q=85","https://images.unsplash.com/photo-1552664730-d307ca884978?auto=format&fit=crop&w=1500&q=85"],imgUrl=p.imageUrl?hrefSafe(p.imageUrl):stockImages[i%stockImages.length],videoUrl=p.videoUrl?hrefSafe(p.videoUrl):'';
+  if(videoUrl&&videoUrl!=='#contact'){var vid=make('video','cms-work-video');vid.src=videoUrl;vid.autoplay=true;vid.muted=true;vid.loop=true;vid.playsInline=true;vid.controls=true;vid.preload='metadata';if(imgUrl&&imgUrl!=='#contact')vid.poster=imgUrl;vid.setAttribute('aria-label','Video portfolio: '+p.title);vid.onerror=function(){vid.remove()};art.appendChild(vid)}else if(imgUrl&&imgUrl!=='#contact'){var img=make('img','cms-work-image');img.src=imgUrl;img.alt=p.title||'AA Growth Studio creative work';img.loading='lazy';img.onerror=function(){img.remove()};art.appendChild(img)}
   var motif=make('div','cms-art-motif');motif.appendChild(make('span','cms-art-ring'));motif.appendChild(make('span','cms-art-letter',(p.category||'AA').replace(/[^a-z0-9 ]/gi,'').split(/\s+/).map(function(w){return w.charAt(0)}).join('').slice(0,3).toUpperCase()||'AA'));art.appendChild(motif);
   var sticker=make('span','art-sticker',(p.label||'Concept exploration').toUpperCase());art.appendChild(sticker);
   var info=make('div','work-info'),meta=make('div','work-meta');meta.appendChild(make('span','',String(i+1).padStart(2,'0')+' / '+(p.category||'CREATIVE')));meta.appendChild(make('span','work-tag',p.label||'Concept exploration'));
@@ -193,7 +189,7 @@ function apply(data){
 fetch(API+'/public/site').then(function(r){if(!r.ok)throw new Error('CMS unavailable');return r.json()}).then(apply).catch(function(){});
 var form=q('#briefForm');
 if(form)form.addEventListener('submit',function(){
- var d=new FormData(form),payload={name:d.get('name'),email:d.get('email'),company:d.get('company'),service:d.get('service'),goal:d.get('goal')};
+ var d=new FormData(form),payload={name:d.get('name'),email:d.get('email'),mobile_number:d.get('mobile_number'),company:d.get('company'),service:d.get('service'),goal:d.get('goal')};
  var status=q('#formStatus');if(status)status.textContent='Saving your enquiry…';
  fetch(API+'/public/enquiries',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}).then(function(r){return r.json().then(function(d){if(!r.ok)throw new Error(d.error||'Could not save enquiry');return d})}).then(function(d){if(status)status.textContent='Your enquiry has been saved to the studio dashboard. Reference #'+d.enquiryId+'.'}).catch(function(e){if(status)status.textContent='Your brief is ready, but the enquiry could not reach the dashboard. Please copy it and contact the studio directly.';var foot=q('.form-footnote');if(foot)foot.textContent='Your brief is ready, but saving failed. Please copy the brief above and contact the studio directly.'});
 });
