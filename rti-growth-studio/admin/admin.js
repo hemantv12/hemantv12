@@ -205,6 +205,20 @@ view.addEventListener('dragleave',function(e){var drop=e.target.closest&&e.targe
 view.addEventListener('drop',function(e){var drop=e.target.closest&&e.target.closest('.upload-dropzone');if(!drop)return;e.preventDefault();drop.classList.remove('is-dragging');var box=drop.closest('[data-media-upload]'),file=e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0];if(file)uploadMediaFile(file,box)});
 view.addEventListener('keydown',function(e){var drop=e.target.closest&&e.target.closest('.upload-dropzone');if(drop&&(e.key==='Enter'||e.key===' ')){e.preventDefault();var fi=drop.querySelector('.media-file');if(fi)fi.click()}});
 
-async function init(){try{token=sessionStorage.getItem('aaCmsToken')||''}catch(e){}if(!token){signedOut('');return}try{var d=await api('/admin/me');setSignedIn(d.username);await showView('overview')}catch(e){signedOut('Please sign in to continue.')}}
+async function checkCmsHealth(){
+ var indicator=document.getElementById('cmsHealth'),label=document.getElementById('cmsHealthText');
+ if(!indicator||!label)return;
+ indicator.classList.remove('is-online','is-offline');indicator.classList.add('is-checking');label.textContent='Checking CMS…';
+ try{
+  var response=await fetch(API+'/health',{headers:{'Accept':'application/json'},cache:'no-store'});
+  if(!response.ok)throw new Error('Health check failed.');
+  var data=await response.json();
+  if(!data.ok||data.database!=='connected')throw new Error('Database health check failed.');
+  indicator.classList.remove('is-checking','is-offline');indicator.classList.add('is-online');label.textContent='CMS online';
+ }catch(err){
+  indicator.classList.remove('is-checking','is-online');indicator.classList.add('is-offline');label.textContent='CMS unavailable';
+ }
+}
+async function init(){checkCmsHealth();try{token=sessionStorage.getItem('aaCmsToken')||''}catch(e){}if(!token){signedOut('');return}try{var d=await api('/admin/me');setSignedIn(d.username);await showView('overview')}catch(e){signedOut('Please sign in to continue.')}}
 init();
 })();
