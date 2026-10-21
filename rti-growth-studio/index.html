@@ -31,6 +31,7 @@ footer{background:#f0eee8;border-color:#dfdbd1}.foot-copy{color:#7d776c}.footlin
 @media(max-width:430px){.wrap{width:calc(100% - 30px)}.hero h1{font-size:47px}.hero-art{margin-inline:0}.site-preview-main{min-height:210px;grid-template-columns:1fr .72fr}.site-preview-copy{padding:13px 7px 13px 9px}.site-preview-copy strong{font-size:23px}.site-preview-copy p{font-size:7px}.preview-kicker,.site-preview-copy small{font-size:6px}.preview-cta{font-size:6px;padding:7px;margin-top:13px}.site-preview-foot{font-size:6px}.hero-tag{padding:7px 8px}.hero-services{gap:8px 11px}.hero-services span{font-size:8px}.section-head h2{font-size:39px}.work-meta{font-size:7px}.services-grid .service-card,.service-card.large,.service-card.small{padding:14px 11px;min-height:221px}.service-card h3{font-size:14px}.service-card p{font-size:8.5px}.service-num{font-size:8px}.ide-grid{grid-template-columns:69px 1fr}.file-list{font-size:6px}.ide-code{font-size:7px}.window-title{font-size:8px}.process-step p{font-size:8.5px}.principles{grid-template-columns:1fr}.principle{padding:11px}.team-grid-custom{grid-template-columns:1fr 1fr}.team-person.founder-profile{display:flex;grid-column:1/-1}.team-portrait,.team-photo{min-height:0;aspect-ratio:1/1;position:relative}.team-portrait{aspect-ratio:1/1}.team-photo{position:absolute}.team-person-info h3{font-size:22px}.team-placeholder-art{min-height:125px}.team-future h3{font-size:14px}.team-future p{font-size:8px}.fields{grid-template-columns:1fr}.field.full{grid-column:auto}.contact-panel{padding:22px 14px}.brief-form{padding:14px}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
 
+@media(max-width:430px){.team-person.founder-profile{display:flex;flex-direction:column}.team-portrait{width:100%;flex:0 0 auto;position:relative}.team-photo{position:absolute}}
 </style>
 </head>
 <body>
@@ -38,7 +39,7 @@ footer{background:#f0eee8;border-color:#dfdbd1}.foot-copy{color:#7d776c}.footlin
 <div class="topline"><div class="wrap"><span><i class="pulse"></i>Independent creative & digital studio</span><span>Gurugram, India · Working worldwide</span></div></div>
 <header><div class="wrap nav">
 <a class="brand" href="#home" aria-label="RTI Growth Studio home"><span class="brand-mark">RTI</span><span class="brand-copy"><strong>RTI Growth Studio</strong><small>Creative · Digital · Growth</small></span></a>
-<nav class="links" id="links" aria-label="Main navigation"><a href="#work">Work concepts</a><a href="#services">What we do</a><a href="#build">Web & product</a><a href="#process">Our approach</a><a href="#contact">Contact</a></nav>
+<nav class="links" id="links" aria-label="Main navigation"><a href="#work">Our work</a><a href="#services">Services</a><a href="#build">Websites & apps</a><a href="#team">Our people</a><a href="#contact">Contact</a></nav>
 <a class="btn nav-cta" href="#contact">Let's build something <span class="arrow">↗</span></a><button class="menu-toggle" id="menuToggle" aria-expanded="false" aria-controls="links" aria-label="Open navigation">☰</button>
 </div></header>
 <main id="main">
@@ -129,7 +130,7 @@ footer{background:#f0eee8;border-color:#dfdbd1}.foot-copy{color:#7d776c}.footlin
 </form>
 </div></div></section>
 </main>
-<footer><div class="wrap"><div class="foot-main"><a class="brand" href="#home"><span class="brand-mark">RTI</span><span class="brand-copy"><strong>RTI Growth Studio</strong><small>Creative · Digital · Growth</small></span></a><span class="foot-copy">Distinctive creative. Better digital experiences.</span><nav class="footlinks" aria-label="Footer navigation"><a href="#work">Work concepts</a><a href="#services">Services</a><a href="#build">Web & apps</a><a href="#contact">Contact</a><a href="https://www.google.com/maps?q=28.4619959,77.0417564&z=17&hl=en" target="_blank" rel="noopener noreferrer">Office location ↗</a></nav></div><div class="legal"><span>© <span id="year"></span> RTI Growth Studio. Brand name pending domain and trademark checks.</span><span>Concept screens are labelled; no unverified client results are claimed.</span></div></div></footer>
+<footer><div class="wrap"><div class="foot-main"><a class="brand" href="#home"><span class="brand-mark">RTI</span><span class="brand-copy"><strong>RTI Growth Studio</strong><small>Creative · Digital · Growth</small></span></a><span class="foot-copy">Distinctive creative. Better digital experiences.</span><nav class="footlinks" aria-label="Footer navigation"><a href="#work">Our work</a><a href="#services">Services</a><a href="#build">Web & apps</a><a href="#team">Our people</a><a href="#contact">Contact</a><a href="https://www.google.com/maps?q=28.4619959,77.0417564&z=17&hl=en" target="_blank" rel="noopener noreferrer">Office location ↗</a></nav></div><div class="legal"><span>© <span id="year"></span> RTI Growth Studio. Brand name pending domain and trademark checks.</span><span>Concept screens are labelled; no unverified client results are claimed.</span></div></div></footer>
 <script>
 (function(){
   'use strict';
@@ -144,14 +145,6 @@ footer{background:#f0eee8;border-color:#dfdbd1}.foot-copy{color:#7d776c}.footlin
     const observer=new IntersectionObserver(function(entries){entries.forEach(function(entry){if(entry.isIntersecting){entry.target.classList.add('is-visible');observer.unobserve(entry.target)}})},{threshold:.12,rootMargin:'0px 0px -35px 0px'});
     document.querySelectorAll('.reveal').forEach(function(el){observer.observe(el)});
     document.querySelectorAll('.hero .hero-copy-block,.hero .hero-visual').forEach(function(el){el.classList.add('reveal','is-visible')});
-  }
-  const scene=document.getElementById('heroVisual');
-  const laptop=document.getElementById('laptopScene');
-  const finePointer=window.matchMedia('(hover:hover) and (pointer:fine)');
-  const reduceMotion=window.matchMedia('(prefers-reduced-motion: reduce)');
-  if(scene&&laptop&&finePointer.matches&&!reduceMotion.matches){
-    scene.addEventListener('pointermove',function(e){const r=scene.getBoundingClientRect();const x=(e.clientX-r.left)/r.width-.5;const y=(e.clientY-r.top)/r.height-.5;laptop.style.transform='rotateY('+(x*-12-5)+'deg) rotateX('+(y*-5+2)+'deg)'},{passive:true});
-    scene.addEventListener('pointerleave',function(){laptop.style.transform='rotateY(-11deg) rotateX(3deg)'},{passive:true});
   }
   const photo=document.getElementById('founderPhoto');
   const portraitFallback=document.getElementById('portraitFallback');
