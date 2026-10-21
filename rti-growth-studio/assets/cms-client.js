@@ -38,7 +38,7 @@ function renderPortfolio(items){
   var art=make('div','work-art cms-work-art work-theme-'+(i%5));
   var imgUrl=p.imageUrl?hrefSafe(p.imageUrl):'';
   if(imgUrl&&imgUrl!=='#contact'){var img=make('img','cms-work-image');img.src=imgUrl;img.alt='';img.loading='lazy';img.onerror=function(){img.remove()};art.appendChild(img)}
-  var motif=make('div','cms-art-motif');motif.appendChild(make('span','cms-art-ring'));motif.appendChild(make('span','cms-art-letter',(p.category||'AA').replace(/[^a-z0-9 ]/gi,'').split(/\\s+/).map(function(w){return w.charAt(0)}).join('').slice(0,3).toUpperCase()||'AA'));art.appendChild(motif);
+  var motif=make('div','cms-art-motif');motif.appendChild(make('span','cms-art-ring'));motif.appendChild(make('span','cms-art-letter',(p.category||'AA').replace(/[^a-z0-9 ]/gi,'').split(/\s+/).map(function(w){return w.charAt(0)}).join('').slice(0,3).toUpperCase()||'AA'));art.appendChild(motif);
   var sticker=make('span','art-sticker',(p.label||'Concept exploration').toUpperCase());art.appendChild(sticker);
   var info=make('div','work-info'),meta=make('div','work-meta');meta.appendChild(make('span','',String(i+1).padStart(2,'0')+' / '+(p.category||'CREATIVE')));meta.appendChild(make('span','work-tag',p.label||'Concept exploration'));
   info.appendChild(meta);info.appendChild(make('h3','',p.title));info.appendChild(make('p','',p.description));
@@ -53,8 +53,8 @@ function renderTeam(items,settings){
  (Array.isArray(items)?items:[]).filter(function(m){return m&&m.visible!==false&&m.name&&m.role}).forEach(function(m,i){
   var card=make('article','team-card reveal is-visible');
   var portrait=make('div','team-portrait');
-  if(m.imageUrl&&hrefSafe(m.imageUrl)!=='#contact'){var img=make('img','team-photo ready');img.src=hrefSafe(m.imageUrl);img.alt=m.name;img.loading='lazy';img.onerror=function(){img.remove();portrait.appendChild(make('div','cms-team-monogram',m.name.split(/\\s+/).map(function(w){return w.charAt(0)}).join('').slice(0,2).toUpperCase()))};portrait.appendChild(img)}
-  else{var monogram=make('div','cms-team-monogram',m.name.split(/\\s+/).map(function(w){return w.charAt(0)}).join('').slice(0,2).toUpperCase());portrait.appendChild(monogram)}
+  if(m.imageUrl&&hrefSafe(m.imageUrl)!=='#contact'){var img=make('img','team-photo ready');img.src=hrefSafe(m.imageUrl);img.alt=m.name;img.loading='lazy';img.onerror=function(){img.remove();portrait.appendChild(make('div','cms-team-monogram',m.name.split(/\s+/).map(function(w){return w.charAt(0)}).join('').slice(0,2).toUpperCase()))};portrait.appendChild(img)}
+  else{var monogram=make('div','cms-team-monogram',m.name.split(/\s+/).map(function(w){return w.charAt(0)}).join('').slice(0,2).toUpperCase());portrait.appendChild(monogram)}
   portrait.appendChild(make('span','portrait-stamp','Team profile'));card.appendChild(portrait);
   var meta=make('div','team-info');meta.appendChild(make('span','team-role',m.role));meta.appendChild(make('h3','',m.name));meta.appendChild(make('p','',m.bio||''));card.appendChild(meta);grid.appendChild(card);
  });
@@ -125,6 +125,6 @@ var form=q('#briefForm');
 if(form)form.addEventListener('submit',function(){
  var d=new FormData(form),payload={name:d.get('name'),email:d.get('email'),company:d.get('company'),service:d.get('service'),goal:d.get('goal')};
  var status=q('#formStatus');if(status)status.textContent='Saving your enquiry…';
- fetch(API+'/public/enquiries',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}).then(function(r){return r.json().then(function(d){if(!r.ok)throw new Error(d.error||'Could not save enquiry');return d})}).then(function(d){if(status)status.textContent='Your enquiry has been saved to the studio dashboard. Reference #'+d.enquiryId+'.'}).catch(function(e){if(status)status.textContent='Your brief is ready, but the enquiry could not reach the dashboard. Please copy it and contact the studio directly.'});
+ fetch(API+'/public/enquiries',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}).then(function(r){return r.json().then(function(d){if(!r.ok)throw new Error(d.error||'Could not save enquiry');return d})}).then(function(d){if(status)status.textContent='Your enquiry has been saved to the studio dashboard. Reference #'+d.enquiryId+'.'}).catch(function(e){if(status)status.textContent='Your brief is ready, but the enquiry could not reach the dashboard. Please copy it and contact the studio directly.';var foot=q('.form-footnote');if(foot)foot.textContent='Your brief is ready, but saving failed. Please copy the brief above and contact the studio directly.'});
 });
 })();
