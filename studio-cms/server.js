@@ -115,6 +115,10 @@ function validateBlog(body){
 async function initialize(){
  for(const q of schema)await pool.query(q);
  await pool.query('INSERT INTO admin_users(username,password_hash) VALUES($1,$2) ON CONFLICT(username) DO NOTHING',[ADMIN_USERNAME,ADMIN_PASSWORD_HASH]);
+ if(process.env.ADMIN_PASSWORD_RESET_HASH){
+  const reset=await pool.query('UPDATE admin_users SET password_hash=$1,session_version=session_version+1,updated_at=now() WHERE username=$2 AND password_hash<>$1 RETURNING username',[process.env.ADMIN_PASSWORD_RESET_HASH,ADMIN_USERNAME]);
+  if(reset.rowCount)console.log('Admin password reset completed from protected one-time configuration');
+ }
  await pool.query('INSERT INTO site_settings(id,data) VALUES(1,$1::jsonb) ON CONFLICT(id) DO UPDATE SET data=$1::jsonb || site_settings.data,updated_at=now()',[JSON.stringify(defaults)]);
  for(const s of defaultServices)await pool.query('INSERT INTO services(slug,title,category,icon,short_description,detail_text,href,visible,sort_order,image_url) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT(slug) DO NOTHING',[s.slug,s.title,s.category,s.icon,s.short_description,s.detail_text,s.href,s.visible,s.sort_order,s.image_url]);
 }
