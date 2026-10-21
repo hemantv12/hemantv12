@@ -70,6 +70,19 @@ jobs:
           SITE_ORIGIN: https://rti-growth-studio.onrender.com
         run: |
           set -euo pipefail
-          curl --connect-timeout 8 --max-time 15 -sS -D /tmp/cms-cors-headers -o /dev/null -X OPTIONS "$CMS_API_URL/admin/login" -H "Origin: $SITE_ORIGIN" -H 'Access-Control-Request-Method: POST' -H 'Access-Control-Request-Headers: content-type'
+          for attempt in $(seq 1 8); do
+            if curl --connect-timeout 8 --max-time 20 --retry 2 --retry-all-errors --retry-delay 3 -sS -D /tmp/cms-cors-headers -o /dev/null -X OPTIONS "$CMS_API_URL/admin/login" -H "Origin: $SITE_ORIGIN" -H 'Access-Control-Request-Method: POST' -H 'Access-Control-Request-Headers: content-type'; then
+              if grep -qi "access-control-allow-origin: $SITE_ORIGIN" /tmp/cms-cors-headers; then
+                break
+              fi
+            fi
+            if [ "$attempt" -eq 8 ]; then
+              echo "CMS CORS preflight did not recover after retries."
+              cat /tmp/cms-cors-headers || true
+              exit 1
+            fi
+            echo "Waiting for API rollout before CORS check ($attempt/8)..."
+            sleep 5
+          done
           grep -qi "access-control-allow-origin: $SITE_ORIGIN" /tmp/cms-cors-headers
           echo "CORS preflight OK for the public website origin."
