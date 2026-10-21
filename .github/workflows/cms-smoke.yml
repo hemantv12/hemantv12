@@ -1,0 +1,68 @@
+name: CMS smoke checks
+
+on:
+  push:
+    branches:
+      - rti-growth-studio-launch
+    paths:
+      - 'studio-cms/**'
+      - 'rti-growth-studio/**'
+      - '.github/workflows/cms-smoke.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Wait for CMS API and validate public data
+        env:
+          CMS_API_URL: https://aa-growth-studio-cms-api.onrender.com/api
+          SITE_URL: https://rti-growth-studio.onrender.com
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 18); do
+            if curl --connect-timeout 8 --max-time 12 -fsS "$CMS_API_URL/health" >/tmp/cms-health.json; then
+              break
+            fi
+            if [ "$attempt" -eq 18 ]; then
+              echo "CMS API did not become healthy after retries."
+              exit 1
+            fi
+            echo "Waiting for CMS API rollout ($attempt/18)..."
+            sleep 10
+          done
+          node -e "const h=require('/tmp/cms-health.json'); if(h.ok!==true) process.exit(1); console.log('Health OK:',h.service)"
+          curl --connect-timeout 8 --max-time 15 -fsS "$CMS_API_URL/public/site" >/tmp/cms-site.json
+          node <<'NODE'
+          const fs = require('node:fs');
+          const data = JSON.parse(fs.readFileSync('/tmp/cms-site.json', 'utf8'));
+          if (!data.settings || !Array.isArray(data.services) || data.services.length < 1) {
+            throw new Error('Public site endpoint is missing settings or service entries.');
+          }
+          if (!Array.isArray(data.settings.portfolioItems)) {
+            throw new Error('Portfolio collection is missing from public settings.');
+          }
+          console.log('Public site OK:', data.settings.brandName, '| services:', data.services.length, '| portfolio items:', data.settings.portfolioItems.length);
+          NODE
+          curl --connect-timeout 8 --max-time 15 -fsS "$CMS_API_URL/public/blogs" >/tmp/cms-blogs.json
+          node -e "const d=require('/tmp/cms-blogs.json'); if(!Array.isArray(d.posts)) process.exit(1); console.log('Public blog API OK:',d.posts.length,'published posts')"
+          curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/admin/index.html" >/tmp/cms-admin.html
+          grep -q 'Studio Admin' /tmp/cms-admin.html
+          curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/blog/index.html" >/tmp/cms-blog.html
+          grep -q 'Latest thinking' /tmp/cms-blog.html
+          curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/assets/cms-client.js" >/dev/null
+          echo "Public website, admin shell, blog shell and CMS client assets are reachable."
+
+      - name: Check browser cross-origin connection
+        env:
+          CMS_API_URL: https://aa-growth-studio-cms-api.onrender.com/api
+          SITE_ORIGIN: https://rti-growth-studio.onrender.com
+        run: |
+          set -euo pipefail
+          curl --connect-timeout 8 --max-time 15 -sS -D /tmp/cms-cors-headers -o /dev/null -X OPTIONS "$CMS_API_URL/admin/login" -H "Origin: $SITE_ORIGIN" -H 'Access-Control-Request-Method: POST' -H 'Access-Control-Request-Headers: content-type'
+          grep -qi "access-control-allow-origin: $SITE_ORIGIN" /tmp/cms-cors-headers
+          echo "CORS preflight OK for the public website origin."
