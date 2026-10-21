@@ -49,7 +49,7 @@ function apply(data){
  put('.hero-copy .eyebrow',s.heroEyebrow);
  put('.hero-copy h1 .line:nth-child(1)',s.heroLineOne);
  put('.hero-copy h1 .line:nth-child(2)',s.heroLineTwo);
- put('.hero-copy h1 .line:nth-child(3)',s.heroLineThree);
+ putFirstText(q('.hero-copy h1 .line:nth-child(3)'),s.heroLineThree);
  put('.hero-copy h1 .line:nth-child(3) em',s.heroHighlight);
  put('.hero-copy .hero-description',s.heroDescription);
  put('.hero-actions .btn-lime',s.heroPrimaryCta);put('.hero-actions .btn-outline',s.heroSecondaryCta);
@@ -61,7 +61,7 @@ function apply(data){
  put('.statement-grid>div>p',s.statementBody);
  put('.studio-copy .eyebrow',s.studioEyebrow);var studioTitle=q('.studio-copy h2');if(studioTitle){putFirstText(studioTitle,s.studioTitleLineOne);put('.studio-copy h2 em',s.studioTitleLineTwo)}
  var studioParas=qa('.studio-copy>p');if(studioParas[0]&&s.studioParagraphOne)studioParas[0].textContent=s.studioParagraphOne;if(studioParas[1]&&s.studioParagraphTwo)studioParas[1].textContent=s.studioParagraphTwo;
- put('.team-section .section-head .eyebrow',s.teamEyebrow);var teamTitle=q('.team-section .section-title');if(teamTitle){putFirstText(teamTitle,s.teamTitleLineOne);put('.team-section .section-title .coral',s.teamTitleLineTwo)}
+ put('.team-section .section-head .eyebrow',s.teamEyebrow);var teamTitle=q('.team-section .section-title');if(teamTitle){putFirstText(teamTitle,s.teamTitleLineOne);(function(){var ser=q('.team-section .section-title .serif'),cor=q('.team-section .section-title .coral'),words=(s.teamTitleLineTwo||'').trim().split(/\s+/);if(ser&&cor&&words.length){cor.textContent=words.pop();ser.textContent=words.join(' ')}else if(cor)cor.textContent=s.teamTitleLineTwo||''})()}
  put('.team-section .section-head>p',s.teamIntro);
  put('.founder-card .team-role',s.founderRole);put('.founder-card .team-info h3',s.founderName);put('.founder-card .team-info p',s.founderBio);
  if(s.founderImage){var pic=q('.founder-card .team-photo');if(pic){pic.src=hrefSafe(s.founderImage);pic.loading='lazy'}}
