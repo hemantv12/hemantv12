@@ -70,7 +70,7 @@ document.getElementById('growthAiCopy').addEventListener('click',async function(
 document.getElementById('growthAiUsePlan').addEventListener('click',function(){
  var contact=document.getElementById('contact'),company=document.getElementById('company'),service=document.getElementById('service'),goal=document.getElementById('goal'),business=form.elements.business.value.trim();
  if(company&&!company.value.trim())company.value=business;
- if(service){var selected=form.elements.service.value;service.value=selected||'A connected mix of services';}
+ if(service){var selected=form.elements.service.value;service.value=selected==='A connected growth campaign'?'A connected mix of services':(selected||'A connected mix of services');}
  if(goal){goal.value='Growth AI blueprint for '+business+'\n\n'+lastPlan+'\n\nTarget audience: '+form.elements.audience.value.trim()+'\nMarket: '+form.elements.market.value.trim()+'\nPlatform: '+form.elements.platform.value;goal.dispatchEvent(new Event('input',{bubbles:true}));}
  setOpen(false);
  if(contact)contact.scrollIntoView({behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'start'});
