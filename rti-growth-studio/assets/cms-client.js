@@ -166,11 +166,11 @@ function apply(data){
  put('.contact-intro>p',s.contactDescription);
  var details=q('.contact-detail');if(details){
   details.textContent='';details.appendChild(make('strong',( ''), (s.brandName||'AA Growth Studio')+' · Gurugram'));
-  details.appendChild(make('div','',s.contactAddressLineOne||'Office 302, Third Floor, Building 1644'));
-  details.appendChild(make('div','',s.contactAddressLineTwo||'Sector 15, Gurugram, Haryana, India'));
+  details.appendChild(make('div','',s.contactAddressLineOne||'Gurugram, Haryana, India'));
+  details.appendChild(make('div','',s.contactAddressLineTwo||'Serving clients across India and worldwide'));
   if(s.contactPhone){var p=make('a','','Call: '+s.contactPhone);p.href='tel:'+s.contactPhone.replace(/[^\d+]/g,'');details.appendChild(p);details.appendChild(make('span','',' · '))}
   if(s.contactEmail){var m=make('a','','Email: '+s.contactEmail);m.href='mailto:'+s.contactEmail;details.appendChild(m);details.appendChild(make('br',''))}
-  var map=make('a','','Find us on Google Maps ↗');map.href=hrefSafe(s.mapUrl);map.target='_blank';map.rel='noopener noreferrer';details.appendChild(map);
+  var mapUrl=hrefSafe(s.mapUrl);if(s.mapUrl&&mapUrl!=='#contact'){var map=make('a','','Find us on Google Maps ↗');map.href=mapUrl;map.target='_blank';map.rel='noopener noreferrer';details.appendChild(map);}
  }
  put('.site-footer .footer-copy',s.footerTagline);
  var description=q('meta[name="description"]');if(description&&s.seoDescription)description.setAttribute('content',s.seoDescription);
