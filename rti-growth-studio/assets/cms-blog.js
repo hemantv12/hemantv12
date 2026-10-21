@@ -6,7 +6,7 @@ function date(v){if(!v)return '';try{return new Date(v).toLocaleDateString(undef
 function safeImage(v){try{var u=new URL(v);return(u.protocol==='http:'||u.protocol==='https:')?u.href:''}catch(e){return ''}}
 function setState(msg,bad){state.textContent=msg;state.className='blog-state'+(bad?' error':'')}
 function card(p,i){
- var img=safeImage(p.cover_image),label=(p.category||'INSIGHTS').toUpperCase(),letter=(p.title||'AA').trim().split(/\s+/).slice(0,2).join('<br>');
+ var img=safeImage(p.cover_image),label=(p.category||'INSIGHTS').toUpperCase(),letter=esc((p.title||'AA').trim().split(/\s+/).slice(0,2).join(' '));
  return '<article class="post-card"><div class="post-art '+(img?'with-image':'')+'"><span class="art-index">JOURNAL / '+String(i+1).padStart(2,'0')+'</span>'+(img?'<img src="'+esc(img)+'" alt="" loading="lazy" onerror="this.remove()">':'<span class="art-word">'+letter+'</span>')+'</div><div class="post-body"><div class="post-meta"><span>'+esc(label)+'</span><span>·</span><span>'+esc(date(p.published_at))+'</span></div><h3>'+esc(p.title)+'</h3><p>'+esc(p.excerpt||'A note from the AA Growth Studio journal.')+'</p><a class="read-link" href="/blog/?post='+encodeURIComponent(p.slug)+'">Read the article <span>↗</span></a></div></article>'
 }
 async function article(slug){
