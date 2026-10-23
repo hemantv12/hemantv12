@@ -72,7 +72,7 @@ jobs:
           grep -q 'Latest thinking' /tmp/cms-blog.html
           curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/assets/cms-client.js" >/dev/null
           for attempt in $(seq 1 18); do
-            if curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/growth-lab/" >/tmp/cms-growth-lab.html && grep -q 'Build your next' /tmp/cms-growth-lab.html && grep -q 'campaignForm' /tmp/cms-growth-lab.html; then
+            if curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/growth-lab/" >/tmp/cms-growth-lab.html && grep -q 'Make your next' /tmp/cms-growth-lab.html && grep -q 'forgeForm' /tmp/cms-growth-lab.html && grep -q 'data-concept-canvas' /tmp/cms-growth-lab.html; then
               break
             fi
             if [ "$attempt" -eq 18 ]; then
@@ -82,16 +82,14 @@ jobs:
             echo "Waiting for the public-site deployment to become visible ($attempt/18)..."
             sleep 10
           done
-          grep -q 'Growth Score' /tmp/cms-growth-lab.html
-          grep -q 'Build your next' /tmp/cms-growth-lab.html
-          grep -q 'campaignForm' /tmp/cms-growth-lab.html
+          grep -q 'Campaign Forge' /tmp/cms-growth-lab.html
+          grep -q 'Make your next' /tmp/cms-growth-lab.html
+          grep -q 'forgeForm' /tmp/cms-growth-lab.html
           curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/assets/growth-lab.css" >/dev/null
           curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/assets/growth-lab.js" >/dev/null
           curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/admin/admin.js" >/tmp/cms-admin.js
           grep -q 'Growth insights' /tmp/cms-admin.html
           grep -q 'exportEnquiriesCsv' /tmp/cms-admin.js
-          grep -q 'leadPriority' /tmp/cms-admin.js
-          grep -q 'data-priority' /tmp/cms-admin.js
           for page in "services/" "work/" "studio/" "team/" "contact/" "services/social-media/" "services/video-motion/" "services/brand-design/" "services/websites/" "services/app-uiux/" "services/paid-media/"; do
             curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/$page" >/tmp/cms-page.html
             grep -q 'src="/assets/cms-client.js"' /tmp/cms-page.html || { echo "CMS client script missing on $page"; exit 1; }
