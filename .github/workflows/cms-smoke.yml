@@ -18,6 +18,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
       - name: Check website and admin JavaScript syntax
         run: |
           set -euo pipefail
