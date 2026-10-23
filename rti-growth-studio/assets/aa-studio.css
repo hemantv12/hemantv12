@@ -45,3 +45,16 @@
 @media(max-width:820px){.arcade-promo{padding:55px 0}.arcade-promo-inner{grid-template-columns:1fr}.arcade-promo-art{min-height:240px;max-width:530px;width:100%;margin:0 auto}}
 @media(max-width:560px){.arcade-promo{padding:44px 0}.arcade-promo h2{font-size:42px}.arcade-promo-art{min-height:200px}.arcade-promo-core{width:115px;border-radius:18px}.arcade-promo-core span{font-size:36px}.arcade-promo-tag{font-size:7px;padding:8px}.arcade-promo-tag.tag-one{left:2%}.arcade-promo-tag.tag-two{right:2%}}
 @media(prefers-reduced-motion:reduce){.arcade-eyebrow i,.arcade-promo-orbit,.arcade-promo-core{animation:none!important}.arcade-launch{transition:none!important}}
+
+/* AA Welcome Experience — cinematic intro interaction */
+.intro-enter{margin-top:23px;display:inline-flex;align-items:center;justify-content:center;gap:30px;min-height:45px;padding:0 18px;border:1px solid #d7f36b;border-radius:999px;background:#d7f36b;color:#171914;font:900 9px/1 var(--mono);letter-spacing:.13em;cursor:pointer;box-shadow:0 0 0 0 #d7f36b00,0 8px 34px #d7f36b14;transition:transform .25s ease,box-shadow .25s ease,background .25s ease;animation:introRise .7s .25s cubic-bezier(.2,.8,.2,1) both}
+.intro-enter span{font-size:18px;font-weight:400;transition:transform .25s ease}
+.intro-enter:hover{transform:translateY(-3px);background:#e5ff8b;box-shadow:0 10px 40px #d7f36b26}
+.intro-enter:hover span{transform:translate(3px,-2px)}
+.intro-enter:focus-visible{outline:2px solid #f3efe6;outline-offset:5px}
+.intro-note{max-width:300px;margin-top:16px;color:#9da18f;font:8px/1.7 var(--sans);letter-spacing:.06em;opacity:0;animation:introNoteIn .7s .45s ease forwards}
+.site-intro.is-done .intro-content{transform:translateY(-8px) scale(.985);transition:transform .42s ease}
+.site-intro:after{border-color:#d7f36b45;box-shadow:0 0 40px #d7f36b09,0 0 0 32px #d7f36b08,0 0 0 64px #d7f36b07}
+@keyframes introNoteIn{to{opacity:1}}
+@media(max-width:560px){.intro-enter{min-height:43px;gap:22px;padding:0 16px}.intro-note{max-width:265px;font-size:7px}}
+@media(prefers-reduced-motion:reduce){.intro-enter,.intro-note{animation:none!important;opacity:1!important;transition:none!important}}

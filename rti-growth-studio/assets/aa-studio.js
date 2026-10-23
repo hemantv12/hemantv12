@@ -2,7 +2,19 @@
 'use strict';
 const body=document.body;
 const siteIntro=document.getElementById('siteIntro');
-if(siteIntro&&document.documentElement.classList.contains('aa-intro-pending')){try{sessionStorage.setItem('aaIntroSeen','1')}catch(e){}window.setTimeout(function(){siteIntro.classList.add('is-done');document.documentElement.classList.remove('aa-intro-pending');window.setTimeout(function(){siteIntro.remove()},460)},1030)}else if(siteIntro){siteIntro.remove()}
+if(siteIntro&&document.documentElement.classList.contains('aa-intro-pending')){
+ try{sessionStorage.setItem('aaIntroSeen','1')}catch(e){}
+ siteIntro.setAttribute('role','dialog');siteIntro.setAttribute('aria-modal','true');siteIntro.setAttribute('aria-label','Welcome to AA Growth Studio');siteIntro.removeAttribute('aria-hidden');
+ const introContent=siteIntro.querySelector('.intro-content');
+ if(introContent&&!document.getElementById('introEnter')){
+  const enter=document.createElement('button');enter.id='introEnter';enter.type='button';enter.className='intro-enter';enter.innerHTML='ENTER THE STUDIO <span aria-hidden="true">↗</span>';introContent.appendChild(enter);
+  const note=document.createElement('div');note.className='intro-note';note.textContent='Privacy-minded insights · no IP addresses or form values stored.';introContent.appendChild(note);
+ }
+ let introClosed=false,introTimer=0;
+ function closeIntro(){if(introClosed)return;introClosed=true;if(introTimer)window.clearTimeout(introTimer);siteIntro.classList.add('is-done');document.documentElement.classList.remove('aa-intro-pending');window.setTimeout(function(){if(siteIntro&&siteIntro.parentNode)siteIntro.remove()},460)}
+ const enterButton=document.getElementById('introEnter');if(enterButton)enterButton.addEventListener('click',closeIntro);
+ introTimer=window.setTimeout(closeIntro,2450);
+}else if(siteIntro){siteIntro.remove()}
 const reduced=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 body.classList.add('js-motion');
 document.querySelectorAll('[data-year]').forEach(function(el){el.textContent=String(new Date().getFullYear())});
