@@ -73,11 +73,15 @@ jobs:
           curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/assets/cms-client.js" >/dev/null
           curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/growth-lab/" >/tmp/cms-growth-lab.html
           grep -q 'Growth Score' /tmp/cms-growth-lab.html
+          grep -q 'Build your next' /tmp/cms-growth-lab.html
+          grep -q 'campaignForm' /tmp/cms-growth-lab.html
           curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/assets/growth-lab.css" >/dev/null
           curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/assets/growth-lab.js" >/dev/null
           curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/admin/admin.js" >/tmp/cms-admin.js
           grep -q 'Growth insights' /tmp/cms-admin.html
           grep -q 'exportEnquiriesCsv' /tmp/cms-admin.js
+          grep -q 'leadPriority' /tmp/cms-admin.js
+          grep -q 'data-priority' /tmp/cms-admin.js
           for page in "services/" "work/" "studio/" "team/" "contact/" "services/social-media/" "services/video-motion/" "services/brand-design/" "services/websites/" "services/app-uiux/" "services/paid-media/"; do
             curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/$page" >/tmp/cms-page.html
             grep -q 'src="/assets/cms-client.js"' /tmp/cms-page.html || { echo "CMS client script missing on $page"; exit 1; }
