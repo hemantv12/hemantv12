@@ -18,6 +18,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
+      - name: Check website and admin JavaScript syntax
+        run: |
+          set -euo pipefail
+          node --check studio-cms/server.js
+          node --check rti-growth-studio/assets/aa-studio.js
+          node --check rti-growth-studio/assets/cms-client.js
+          node --check rti-growth-studio/assets/growth-lab.js
+          node --check rti-growth-studio/admin/admin.js
+          echo "Backend, public-site and admin JavaScript syntax checks passed."
+
       - name: Wait for CMS API and validate public data
         env:
           CMS_API_URL: https://aa-growth-studio-cms-api.onrender.com/api
@@ -58,6 +68,13 @@ jobs:
           curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/blog/index.html" >/tmp/cms-blog.html
           grep -q 'Latest thinking' /tmp/cms-blog.html
           curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/assets/cms-client.js" >/dev/null
+          curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/growth-lab/" >/tmp/cms-growth-lab.html
+          grep -q 'Growth Score' /tmp/cms-growth-lab.html
+          curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/assets/growth-lab.css" >/dev/null
+          curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/assets/growth-lab.js" >/dev/null
+          curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/admin/admin.js" >/tmp/cms-admin.js
+          grep -q 'Growth insights' /tmp/cms-admin.html
+          grep -q 'exportEnquiriesCsv' /tmp/cms-admin.js
           for page in "services/" "work/" "studio/" "team/" "contact/" "services/social-media/" "services/video-motion/" "services/brand-design/" "services/websites/" "services/app-uiux/" "services/paid-media/"; do
             curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/$page" >/tmp/cms-page.html
             grep -q 'src="/assets/cms-client.js"' /tmp/cms-page.html || { echo "CMS client script missing on $page"; exit 1; }
