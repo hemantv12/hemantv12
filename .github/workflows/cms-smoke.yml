@@ -102,6 +102,10 @@ jobs:
           curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/assets/motion-system.js" >/dev/null
           curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/assets/visitor-analytics.js" >/tmp/cms-visitor-analytics.js
           node --check /tmp/cms-visitor-analytics.js
+          curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/assets/conversion-system.css" >/tmp/cms-conversion-system.css
+          grep -q 'max-width:560px' /tmp/cms-conversion-system.css
+          grep -q 'Mobile-first finish' rti-growth-studio/assets/aa-studio.css
+          grep -q 'Mobile touch layouts' rti-growth-studio/admin/admin.css
           grep -Fq "var ANALYTICS_API=API_BASE+'/public/analytics/collect'" /tmp/cms-visitor-analytics.js
           grep -Fq "fetch(ANALYTICS_API" /tmp/cms-visitor-analytics.js
           grep -Fq "fetch(API_BASE+'/public/enquiries'" /tmp/cms-visitor-analytics.js

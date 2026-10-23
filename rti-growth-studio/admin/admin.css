@@ -71,3 +71,67 @@
 .contact-meta-consent{margin:4px 0 14px!important}
 @media(max-width:1100px){.meta-report-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.meta-report-grid .panel:last-child{grid-column:1/-1}}
 @media(max-width:650px){.meta-report-grid{grid-template-columns:1fr}.meta-report-grid .panel:last-child{grid-column:auto}}
+
+
+/* Mobile touch layouts — dashboard, enquiry inbox and connection settings */
+html,body{max-width:100%;overflow-x:clip}
+.app-shell,.main-area,#view,.panel,.dashboard-grid,.insight-grid,.meta-layout,.meta-report-grid{min-width:0;max-width:100%}
+table{max-width:100%}
+input,select,textarea,button{min-width:0;max-width:100%;font-size:16px}
+button,.nav-item,.mini-action,.secondary,.primary{min-height:42px}
+@media(max-width:720px){
+ .sidebar{z-index:30}
+ #sideNav{max-width:100%;overflow-x:auto;overscroll-behavior-x:contain}
+ .main-area{padding-left:12px;padding-right:12px}
+ .app-topbar{gap:10px;align-items:center}
+ .app-topbar>div:first-child{min-width:0}
+ .app-topbar h1{font-size:clamp(20px,6vw,26px);overflow-wrap:anywhere}
+ .top-actions{min-width:0;flex-wrap:wrap;justify-content:flex-end}
+ .page-heading,.page-heading>div{width:100%;max-width:100%;min-width:0}
+ .page-heading p{font-size:12px;line-height:1.6}
+ .page-heading h2{font-size:clamp(21px,6vw,28px);overflow-wrap:anywhere}
+ .page-heading>button,.page-heading>.primary,.page-heading>.secondary{max-width:100%}
+ .stats-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+ .stat-card{min-width:0;padding:12px}
+ .stat-card strong{font-size:clamp(21px,7vw,29px);overflow-wrap:anywhere}
+ .stat-card .stat-label{font-size:10px;overflow-wrap:anywhere}
+ .stat-card small{font-size:10px;line-height:1.5}
+ .panel{padding:13px}
+ .panel-title{gap:10px;align-items:flex-start;flex-wrap:wrap}
+ .panel-title>div{min-width:0;flex:1 1 180px}
+ .panel-title h3{font-size:15px;overflow-wrap:anywhere}
+ .table-wrap{width:100%;max-width:100%;overflow-x:auto;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch}
+ table{min-width:620px}
+ .field-grid,.catalog,.two-cols,.insight-grid,.dashboard-grid{grid-template-columns:minmax(0,1fr)}
+ .field.full{grid-column:auto}
+ .field-grid .field,.field{min-width:0}
+ .field input,.field textarea,.field select{width:100%;max-width:100%;font-size:16px}
+ .form-actions{align-items:stretch;gap:8px}
+ .form-actions>*{flex:1 1 auto}
+ .form-actions .primary{width:100%}
+ .enquiry-head-actions,.visitor-head-actions,.meta-card-actions{display:flex;flex-wrap:wrap;gap:8px;max-width:100%}
+ .enquiry-head-actions>*{flex:1 1 120px}
+ .enquiry-toolbar{align-items:stretch;flex-direction:column;gap:10px}
+ .filter-input{width:100%;max-width:100%}
+ .meta-layout{grid-template-columns:minmax(0,1fr)}
+ .meta-connected-row{align-items:flex-start;flex-wrap:wrap}
+ .meta-connection-copy{flex:1 1 180px}
+ .meta-report-grid{grid-template-columns:minmax(0,1fr)}
+ .meta-report-grid .panel:last-child{grid-column:auto}
+ .meta-redirect{min-width:0}
+ .meta-redirect code{overflow-wrap:anywhere;word-break:break-word}
+ .login-card{width:100%;max-width:470px}
+ .login-card h1{font-size:clamp(34px,10vw,42px)}
+ .media-library-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .collection-editor,.section-editor{min-width:0;padding:12px}
+ .blog-admin-row{min-width:0}
+}
+@media(max-width:420px){
+ .stats-grid{grid-template-columns:minmax(0,1fr)}
+ .media-library-grid{grid-template-columns:minmax(0,1fr)}
+ .nav-item{padding:8px 9px;font-size:10px}
+ .nav-item>span{display:none}
+ .visitor-panel table{min-width:780px}
+ .login-card{padding:22px 16px}
+ .main-area{padding-left:10px;padding-right:10px}
+}
