@@ -30,6 +30,7 @@ jobs:
           node --check rti-growth-studio/assets/growth-lab.js
           node --check rti-growth-studio/assets/motion-system.js
           node --check rti-growth-studio/assets/neon-rush.js
+          node --check rti-growth-studio/assets/visitor-analytics.js
           node --check rti-growth-studio/admin/admin.js
           echo "Backend, public-site and admin JavaScript syntax checks passed."
 
@@ -91,6 +92,8 @@ jobs:
           curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/assets/growth-lab.js" >/dev/null
           curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/assets/motion-system.css" >/dev/null
           curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/assets/motion-system.js" >/dev/null
+          curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/assets/visitor-analytics.js" >/tmp/cms-visitor-analytics.js
+          node --check /tmp/cms-visitor-analytics.js
           for attempt in $(seq 1 18); do
             if curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/play/" >/tmp/cms-play.html && grep -q 'NEON RUSH' /tmp/cms-play.html; then break; fi
             if [ "$attempt" -eq 18 ]; then echo "Arcade game page did not become available."; exit 1; fi
@@ -110,6 +113,8 @@ jobs:
           done
           curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/admin/admin.js" >/tmp/cms-admin.js
           grep -q 'Growth insights' /tmp/cms-admin.html
+          grep -q 'data-view="visitors"' /tmp/cms-admin.html
+          grep -q 'loadVisitors' /tmp/cms-admin.js
           grep -q 'exportEnquiriesCsv' /tmp/cms-admin.js
           for page in "services/" "work/" "studio/" "team/" "contact/" "services/social-media/" "services/video-motion/" "services/brand-design/" "services/websites/" "services/app-uiux/" "services/paid-media/"; do
             curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/$page" >/tmp/cms-page.html
