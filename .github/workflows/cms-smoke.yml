@@ -28,6 +28,7 @@ jobs:
           node --check rti-growth-studio/assets/aa-studio.js
           node --check rti-growth-studio/assets/cms-client.js
           node --check rti-growth-studio/assets/growth-lab.js
+          node --check rti-growth-studio/assets/motion-system.js
           node --check rti-growth-studio/admin/admin.js
           echo "Backend, public-site and admin JavaScript syntax checks passed."
 
@@ -87,6 +88,13 @@ jobs:
           grep -q 'forgeForm' /tmp/cms-growth-lab.html
           curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/assets/growth-lab.css" >/dev/null
           curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/assets/growth-lab.js" >/dev/null
+          curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/assets/motion-system.css" >/dev/null
+          curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/assets/motion-system.js" >/dev/null
+          for page in "/" "contact/" "blog/" "growth-lab/" "services/" "work/" "studio/" "team/" "privacy.html" "terms.html" "admin/"; do
+            curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/$page" >/tmp/motion-page.html
+            grep -q "motion-system.css" /tmp/motion-page.html || { echo "Motion stylesheet not wired on $page"; exit 1; }
+            grep -q "motion-system.js" /tmp/motion-page.html || { echo "Motion script not wired on $page"; exit 1; }
+          done
           curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/admin/admin.js" >/tmp/cms-admin.js
           grep -q 'Growth insights' /tmp/cms-admin.html
           grep -q 'exportEnquiriesCsv' /tmp/cms-admin.js
