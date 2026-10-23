@@ -79,7 +79,7 @@ function loop(timestamp){if(!lastTime)lastTime=timestamp;var dt=Math.min((timest
 function setupSound(){soundOn=!soundOn;soundBtn.setAttribute('aria-pressed',String(soundOn));setText(soundBtn,soundOn?'SOUND ON ♪':'SOUND OFF ♪');if(soundOn)sound(560,.08,'sine')}
 startBtn.addEventListener('click',startOrResume);
 pauseBtn.addEventListener('click',pause);
-$('restartGame').addEventListener('click',function(){startOrResume()});
+$('restartGame').addEventListener('click',function(){resetRun()});
 $('moveLeft').addEventListener('pointerdown',function(e){e.preventDefault();move(-1)});
 $('moveRight').addEventListener('pointerdown',function(e){e.preventDefault();move(1)});
 soundBtn.addEventListener('click',setupSound);
