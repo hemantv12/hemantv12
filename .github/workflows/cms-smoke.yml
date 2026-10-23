@@ -71,7 +71,17 @@ jobs:
           curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/blog/index.html" >/tmp/cms-blog.html
           grep -q 'Latest thinking' /tmp/cms-blog.html
           curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/assets/cms-client.js" >/dev/null
-          curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/growth-lab/" >/tmp/cms-growth-lab.html
+          for attempt in $(seq 1 18); do
+            if curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/growth-lab/" >/tmp/cms-growth-lab.html && grep -q 'Build your next' /tmp/cms-growth-lab.html && grep -q 'campaignForm' /tmp/cms-growth-lab.html; then
+              break
+            fi
+            if [ "$attempt" -eq 18 ]; then
+              echo "Website rollout did not serve the campaign planner after retries."
+              exit 1
+            fi
+            echo "Waiting for the public-site deployment to become visible ($attempt/18)..."
+            sleep 10
+          done
           grep -q 'Growth Score' /tmp/cms-growth-lab.html
           grep -q 'Build your next' /tmp/cms-growth-lab.html
           grep -q 'campaignForm' /tmp/cms-growth-lab.html
