@@ -126,7 +126,24 @@ function encryptSecret(value){if(!value)return{ciphertext:'',iv:'',tag:''};const
 function decryptSecret(row,prefix){try{if(!row||!row[prefix+'_ciphertext']||!row[prefix+'_iv']||!row[prefix+'_tag'])return'';const decipher=crypto.createDecipheriv('aes-256-gcm',secretKey(),Buffer.from(row[prefix+'_iv'],'base64url'));decipher.setAuthTag(Buffer.from(row[prefix+'_tag'],'base64url'));return Buffer.concat([decipher.update(Buffer.from(row[prefix+'_ciphertext'],'base64url')),decipher.final()]).toString('utf8')}catch{return''}}
 async function metaSettings(){const r=await pool.query('SELECT * FROM meta_settings WHERE id=1');return r.rows[0]||{id:1,app_id:process.env.META_APP_ID||'',pixel_id:process.env.META_PIXEL_ID||''};}
 function metaRedirectUri(){return (process.env.META_REDIRECT_URI||PUBLIC_BASE_URL+'/api/public/meta/callback').trim();}
-async function graphGet(path,accessToken){let cleanPath=String(path);while(cleanPath.startsWith('/'))cleanPath=cleanPath.slice(1);const url=new URL('https://graph.facebook.com/'+(process.env.META_GRAPH_API_VERSION||'v25.0')+'/'+cleanPath);url.searchParams.set('access_token',accessToken);const response=await fetch(url,{signal:AbortSignal.timeout(10000)});const data=await response.json().catch(()=>({}));if(!response.ok||data.error)throw new Error('Meta Graph API request failed: '+safeText(data.error?.message,180));return data;}
+async function graphGet(path,accessToken){let cleanPath=String(path);while(cleanPath.startsWith('/'))cleanPath=cleanPath.slice(1);const url=new URL('https://graph.facebook.com/'+(process.env.META_GRAPH_API_VERSION||'v26.0')+'/'+cleanPath);url.searchParams.set('access_token',accessToken);const response=await fetch(url,{signal:AbortSignal.timeout(10000)});const data=await response.json().catch(()=>({}));if(!response.ok||data.error)throw new Error('Meta Graph API request failed: '+safeText(data.error?.message,180));return data;}
+async function sendMetaLeadEvent({eventId,sourceUrl,userAgent,fbp,fbc,service,consent}){
+ if(!consent)return;
+ try{
+  const config=await metaSettings(),pixelId=safeText(config.pixel_id||process.env.META_PIXEL_ID,40),accessToken=decryptSecret(config,'conversions_token')||process.env.META_CONVERSIONS_ACCESS_TOKEN||'';
+  if(!pixelId||!accessToken)return;
+  const userData={client_user_agent:safeText(userAgent,500)};
+  if(/^fb\.1\.\d{5,20}\.[A-Za-z0-9._-]{1,300}$/.test(fbp||''))userData.fbp=fbp;
+  if(/^fb\.1\.\d{5,20}\.[A-Za-z0-9._-]{1,300}$/.test(fbc||''))userData.fbc=fbc;
+  const event={event_name:'Lead',event_time:Math.floor(Date.now()/1000),event_id:eventId,action_source:'website',event_source_url:sourceUrl,user_data:userData,custom_data:{currency:'INR',content_name:safeText(service,100)}};
+  const payload={data:[event]};
+  if(process.env.META_TEST_EVENT_CODE)payload.test_event_code=safeText(process.env.META_TEST_EVENT_CODE,100);
+  const url='https://graph.facebook.com/'+(process.env.META_GRAPH_API_VERSION||'v26.0')+'/'+encodeURIComponent(pixelId)+'/events?access_token='+encodeURIComponent(accessToken);
+  const response=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),signal:AbortSignal.timeout(5000)});
+  const data=await response.json().catch(()=>({}));
+  if(!response.ok||data.error)console.warn('Meta Lead conversion event delivery failed.');
+ }catch(e){console.warn('Meta Lead conversion event unavailable.')}
+}
 function safeText(value,max=5000){return typeof value==='string'?value.trim().slice(0,max):'';}
 function validHttpUrl(value){if(!value)return true;try{const u=new URL(value);return u.protocol==='https:'||u.protocol==='http:';}catch{return false;}}
 function slugify(value){return safeText(value,150).toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,100);}
@@ -186,7 +203,10 @@ app.post('/api/public/enquiries',asyncRoute(async(req,res)=>{
  const src=safeText(body.utm_source||body.source,100).replace(/[<>\u0000-\u001f]/g,'')||'Direct / unknown',medium=safeText(body.utm_medium,80),campaign=safeText(body.utm_campaign,120),landing=safeText(body.landing_page,300).split('?')[0],referrer=safeText(body.referrer_host,180),current=safeText(body.current_page,300).split('?')[0];
  const result=await pool.query('INSERT INTO contact_enquiries(name,email,mobile_number,company,service,goal,status,source,utm_source,utm_medium,utm_campaign,landing_page,referrer_host,current_page,visitor_session_id,event_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING id,created_at',[name,email,mobile,company,service,goal,'new',src,safeText(body.utm_source,100),medium,campaign,landing,referrer,current,sessionId,eventId]);
  if(sessionId)await pool.query("INSERT INTO visitor_events(session_id,event_type,page_path,details) SELECT $1,'lead',$2,$3 WHERE EXISTS(SELECT 1 FROM visitor_sessions WHERE session_id=$1)",[sessionId,current||landing||'/','Enquiry successfully saved']);
- res.status(201).json({ok:true,message:'Your enquiry has been saved securely.',enquiryId:result.rows[0].id,eventId});
+  const siteOrigin=allowedOrigins.has(req.get('origin'))?req.get('origin'):(Array.from(allowedOrigins)[0]||'https://rti-growth-studio.onrender.com');
+ const sourceUrl=siteOrigin+(current&&current.startsWith('/')?current:'/'),config=await metaSettings().catch(()=>({pixel_id:''})),pixelId=safeText(config.pixel_id||process.env.META_PIXEL_ID,40);
+ void sendMetaLeadEvent({eventId,sourceUrl,userAgent:req.get('user-agent')||'',fbp:safeText(body.fbp,300),fbc:safeText(body.fbc,400),service,consent:body.meta_consent===true});
+ res.status(201).json({ok:true,message:'Your enquiry has been saved securely.',enquiryId:result.rows[0].id,eventId,pixelId});
 }));
 app.post('/api/public/analytics/collect',visitorAnalyticsLimiter,asyncRoute(async(req,res)=>{
  const body=req.body||{},sessionId=safeText(body.sessionId,80),eventType=safeText(body.eventType,32);
