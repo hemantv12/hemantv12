@@ -280,12 +280,6 @@ app.post('/api/admin/meta/settings',asyncRoute(async(req,res)=>{
  const old=await metaSettings(),sec=appSecret?encryptSecret(appSecret):{ciphertext:old.app_secret_ciphertext||'',iv:old.app_secret_iv||'',tag:old.app_secret_tag||''},cap=conversionToken?encryptSecret(conversionToken):{ciphertext:old.conversions_token_ciphertext||'',iv:old.conversions_token_iv||'',tag:old.conversions_token_tag||''};
  await pool.query('UPDATE meta_settings SET app_id=$1,app_secret_ciphertext=$2,app_secret_iv=$3,app_secret_tag=$4,pixel_id=$5,conversions_token_ciphertext=$6,conversions_token_iv=$7,conversions_token_tag=$8,updated_at=now() WHERE id=1',[appId,sec.ciphertext,sec.iv,sec.tag,pixelId,cap.ciphertext,cap.iv,cap.tag]);res.json({ok:true,message:'Meta settings saved securely. Secret fields stay hidden after saving.'});
 }));
-app.get('/api/admin/meta/status',asyncRoute(async(req,res)=>{
- const [s,connection]=await Promise.all([metaSettings(),pool.query('SELECT page_id,page_name,instagram_id,instagram_username,instagram_name,instagram_picture_url,instagram_followers,instagram_media_count,connected_at,last_synced_at FROM meta_connections WHERE id=1')]);
- const x=connection.rows[0]||null;
- res.setHeader('Cache-Control','no-store');
- res.json({appId:safeText(s.app_id,40),appConfigured:!!(s.app_id&&decryptSecret(s,'app_secret')),pixelId:safeText(s.pixel_id||process.env.META_PIXEL_ID,40),pixelConfigured:!!(s.pixel_id||process.env.META_PIXEL_ID),conversionsApiConfigured:!!(decryptSecret(s,'conversions_token')||process.env.META_CONVERSIONS_ACCESS_TOKEN),redirectUri:metaRedirectUri(),connected:!!x,page:x?{id:x.page_id,name:x.page_name}:null,instagram:x&&x.instagram_id?{id:x.instagram_id,username:x.instagram_username,name:x.instagram_name,pictureUrl:x.instagram_picture_url,followers:x.instagram_followers,mediaCount:x.instagram_media_count}:null,connectedAt:x?.connected_at||null,lastSyncedAt:x?.last_synced_at||null});
-}));
 app.post('/api/admin/meta/connect-url',asyncRoute(async(req,res)=>{
  const s=await metaSettings(),appId=safeText(s.app_id||process.env.META_APP_ID,40),appSecret=decryptSecret(s,'app_secret')||process.env.META_APP_SECRET||'';
  if(!appId||!appSecret)return res.status(400).json({error:'Add your Meta App ID and App Secret, then save settings first.'});
