@@ -68,7 +68,7 @@ function firstTouch(){
  var us=(params.get('utm_source')||'').slice(0,100),um=(params.get('utm_medium')||'').slice(0,80),uc=(params.get('utm_campaign')||'').slice(0,120);
  var src=us||(params.get('gclid')?'Google Ads':params.get('fbclid')?'Meta Ads':host||'Direct / unknown');
  if(!us&&host){if(host.indexOf('instagram.com')>=0)src='Instagram';else if(host.indexOf('facebook.com')>=0||host.indexOf('fb.com')>=0)src='Facebook';else if(host.indexOf('google.')>=0)src='Google';else if(host.indexOf('bing.com')>=0)src='Bing';}
- var result={source:src,utm_source:us,utm_medium:um,utm_campaign:uc,landing_page:(location.pathname||'/').slice(0,300),referrer_host:host.slice(0,180)};
+ var result={source:src,utm_source:us,utm_medium:um,utm_campaign:uc,fbclid:(params.get('fbclid')||'').slice(0,300),landing_page:(location.pathname||'/').slice(0,300),referrer_host:host.slice(0,180)};
  try{sessionStorage.setItem('aaLeadFirstTouch',JSON.stringify(result))}catch(e){}
  return result;
 }
@@ -92,13 +92,13 @@ function installConversionExperience(){
  var form=modal.querySelector('#aaQuickLeadForm');
  form.addEventListener('submit',async function(e){
   e.preventDefault();var button=form.querySelector('.aa-lead-submit'),status=modal.querySelector('#aaLeadStatus'),fd=new FormData(form),touch=firstTouch(),eventId=newEventId();
-  var payload={name:fd.get('name'),email:fd.get('email'),mobile_number:fd.get('mobile_number'),company:'',service:fd.get('service'),goal:fd.get('goal'),source:touch.source,utm_source:touch.utm_source,utm_medium:touch.utm_medium,utm_campaign:touch.utm_campaign,landing_page:touch.landing_page,referrer_host:touch.referrer_host,current_page:location.pathname,visitor_session_id:sid,event_id:eventId,meta_consent:fd.get('meta_consent')==='yes',fbp:fbCookie('_fbp'),fbc:fbCookie('_fbc')};
+  var payload={name:fd.get('name'),email:fd.get('email'),mobile_number:fd.get('mobile_number'),company:'',service:fd.get('service'),goal:fd.get('goal'),source:touch.source,utm_source:touch.utm_source,utm_medium:touch.utm_medium,utm_campaign:touch.utm_campaign,landing_page:touch.landing_page,referrer_host:touch.referrer_host,current_page:location.pathname,visitor_session_id:sid,event_id:eventId,meta_consent:fd.get('meta_consent')==='yes',fbp:fbCookie('_fbp'),fbc:fbCookie('_fbc')||(touch.fbclid&&/^[A-Za-z0-9._-]{1,300}$/.test(touch.fbclid)?'fb.1.'+Date.now()+'.'+touch.fbclid:'')};
   button.disabled=true;button.textContent='Sending enquiry…';status.className='aa-lead-status';status.textContent='Saving your enquiry securely…';
   try{
    var response=await fetch(API+'/public/enquiries',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),cache:'no-store'}),data=await response.json().catch(function(){return{}});
    if(!response.ok)throw new Error(data.error||'Could not save your enquiry. Please try WhatsApp.');
    status.className='aa-lead-status is-success';status.textContent='Thank you! Your enquiry is saved. Reference #'+data.enquiryId+'. Our team can now follow up with you.';
-   form.reset();send('lead','enquiry saved #'+data.enquiryId);
+   form.reset();
    if(payload.meta_consent&&data.pixelId)loadMetaPixel(data.pixelId,eventId);
    button.textContent='Enquiry received ✓';window.setTimeout(closeModal,3600);
   }catch(err){status.className='aa-lead-status is-error';status.textContent=err.message||'Could not save. Please try again or use WhatsApp.';button.disabled=false;button.innerHTML='Send my enquiry <span aria-hidden="true">↗</span>'}
