@@ -1,7 +1,7 @@
 (function(){
 'use strict';
 if(location.pathname==='/admin'||location.pathname.indexOf('/admin/')===0)return;
-if(navigator.doNotTrack==='1'||window.doNotTrack==='1')return;
+var trackingEnabled=!(navigator.doNotTrack==='1'||window.doNotTrack==='1');
 var API='https://aa-growth-studio-cms-api.onrender.com/api/public/analytics/collect';
 var sid='',isNew=false;
 try{
@@ -25,6 +25,7 @@ function readClient(){
 }
 var meta=readClient();
 function send(type,details){
+ if(!trackingEnabled)return;
  var payload={sessionId:sid,eventType:type,pagePath:cleanPath(),details:String(details||'').slice(0,180),referrerHost:referrerHost,source:source,utmMedium:utmMedium,utmCampaign:utmCampaign,deviceType:meta.deviceType,browser:meta.browser,os:meta.os,language:meta.language,timezone:meta.timezone,viewportClass:meta.viewportClass};
  try{fetch(API,{method:'POST',mode:'cors',cache:'no-store',credentials:'omit',keepalive:true,headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}).catch(function(){})}catch(e){}
 }
@@ -57,4 +58,57 @@ var beat=function(){if(document.visibilityState==='visible')send('heartbeat','')
 window.setInterval(beat,25000);
 document.addEventListener('visibilitychange',function(){if(document.visibilityState!=='visible')send('heartbeat','')});
 window.addEventListener('pagehide',function(){send('heartbeat','')});
+
+// Site-wide conversion experience: one clear action, short lead form, and direct contact on every public page.
+function firstTouch(){
+ var old={};try{old=JSON.parse(sessionStorage.getItem('aaLeadFirstTouch')||'{}')||{}}catch(e){}
+ if(old.source)return old;
+ var params=new URLSearchParams(location.search),host='';
+ try{host=document.referrer?new URL(document.referrer).hostname.toLowerCase():''}catch(e){}
+ var us=(params.get('utm_source')||'').slice(0,100),um=(params.get('utm_medium')||'').slice(0,80),uc=(params.get('utm_campaign')||'').slice(0,120);
+ var src=us||(params.get('gclid')?'Google Ads':params.get('fbclid')?'Meta Ads':host||'Direct / unknown');
+ if(!us&&host){if(host.indexOf('instagram.com')>=0)src='Instagram';else if(host.indexOf('facebook.com')>=0||host.indexOf('fb.com')>=0)src='Facebook';else if(host.indexOf('google.')>=0)src='Google';else if(host.indexOf('bing.com')>=0)src='Bing';}
+ var result={source:src,utm_source:us,utm_medium:um,utm_campaign:uc,landing_page:(location.pathname||'/').slice(0,300),referrer_host:host.slice(0,180)};
+ try{sessionStorage.setItem('aaLeadFirstTouch',JSON.stringify(result))}catch(e){}
+ return result;
+}
+function newEventId(){try{if(window.crypto&&crypto.randomUUID)return crypto.randomUUID()}catch(e){}return 'lead-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2)}
+function installConversionExperience(){
+ if(!document.body||document.getElementById('aaConversionDock')||location.pathname==='/admin'||location.pathname.indexOf('/admin/')===0)return;
+ var css=document.createElement('link');css.rel='stylesheet';css.href='/assets/conversion-system.css';document.head.appendChild(css);
+ var dock=document.createElement('aside');dock.id='aaConversionDock';dock.className='aa-conversion-dock';dock.setAttribute('aria-label','Contact AA Growth Studio');
+ dock.innerHTML="<div class='aa-dock-copy'><span class='aa-dock-kicker'>YOUR NEXT MOVE</span><strong>Let us grow your business.</strong><small>Get a free growth plan for your brand.</small></div><button type='button' class='aa-dock-primary' data-aa-convert>Get a free growth plan <span aria-hidden='true'>↗</span></button><a class='aa-dock-whatsapp' href='https://wa.me/917466039959?text=Hi%20AA%20Growth%20Studio%2C%20I%20want%20a%20free%20growth%20plan.' target='_blank' rel='noopener noreferrer' aria-label='Chat with AA Growth Studio on WhatsApp'>WhatsApp ↗</a><a class='aa-dock-call' href='tel:+917466039959' aria-label='Call AA Growth Studio'>Call</a>";
+ var modal=document.createElement('div');modal.id='aaConversionModal';modal.className='aa-conversion-modal';modal.hidden=true;modal.setAttribute('aria-hidden','true');
+ modal.innerHTML="<div class='aa-conversion-backdrop' data-aa-close></div><section class='aa-conversion-card' role='dialog' aria-modal='true' aria-labelledby='aaLeadTitle'><button type='button' class='aa-conversion-close' data-aa-close aria-label='Close'>×</button><div class='aa-conversion-eyebrow'>AA GROWTH STUDIO / START HERE</div><h2 id='aaLeadTitle'>Let us find your <em>next growth move.</em></h2><p class='aa-conversion-intro'>Tell us a little about your business. We will reach out with a useful next step—no long brief required.</p><form id='aaQuickLeadForm'><div class='aa-lead-grid'><label>Your name *<input name='name' autocomplete='name' maxlength='120' required placeholder='Name'></label><label>Mobile / WhatsApp *<input name='mobile_number' type='tel' inputmode='tel' autocomplete='tel' maxlength='32' required placeholder='+91…'></label><label class='aa-lead-full'>Business email (optional)<input name='email' type='email' autocomplete='email' maxlength='250' placeholder='you@business.com'></label><label class='aa-lead-full'>What do you need? *<select name='service' required><option value=''>Choose one</option><option>Meta Ads & lead generation</option><option>Social media management</option><option>Video, reels & creative</option><option>Branding & graphic design</option><option>Website / app development</option><option>Growth strategy</option><option>Other / not sure yet</option></select></label><label class='aa-lead-full'>Main goal (optional)<textarea name='goal' maxlength='1500' rows='2' placeholder='More qualified leads, stronger brand, better website…'></textarea></label></div><label class='aa-consent-row'><input type='checkbox' name='meta_consent' value='yes'><span>Allow Meta ad-conversion measurement for this enquiry (optional). This does not subscribe you to marketing messages.</span></label><button class='aa-lead-submit' type='submit'>Send my enquiry <span aria-hidden='true'>↗</span></button><p class='aa-lead-status' id='aaLeadStatus' role='status' aria-live='polite'></p><small class='aa-lead-privacy'>Your details go to the studio enquiry dashboard and are used to respond to this request.</small></form></section>";
+ document.body.appendChild(dock);document.body.appendChild(modal);
+ function closeModal(){modal.hidden=true;modal.setAttribute('aria-hidden','true');document.body.classList.remove('aa-conversion-open')}
+ function openModal(){modal.hidden=false;modal.setAttribute('aria-hidden','false');document.body.classList.add('aa-conversion-open');send('conversion_modal_open','growth-plan form');window.setTimeout(function(){var x=modal.querySelector("input[name='name']");if(x)x.focus()},60)}
+ dock.querySelector('[data-aa-convert]').addEventListener('click',function(){send('cta_click','free growth plan');openModal()});
+ modal.querySelectorAll('[data-aa-close]').forEach(function(x){x.addEventListener('click',closeModal)});
+ document.addEventListener('keydown',function(e){if(e.key==='Escape'&&!modal.hidden)closeModal()});
+ dock.querySelector('.aa-dock-whatsapp').addEventListener('click',function(){send('whatsapp_click','sticky contact CTA')});
+ dock.querySelector('.aa-dock-call').addEventListener('click',function(){send('call_click','sticky contact CTA')});
+ function fbCookie(name){var parts=document.cookie.split(';');for(var i=0;i<parts.length;i++){var p=parts[i].trim();if(p.indexOf(name+'=')===0){try{return decodeURIComponent(p.slice(name.length+1))}catch(e){return ''}}}return ''}
+ var form=modal.querySelector('#aaQuickLeadForm');
+ form.addEventListener('submit',async function(e){
+  e.preventDefault();var button=form.querySelector('.aa-lead-submit'),status=modal.querySelector('#aaLeadStatus'),fd=new FormData(form),touch=firstTouch(),eventId=newEventId();
+  var payload={name:fd.get('name'),email:fd.get('email'),mobile_number:fd.get('mobile_number'),company:'',service:fd.get('service'),goal:fd.get('goal'),source:touch.source,utm_source:touch.utm_source,utm_medium:touch.utm_medium,utm_campaign:touch.utm_campaign,landing_page:touch.landing_page,referrer_host:touch.referrer_host,current_page:location.pathname,visitor_session_id:sid,event_id:eventId,meta_consent:fd.get('meta_consent')==='yes',fbp:fbCookie('_fbp'),fbc:fbCookie('_fbc')};
+  button.disabled=true;button.textContent='Sending enquiry…';status.className='aa-lead-status';status.textContent='Saving your enquiry securely…';
+  try{
+   var response=await fetch(API+'/public/enquiries',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),cache:'no-store'}),data=await response.json().catch(function(){return{}});
+   if(!response.ok)throw new Error(data.error||'Could not save your enquiry. Please try WhatsApp.');
+   status.className='aa-lead-status is-success';status.textContent='Thank you! Your enquiry is saved. Reference #'+data.enquiryId+'. Our team can now follow up with you.';
+   form.reset();send('lead','enquiry saved #'+data.enquiryId);
+   if(payload.meta_consent&&data.pixelId)loadMetaPixel(data.pixelId,eventId);
+   button.textContent='Enquiry received ✓';window.setTimeout(closeModal,3600);
+  }catch(err){status.className='aa-lead-status is-error';status.textContent=err.message||'Could not save. Please try again or use WhatsApp.';button.disabled=false;button.innerHTML='Send my enquiry <span aria-hidden="true">↗</span>'}
+ });
+}
+function loadMetaPixel(pixelId,eventId){
+ if(!pixelId||!/^\d{5,30}$/.test(String(pixelId)))return;
+ if(!window.fbq){var n=window.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!window._fbq)window._fbq=n;n.push=n;n.loaded=true;n.version='2.0';n.queue=[];var s=document.createElement('script');s.async=true;s.src='https://connect.facebook.net/en_US/fbevents.js';document.head.appendChild(s)}
+ try{window.fbq('init',String(pixelId));window.fbq('track','PageView');window.fbq('track','Lead',{}, {eventID:eventId})}catch(e){}
+}
+firstTouch();
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',installConversionExperience,{once:true});else installConversionExperience();
 })();
