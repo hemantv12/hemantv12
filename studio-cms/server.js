@@ -221,6 +221,28 @@ app.post('/api/public/analytics/collect',visitorAnalyticsLimiter,asyncRoute(asyn
  if(eventType==='session_start')await pool.query("DELETE FROM visitor_sessions WHERE last_seen_at < now() - interval '90 days'");
  res.setHeader('Cache-Control','no-store');res.status(202).json({ok:true});
 }));
+app.get('/api/public/meta/callback',asyncRoute(async(req,res)=>{
+ let returnBase=Array.from(allowedOrigins)[0]||'https://rti-growth-studio.onrender.com';while(returnBase.endsWith('/'))returnBase=returnBase.slice(0,-1);
+ const fail=()=>res.redirect(returnBase+'/admin/?meta=error');
+ if(req.query.error||typeof req.query.code!=='string'||typeof req.query.state!=='string')return fail();
+ let claims;try{claims=jwt.verify(req.query.state,JWT_SECRET,{issuer:'aa-growth-studio-meta-oauth',audience:'aa-growth-studio-meta-callback'})}catch{return fail()}
+ if(claims.purpose!=='meta-oauth'||!claims.nonce||!claims.sub)return fail();
+ const used=await pool.query('DELETE FROM meta_oauth_states WHERE nonce=$1 AND admin_username=$2 AND expires_at>now() RETURNING nonce',[claims.nonce,claims.sub]);if(!used.rowCount)return fail();
+ try{
+  const config=await metaSettings(),appId=safeText(config.app_id||process.env.META_APP_ID,40),appSecret=decryptSecret(config,'app_secret')||process.env.META_APP_SECRET||'',redirectUri=metaRedirectUri();if(!appId||!appSecret)throw new Error('Meta app credentials are not configured.');
+  const version=process.env.META_GRAPH_API_VERSION||'v26.0';
+  const tokenUrl=new URL('https://graph.facebook.com/'+version+'/oauth/access_token');tokenUrl.searchParams.set('client_id',appId);tokenUrl.searchParams.set('client_secret',appSecret);tokenUrl.searchParams.set('redirect_uri',redirectUri);tokenUrl.searchParams.set('code',req.query.code);
+  const tokenRes=await fetch(tokenUrl,{signal:AbortSignal.timeout(10000)}),short=await tokenRes.json();if(!tokenRes.ok||short.error||!short.access_token)throw new Error('Meta authorization code exchange failed.');
+  const longUrl=new URL('https://graph.facebook.com/'+version+'/oauth/access_token');longUrl.searchParams.set('grant_type','fb_exchange_token');longUrl.searchParams.set('client_id',appId);longUrl.searchParams.set('client_secret',appSecret);longUrl.searchParams.set('fb_exchange_token',short.access_token);
+  const longRes=await fetch(longUrl,{signal:AbortSignal.timeout(10000)}),longToken=await longRes.json(),accessToken=longRes.ok&&longToken.access_token?longToken.access_token:short.access_token;
+  const pages=await graphGet('me/accounts?fields=id,name,access_token,instagram_business_account{id,username,name,profile_picture_url,followers_count,media_count}',accessToken);
+  const page=(pages.data||[]).find(x=>x.instagram_business_account)||((pages.data||[])[0]);
+  if(!page||!page.id||!page.access_token)throw new Error('No Facebook Page was granted. Link Instagram Professional to a Facebook Page and try again.');
+  const ig=page.instagram_business_account||{},stored=encryptSecret(page.access_token);
+  await pool.query("INSERT INTO meta_connections(id,page_id,page_name,instagram_id,instagram_username,instagram_name,instagram_picture_url,instagram_followers,instagram_media_count,token_ciphertext,token_iv,token_tag,connected_at,last_synced_at) VALUES(1,$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,now(),now()) ON CONFLICT(id) DO UPDATE SET page_id=EXCLUDED.page_id,page_name=EXCLUDED.page_name,instagram_id=EXCLUDED.instagram_id,instagram_username=EXCLUDED.instagram_username,instagram_name=EXCLUDED.instagram_name,instagram_picture_url=EXCLUDED.instagram_picture_url,instagram_followers=EXCLUDED.instagram_followers,instagram_media_count=EXCLUDED.instagram_media_count,token_ciphertext=EXCLUDED.token_ciphertext,token_iv=EXCLUDED.token_iv,token_tag=EXCLUDED.token_tag,connected_at=now(),last_synced_at=now()",[String(page.id),safeText(page.name,180),String(ig.id||''),safeText(ig.username,180),safeText(ig.name,180),safeText(ig.profile_picture_url,1000),Number(ig.followers_count)||0,Number(ig.media_count)||0,stored.ciphertext,stored.iv,stored.tag]);
+  return res.redirect(returnBase+'/admin/?meta=connected');
+ }catch(e){console.warn('Meta authorization callback failed:',safeText(e.message,180));return fail()}
+}));
 app.post('/api/admin/login',asyncRoute(async(req,res)=>{
  const username=safeText(req.body?.username,120),password=typeof req.body?.password==='string'?req.body.password:'';
  const result=await pool.query('SELECT username,password_hash,session_version FROM admin_users WHERE username=$1',[username]);const user=result.rows[0];
@@ -238,6 +260,39 @@ app.post('/api/admin/meta/settings',asyncRoute(async(req,res)=>{
  const old=await metaSettings(),sec=appSecret?encryptSecret(appSecret):{ciphertext:old.app_secret_ciphertext||'',iv:old.app_secret_iv||'',tag:old.app_secret_tag||''},cap=conversionToken?encryptSecret(conversionToken):{ciphertext:old.conversions_token_ciphertext||'',iv:old.conversions_token_iv||'',tag:old.conversions_token_tag||''};
  await pool.query('UPDATE meta_settings SET app_id=$1,app_secret_ciphertext=$2,app_secret_iv=$3,app_secret_tag=$4,pixel_id=$5,conversions_token_ciphertext=$6,conversions_token_iv=$7,conversions_token_tag=$8,updated_at=now() WHERE id=1',[appId,sec.ciphertext,sec.iv,sec.tag,pixelId,cap.ciphertext,cap.iv,cap.tag]);res.json({ok:true,message:'Meta settings saved securely. Secret fields stay hidden after saving.'});
 }));
+app.get('/api/admin/meta/status',asyncRoute(async(req,res)=>{
+ const [s,connection]=await Promise.all([metaSettings(),pool.query('SELECT page_id,page_name,instagram_id,instagram_username,instagram_name,instagram_picture_url,instagram_followers,instagram_media_count,connected_at,last_synced_at FROM meta_connections WHERE id=1')]);
+ const x=connection.rows[0]||null;
+ res.setHeader('Cache-Control','no-store');
+ res.json({appId:safeText(s.app_id,40),appConfigured:!!(s.app_id&&decryptSecret(s,'app_secret')),pixelId:safeText(s.pixel_id||process.env.META_PIXEL_ID,40),pixelConfigured:!!(s.pixel_id||process.env.META_PIXEL_ID),conversionsApiConfigured:!!(decryptSecret(s,'conversions_token')||process.env.META_CONVERSIONS_ACCESS_TOKEN),redirectUri:metaRedirectUri(),connected:!!x,page:x?{id:x.page_id,name:x.page_name}:null,instagram:x&&x.instagram_id?{id:x.instagram_id,username:x.instagram_username,name:x.instagram_name,pictureUrl:x.instagram_picture_url,followers:x.instagram_followers,mediaCount:x.instagram_media_count}:null,connectedAt:x?.connected_at||null,lastSyncedAt:x?.last_synced_at||null});
+}));
+app.post('/api/admin/meta/connect-url',asyncRoute(async(req,res)=>{
+ const s=await metaSettings(),appId=safeText(s.app_id||process.env.META_APP_ID,40),appSecret=decryptSecret(s,'app_secret')||process.env.META_APP_SECRET||'';
+ if(!appId||!appSecret)return res.status(400).json({error:'Add your Meta App ID and App Secret, then save settings first.'});
+ const nonce=crypto.randomBytes(24).toString('base64url');
+ await pool.query("INSERT INTO meta_oauth_states(nonce,admin_username,expires_at) VALUES($1,$2,now()+interval '10 minutes')",[nonce,req.admin.username]);
+ const state=jwt.sign({purpose:'meta-oauth',nonce,sub:req.admin.username},JWT_SECRET,{expiresIn:'10m',issuer:'aa-growth-studio-meta-oauth',audience:'aa-growth-studio-meta-callback'});
+ const url=new URL('https://www.facebook.com/'+(process.env.META_GRAPH_API_VERSION||'v26.0')+'/dialog/oauth');
+ url.searchParams.set('client_id',appId);url.searchParams.set('redirect_uri',metaRedirectUri());url.searchParams.set('state',state);url.searchParams.set('response_type','code');url.searchParams.set('scope','pages_show_list,pages_read_engagement,instagram_basic,instagram_manage_insights');
+ res.json({url:url.toString()});
+}));
+app.post('/api/admin/meta/sync',asyncRoute(async(req,res)=>{
+ const r=await pool.query('SELECT * FROM meta_connections WHERE id=1');
+ if(!r.rows.length)return res.status(400).json({error:'Connect Facebook and Instagram first.'});
+ const row=r.rows[0],token=decryptSecret(row,'token');
+ if(!token)return res.status(400).json({error:'Saved Meta token could not be decrypted. Please reconnect the account.'});
+ try{
+  const page=await graphGet(row.page_id+'?fields=id,name',token);
+  const ig=row.instagram_id?await graphGet(row.instagram_id+'?fields=id,username,name,profile_picture_url,followers_count,media_count',token):{};
+  await pool.query('UPDATE meta_connections SET page_name=$1,instagram_username=$2,instagram_name=$3,instagram_picture_url=$4,instagram_followers=$5,instagram_media_count=$6,last_synced_at=now() WHERE id=1',[safeText(page.name,180),safeText(ig.username||row.instagram_username,180),safeText(ig.name||row.instagram_name,180),safeText(ig.profile_picture_url||row.instagram_picture_url,1000),Number(ig.followers_count)||0,Number(ig.media_count)||0]);
+  res.json({ok:true,message:'Meta account details synced.'});
+ }catch(e){res.status(502).json({error:'Meta could not refresh this account. Check permissions and reconnect if needed.'})}
+}));
+app.post('/api/admin/meta/disconnect',asyncRoute(async(req,res)=>{
+ await pool.query('DELETE FROM meta_connections WHERE id=1');
+ res.json({ok:true,message:'Meta account disconnected. Pixel settings were kept.'});
+}));
+
 app.get('/api/admin/media',asyncRoute(async(req,res)=>{
  const result=await pool.query('SELECT id,original_name,mime_type,file_size,created_at FROM studio_media ORDER BY created_at DESC LIMIT 200');
  res.json({assets:result.rows.map(x=>({id:x.id,name:x.original_name,mimeType:x.mime_type,size:x.file_size,createdAt:x.created_at,url:PUBLIC_BASE_URL+'/api/public/media/'+x.id}))});
