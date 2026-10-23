@@ -41,6 +41,7 @@ app.use((req,res,next)=>{
 app.use(express.json({limit:'1mb'}));
 app.use('/api/admin/login',rateLimit({windowMs:15*60*1000,limit:10,standardHeaders:'draft-7',legacyHeaders:false,message:{error:'Too many login attempts. Please wait 15 minutes.'}}));
 app.use('/api/public/enquiries',rateLimit({windowMs:60*60*1000,limit:8,standardHeaders:'draft-7',legacyHeaders:false,message:{error:'Too many enquiries from this connection. Please try later.'}}));
+const visitorAnalyticsLimiter=rateLimit({windowMs:15*60*1000,limit:1200,standardHeaders:'draft-7',legacyHeaders:false,message:{error:'Visitor analytics rate limit reached.'}});
 
 const defaults = {
  brandName:'AA Growth Studio',brandTagline:'Social · Creative · Digital',
@@ -93,7 +94,13 @@ const schema = [
  'CREATE INDEX IF NOT EXISTS contact_enquiries_created_idx ON contact_enquiries(created_at DESC)',
  'ALTER TABLE contact_enquiries ADD COLUMN IF NOT EXISTS mobile_number TEXT NOT NULL DEFAULT \'\'',
  'CREATE TABLE IF NOT EXISTS studio_media (id BIGSERIAL PRIMARY KEY, original_name TEXT NOT NULL, mime_type TEXT NOT NULL, file_size INTEGER NOT NULL, file_data BYTEA NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now())',
- 'CREATE INDEX IF NOT EXISTS studio_media_created_idx ON studio_media(created_at DESC)'
+ 'CREATE INDEX IF NOT EXISTS studio_media_created_idx ON studio_media(created_at DESC)',
+ 'CREATE TABLE IF NOT EXISTS visitor_sessions (session_id TEXT PRIMARY KEY CHECK(length(session_id) <= 80), started_at TIMESTAMPTZ NOT NULL DEFAULT now(), last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now(), landing_page TEXT NOT NULL DEFAULT \'/\', last_page TEXT NOT NULL DEFAULT \'/\', referrer TEXT NOT NULL DEFAULT \'\', source TEXT NOT NULL DEFAULT \'Direct / unknown\', medium TEXT NOT NULL DEFAULT \'\', campaign TEXT NOT NULL DEFAULT \'\', device_type TEXT NOT NULL DEFAULT \'unknown\', browser TEXT NOT NULL DEFAULT \'unknown\', os TEXT NOT NULL DEFAULT \'unknown\', language TEXT NOT NULL DEFAULT \'\', timezone TEXT NOT NULL DEFAULT \'\', viewport_class TEXT NOT NULL DEFAULT \'unknown\', page_count INTEGER NOT NULL DEFAULT 0, event_count INTEGER NOT NULL DEFAULT 0, pages JSONB NOT NULL DEFAULT \'[]\'::jsonb)',
+ 'CREATE INDEX IF NOT EXISTS visitor_sessions_last_seen_idx ON visitor_sessions(last_seen_at DESC)',
+ 'CREATE INDEX IF NOT EXISTS visitor_sessions_started_idx ON visitor_sessions(started_at DESC)',
+ 'CREATE TABLE IF NOT EXISTS visitor_events (id BIGSERIAL PRIMARY KEY, session_id TEXT NOT NULL REFERENCES visitor_sessions(session_id) ON DELETE CASCADE, event_type TEXT NOT NULL, page_path TEXT NOT NULL DEFAULT \'/\', details TEXT NOT NULL DEFAULT \'\', created_at TIMESTAMPTZ NOT NULL DEFAULT now())',
+ 'CREATE INDEX IF NOT EXISTS visitor_events_created_idx ON visitor_events(created_at DESC)',
+ 'CREATE INDEX IF NOT EXISTS visitor_events_session_idx ON visitor_events(session_id, created_at DESC)'
 ];
 function b64url(buf){return Buffer.from(buf).toString('base64url');}
 function verifyPass(password,stored){
@@ -157,6 +164,39 @@ app.post('/api/public/enquiries',asyncRoute(async(req,res)=>{
  if(!name||!email||!mobile||digits.length<7||digits.length>15||!/^[+0-9().\s-]+$/.test(mobile)||!company||!service||!goal||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return res.status(400).json({error:'Please complete all required fields with a valid email and mobile number.'});
  const result=await pool.query('INSERT INTO contact_enquiries(name,email,mobile_number,company,service,goal) VALUES($1,$2,$3,$4,$5,$6) RETURNING id,created_at',[name,email,mobile,company,service,goal]);res.status(201).json({ok:true,message:'Your enquiry has been saved securely.',enquiryId:result.rows[0].id});
 }));
+app.post('/api/public/analytics/collect',visitorAnalyticsLimiter,asyncRoute(async(req,res)=>{
+ const body=req.body||{},sessionId=safeText(body.sessionId,80),eventType=safeText(body.eventType,32);
+ const allowedEvents=new Set(['session_start','page_view','heartbeat','click','outbound_click','scroll','form_start','form_submit']);
+ if(!/^[a-zA-Z0-9_-]{12,80}$/.test(sessionId)||!allowedEvents.has(eventType))return res.status(400).json({error:'Invalid analytics event.'});
+ let pagePath=safeText(body.pagePath,500).split('?')[0].split('#')[0].replace(/[\\\u0000-\\\u001f]/g,'').slice(0,300);
+ if(!pagePath.startsWith('/'))pagePath='/';if(!pagePath)pagePath='/';
+ const referrer=safeText(body.referrerHost,180).toLowerCase().replace(/[^a-z0-9.-]/g,'').slice(0,180);
+ const source=safeText(body.source,100).replace(/[<>\\\u0000-\\\u001f]/g,'')||referrer||'Direct / unknown';
+ const medium=safeText(body.utmMedium,80).replace(/[<>\\\u0000-\\\u001f]/g,'');
+ const campaign=safeText(body.utmCampaign,120).replace(/[<>\\\u0000-\\\u001f]/g,'');
+ const allowedDevices=new Set(['desktop','tablet','mobile','unknown']);
+ const deviceType=allowedDevices.has(body.deviceType)?body.deviceType:'unknown';
+ const browser=safeText(body.browser,40).replace(/[<>\\\u0000-\\\u001f]/g,'')||'unknown';
+ const os=safeText(body.os,40).replace(/[<>\\\u0000-\\\u001f]/g,'')||'unknown';
+ const language=safeText(body.language,40).replace(/[<>\\\u0000-\\\u001f]/g,'');
+ const timezone=safeText(body.timezone,80).replace(/[<>\\\u0000-\\\u001f]/g,'');
+ const viewport=safeText(body.viewportClass,16),viewportClass=['desktop','tablet','mobile'].includes(viewport)?viewport:'unknown';
+ await pool.query(`INSERT INTO visitor_sessions(session_id,landing_page,last_page,referrer,source,medium,campaign,device_type,browser,os,language,timezone,viewport_class,page_count,event_count,pages)
+ VALUES($1,$2,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,CASE WHEN $13='page_view' THEN 1 ELSE 0 END,CASE WHEN $13='heartbeat' THEN 0 ELSE 1 END,CASE WHEN $13='page_view' THEN jsonb_build_array($2::text) ELSE '[]'::jsonb END)
+ ON CONFLICT(session_id) DO UPDATE SET last_seen_at=now(),last_page=EXCLUDED.last_page,
+ referrer=CASE WHEN visitor_sessions.referrer='' THEN EXCLUDED.referrer ELSE visitor_sessions.referrer END,
+ source=CASE WHEN visitor_sessions.source='Direct / unknown' AND EXCLUDED.source<>'Direct / unknown' THEN EXCLUDED.source ELSE visitor_sessions.source END,
+ medium=CASE WHEN visitor_sessions.medium='' THEN EXCLUDED.medium ELSE visitor_sessions.medium END,
+ campaign=CASE WHEN visitor_sessions.campaign='' THEN EXCLUDED.campaign ELSE visitor_sessions.campaign END,
+ device_type=EXCLUDED.device_type,browser=EXCLUDED.browser,os=EXCLUDED.os,language=EXCLUDED.language,timezone=EXCLUDED.timezone,viewport_class=EXCLUDED.viewport_class,
+ page_count=visitor_sessions.page_count+CASE WHEN $13='page_view' THEN 1 ELSE 0 END,
+ event_count=visitor_sessions.event_count+CASE WHEN $13='heartbeat' THEN 0 ELSE 1 END,
+ pages=CASE WHEN $13='page_view' THEN (CASE WHEN jsonb_array_length(visitor_sessions.pages)>=50 THEN visitor_sessions.pages-0 ELSE visitor_sessions.pages END)||jsonb_build_array($2::text) ELSE visitor_sessions.pages END`,
+ [sessionId,pagePath,referrer,source,medium,campaign,deviceType,browser,os,language,timezone,viewportClass,eventType]);
+ if(eventType!=='heartbeat')await pool.query('INSERT INTO visitor_events(session_id,event_type,page_path,details) VALUES($1,$2,$3,$4)',[sessionId,eventType,pagePath,safeText(body.details,180).replace(/[\\\u0000-\\\u001f]/g,'')]);
+ if(eventType==='session_start')await pool.query("DELETE FROM visitor_sessions WHERE last_seen_at < now() - interval '90 days'");
+ res.setHeader('Cache-Control','no-store');res.status(202).json({ok:true});
+}));
 app.post('/api/admin/login',asyncRoute(async(req,res)=>{
  const username=safeText(req.body?.username,120),password=typeof req.body?.password==='string'?req.body.password:'';
  const result=await pool.query('SELECT username,password_hash,session_version FROM admin_users WHERE username=$1',[username]);const user=result.rows[0];
@@ -189,6 +229,18 @@ app.get('/api/admin/me',(req,res)=>res.json({username:req.admin.username}));
 app.get('/api/admin/overview',asyncRoute(async(req,res)=>{
  const [posts,services,leads,newLeads,recent]=await Promise.all([pool.query('SELECT count(*)::int n FROM blog_posts'),pool.query('SELECT count(*)::int n FROM services'),pool.query('SELECT count(*)::int n FROM contact_enquiries'),pool.query("SELECT count(*)::int n FROM contact_enquiries WHERE status='new'"),pool.query('SELECT id,name,email,mobile_number,company,service,status,created_at FROM contact_enquiries ORDER BY created_at DESC LIMIT 6')]);
  res.json({posts:posts.rows[0].n,services:services.rows[0].n,enquiries:leads.rows[0].n,newEnquiries:newLeads.rows[0].n,recentEnquiries:recent.rows});
+}));
+app.get('/api/admin/visitors',asyncRoute(async(req,res)=>{
+ const ranges={'1h':'1 hour','24h':'24 hours','7d':'7 days','30d':'30 days'};
+ const range=Object.prototype.hasOwnProperty.call(ranges,req.query.range)?req.query.range:'24h',interval=ranges[range];
+ const [summary,sources,pages,sessions,events]=await Promise.all([
+  pool.query(`SELECT count(*)::int AS total_sessions,count(*) FILTER(WHERE last_seen_at>=now()-interval '90 seconds')::int AS active_now,COALESCE(sum(page_count),0)::int AS page_views,COALESCE(round(avg(GREATEST(0,extract(epoch FROM(last_seen_at-started_at))))),0)::int AS average_duration_seconds FROM visitor_sessions WHERE started_at>=now()-$1::interval`,[interval]),
+  pool.query(`SELECT source,count(*)::int AS visits FROM visitor_sessions WHERE started_at>=now()-$1::interval GROUP BY source ORDER BY visits DESC LIMIT 12`,[interval]),
+  pool.query(`SELECT page_path,count(*)::int AS page_views FROM visitor_events WHERE event_type='page_view' AND created_at>=now()-$1::interval GROUP BY page_path ORDER BY page_views DESC LIMIT 12`,[interval]),
+  pool.query(`SELECT session_id,started_at,last_seen_at,landing_page,last_page,referrer,source,medium,campaign,device_type,browser,os,language,timezone,viewport_class,page_count,event_count,pages,(last_seen_at>=now()-interval '90 seconds') AS active,GREATEST(0,extract(epoch FROM(last_seen_at-started_at))::int) AS duration_seconds FROM visitor_sessions WHERE started_at>=now()-$1::interval ORDER BY last_seen_at DESC LIMIT 100`,[interval]),
+  pool.query(`SELECT e.id,e.session_id,e.event_type,e.page_path,e.details,e.created_at,s.source,s.device_type FROM visitor_events e JOIN visitor_sessions s USING(session_id) WHERE e.created_at>=now()-$1::interval ORDER BY e.created_at DESC LIMIT 120`,[interval])
+ ]);
+ res.setHeader('Cache-Control','no-store');res.json({range,stats:summary.rows[0]||{total_sessions:0,active_now:0,page_views:0,average_duration_seconds:0},sources:sources.rows,popularPages:pages.rows,sessions:sessions.rows,events:events.rows});
 }));
 app.get('/api/admin/site',asyncRoute(async(req,res)=>{const r=await pool.query('SELECT data,updated_at FROM site_settings WHERE id=1');res.json({settings:r.rows[0]?.data||defaults,updatedAt:r.rows[0]?.updated_at||null});}));
 app.patch('/api/admin/site',asyncRoute(async(req,res)=>{
