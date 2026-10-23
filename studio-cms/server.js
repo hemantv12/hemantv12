@@ -127,7 +127,7 @@ function decryptSecret(row,prefix){try{if(!row||!row[prefix+'_ciphertext']||!row
 async function metaSettings(){const r=await pool.query('SELECT * FROM meta_settings WHERE id=1');return r.rows[0]||{id:1,app_id:process.env.META_APP_ID||'',pixel_id:process.env.META_PIXEL_ID||''};}
 function metaRedirectUri(){return (process.env.META_REDIRECT_URI||PUBLIC_BASE_URL+'/api/public/meta/callback').trim();}
 async function graphGet(path,accessToken){let cleanPath=String(path);while(cleanPath.startsWith('/'))cleanPath=cleanPath.slice(1);const url=new URL('https://graph.facebook.com/'+(process.env.META_GRAPH_API_VERSION||'v26.0')+'/'+cleanPath);url.searchParams.set('access_token',accessToken);const response=await fetch(url,{signal:AbortSignal.timeout(10000)});const data=await response.json().catch(()=>({}));if(!response.ok||data.error)throw new Error('Meta Graph API request failed: '+safeText(data.error?.message,180));return data;}
-async function sendMetaLeadEvent({eventId,sourceUrl,userAgent,fbp,fbc,service,consent}){
+async function sendMetaLeadEvent({eventId,sourceUrl,userAgent,fbp,fbc,service,email,mobile,consent}){
  if(!consent)return;
  try{
   const config=await metaSettings(),pixelId=safeText(config.pixel_id||process.env.META_PIXEL_ID,40),accessToken=decryptSecret(config,'conversions_token')||process.env.META_CONVERSIONS_ACCESS_TOKEN||'';
@@ -135,6 +135,10 @@ async function sendMetaLeadEvent({eventId,sourceUrl,userAgent,fbp,fbc,service,co
   const userData={client_user_agent:safeText(userAgent,500)};
   if(/^fb\.1\.\d{5,20}\.[A-Za-z0-9._-]{1,300}$/.test(fbp||''))userData.fbp=fbp;
   if(/^fb\.1\.\d{5,20}\.[A-Za-z0-9._-]{1,300}$/.test(fbc||''))userData.fbc=fbc;
+  const normalizedEmail=safeText(email,250).toLowerCase();
+  if(normalizedEmail&&/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail))userData.em=[crypto.createHash('sha256').update(normalizedEmail).digest('hex')];
+  const rawPhone=safeText(mobile,32),normalizedPhone=rawPhone.replace(/\D/g,'');
+  if((rawPhone.trim().startsWith('+')||normalizedPhone.length>10)&&normalizedPhone.length>=8&&normalizedPhone.length<=15)userData.ph=[crypto.createHash('sha256').update(normalizedPhone).digest('hex')];
   const event={event_name:'Lead',event_time:Math.floor(Date.now()/1000),event_id:eventId,action_source:'website',event_source_url:sourceUrl,user_data:userData,custom_data:{currency:'INR',content_name:safeText(service,100)}};
   const payload={data:[event]};
   if(process.env.META_TEST_EVENT_CODE)payload.test_event_code=safeText(process.env.META_TEST_EVENT_CODE,100);
@@ -205,7 +209,7 @@ app.post('/api/public/enquiries',asyncRoute(async(req,res)=>{
  if(sessionId)await pool.query("INSERT INTO visitor_events(session_id,event_type,page_path,details) SELECT $1,'lead',$2,$3 WHERE EXISTS(SELECT 1 FROM visitor_sessions WHERE session_id=$1)",[sessionId,current||landing||'/','Enquiry successfully saved']);
   const siteOrigin=allowedOrigins.has(req.get('origin'))?req.get('origin'):(Array.from(allowedOrigins)[0]||'https://rti-growth-studio.onrender.com');
  const sourceUrl=siteOrigin+(current&&current.startsWith('/')?current:'/'),config=await metaSettings().catch(()=>({pixel_id:''})),pixelId=safeText(config.pixel_id||process.env.META_PIXEL_ID,40);
- void sendMetaLeadEvent({eventId,sourceUrl,userAgent:req.get('user-agent')||'',fbp:safeText(body.fbp,300),fbc:safeText(body.fbc,400),service,consent:body.meta_consent===true});
+ void sendMetaLeadEvent({eventId,sourceUrl,userAgent:req.get('user-agent')||'',fbp:safeText(body.fbp,300),fbc:safeText(body.fbc,400),service,email,mobile,consent:body.meta_consent===true});
  res.status(201).json({ok:true,message:'Your enquiry has been saved securely.',enquiryId:result.rows[0].id,eventId,pixelId});
 }));
 app.post('/api/public/analytics/collect',visitorAnalyticsLimiter,asyncRoute(async(req,res)=>{
@@ -343,7 +347,12 @@ app.get('/api/admin/visitors',asyncRoute(async(req,res)=>{
   pool.query(`SELECT session_id,started_at,last_seen_at,landing_page,last_page,referrer,source,medium,campaign,device_type,browser,os,language,timezone,viewport_class,page_count,event_count,pages,(last_seen_at>=now()-interval '90 seconds') AS active,GREATEST(0,extract(epoch FROM(last_seen_at-started_at))::int) AS duration_seconds FROM visitor_sessions WHERE started_at>=now()-$1::interval ORDER BY last_seen_at DESC LIMIT 100`,[interval]),
   pool.query(`SELECT e.id,e.session_id,e.event_type,e.page_path,e.details,e.created_at,s.source,s.device_type FROM visitor_events e JOIN visitor_sessions s USING(session_id) WHERE e.created_at>=now()-$1::interval ORDER BY e.created_at DESC LIMIT 120`,[interval])
  ]);
- res.setHeader('Cache-Control','no-store');const conversionCounts=await pool.query("SELECT (SELECT count(*)::int FROM contact_enquiries WHERE created_at>=now()-$1::interval) AS leads,(SELECT count(*)::int FROM visitor_events WHERE event_type='cta_click' AND created_at>=now()-$1::interval) AS cta_clicks,(SELECT count(*)::int FROM visitor_events WHERE event_type='whatsapp_click' AND created_at>=now()-$1::interval) AS whatsapp_clicks",[interval]);const base=summary.rows[0]||{total_sessions:0,active_now:0,page_views:0,average_duration_seconds:0},extra=conversionCounts.rows[0]||{leads:0,cta_clicks:0,whatsapp_clicks:0};res.json({range,stats:Object.assign(base,extra,{conversion_rate:Number(base.total_sessions)?Math.round(extra.leads/Number(base.total_sessions)*10000)/100:0}),sources:sources.rows,popularPages:pages.rows,sessions:sessions.rows,events:events.rows});
+ res.setHeader('Cache-Control','no-store');const [conversionCounts,leadSources,leadCampaigns,leadLandingPages]=await Promise.all([
+  pool.query("SELECT (SELECT count(*)::int FROM contact_enquiries WHERE created_at>=now()-$1::interval) AS leads,(SELECT count(*)::int FROM visitor_events WHERE event_type='cta_click' AND created_at>=now()-$1::interval) AS cta_clicks,(SELECT count(*)::int FROM visitor_events WHERE event_type='whatsapp_click' AND created_at>=now()-$1::interval) AS whatsapp_clicks",[interval]),
+  pool.query("SELECT COALESCE(NULLIF(source,''),'Direct / unknown') AS source,count(*)::int AS leads FROM contact_enquiries WHERE created_at>=now()-$1::interval GROUP BY 1 ORDER BY leads DESC LIMIT 10",[interval]),
+  pool.query("SELECT COALESCE(NULLIF(utm_campaign,''),'No campaign tag') AS campaign,count(*)::int AS leads FROM contact_enquiries WHERE created_at>=now()-$1::interval GROUP BY 1 ORDER BY leads DESC LIMIT 10",[interval]),
+  pool.query("SELECT COALESCE(NULLIF(landing_page,''),'Unknown page') AS landing_page,count(*)::int AS leads FROM contact_enquiries WHERE created_at>=now()-$1::interval GROUP BY 1 ORDER BY leads DESC LIMIT 10",[interval])
+ ]);const base=summary.rows[0]||{total_sessions:0,active_now:0,page_views:0,average_duration_seconds:0},extra=conversionCounts.rows[0]||{leads:0,cta_clicks:0,whatsapp_clicks:0};res.json({range,stats:Object.assign(base,extra,{conversion_rate:Number(base.total_sessions)?Math.round(extra.leads/Number(base.total_sessions)*10000)/100:0}),sources:sources.rows,popularPages:pages.rows,sessions:sessions.rows,events:events.rows,leadSources:leadSources.rows,leadCampaigns:leadCampaigns.rows,leadLandingPages:leadLandingPages.rows});
 }));
 app.get('/api/admin/site',asyncRoute(async(req,res)=>{const r=await pool.query('SELECT data,updated_at FROM site_settings WHERE id=1');res.json({settings:r.rows[0]?.data||defaults,updatedAt:r.rows[0]?.updated_at||null});}));
 app.patch('/api/admin/site',asyncRoute(async(req,res)=>{

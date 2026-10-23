@@ -109,6 +109,7 @@ function loadMetaPixel(pixelId,eventId){
  if(!window.fbq){var n=window.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!window._fbq)window._fbq=n;n.push=n;n.loaded=true;n.version='2.0';n.queue=[];var s=document.createElement('script');s.async=true;s.src='https://connect.facebook.net/en_US/fbevents.js';document.head.appendChild(s)}
  try{window.fbq('init',String(pixelId));window.fbq('track','PageView');window.fbq('track','Lead',{}, {eventID:eventId})}catch(e){}
 }
+window.aaTrackMetaLead=loadMetaPixel;
 firstTouch();
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',installConversionExperience,{once:true});else installConversionExperience();
 })();

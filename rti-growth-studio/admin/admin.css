@@ -61,3 +61,13 @@
 .meta-redirect{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:13px;margin-top:12px;border-radius:12px;background:#f7f8f3;border:1px solid var(--line)}.meta-redirect span{min-width:0;display:flex;flex-direction:column;gap:5px}.meta-redirect strong{font-size:10px}.meta-redirect code{white-space:normal;overflow-wrap:anywhere;font-size:10px;color:var(--muted)}.meta-redirect button{flex:0 0 auto}
 .meta-next{margin-top:16px}.meta-attribution-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.meta-attribution-grid>div{padding:14px;border:1px solid var(--line);border-radius:13px;background:#fbfcf8;display:flex;flex-direction:column;gap:7px}.meta-attribution-grid strong{font-size:11px}.meta-attribution-grid span{font-size:10px;line-height:1.65;color:var(--muted)}
 @media(max-width:760px){.meta-attribution-grid{grid-template-columns:1fr}.meta-redirect{align-items:flex-start;flex-direction:column}.meta-redirect button{align-self:flex-end}}
+
+/* Conversion reporting: distinguish visits and CTA interest from saved enquiries. */
+.meta-report-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin:16px 0}
+.meta-report-grid .panel{min-width:0}
+.meta-report-grid .table-wrap{max-width:100%;overflow-x:auto}
+.meta-report-grid table{min-width:220px}
+.meta-report-grid td strong{overflow-wrap:anywhere}
+.contact-meta-consent{margin:4px 0 14px!important}
+@media(max-width:1100px){.meta-report-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.meta-report-grid .panel:last-child{grid-column:1/-1}}
+@media(max-width:650px){.meta-report-grid{grid-template-columns:1fr}.meta-report-grid .panel:last-child{grid-column:auto}}
