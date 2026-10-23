@@ -2,7 +2,8 @@
 'use strict';
 if(location.pathname==='/admin'||location.pathname.indexOf('/admin/')===0)return;
 var trackingEnabled=!(navigator.doNotTrack==='1'||window.doNotTrack==='1');
-var API='https://aa-growth-studio-cms-api.onrender.com/api/public/analytics/collect';
+var API_BASE='https://aa-growth-studio-cms-api.onrender.com/api';
+var ANALYTICS_API=API_BASE+'/public/analytics/collect';
 var sid='',isNew=false;
 try{
  sid=sessionStorage.getItem('aaVisitorSession')||'';
@@ -27,7 +28,7 @@ var meta=readClient();
 function send(type,details){
  if(!trackingEnabled)return;
  var payload={sessionId:sid,eventType:type,pagePath:cleanPath(),details:String(details||'').slice(0,180),referrerHost:referrerHost,source:source,utmMedium:utmMedium,utmCampaign:utmCampaign,deviceType:meta.deviceType,browser:meta.browser,os:meta.os,language:meta.language,timezone:meta.timezone,viewportClass:meta.viewportClass};
- try{fetch(API,{method:'POST',mode:'cors',cache:'no-store',credentials:'omit',keepalive:true,headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}).catch(function(){})}catch(e){}
+ try{fetch(ANALYTICS_API,{method:'POST',mode:'cors',cache:'no-store',credentials:'omit',keepalive:true,headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}).catch(function(){})}catch(e){}
 }
 if(isNew)send('session_start','');
 send('page_view','');
@@ -95,7 +96,7 @@ function installConversionExperience(){
   var payload={name:fd.get('name'),email:fd.get('email'),mobile_number:fd.get('mobile_number'),company:'',service:fd.get('service'),goal:fd.get('goal'),source:touch.source,utm_source:touch.utm_source,utm_medium:touch.utm_medium,utm_campaign:touch.utm_campaign,landing_page:touch.landing_page,referrer_host:touch.referrer_host,current_page:location.pathname,visitor_session_id:sid,event_id:eventId,meta_consent:fd.get('meta_consent')==='yes',fbp:fbCookie('_fbp'),fbc:fbCookie('_fbc')||(touch.fbclid&&/^[A-Za-z0-9._-]{1,300}$/.test(touch.fbclid)?'fb.1.'+Date.now()+'.'+touch.fbclid:'')};
   button.disabled=true;button.textContent='Sending enquiry…';status.className='aa-lead-status';status.textContent='Saving your enquiry securely…';
   try{
-   var response=await fetch(API+'/public/enquiries',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),cache:'no-store'}),data=await response.json().catch(function(){return{}});
+   var response=await fetch(API_BASE+'/public/enquiries',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),cache:'no-store'}),data=await response.json().catch(function(){return{}});
    if(!response.ok)throw new Error(data.error||'Could not save your enquiry. Please try WhatsApp.');
    status.className='aa-lead-status is-success';status.textContent='Thank you! Your enquiry is saved. Reference #'+data.enquiryId+'. Our team can now follow up with you.';
    form.reset();

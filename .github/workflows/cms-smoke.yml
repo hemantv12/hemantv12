@@ -53,6 +53,12 @@ jobs:
           done
           node -e "const h=require('/tmp/cms-health.json'); if(h.ok!==true) process.exit(1); console.log('Health OK:',h.service)"
           curl --connect-timeout 8 --max-time 15 -fsS "$CMS_API_URL/public/site" >/tmp/cms-site.json
+          # An empty request must reach the real lead handler and return its validation error,
+          # not the catch-all 404 ("API route not found"). This does not create a lead record.
+          enquiry_status=$(curl --connect-timeout 8 --max-time 15 -sS -o /tmp/cms-enquiry-route.json -w '%{http_code}' -X POST "$CMS_API_URL/public/enquiries" -H "Origin: $SITE_URL" -H 'Content-Type: application/json' --data '{}')
+          test "$enquiry_status" = "400"
+          grep -q 'Please enter your name' /tmp/cms-enquiry-route.json
+          echo "Public enquiry route OK: validation handler responded (no test lead saved)."
           curl --connect-timeout 8 --max-time 15 -fsS "$CMS_API_URL/public/meta/pixel" >/tmp/cms-meta-pixel.json
           node -e "const d=require('/tmp/cms-meta-pixel.json'); if(typeof d.pixelId!=='string') process.exit(1); console.log('Public Meta pixel config endpoint OK')"
           node <<'NODE'
@@ -96,6 +102,9 @@ jobs:
           curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/assets/motion-system.js" >/dev/null
           curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/assets/visitor-analytics.js" >/tmp/cms-visitor-analytics.js
           node --check /tmp/cms-visitor-analytics.js
+          grep -Fq "var ANALYTICS_API=API_BASE+'/public/analytics/collect'" /tmp/cms-visitor-analytics.js
+          grep -Fq "fetch(ANALYTICS_API" /tmp/cms-visitor-analytics.js
+          grep -Fq "fetch(API_BASE+'/public/enquiries'" /tmp/cms-visitor-analytics.js
           curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/assets/conversion-system.css" >/dev/null
           for attempt in $(seq 1 18); do
             if curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/play/" >/tmp/cms-play.html && grep -q 'NEON RUSH' /tmp/cms-play.html; then break; fi
