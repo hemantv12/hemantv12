@@ -33,6 +33,7 @@ document.querySelectorAll('[data-portrait]').forEach(function(photo){
  }).catch(function(){if(fallback)fallback.textContent='HV'});
 });
 const form=document.getElementById('briefForm');
+ if(form){const p=new URLSearchParams(location.search),g=p.get('goal'),s=p.get('service'),gf=form.querySelector('[name="goal"]'),sf=form.querySelector('[name="service"]');if(gf&&g&&!gf.value)gf.value=g.slice(0,5000);if(sf&&s){const o=Array.prototype.find.call(sf.options,function(x){return x.value===s||x.textContent.trim()===s});if(o)sf.value=o.value||o.textContent.trim();}}
 if(form){
  const result=document.getElementById('briefResult'),textEl=document.getElementById('briefText'),status=document.getElementById('formStatus'),copy=document.getElementById('copyBrief');let brief='';
  form.addEventListener('submit',function(e){
