@@ -100,13 +100,717 @@ const schema = [
  'CREATE INDEX IF NOT EXISTS visitor_sessions_started_idx ON visitor_sessions(started_at DESC)',
  'CREATE TABLE IF NOT EXISTS visitor_events (id BIGSERIAL PRIMARY KEY, session_id TEXT NOT NULL REFERENCES visitor_sessions(session_id) ON DELETE CASCADE, event_type TEXT NOT NULL, page_path TEXT NOT NULL DEFAULT \'/\', details TEXT NOT NULL DEFAULT \'\', created_at TIMESTAMPTZ NOT NULL DEFAULT now())',
  'CREATE INDEX IF NOT EXISTS visitor_events_created_idx ON visitor_events(created_at DESC)',
- 'CREATE INDEX IF NOT EXISTS visitor_events_session_idx ON visitor_events(session_id, created_at DESC)'
+ 'CREATE INDEX IF NOT EXISTS visitor_events_session_idx ON visitor_events(session_id, created_at DESC)',
+ 'ALTER TABLE contact_enquiries ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT \'Direct / unknown\'',
+ 'ALTER TABLE contact_enquiries ADD COLUMN IF NOT EXISTS utm_source TEXT NOT NULL DEFAULT \'\'',
+ 'ALTER TABLE contact_enquiries ADD COLUMN IF NOT EXISTS utm_medium TEXT NOT NULL DEFAULT \'\'',
+ 'ALTER TABLE contact_enquiries ADD COLUMN IF NOT EXISTS utm_campaign TEXT NOT NULL DEFAULT \'\'',
+ 'ALTER TABLE contact_enquiries ADD COLUMN IF NOT EXISTS landing_page TEXT NOT NULL DEFAULT \'\'',
+ 'ALTER TABLE contact_enquiries ADD COLUMN IF NOT EXISTS referrer_host TEXT NOT NULL DEFAULT \'\'',
+ 'ALTER TABLE contact_enquiries ADD COLUMN IF NOT EXISTS current_page TEXT NOT NULL DEFAULT \'\'',
+ 'ALTER TABLE contact_enquiries ADD COLUMN IF NOT EXISTS visitor_session_id TEXT NOT NULL DEFAULT \'\'',
+ 'ALTER TABLE contact_enquiries ADD COLUMN IF NOT EXISTS event_id TEXT NOT NULL DEFAULT \'\'',
+ 'CREATE INDEX IF NOT EXISTS contact_enquiries_source_idx ON contact_enquiries(source, created_at DESC)',
+ 'CREATE TABLE IF NOT EXISTS meta_settings (id INTEGER PRIMARY KEY DEFAULT 1 CHECK(id=1), app_id TEXT NOT NULL DEFAULT \'\', app_secret_ciphertext TEXT NOT NULL DEFAULT \'\', app_secret_iv TEXT NOT NULL DEFAULT \'\', app_secret_tag TEXT NOT NULL DEFAULT \'\', pixel_id TEXT NOT NULL DEFAULT \'\', conversions_token_ciphertext TEXT NOT NULL DEFAULT \'\', conversions_token_iv TEXT NOT NULL DEFAULT \'\', conversions_token_tag TEXT NOT NULL DEFAULT \'\', updated_at TIMESTAMPTZ NOT NULL DEFAULT now())',
+ 'INSERT INTO meta_settings(id) VALUES(1) ON CONFLICT(id) DO NOTHING',
+ 'CREATE TABLE IF NOT EXISTS meta_connections (id INTEGER PRIMARY KEY DEFAULT 1 CHECK(id=1), page_id TEXT NOT NULL DEFAULT \'\', page_name TEXT NOT NULL DEFAULT \'\', instagram_id TEXT NOT NULL DEFAULT \'\', instagram_username TEXT NOT NULL DEFAULT \'\', instagram_name TEXT NOT NULL DEFAULT \'\', instagram_picture_url TEXT NOT NULL DEFAULT \'\', instagram_followers INTEGER NOT NULL DEFAULT 0, instagram_media_count INTEGER NOT NULL DEFAULT 0, facebook_fans INTEGER NOT NULL DEFAULT 0, token_ciphertext TEXT NOT NULL DEFAULT \'\', token_iv TEXT NOT NULL DEFAULT \'\', token_tag TEXT NOT NULL DEFAULT \'\', token_expires_at TIMESTAMPTZ, connected_at TIMESTAMPTZ NOT NULL DEFAULT now(), last_synced_at TIMESTAMPTZ NOT NULL DEFAULT now())',
+ 'CREATE TABLE IF NOT EXISTS meta_oauth_states (nonce TEXT PRIMARY KEY, admin_username TEXT NOT NULL, expires_at TIMESTAMPTZ NOT NULL, used_at TIMESTAMPTZ)',
+ 'CREATE INDEX IF NOT EXISTS meta_oauth_states_expiry_idx ON meta_oauth_states(expires_at)'
 ];
 function b64url(buf){return Buffer.from(buf).toString('base64url');}
 function verifyPass(password,stored){
  try{const parts=String(stored).split('$');if(parts.length!==4||parts[0]!=='pbkdf2')return false;const iterations=Number(parts[1]);if(!Number.isInteger(iterations)||iterations<200000||iterations>1000000)return false;const salt=Buffer.from(parts[2],'base64url');const expected=Buffer.from(parts[3],'base64url');const actual=crypto.pbkdf2Sync(password,salt,iterations,expected.length,'sha256');return expected.length===actual.length&&crypto.timingSafeEqual(expected,actual);}catch{return false;}
 }
-function hashPass(password){const salt=crypto.randomBytes(16);const iterations=310000;const hash=crypto.pbkdf2Sync(password,salt,iterations,32,'sha256');return 'pbkdf2$'+iterations+'$'+b64url(salt)+'$'+b64url(hash);}
+function hashPass(password){const salt=crypto.randomBytes(16);const iterations=310000;const hash=crypto.pbkdf2Sync(password,salt,iterations,32,'sha256');return 'pbkdf2
+function safeText(value,max=5000){return typeof value==='string'?value.trim().slice(0,max):'';}
+function validHttpUrl(value){if(!value)return true;try{const u=new URL(value);return u.protocol==='https:'||u.protocol==='http:';}catch{return false;}}
+function slugify(value){return safeText(value,150).toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,100);}
+function tokenFor(user){return jwt.sign({sub:user.username,sv:user.session_version},JWT_SECRET,{expiresIn:'8h',issuer:'aa-growth-studio-cms',audience:'aa-growth-studio-admin'});}
+async function adminAuth(req,res,next){
+ const header=req.get('authorization')||'';if(!header.startsWith('Bearer '))return res.status(401).json({error:'Please sign in again.'});
+ try{const claims=jwt.verify(header.slice(7),JWT_SECRET,{issuer:'aa-growth-studio-cms',audience:'aa-growth-studio-admin'});const found=await pool.query('SELECT username, session_version FROM admin_users WHERE username=$1',[claims.sub]);if(!found.rows.length||found.rows[0].session_version!==claims.sv)return res.status(401).json({error:'Session expired. Please sign in again.'});req.admin=found.rows[0];next();}catch{return res.status(401).json({error:'Session expired. Please sign in again.'});}
+}
+function asyncRoute(fn){return(req,res,next)=>Promise.resolve(fn(req,res,next)).catch(next);}
+function validateService(body){
+ const title=safeText(body.title,150),slug=slugify(body.slug||title);if(!title||!slug)return{error:'A service title is required.'};
+ if(body.image_url&&!validHttpUrl(body.image_url))return{error:'Image URL must be a valid HTTP or HTTPS URL.'};
+ const href=safeText(body.href||'/contact/',500);if(!(href.startsWith('/')&&!href.startsWith('//'))&&!validHttpUrl(href))return{error:'Link must be an internal path or HTTP(S) URL.'};
+ return{values:{slug,title,category:safeText(body.category||'SERVICE',80).toUpperCase(),icon:safeText(body.icon||'✳',12),short_description:safeText(body.short_description,800),detail_text:safeText(body.detail_text,4000),href,image_url:safeText(body.image_url,1000),visible:body.visible!==false,sort_order:Number.isFinite(Number(body.sort_order))?Math.trunc(Number(body.sort_order)):0}};
+}
+function validateBlog(body){
+ const title=safeText(body.title,180),slug=slugify(body.slug||title);if(!title||!slug)return{error:'A post title is required.'};
+ if(body.cover_image&&!validHttpUrl(body.cover_image))return{error:'Cover image must be a valid HTTP or HTTPS URL.'};
+ const status=body.status==='published'?'published':'draft';
+ return{values:{slug,title,category:safeText(body.category||'INSIGHTS',80),excerpt:safeText(body.excerpt,1200),content:safeText(body.content,50000),cover_image:safeText(body.cover_image,1000),status}};
+}
+async function initialize(){
+ for(const q of schema)await pool.query(q);
+ await pool.query('INSERT INTO admin_users(username,password_hash) VALUES($1,$2) ON CONFLICT(username) DO NOTHING',[ADMIN_USERNAME,ADMIN_PASSWORD_HASH]);
+ if(process.env.ADMIN_PASSWORD_RESET_HASH){
+  const reset=await pool.query('UPDATE admin_users SET password_hash=$1,session_version=session_version+1,updated_at=now() WHERE username=$2 AND password_hash<>$1 RETURNING username',[process.env.ADMIN_PASSWORD_RESET_HASH,ADMIN_USERNAME]);
+  if(reset.rowCount)console.log('Admin password reset completed from protected one-time configuration');
+ }
+ await pool.query('INSERT INTO site_settings(id,data) VALUES(1,$1::jsonb) ON CONFLICT(id) DO UPDATE SET data=$1::jsonb || site_settings.data,updated_at=now()',[JSON.stringify(defaults)]);
+ for(const s of defaultServices)await pool.query('INSERT INTO services(slug,title,category,icon,short_description,detail_text,href,visible,sort_order,image_url) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT(slug) DO NOTHING',[s.slug,s.title,s.category,s.icon,s.short_description,s.detail_text,s.href,s.visible,s.sort_order,s.image_url]);
+}
+app.get('/api/health',asyncRoute(async(req,res)=>{await pool.query('SELECT 1');res.setHeader('Cache-Control','no-store');res.json({ok:true,service:'AA Growth Studio CMS API',database:'connected'});}));
+app.get('/api/public/site',asyncRoute(async(req,res)=>{
+ const [settings,services]=await Promise.all([pool.query('SELECT data, updated_at FROM site_settings WHERE id=1'),pool.query('SELECT id,slug,title,category,icon,short_description,href,image_url,visible,sort_order FROM services WHERE visible=true ORDER BY sort_order,id')]);
+ res.setHeader('Cache-Control','public, max-age=60, stale-while-revalidate=300');res.json({settings:settings.rows[0]?.data||defaults,services:services.rows});
+}));
+app.get('/api/public/media/:id',asyncRoute(async(req,res)=>{
+ const id=Number(req.params.id);if(!Number.isSafeInteger(id)||id<1)return res.status(404).json({error:'Media not found.'});
+ const result=await pool.query('SELECT mime_type,file_data FROM studio_media WHERE id=$1',[id]);if(!result.rows.length)return res.status(404).json({error:'Media not found.'});
+ const asset=result.rows[0],data=asset.file_data;res.setHeader('Content-Type',asset.mime_type);res.setHeader('Cross-Origin-Resource-Policy','cross-origin');res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Cache-Control','public, max-age=31536000, immutable');res.setHeader('Accept-Ranges','bytes');res.setHeader('Content-Disposition','inline');
+ const range=req.headers.range;if(range){const m=/^bytes=(\d*)-(\d*)$/.exec(range);if(!m)return res.status(416).setHeader('Content-Range','bytes */'+data.length).end();const start=m[1]?Number(m[1]):Math.max(0,data.length-Number(m[2])),finish=m[1]&&m[2]?Math.min(Number(m[2]),data.length-1):data.length-1;if(start<0||start>=data.length||finish<start)return res.status(416).setHeader('Content-Range','bytes */'+data.length).end();const chunk=data.subarray(start,finish+1);res.status(206).setHeader('Content-Range','bytes '+start+'-'+finish+'/'+data.length);res.setHeader('Content-Length',chunk.length);return res.end(chunk)}
+ res.setHeader('Content-Length',data.length);return res.end(data);
+}));
+app.get('/api/public/blogs',asyncRoute(async(req,res)=>{
+ const result=await pool.query("SELECT slug,title,category,excerpt,cover_image,published_at,created_at FROM blog_posts WHERE status='published' AND published_at <= now() ORDER BY published_at DESC LIMIT 100");
+ res.setHeader('Cache-Control','public, max-age=60, stale-while-revalidate=300');res.json({posts:result.rows});
+}));
+app.get('/api/public/blogs/:slug',asyncRoute(async(req,res)=>{
+ const result=await pool.query("SELECT slug,title,category,excerpt,content,cover_image,published_at,created_at FROM blog_posts WHERE slug=$1 AND status='published' AND published_at <= now()",[slugify(req.params.slug)]);
+ if(!result.rows.length)return res.status(404).json({error:'Post not found.'});res.setHeader('Cache-Control','public, max-age=60, stale-while-revalidate=300');res.json({post:result.rows[0]});
+}));
+app.post('/api/public/enquiries',asyncRoute(async(req,res)=>{
+ const body=req.body||{},name=safeText(body.name,120),email=safeText(body.email,250).toLowerCase(),mobile=safeText(body.mobile_number||body.mobile,32),company=safeText(body.company,180),service=safeText(body.service,180),goal=safeText(body.goal,5000);
+ const digits=mobile.replace(/\D/g,''),sessionId=/^[a-zA-Z0-9_-]{12,80}$/.test(safeText(body.visitor_session_id,80))?safeText(body.visitor_session_id,80):'',eventId=/^[a-zA-Z0-9_-]{12,100}$/.test(safeText(body.event_id,100))?safeText(body.event_id,100):crypto.randomUUID();
+ if(!name||!mobile||digits.length<7||digits.length>15||!/^[+0-9().\s-]+$/.test(mobile)||!service||(email&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)))return res.status(400).json({error:'Please enter your name, a valid mobile/WhatsApp number and the service you need.'});
+ const src=safeText(body.utm_source||body.source,100).replace(/[<>\\u0000-\\u001f]/g,'')||'Direct / unknown',medium=safeText(body.utm_medium,80),campaign=safeText(body.utm_campaign,120),landing=safeText(body.landing_page,300).split('?')[0],referrer=safeText(body.referrer_host,180),current=safeText(body.current_page,300).split('?')[0];
+ const result=await pool.query('INSERT INTO contact_enquiries(name,email,mobile_number,company,service,goal,source,utm_source,utm_medium,utm_campaign,landing_page,referrer_host,current_page,visitor_session_id,event_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING id,created_at',[name,email,mobile,company,service,goal,src,safeText(body.utm_source,100),medium,campaign,landing,referrer,current,sessionId,eventId]);
+ if(sessionId)await pool.query("INSERT INTO visitor_events(session_id,event_type,page_path,details) SELECT $1,'lead',$2,$3 WHERE EXISTS(SELECT 1 FROM visitor_sessions WHERE session_id=$1)",[sessionId,current||landing||'/', 'Enquiry successfully saved']);
+ const siteOrigin=allowedOrigins.has(req.get('origin'))?req.get('origin'):(Array.from(allowedOrigins)[0]||'https://rti-growth-studio.onrender.com'),sourceUrl=siteOrigin.replace(/\/+$/,'')+(current&&current.startsWith('/')?current:'/');
+ const config=await metaSettings().catch(()=>({pixel_id:''})),pixelId=safeText(config.pixel_id||process.env.META_PIXEL_ID,40);
+ void sendMetaLeadEvent({eventId,sourceUrl,userAgent:req.get('user-agent')||'',fbp:safeText(body.fbp,300),fbc:safeText(body.fbc,400),service,consent:body.meta_consent===true});
+ res.status(201).json({ok:true,message:'Your enquiry has been saved securely.',enquiryId:result.rows[0].id,eventId,pixelId});
+}));
+app.post('/api/public/analytics/collect',visitorAnalyticsLimiter,asyncRoute(async(req,res)=>{
+ const body=req.body||{},sessionId=safeText(body.sessionId,80),eventType=safeText(body.eventType,32);
+ const allowedEvents=new Set(['session_start','page_view','heartbeat','click','outbound_click','scroll','form_start','form_submit','cta_click','conversion_modal_open','whatsapp_click','call_click','email_click','lead']);
+ if(!/^[a-zA-Z0-9_-]{12,80}$/.test(sessionId)||!allowedEvents.has(eventType))return res.status(400).json({error:'Invalid analytics event.'});
+ let pagePath=safeText(body.pagePath,500).split('?')[0].split('#')[0].replace(/[\\\u0000-\\\u001f]/g,'').slice(0,300);
+ if(!pagePath.startsWith('/'))pagePath='/';if(!pagePath)pagePath='/';
+ const referrer=safeText(body.referrerHost,180).toLowerCase().replace(/[^a-z0-9.-]/g,'').slice(0,180);
+ const source=safeText(body.source,100).replace(/[<>\\\u0000-\\\u001f]/g,'')||referrer||'Direct / unknown';
+ const medium=safeText(body.utmMedium,80).replace(/[<>\\\u0000-\\\u001f]/g,'');
+ const campaign=safeText(body.utmCampaign,120).replace(/[<>\\\u0000-\\\u001f]/g,'');
+ const allowedDevices=new Set(['desktop','tablet','mobile','unknown']);
+ const deviceType=allowedDevices.has(body.deviceType)?body.deviceType:'unknown';
+ const browser=safeText(body.browser,40).replace(/[<>\\\u0000-\\\u001f]/g,'')||'unknown';
+ const os=safeText(body.os,40).replace(/[<>\\\u0000-\\\u001f]/g,'')||'unknown';
+ const language=safeText(body.language,40).replace(/[<>\\\u0000-\\\u001f]/g,'');
+ const timezone=safeText(body.timezone,80).replace(/[<>\\\u0000-\\\u001f]/g,'');
+ const viewport=safeText(body.viewportClass,16),viewportClass=['desktop','tablet','mobile'].includes(viewport)?viewport:'unknown';
+ await pool.query(`INSERT INTO visitor_sessions(session_id,landing_page,last_page,referrer,source,medium,campaign,device_type,browser,os,language,timezone,viewport_class,page_count,event_count,pages)
+ VALUES($1,$2,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,CASE WHEN $13='page_view' THEN 1 ELSE 0 END,CASE WHEN $13='heartbeat' THEN 0 ELSE 1 END,CASE WHEN $13='page_view' THEN jsonb_build_array($2::text) ELSE '[]'::jsonb END)
+ ON CONFLICT(session_id) DO UPDATE SET last_seen_at=now(),last_page=EXCLUDED.last_page,
+ referrer=CASE WHEN visitor_sessions.referrer='' THEN EXCLUDED.referrer ELSE visitor_sessions.referrer END,
+ source=CASE WHEN visitor_sessions.source='Direct / unknown' AND EXCLUDED.source<>'Direct / unknown' THEN EXCLUDED.source ELSE visitor_sessions.source END,
+ medium=CASE WHEN visitor_sessions.medium='' THEN EXCLUDED.medium ELSE visitor_sessions.medium END,
+ campaign=CASE WHEN visitor_sessions.campaign='' THEN EXCLUDED.campaign ELSE visitor_sessions.campaign END,
+ device_type=EXCLUDED.device_type,browser=EXCLUDED.browser,os=EXCLUDED.os,language=EXCLUDED.language,timezone=EXCLUDED.timezone,viewport_class=EXCLUDED.viewport_class,
+ page_count=visitor_sessions.page_count+CASE WHEN $13='page_view' THEN 1 ELSE 0 END,
+ event_count=visitor_sessions.event_count+CASE WHEN $13='heartbeat' THEN 0 ELSE 1 END,
+ pages=CASE WHEN $13='page_view' THEN (CASE WHEN jsonb_array_length(visitor_sessions.pages)>=50 THEN visitor_sessions.pages-0 ELSE visitor_sessions.pages END)||jsonb_build_array($2::text) ELSE visitor_sessions.pages END`,
+ [sessionId,pagePath,referrer,source,medium,campaign,deviceType,browser,os,language,timezone,viewportClass,eventType]);
+ if(eventType!=='heartbeat')await pool.query('INSERT INTO visitor_events(session_id,event_type,page_path,details) VALUES($1,$2,$3,$4)',[sessionId,eventType,pagePath,safeText(body.details,180).replace(/[\\\u0000-\\\u001f]/g,'')]);
+ if(eventType==='session_start')await pool.query("DELETE FROM visitor_sessions WHERE last_seen_at < now() - interval '90 days'");
+ res.setHeader('Cache-Control','no-store');res.status(202).json({ok:true});
+}));
+app.get('/api/public/meta/pixel',asyncRoute(async(req,res)=>{const s=await metaSettings();res.setHeader('Cache-Control','no-store');res.json({pixelId:safeText(s.pixel_id||process.env.META_PIXEL_ID,40)});}));
+app.get('/api/public/meta/callback',asyncRoute(async(req,res)=>{
+ const returnBase=Array.from(allowedOrigins)[0]||'https://rti-growth-studio.onrender.com',fail=()=>res.redirect(returnBase.replace(/\/+$/,'')+'/admin/?meta=error');
+ if(req.query.error||typeof req.query.code!=='string'||typeof req.query.state!=='string')return fail();
+ let claims;try{claims=jwt.verify(req.query.state,JWT_SECRET,{issuer:'aa-growth-studio-meta-oauth',audience:'aa-growth-studio-meta-callback'})}catch{return fail()}
+ if(claims.purpose!=='meta-oauth'||!claims.nonce||!claims.sub)return fail();
+ const used=await pool.query('DELETE FROM meta_oauth_states WHERE nonce=$1 AND admin_username=$2 AND expires_at>now() RETURNING nonce',[claims.nonce,claims.sub]);if(!used.rowCount)return fail();
+ try{
+  const config=await metaSettings(),appId=safeText(config.app_id||process.env.META_APP_ID,40),appSecret=decryptSecret(config,'app_secret')||process.env.META_APP_SECRET||'',redirectUri=metaRedirectUri();if(!appId||!appSecret)throw new Error('Meta app credentials are not configured.');
+  const version=process.env.META_GRAPH_API_VERSION||'v25.0',tokenUrl=new URL('https://graph.facebook.com/'+version+'/oauth/access_token');tokenUrl.searchParams.set('client_id',appId);tokenUrl.searchParams.set('client_secret',appSecret);tokenUrl.searchParams.set('redirect_uri',redirectUri);tokenUrl.searchParams.set('code',req.query.code);
+  const tokenRes=await fetch(tokenUrl,{signal:AbortSignal.timeout(10000)}),short=await tokenRes.json();if(!tokenRes.ok||short.error||!short.access_token)throw new Error('Meta authorization code exchange failed.');
+  const longUrl=new URL('https://graph.facebook.com/'+version+'/oauth/access_token');longUrl.searchParams.set('grant_type','fb_exchange_token');longUrl.searchParams.set('client_id',appId);longUrl.searchParams.set('client_secret',appSecret);longUrl.searchParams.set('fb_exchange_token',short.access_token);
+  const longRes=await fetch(longUrl,{signal:AbortSignal.timeout(10000)}),longToken=await longRes.json(),accessToken=longRes.ok&&longToken.access_token?longToken.access_token:short.access_token,expiresIn=Number(longToken.expires_in||short.expires_in||0),expiresAt=expiresIn?new Date(Date.now()+expiresIn*1000):null;
+  const pages=await graphGet('me/accounts?fields=id,name,access_token,fan_count,instagram_business_account{id,username,name,profile_picture_url,followers_count,media_count}',accessToken),page=(pages.data||[]).find(x=>x.instagram_business_account)||((pages.data||[])[0]);
+  if(!page||!page.id||!page.access_token)throw new Error('No Facebook Page was granted. Link an Instagram Professional account to a Facebook Page and try again.');
+  const ig=page.instagram_business_account||{},stored=encryptSecret(page.access_token);
+  await pool.query(\`INSERT INTO meta_connections(id,page_id,page_name,instagram_id,instagram_username,instagram_name,instagram_picture_url,instagram_followers,instagram_media_count,facebook_fans,token_ciphertext,token_iv,token_tag,token_expires_at,connected_at,last_synced_at)
+   VALUES(1,$1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,now(),now())
+   ON CONFLICT(id) DO UPDATE SET page_id=EXCLUDED.page_id,page_name=EXCLUDED.page_name,instagram_id=EXCLUDED.instagram_id,instagram_username=EXCLUDED.instagram_username,instagram_name=EXCLUDED.instagram_name,instagram_picture_url=EXCLUDED.instagram_picture_url,instagram_followers=EXCLUDED.instagram_followers,instagram_media_count=EXCLUDED.instagram_media_count,facebook_fans=EXCLUDED.facebook_fans,token_ciphertext=EXCLUDED.token_ciphertext,token_iv=EXCLUDED.token_iv,token_tag=EXCLUDED.token_tag,token_expires_at=EXCLUDED.token_expires_at,connected_at=now(),last_synced_at=now()\`,
+  [String(page.id),safeText(page.name,180),String(ig.id||''),safeText(ig.username,180),safeText(ig.name,180),safeText(ig.profile_picture_url,1000),Number(ig.followers_count)||0,Number(ig.media_count)||0,Number(page.fan_count)||0,stored.ciphertext,stored.iv,stored.tag,expiresAt]);
+  return res.redirect(returnBase.replace(/\/+$/,'')+'/admin/?meta=connected');
+ }catch(e){console.warn('Meta authorization callback failed:',safeText(e.message,180));return fail()}
+}));
+app.post('/api/admin/login',asyncRoute(async(req,res)=>{
+ const username=safeText(req.body?.username,120),password=typeof req.body?.password==='string'?req.body.password:'';
+ const result=await pool.query('SELECT username,password_hash,session_version FROM admin_users WHERE username=$1',[username]);const user=result.rows[0];
+ if(!user||password.length>500||!verifyPass(password,user.password_hash))return res.status(401).json({error:'Invalid admin ID or password.'});
+ res.json({token:tokenFor(user),username:user.username,expiresIn:28800});
+}));
+app.use('/api/admin',adminAuth);
+app.get('/api/admin/meta/status',asyncRoute(async(req,res)=>{
+ const [s,connection]=await Promise.all([metaSettings(),pool.query('SELECT page_id,page_name,instagram_id,instagram_username,instagram_name,instagram_picture_url,instagram_followers,instagram_media_count,facebook_fans,token_expires_at,connected_at,last_synced_at FROM meta_connections WHERE id=1')]),x=connection.rows[0]||null;
+ res.setHeader('Cache-Control','no-store');res.json({appId:safeText(s.app_id,40),appConfigured:!!(s.app_id&&decryptSecret(s,'app_secret')),pixelId:safeText(s.pixel_id||process.env.META_PIXEL_ID,40),pixelConfigured:!!(s.pixel_id||process.env.META_PIXEL_ID),conversionsApiConfigured:!!(decryptSecret(s,'conversions_token')||process.env.META_CONVERSIONS_ACCESS_TOKEN),redirectUri:metaRedirectUri(),connected:!!x,page:x?{id:x.page_id,name:x.page_name,fanCount:x.facebook_fans}:null,instagram:x&&x.instagram_id?{id:x.instagram_id,username:x.instagram_username,name:x.instagram_name,pictureUrl:x.instagram_picture_url,followers:x.instagram_followers,mediaCount:x.instagram_media_count}:null,connectedAt:x?.connected_at||null,tokenExpiresAt:x?.token_expires_at||null,lastSyncedAt:x?.last_synced_at||null});
+}));
+app.post('/api/admin/meta/settings',asyncRoute(async(req,res)=>{
+ const body=req.body||{},appId=safeText(body.appId,40),appSecret=typeof body.appSecret==='string'?body.appSecret.trim():'',pixelId=safeText(body.pixelId,40),conversionToken=typeof body.conversionsToken==='string'?body.conversionsToken.trim():'';
+ if(appId&&!/^\d{5,30}$/.test(appId))return res.status(400).json({error:'Meta App ID must contain digits only.'});if(pixelId&&!/^\d{5,30}$/.test(pixelId))return res.status(400).json({error:'Meta Pixel ID must contain digits only.'});if(appSecret&&appSecret.length<16)return res.status(400).json({error:'Meta App Secret looks too short.'});if(conversionToken&&conversionToken.length<20)return res.status(400).json({error:'Conversions API token looks too short.'});
+ const old=await metaSettings(),sec=appSecret?encryptSecret(appSecret):{ciphertext:old.app_secret_ciphertext||'',iv:old.app_secret_iv||'',tag:old.app_secret_tag||''},cap=conversionToken?encryptSecret(conversionToken):{ciphertext:old.conversions_token_ciphertext||'',iv:old.conversions_token_iv||'',tag:old.conversions_token_tag||''};
+ await pool.query('UPDATE meta_settings SET app_id=$1,app_secret_ciphertext=$2,app_secret_iv=$3,app_secret_tag=$4,pixel_id=$5,conversions_token_ciphertext=$6,conversions_token_iv=$7,conversions_token_tag=$8,updated_at=now() WHERE id=1',[appId,sec.ciphertext,sec.iv,sec.tag,pixelId,cap.ciphertext,cap.iv,cap.tag]);res.json({ok:true,message:'Meta settings saved securely. Secret fields stay hidden after saving.'});
+}));
+app.post('/api/admin/meta/connect-url',asyncRoute(async(req,res)=>{
+ const s=await metaSettings(),appId=safeText(s.app_id||process.env.META_APP_ID,40),appSecret=decryptSecret(s,'app_secret')||process.env.META_APP_SECRET||'';if(!appId||!appSecret)return res.status(400).json({error:'Add your Meta App ID and App Secret, then save settings first.'});
+ const nonce=crypto.randomBytes(24).toString('base64url');await pool.query("INSERT INTO meta_oauth_states(nonce,admin_username,expires_at) VALUES($1,$2,now()+interval '10 minutes')",[nonce,req.admin.username]);
+ const state=jwt.sign({purpose:'meta-oauth',nonce,sub:req.admin.username},JWT_SECRET,{expiresIn:'10m',issuer:'aa-growth-studio-meta-oauth',audience:'aa-growth-studio-meta-callback'});
+ const url=new URL('https://www.facebook.com/'+(process.env.META_GRAPH_API_VERSION||'v25.0')+'/dialog/oauth');url.searchParams.set('client_id',appId);url.searchParams.set('redirect_uri',metaRedirectUri());url.searchParams.set('state',state);url.searchParams.set('response_type','code');url.searchParams.set('scope','pages_show_list,pages_read_engagement,instagram_basic,instagram_manage_insights,ads_read');res.json({url:url.toString()});
+}));
+app.post('/api/admin/meta/sync',asyncRoute(async(req,res)=>{
+ const r=await pool.query('SELECT * FROM meta_connections WHERE id=1');if(!r.rows.length)return res.status(400).json({error:'Connect Facebook and Instagram first.'});const row=r.rows[0],token=decryptSecret(row,'token');if(!token)return res.status(400).json({error:'Saved Meta token could not be decrypted. Please reconnect the account.'});
+ try{const page=await graphGet(row.page_id+'?fields=id,name,fan_count',token);let ig={};if(row.instagram_id)ig=await graphGet(row.instagram_id+'?fields=id,username,name,profile_picture_url,followers_count,media_count',token);
+  await pool.query('UPDATE meta_connections SET page_name=$1,facebook_fans=$2,instagram_username=$3,instagram_name=$4,instagram_picture_url=$5,instagram_followers=$6,instagram_media_count=$7,last_synced_at=now() WHERE id=1',[safeText(page.name,180),Number(page.fan_count)||0,safeText(ig.username||row.instagram_username,180),safeText(ig.name||row.instagram_name,180),safeText(ig.profile_picture_url||row.instagram_picture_url,1000),Number(ig.followers_count)||0,Number(ig.media_count)||0]);res.json({ok:true,message:'Meta account details synced.'});
+ }catch(e){res.status(502).json({error:'Meta could not refresh this account. Check permissions and reconnect if needed.'})}
+}));
+app.post('/api/admin/meta/disconnect',asyncRoute(async(req,res)=>{await pool.query('DELETE FROM meta_connections WHERE id=1');res.json({ok:true,message:'Meta account disconnected. Conversion Pixel settings were kept.'})}));
+app.get('/api/admin/media',asyncRoute(async(req,res)=>{
+ const result=await pool.query('SELECT id,original_name,mime_type,file_size,created_at FROM studio_media ORDER BY created_at DESC LIMIT 200');
+ res.json({assets:result.rows.map(x=>({id:x.id,name:x.original_name,mimeType:x.mime_type,size:x.file_size,createdAt:x.created_at,url:PUBLIC_BASE_URL+'/api/public/media/'+x.id}))});
+}));
+app.post('/api/admin/media',rateLimit({windowMs:60*60*1000,limit:80,standardHeaders:'draft-7',legacyHeaders:false}),express.raw({type:['image/jpeg','image/png','image/webp','image/gif','video/mp4','video/webm'],limit:'15mb'}),asyncRoute(async(req,res)=>{
+ const mime=(req.get('content-type')||'').split(';')[0].trim().toLowerCase(),data=Buffer.isBuffer(req.body)?req.body:Buffer.alloc(0);
+ const allowed=new Set(['image/jpeg','image/png','image/webp','image/gif','video/mp4','video/webm']);
+ if(!allowed.has(mime))return res.status(415).json({error:'Upload a JPG, PNG, WebP, GIF, MP4 or WebM file.'});
+ const max=mime.startsWith('video/')?15*1024*1024:8*1024*1024;if(!data.length)return res.status(400).json({error:'The selected file is empty.'});if(data.length>max)return res.status(413).json({error:'Images must be 8 MB or less; videos must be 15 MB or less.'});
+ let valid=false;
+ if(mime==='image/jpeg')valid=data.length>3&&data[0]===0xff&&data[1]===0xd8&&data[2]===0xff;
+ else if(mime==='image/png')valid=data.length>8&&data.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10]));
+ else if(mime==='image/gif')valid=data.subarray(0,6).toString('ascii').startsWith('GIF8');
+ else if(mime==='image/webp')valid=data.length>12&&data.subarray(0,4).toString('ascii')==='RIFF'&&data.subarray(8,12).toString('ascii')==='WEBP';
+ else if(mime==='video/mp4')valid=data.length>12&&data.subarray(4,8).toString('ascii')==='ftyp';
+ else if(mime==='video/webm')valid=data.length>4&&data.subarray(0,4).equals(Buffer.from([0x1a,0x45,0xdf,0xa3]));
+ if(!valid)return res.status(400).json({error:'The file does not match its declared media format.'});
+ const original=safeText(req.query.name,180).replace(/[\\/\u0000-\u001f]/g,'_')||('studio-media-'+Date.now());
+ const result=await pool.query('INSERT INTO studio_media(original_name,mime_type,file_size,file_data) VALUES($1,$2,$3,$4) RETURNING id,created_at',[original,mime,data.length,data]);const asset=result.rows[0];
+ res.status(201).json({asset:{id:asset.id,name:original,mimeType:mime,size:data.length,createdAt:asset.created_at,url:PUBLIC_BASE_URL+'/api/public/media/'+asset.id}});
+}));
+app.get('/api/admin/me',(req,res)=>res.json({username:req.admin.username}));
+app.get('/api/admin/overview',asyncRoute(async(req,res)=>{
+ const [posts,services,leads,newLeads,recent]=await Promise.all([pool.query('SELECT count(*)::int n FROM blog_posts'),pool.query('SELECT count(*)::int n FROM services'),pool.query('SELECT count(*)::int n FROM contact_enquiries'),pool.query("SELECT count(*)::int n FROM contact_enquiries WHERE status='new'"),pool.query('SELECT id,name,email,mobile_number,company,service,status,created_at FROM contact_enquiries ORDER BY created_at DESC LIMIT 6')]);
+ res.json({posts:posts.rows[0].n,services:services.rows[0].n,enquiries:leads.rows[0].n,newEnquiries:newLeads.rows[0].n,recentEnquiries:recent.rows});
+}));
+app.get('/api/admin/visitors',asyncRoute(async(req,res)=>{
+ const ranges={'1h':'1 hour','24h':'24 hours','7d':'7 days','30d':'30 days'};
+ const range=Object.prototype.hasOwnProperty.call(ranges,req.query.range)?req.query.range:'24h',interval=ranges[range];
+ const [summary,sources,pages,sessions,events]=await Promise.all([
+  pool.query(`SELECT count(*)::int AS total_sessions,count(*) FILTER(WHERE last_seen_at>=now()-interval '90 seconds')::int AS active_now,COALESCE(sum(page_count),0)::int AS page_views,COALESCE(round(avg(GREATEST(0,extract(epoch FROM(last_seen_at-started_at))))),0)::int AS average_duration_seconds FROM visitor_sessions WHERE started_at>=now()-$1::interval`,[interval]),
+  pool.query(`SELECT source,count(*)::int AS visits FROM visitor_sessions WHERE started_at>=now()-$1::interval GROUP BY source ORDER BY visits DESC LIMIT 12`,[interval]),
+  pool.query(`SELECT page_path,count(*)::int AS page_views FROM visitor_events WHERE event_type='page_view' AND created_at>=now()-$1::interval GROUP BY page_path ORDER BY page_views DESC LIMIT 12`,[interval]),
+  pool.query(`SELECT session_id,started_at,last_seen_at,landing_page,last_page,referrer,source,medium,campaign,device_type,browser,os,language,timezone,viewport_class,page_count,event_count,pages,(last_seen_at>=now()-interval '90 seconds') AS active,GREATEST(0,extract(epoch FROM(last_seen_at-started_at))::int) AS duration_seconds FROM visitor_sessions WHERE started_at>=now()-$1::interval ORDER BY last_seen_at DESC LIMIT 100`,[interval]),
+  pool.query(`SELECT e.id,e.session_id,e.event_type,e.page_path,e.details,e.created_at,s.source,s.device_type FROM visitor_events e JOIN visitor_sessions s USING(session_id) WHERE e.created_at>=now()-$1::interval ORDER BY e.created_at DESC LIMIT 120`,[interval])
+ ]);
+ res.setHeader('Cache-Control','no-store');res.json({range,stats:summary.rows[0]||{total_sessions:0,active_now:0,page_views:0,average_duration_seconds:0},sources:sources.rows,popularPages:pages.rows,sessions:sessions.rows,events:events.rows});
+}));
+app.get('/api/admin/site',asyncRoute(async(req,res)=>{const r=await pool.query('SELECT data,updated_at FROM site_settings WHERE id=1');res.json({settings:r.rows[0]?.data||defaults,updatedAt:r.rows[0]?.updated_at||null});}));
+app.patch('/api/admin/site',asyncRoute(async(req,res)=>{
+ const incoming=req.body?.settings;if(!incoming||typeof incoming!=='object'||Array.isArray(incoming))return res.status(400).json({error:'Settings object required.'});
+ const allowed=new Set(Object.keys(defaults)),clean={};
+ for(const [key,value] of Object.entries(incoming)){
+  if(!allowed.has(key))continue;
+  if(key==='pageContent'){
+   if(!value||typeof value!=='object'||Array.isArray(value))return res.status(400).json({error:'Page content must be an object.'});
+   clean[key]={};
+   const knownPages=defaults.pageContent;
+   for(const [page,content] of Object.entries(value)){
+    if(!Object.prototype.hasOwnProperty.call(knownPages,page)||!content||typeof content!=='object'||Array.isArray(content))continue;
+    const safe={};
+    for(const field of Object.keys(knownPages[page]))if(typeof content[field]==='string')safe[field]=safeText(content[field],6000);
+    clean[key][page]=safe;
+   }
+  }else if(key==='customSections'){
+   if(!Array.isArray(value)||value.length>20)return res.status(400).json({error:'Custom sections limit is 20.'});
+   clean[key]=value.map((s,i)=>({id:safeText(s.id||('section-'+(i+1)),80),title:safeText(s.title,180),body:safeText(s.body,4000),visible:s.visible!==false})).filter(s=>s.title&&s.body);
+  }else if(key==='portfolioItems'){
+   if(!Array.isArray(value)||value.length>40)return res.status(400).json({error:'You can manage up to 40 portfolio items.'});
+   if(value.some(x=>(x.imageUrl&&!validHttpUrl(x.imageUrl))||(x.videoUrl&&!validHttpUrl(x.videoUrl))))return res.status(400).json({error:'Portfolio media URLs must be HTTP(S) links.'});
+   if(value.some(x=>x.href&&!((String(x.href).startsWith('/')&&!String(x.href).startsWith('//'))||validHttpUrl(x.href))))return res.status(400).json({error:'Portfolio links must be internal paths or HTTP(S) URLs.'});
+   clean[key]=value.map((x,i)=>({id:safeText(x.id||('work-'+(i+1)),100),title:safeText(x.title,180),category:safeText(x.category||'CREATIVE',100),label:safeText(x.label||'Concept exploration',100),description:safeText(x.description,2000),imageUrl:safeText(x.imageUrl,1000),videoUrl:safeText(x.videoUrl,1000),href:safeText(x.href||'/contact/',500),visible:x.visible!==false})).filter(x=>x.title&&x.description);
+  }else if(key==='teamMembers'){
+   if(!Array.isArray(value)||value.length>30)return res.status(400).json({error:'You can manage up to 30 additional team profiles.'});
+   if(value.some(x=>x.imageUrl&&!validHttpUrl(x.imageUrl)))return res.status(400).json({error:'Team photo URLs must be HTTP(S) links.'});
+   clean[key]=value.map((x,i)=>({id:safeText(x.id||('member-'+(i+1)),100),name:safeText(x.name,150),role:safeText(x.role,150),bio:safeText(x.bio,1200),imageUrl:safeText(x.imageUrl,1000),visible:x.visible!==false})).filter(x=>x.name&&x.role);
+  }else if(key==='showBlogLink')clean[key]=Boolean(value);
+  else if(typeof value==='string'){
+   if(['mapUrl','instagramUrl','linkedinUrl','founderImage'].includes(key)&&value&&!validHttpUrl(value))return res.status(400).json({error:key+' must be an HTTP(S) URL.'});
+   clean[key]=safeText(value,key.toLowerCase().includes('description')||key.toLowerCase().includes('paragraph')||key==='statementBody'||key==='studioParagraphOne'||key==='studioParagraphTwo'||key==='founderBio'?6000:1200);
+  }
+ }
+ const r=await pool.query('UPDATE site_settings SET data=data || $1::jsonb,updated_at=now() WHERE id=1 RETURNING data,updated_at',[JSON.stringify(clean)]);res.json({settings:r.rows[0].data,updatedAt:r.rows[0].updated_at});
+}));
+app.get('/api/admin/services',asyncRoute(async(req,res)=>{const r=await pool.query('SELECT * FROM services ORDER BY sort_order,id');res.json({services:r.rows});}));
+app.post('/api/admin/services',asyncRoute(async(req,res)=>{
+ const v=validateService(req.body||{});if(v.error)return res.status(400).json({error:v.error});const x=v.values;
+ try{const r=await pool.query('INSERT INTO services(slug,title,category,icon,short_description,detail_text,href,image_url,visible,sort_order) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *',[x.slug,x.title,x.category,x.icon,x.short_description,x.detail_text,x.href,x.image_url,x.visible,x.sort_order]);res.status(201).json({service:r.rows[0]});}
+ catch(e){if(e.code==='23505')return res.status(409).json({error:'That service URL slug already exists.'});throw e;}
+}));
+app.patch('/api/admin/services/:id',asyncRoute(async(req,res)=>{
+ const id=Number(req.params.id);if(!Number.isInteger(id)||id<1)return res.status(400).json({error:'Invalid service ID.'});const old=await pool.query('SELECT * FROM services WHERE id=$1',[id]);if(!old.rows.length)return res.status(404).json({error:'Service not found.'});
+ const v=validateService(Object.assign({},old.rows[0],req.body));if(v.error)return res.status(400).json({error:v.error});const x=v.values;
+ try{const r=await pool.query('UPDATE services SET slug=$1,title=$2,category=$3,icon=$4,short_description=$5,detail_text=$6,href=$7,image_url=$8,visible=$9,sort_order=$10,updated_at=now() WHERE id=$11 RETURNING *',[x.slug,x.title,x.category,x.icon,x.short_description,x.detail_text,x.href,x.image_url,x.visible,x.sort_order,id]);res.json({service:r.rows[0]});}
+ catch(e){if(e.code==='23505')return res.status(409).json({error:'That service URL slug already exists.'});throw e;}
+}));
+app.delete('/api/admin/services/:id',asyncRoute(async(req,res)=>{const id=Number(req.params.id);if(!Number.isInteger(id)||id<1)return res.status(400).json({error:'Invalid service ID.'});const r=await pool.query('DELETE FROM services WHERE id=$1 RETURNING id',[id]);if(!r.rowCount)return res.status(404).json({error:'Service not found.'});res.json({ok:true});}));
+app.get('/api/admin/blogs',asyncRoute(async(req,res)=>{const r=await pool.query('SELECT * FROM blog_posts ORDER BY updated_at DESC,id DESC');res.json({posts:r.rows});}));
+app.post('/api/admin/blogs',asyncRoute(async(req,res)=>{
+ const v=validateBlog(req.body||{});if(v.error)return res.status(400).json({error:v.error});const p=v.values;
+ try{const r=await pool.query("INSERT INTO blog_posts(slug,title,category,excerpt,content,cover_image,status,published_at) VALUES($1,$2,$3,$4,$5,$6,$7,CASE WHEN $7='published' THEN now() ELSE NULL END) RETURNING *",[p.slug,p.title,p.category,p.excerpt,p.content,p.cover_image,p.status]);res.status(201).json({post:r.rows[0]});}
+ catch(e){if(e.code==='23505')return res.status(409).json({error:'That blog URL slug already exists.'});throw e;}
+}));
+app.patch('/api/admin/blogs/:id',asyncRoute(async(req,res)=>{
+ const id=Number(req.params.id);if(!Number.isInteger(id)||id<1)return res.status(400).json({error:'Invalid post ID.'});const old=await pool.query('SELECT * FROM blog_posts WHERE id=$1',[id]);if(!old.rows.length)return res.status(404).json({error:'Post not found.'});
+ const v=validateBlog(Object.assign({},old.rows[0],req.body));if(v.error)return res.status(400).json({error:v.error});const p=v.values;
+ try{const r=await pool.query("UPDATE blog_posts SET slug=$1,title=$2,category=$3,excerpt=$4,content=$5,cover_image=$6,status=$7,published_at=CASE WHEN $7='published' THEN COALESCE(published_at,now()) ELSE NULL END,updated_at=now() WHERE id=$8 RETURNING *",[p.slug,p.title,p.category,p.excerpt,p.content,p.cover_image,p.status,id]);res.json({post:r.rows[0]});}
+ catch(e){if(e.code==='23505')return res.status(409).json({error:'That blog URL slug already exists.'});throw e;}
+}));
+app.delete('/api/admin/blogs/:id',asyncRoute(async(req,res)=>{const id=Number(req.params.id);if(!Number.isInteger(id)||id<1)return res.status(400).json({error:'Invalid post ID.'});const r=await pool.query('DELETE FROM blog_posts WHERE id=$1 RETURNING id',[id]);if(!r.rowCount)return res.status(404).json({error:'Post not found.'});res.json({ok:true});}));
+app.get('/api/admin/enquiries',asyncRoute(async(req,res)=>{const r=await pool.query('SELECT * FROM contact_enquiries ORDER BY created_at DESC LIMIT 500');res.json({enquiries:r.rows});}));
+app.patch('/api/admin/enquiries/:id',asyncRoute(async(req,res)=>{const id=Number(req.params.id),status=safeText(req.body?.status,30);if(!Number.isInteger(id)||id<1||!['new','in_progress','replied','closed'].includes(status))return res.status(400).json({error:'Invalid enquiry status.'});const r=await pool.query('UPDATE contact_enquiries SET status=$1 WHERE id=$2 RETURNING id,status',[status,id]);if(!r.rowCount)return res.status(404).json({error:'Enquiry not found.'});res.json({enquiry:r.rows[0]});}));
+app.post('/api/admin/password',asyncRoute(async(req,res)=>{
+ const current=typeof req.body?.currentPassword==='string'?req.body.currentPassword:'',next=typeof req.body?.newPassword==='string'?req.body.newPassword:'';
+ const r=await pool.query('SELECT password_hash FROM admin_users WHERE username=$1',[req.admin.username]);
+ if(!r.rows.length||!verifyPass(current,r.rows[0].password_hash))return res.status(400).json({error:'Current password is incorrect.'});
+ if(next.length<12||next.length>200)return res.status(400).json({error:'New password must be 12–200 characters.'});if(next===current)return res.status(400).json({error:'Choose a different password.'});
+ await pool.query('UPDATE admin_users SET password_hash=$1,session_version=session_version+1,updated_at=now() WHERE username=$2',[hashPass(next),req.admin.username]);res.json({ok:true,message:'Password changed. Please sign in again.'});
+}));
+app.use((req,res)=>res.status(404).json({error:'API route not found.'}));
+app.use((err,req,res,next)=>{console.error('Request failed:',err.code||err.name||'error');if(res.headersSent)return next(err);res.status(err.status||500).json({error:err.code==='23505'?'That value is already in use.':'The server could not complete this request. Please try again.'});});
+initialize().then(()=>{app.listen(PORT,'0.0.0.0',()=>console.log('AA Growth Studio CMS API listening on '+PORT));}).catch(err=>{console.error('Database initialization failed:',err.code||err.message);process.exit(1);});
++iterations+'
+function safeText(value,max=5000){return typeof value==='string'?value.trim().slice(0,max):'';}
+function validHttpUrl(value){if(!value)return true;try{const u=new URL(value);return u.protocol==='https:'||u.protocol==='http:';}catch{return false;}}
+function slugify(value){return safeText(value,150).toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,100);}
+function tokenFor(user){return jwt.sign({sub:user.username,sv:user.session_version},JWT_SECRET,{expiresIn:'8h',issuer:'aa-growth-studio-cms',audience:'aa-growth-studio-admin'});}
+async function adminAuth(req,res,next){
+ const header=req.get('authorization')||'';if(!header.startsWith('Bearer '))return res.status(401).json({error:'Please sign in again.'});
+ try{const claims=jwt.verify(header.slice(7),JWT_SECRET,{issuer:'aa-growth-studio-cms',audience:'aa-growth-studio-admin'});const found=await pool.query('SELECT username, session_version FROM admin_users WHERE username=$1',[claims.sub]);if(!found.rows.length||found.rows[0].session_version!==claims.sv)return res.status(401).json({error:'Session expired. Please sign in again.'});req.admin=found.rows[0];next();}catch{return res.status(401).json({error:'Session expired. Please sign in again.'});}
+}
+function asyncRoute(fn){return(req,res,next)=>Promise.resolve(fn(req,res,next)).catch(next);}
+function validateService(body){
+ const title=safeText(body.title,150),slug=slugify(body.slug||title);if(!title||!slug)return{error:'A service title is required.'};
+ if(body.image_url&&!validHttpUrl(body.image_url))return{error:'Image URL must be a valid HTTP or HTTPS URL.'};
+ const href=safeText(body.href||'/contact/',500);if(!(href.startsWith('/')&&!href.startsWith('//'))&&!validHttpUrl(href))return{error:'Link must be an internal path or HTTP(S) URL.'};
+ return{values:{slug,title,category:safeText(body.category||'SERVICE',80).toUpperCase(),icon:safeText(body.icon||'✳',12),short_description:safeText(body.short_description,800),detail_text:safeText(body.detail_text,4000),href,image_url:safeText(body.image_url,1000),visible:body.visible!==false,sort_order:Number.isFinite(Number(body.sort_order))?Math.trunc(Number(body.sort_order)):0}};
+}
+function validateBlog(body){
+ const title=safeText(body.title,180),slug=slugify(body.slug||title);if(!title||!slug)return{error:'A post title is required.'};
+ if(body.cover_image&&!validHttpUrl(body.cover_image))return{error:'Cover image must be a valid HTTP or HTTPS URL.'};
+ const status=body.status==='published'?'published':'draft';
+ return{values:{slug,title,category:safeText(body.category||'INSIGHTS',80),excerpt:safeText(body.excerpt,1200),content:safeText(body.content,50000),cover_image:safeText(body.cover_image,1000),status}};
+}
+async function initialize(){
+ for(const q of schema)await pool.query(q);
+ await pool.query('INSERT INTO admin_users(username,password_hash) VALUES($1,$2) ON CONFLICT(username) DO NOTHING',[ADMIN_USERNAME,ADMIN_PASSWORD_HASH]);
+ if(process.env.ADMIN_PASSWORD_RESET_HASH){
+  const reset=await pool.query('UPDATE admin_users SET password_hash=$1,session_version=session_version+1,updated_at=now() WHERE username=$2 AND password_hash<>$1 RETURNING username',[process.env.ADMIN_PASSWORD_RESET_HASH,ADMIN_USERNAME]);
+  if(reset.rowCount)console.log('Admin password reset completed from protected one-time configuration');
+ }
+ await pool.query('INSERT INTO site_settings(id,data) VALUES(1,$1::jsonb) ON CONFLICT(id) DO UPDATE SET data=$1::jsonb || site_settings.data,updated_at=now()',[JSON.stringify(defaults)]);
+ for(const s of defaultServices)await pool.query('INSERT INTO services(slug,title,category,icon,short_description,detail_text,href,visible,sort_order,image_url) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT(slug) DO NOTHING',[s.slug,s.title,s.category,s.icon,s.short_description,s.detail_text,s.href,s.visible,s.sort_order,s.image_url]);
+}
+app.get('/api/health',asyncRoute(async(req,res)=>{await pool.query('SELECT 1');res.setHeader('Cache-Control','no-store');res.json({ok:true,service:'AA Growth Studio CMS API',database:'connected'});}));
+app.get('/api/public/site',asyncRoute(async(req,res)=>{
+ const [settings,services]=await Promise.all([pool.query('SELECT data, updated_at FROM site_settings WHERE id=1'),pool.query('SELECT id,slug,title,category,icon,short_description,href,image_url,visible,sort_order FROM services WHERE visible=true ORDER BY sort_order,id')]);
+ res.setHeader('Cache-Control','public, max-age=60, stale-while-revalidate=300');res.json({settings:settings.rows[0]?.data||defaults,services:services.rows});
+}));
+app.get('/api/public/media/:id',asyncRoute(async(req,res)=>{
+ const id=Number(req.params.id);if(!Number.isSafeInteger(id)||id<1)return res.status(404).json({error:'Media not found.'});
+ const result=await pool.query('SELECT mime_type,file_data FROM studio_media WHERE id=$1',[id]);if(!result.rows.length)return res.status(404).json({error:'Media not found.'});
+ const asset=result.rows[0],data=asset.file_data;res.setHeader('Content-Type',asset.mime_type);res.setHeader('Cross-Origin-Resource-Policy','cross-origin');res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Cache-Control','public, max-age=31536000, immutable');res.setHeader('Accept-Ranges','bytes');res.setHeader('Content-Disposition','inline');
+ const range=req.headers.range;if(range){const m=/^bytes=(\d*)-(\d*)$/.exec(range);if(!m)return res.status(416).setHeader('Content-Range','bytes */'+data.length).end();const start=m[1]?Number(m[1]):Math.max(0,data.length-Number(m[2])),finish=m[1]&&m[2]?Math.min(Number(m[2]),data.length-1):data.length-1;if(start<0||start>=data.length||finish<start)return res.status(416).setHeader('Content-Range','bytes */'+data.length).end();const chunk=data.subarray(start,finish+1);res.status(206).setHeader('Content-Range','bytes '+start+'-'+finish+'/'+data.length);res.setHeader('Content-Length',chunk.length);return res.end(chunk)}
+ res.setHeader('Content-Length',data.length);return res.end(data);
+}));
+app.get('/api/public/blogs',asyncRoute(async(req,res)=>{
+ const result=await pool.query("SELECT slug,title,category,excerpt,cover_image,published_at,created_at FROM blog_posts WHERE status='published' AND published_at <= now() ORDER BY published_at DESC LIMIT 100");
+ res.setHeader('Cache-Control','public, max-age=60, stale-while-revalidate=300');res.json({posts:result.rows});
+}));
+app.get('/api/public/blogs/:slug',asyncRoute(async(req,res)=>{
+ const result=await pool.query("SELECT slug,title,category,excerpt,content,cover_image,published_at,created_at FROM blog_posts WHERE slug=$1 AND status='published' AND published_at <= now()",[slugify(req.params.slug)]);
+ if(!result.rows.length)return res.status(404).json({error:'Post not found.'});res.setHeader('Cache-Control','public, max-age=60, stale-while-revalidate=300');res.json({post:result.rows[0]});
+}));
+app.post('/api/public/enquiries',asyncRoute(async(req,res)=>{
+ const body=req.body||{};const name=safeText(body.name,120),email=safeText(body.email,250).toLowerCase(),mobile=safeText(body.mobile_number||body.mobile,32),company=safeText(body.company,180),service=safeText(body.service,180),goal=safeText(body.goal,5000);
+ const digits=mobile.replace(/\D/g,'');
+ if(!name||!email||!mobile||digits.length<7||digits.length>15||!/^[+0-9().\s-]+$/.test(mobile)||!company||!service||!goal||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return res.status(400).json({error:'Please complete all required fields with a valid email and mobile number.'});
+ const result=await pool.query('INSERT INTO contact_enquiries(name,email,mobile_number,company,service,goal) VALUES($1,$2,$3,$4,$5,$6) RETURNING id,created_at',[name,email,mobile,company,service,goal]);res.status(201).json({ok:true,message:'Your enquiry has been saved securely.',enquiryId:result.rows[0].id});
+}));
+app.post('/api/public/analytics/collect',visitorAnalyticsLimiter,asyncRoute(async(req,res)=>{
+ const body=req.body||{},sessionId=safeText(body.sessionId,80),eventType=safeText(body.eventType,32);
+ const allowedEvents=new Set(['session_start','page_view','heartbeat','click','outbound_click','scroll','form_start','form_submit']);
+ if(!/^[a-zA-Z0-9_-]{12,80}$/.test(sessionId)||!allowedEvents.has(eventType))return res.status(400).json({error:'Invalid analytics event.'});
+ let pagePath=safeText(body.pagePath,500).split('?')[0].split('#')[0].replace(/[\\\u0000-\\\u001f]/g,'').slice(0,300);
+ if(!pagePath.startsWith('/'))pagePath='/';if(!pagePath)pagePath='/';
+ const referrer=safeText(body.referrerHost,180).toLowerCase().replace(/[^a-z0-9.-]/g,'').slice(0,180);
+ const source=safeText(body.source,100).replace(/[<>\\\u0000-\\\u001f]/g,'')||referrer||'Direct / unknown';
+ const medium=safeText(body.utmMedium,80).replace(/[<>\\\u0000-\\\u001f]/g,'');
+ const campaign=safeText(body.utmCampaign,120).replace(/[<>\\\u0000-\\\u001f]/g,'');
+ const allowedDevices=new Set(['desktop','tablet','mobile','unknown']);
+ const deviceType=allowedDevices.has(body.deviceType)?body.deviceType:'unknown';
+ const browser=safeText(body.browser,40).replace(/[<>\\\u0000-\\\u001f]/g,'')||'unknown';
+ const os=safeText(body.os,40).replace(/[<>\\\u0000-\\\u001f]/g,'')||'unknown';
+ const language=safeText(body.language,40).replace(/[<>\\\u0000-\\\u001f]/g,'');
+ const timezone=safeText(body.timezone,80).replace(/[<>\\\u0000-\\\u001f]/g,'');
+ const viewport=safeText(body.viewportClass,16),viewportClass=['desktop','tablet','mobile'].includes(viewport)?viewport:'unknown';
+ await pool.query(`INSERT INTO visitor_sessions(session_id,landing_page,last_page,referrer,source,medium,campaign,device_type,browser,os,language,timezone,viewport_class,page_count,event_count,pages)
+ VALUES($1,$2,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,CASE WHEN $13='page_view' THEN 1 ELSE 0 END,CASE WHEN $13='heartbeat' THEN 0 ELSE 1 END,CASE WHEN $13='page_view' THEN jsonb_build_array($2::text) ELSE '[]'::jsonb END)
+ ON CONFLICT(session_id) DO UPDATE SET last_seen_at=now(),last_page=EXCLUDED.last_page,
+ referrer=CASE WHEN visitor_sessions.referrer='' THEN EXCLUDED.referrer ELSE visitor_sessions.referrer END,
+ source=CASE WHEN visitor_sessions.source='Direct / unknown' AND EXCLUDED.source<>'Direct / unknown' THEN EXCLUDED.source ELSE visitor_sessions.source END,
+ medium=CASE WHEN visitor_sessions.medium='' THEN EXCLUDED.medium ELSE visitor_sessions.medium END,
+ campaign=CASE WHEN visitor_sessions.campaign='' THEN EXCLUDED.campaign ELSE visitor_sessions.campaign END,
+ device_type=EXCLUDED.device_type,browser=EXCLUDED.browser,os=EXCLUDED.os,language=EXCLUDED.language,timezone=EXCLUDED.timezone,viewport_class=EXCLUDED.viewport_class,
+ page_count=visitor_sessions.page_count+CASE WHEN $13='page_view' THEN 1 ELSE 0 END,
+ event_count=visitor_sessions.event_count+CASE WHEN $13='heartbeat' THEN 0 ELSE 1 END,
+ pages=CASE WHEN $13='page_view' THEN (CASE WHEN jsonb_array_length(visitor_sessions.pages)>=50 THEN visitor_sessions.pages-0 ELSE visitor_sessions.pages END)||jsonb_build_array($2::text) ELSE visitor_sessions.pages END`,
+ [sessionId,pagePath,referrer,source,medium,campaign,deviceType,browser,os,language,timezone,viewportClass,eventType]);
+ if(eventType!=='heartbeat')await pool.query('INSERT INTO visitor_events(session_id,event_type,page_path,details) VALUES($1,$2,$3,$4)',[sessionId,eventType,pagePath,safeText(body.details,180).replace(/[\\\u0000-\\\u001f]/g,'')]);
+ if(eventType==='session_start')await pool.query("DELETE FROM visitor_sessions WHERE last_seen_at < now() - interval '90 days'");
+ res.setHeader('Cache-Control','no-store');res.status(202).json({ok:true});
+}));
+app.post('/api/admin/login',asyncRoute(async(req,res)=>{
+ const username=safeText(req.body?.username,120),password=typeof req.body?.password==='string'?req.body.password:'';
+ const result=await pool.query('SELECT username,password_hash,session_version FROM admin_users WHERE username=$1',[username]);const user=result.rows[0];
+ if(!user||password.length>500||!verifyPass(password,user.password_hash))return res.status(401).json({error:'Invalid admin ID or password.'});
+ res.json({token:tokenFor(user),username:user.username,expiresIn:28800});
+}));
+app.use('/api/admin',adminAuth);
+app.get('/api/admin/media',asyncRoute(async(req,res)=>{
+ const result=await pool.query('SELECT id,original_name,mime_type,file_size,created_at FROM studio_media ORDER BY created_at DESC LIMIT 200');
+ res.json({assets:result.rows.map(x=>({id:x.id,name:x.original_name,mimeType:x.mime_type,size:x.file_size,createdAt:x.created_at,url:PUBLIC_BASE_URL+'/api/public/media/'+x.id}))});
+}));
+app.post('/api/admin/media',rateLimit({windowMs:60*60*1000,limit:80,standardHeaders:'draft-7',legacyHeaders:false}),express.raw({type:['image/jpeg','image/png','image/webp','image/gif','video/mp4','video/webm'],limit:'15mb'}),asyncRoute(async(req,res)=>{
+ const mime=(req.get('content-type')||'').split(';')[0].trim().toLowerCase(),data=Buffer.isBuffer(req.body)?req.body:Buffer.alloc(0);
+ const allowed=new Set(['image/jpeg','image/png','image/webp','image/gif','video/mp4','video/webm']);
+ if(!allowed.has(mime))return res.status(415).json({error:'Upload a JPG, PNG, WebP, GIF, MP4 or WebM file.'});
+ const max=mime.startsWith('video/')?15*1024*1024:8*1024*1024;if(!data.length)return res.status(400).json({error:'The selected file is empty.'});if(data.length>max)return res.status(413).json({error:'Images must be 8 MB or less; videos must be 15 MB or less.'});
+ let valid=false;
+ if(mime==='image/jpeg')valid=data.length>3&&data[0]===0xff&&data[1]===0xd8&&data[2]===0xff;
+ else if(mime==='image/png')valid=data.length>8&&data.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10]));
+ else if(mime==='image/gif')valid=data.subarray(0,6).toString('ascii').startsWith('GIF8');
+ else if(mime==='image/webp')valid=data.length>12&&data.subarray(0,4).toString('ascii')==='RIFF'&&data.subarray(8,12).toString('ascii')==='WEBP';
+ else if(mime==='video/mp4')valid=data.length>12&&data.subarray(4,8).toString('ascii')==='ftyp';
+ else if(mime==='video/webm')valid=data.length>4&&data.subarray(0,4).equals(Buffer.from([0x1a,0x45,0xdf,0xa3]));
+ if(!valid)return res.status(400).json({error:'The file does not match its declared media format.'});
+ const original=safeText(req.query.name,180).replace(/[\\/\u0000-\u001f]/g,'_')||('studio-media-'+Date.now());
+ const result=await pool.query('INSERT INTO studio_media(original_name,mime_type,file_size,file_data) VALUES($1,$2,$3,$4) RETURNING id,created_at',[original,mime,data.length,data]);const asset=result.rows[0];
+ res.status(201).json({asset:{id:asset.id,name:original,mimeType:mime,size:data.length,createdAt:asset.created_at,url:PUBLIC_BASE_URL+'/api/public/media/'+asset.id}});
+}));
+app.get('/api/admin/me',(req,res)=>res.json({username:req.admin.username}));
+app.get('/api/admin/overview',asyncRoute(async(req,res)=>{
+ const [posts,services,leads,newLeads,recent]=await Promise.all([pool.query('SELECT count(*)::int n FROM blog_posts'),pool.query('SELECT count(*)::int n FROM services'),pool.query('SELECT count(*)::int n FROM contact_enquiries'),pool.query("SELECT count(*)::int n FROM contact_enquiries WHERE status='new'"),pool.query('SELECT id,name,email,mobile_number,company,service,status,created_at FROM contact_enquiries ORDER BY created_at DESC LIMIT 6')]);
+ res.json({posts:posts.rows[0].n,services:services.rows[0].n,enquiries:leads.rows[0].n,newEnquiries:newLeads.rows[0].n,recentEnquiries:recent.rows});
+}));
+app.get('/api/admin/visitors',asyncRoute(async(req,res)=>{
+ const ranges={'1h':'1 hour','24h':'24 hours','7d':'7 days','30d':'30 days'};
+ const range=Object.prototype.hasOwnProperty.call(ranges,req.query.range)?req.query.range:'24h',interval=ranges[range];
+ const [summary,sources,pages,sessions,events]=await Promise.all([
+  pool.query(`SELECT count(*)::int AS total_sessions,count(*) FILTER(WHERE last_seen_at>=now()-interval '90 seconds')::int AS active_now,COALESCE(sum(page_count),0)::int AS page_views,COALESCE(round(avg(GREATEST(0,extract(epoch FROM(last_seen_at-started_at))))),0)::int AS average_duration_seconds FROM visitor_sessions WHERE started_at>=now()-$1::interval`,[interval]),
+  pool.query(`SELECT source,count(*)::int AS visits FROM visitor_sessions WHERE started_at>=now()-$1::interval GROUP BY source ORDER BY visits DESC LIMIT 12`,[interval]),
+  pool.query(`SELECT page_path,count(*)::int AS page_views FROM visitor_events WHERE event_type='page_view' AND created_at>=now()-$1::interval GROUP BY page_path ORDER BY page_views DESC LIMIT 12`,[interval]),
+  pool.query(`SELECT session_id,started_at,last_seen_at,landing_page,last_page,referrer,source,medium,campaign,device_type,browser,os,language,timezone,viewport_class,page_count,event_count,pages,(last_seen_at>=now()-interval '90 seconds') AS active,GREATEST(0,extract(epoch FROM(last_seen_at-started_at))::int) AS duration_seconds FROM visitor_sessions WHERE started_at>=now()-$1::interval ORDER BY last_seen_at DESC LIMIT 100`,[interval]),
+  pool.query(`SELECT e.id,e.session_id,e.event_type,e.page_path,e.details,e.created_at,s.source,s.device_type FROM visitor_events e JOIN visitor_sessions s USING(session_id) WHERE e.created_at>=now()-$1::interval ORDER BY e.created_at DESC LIMIT 120`,[interval])
+ ]);
+ res.setHeader('Cache-Control','no-store');res.json({range,stats:summary.rows[0]||{total_sessions:0,active_now:0,page_views:0,average_duration_seconds:0},sources:sources.rows,popularPages:pages.rows,sessions:sessions.rows,events:events.rows});
+}));
+app.get('/api/admin/site',asyncRoute(async(req,res)=>{const r=await pool.query('SELECT data,updated_at FROM site_settings WHERE id=1');res.json({settings:r.rows[0]?.data||defaults,updatedAt:r.rows[0]?.updated_at||null});}));
+app.patch('/api/admin/site',asyncRoute(async(req,res)=>{
+ const incoming=req.body?.settings;if(!incoming||typeof incoming!=='object'||Array.isArray(incoming))return res.status(400).json({error:'Settings object required.'});
+ const allowed=new Set(Object.keys(defaults)),clean={};
+ for(const [key,value] of Object.entries(incoming)){
+  if(!allowed.has(key))continue;
+  if(key==='pageContent'){
+   if(!value||typeof value!=='object'||Array.isArray(value))return res.status(400).json({error:'Page content must be an object.'});
+   clean[key]={};
+   const knownPages=defaults.pageContent;
+   for(const [page,content] of Object.entries(value)){
+    if(!Object.prototype.hasOwnProperty.call(knownPages,page)||!content||typeof content!=='object'||Array.isArray(content))continue;
+    const safe={};
+    for(const field of Object.keys(knownPages[page]))if(typeof content[field]==='string')safe[field]=safeText(content[field],6000);
+    clean[key][page]=safe;
+   }
+  }else if(key==='customSections'){
+   if(!Array.isArray(value)||value.length>20)return res.status(400).json({error:'Custom sections limit is 20.'});
+   clean[key]=value.map((s,i)=>({id:safeText(s.id||('section-'+(i+1)),80),title:safeText(s.title,180),body:safeText(s.body,4000),visible:s.visible!==false})).filter(s=>s.title&&s.body);
+  }else if(key==='portfolioItems'){
+   if(!Array.isArray(value)||value.length>40)return res.status(400).json({error:'You can manage up to 40 portfolio items.'});
+   if(value.some(x=>(x.imageUrl&&!validHttpUrl(x.imageUrl))||(x.videoUrl&&!validHttpUrl(x.videoUrl))))return res.status(400).json({error:'Portfolio media URLs must be HTTP(S) links.'});
+   if(value.some(x=>x.href&&!((String(x.href).startsWith('/')&&!String(x.href).startsWith('//'))||validHttpUrl(x.href))))return res.status(400).json({error:'Portfolio links must be internal paths or HTTP(S) URLs.'});
+   clean[key]=value.map((x,i)=>({id:safeText(x.id||('work-'+(i+1)),100),title:safeText(x.title,180),category:safeText(x.category||'CREATIVE',100),label:safeText(x.label||'Concept exploration',100),description:safeText(x.description,2000),imageUrl:safeText(x.imageUrl,1000),videoUrl:safeText(x.videoUrl,1000),href:safeText(x.href||'/contact/',500),visible:x.visible!==false})).filter(x=>x.title&&x.description);
+  }else if(key==='teamMembers'){
+   if(!Array.isArray(value)||value.length>30)return res.status(400).json({error:'You can manage up to 30 additional team profiles.'});
+   if(value.some(x=>x.imageUrl&&!validHttpUrl(x.imageUrl)))return res.status(400).json({error:'Team photo URLs must be HTTP(S) links.'});
+   clean[key]=value.map((x,i)=>({id:safeText(x.id||('member-'+(i+1)),100),name:safeText(x.name,150),role:safeText(x.role,150),bio:safeText(x.bio,1200),imageUrl:safeText(x.imageUrl,1000),visible:x.visible!==false})).filter(x=>x.name&&x.role);
+  }else if(key==='showBlogLink')clean[key]=Boolean(value);
+  else if(typeof value==='string'){
+   if(['mapUrl','instagramUrl','linkedinUrl','founderImage'].includes(key)&&value&&!validHttpUrl(value))return res.status(400).json({error:key+' must be an HTTP(S) URL.'});
+   clean[key]=safeText(value,key.toLowerCase().includes('description')||key.toLowerCase().includes('paragraph')||key==='statementBody'||key==='studioParagraphOne'||key==='studioParagraphTwo'||key==='founderBio'?6000:1200);
+  }
+ }
+ const r=await pool.query('UPDATE site_settings SET data=data || $1::jsonb,updated_at=now() WHERE id=1 RETURNING data,updated_at',[JSON.stringify(clean)]);res.json({settings:r.rows[0].data,updatedAt:r.rows[0].updated_at});
+}));
+app.get('/api/admin/services',asyncRoute(async(req,res)=>{const r=await pool.query('SELECT * FROM services ORDER BY sort_order,id');res.json({services:r.rows});}));
+app.post('/api/admin/services',asyncRoute(async(req,res)=>{
+ const v=validateService(req.body||{});if(v.error)return res.status(400).json({error:v.error});const x=v.values;
+ try{const r=await pool.query('INSERT INTO services(slug,title,category,icon,short_description,detail_text,href,image_url,visible,sort_order) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *',[x.slug,x.title,x.category,x.icon,x.short_description,x.detail_text,x.href,x.image_url,x.visible,x.sort_order]);res.status(201).json({service:r.rows[0]});}
+ catch(e){if(e.code==='23505')return res.status(409).json({error:'That service URL slug already exists.'});throw e;}
+}));
+app.patch('/api/admin/services/:id',asyncRoute(async(req,res)=>{
+ const id=Number(req.params.id);if(!Number.isInteger(id)||id<1)return res.status(400).json({error:'Invalid service ID.'});const old=await pool.query('SELECT * FROM services WHERE id=$1',[id]);if(!old.rows.length)return res.status(404).json({error:'Service not found.'});
+ const v=validateService(Object.assign({},old.rows[0],req.body));if(v.error)return res.status(400).json({error:v.error});const x=v.values;
+ try{const r=await pool.query('UPDATE services SET slug=$1,title=$2,category=$3,icon=$4,short_description=$5,detail_text=$6,href=$7,image_url=$8,visible=$9,sort_order=$10,updated_at=now() WHERE id=$11 RETURNING *',[x.slug,x.title,x.category,x.icon,x.short_description,x.detail_text,x.href,x.image_url,x.visible,x.sort_order,id]);res.json({service:r.rows[0]});}
+ catch(e){if(e.code==='23505')return res.status(409).json({error:'That service URL slug already exists.'});throw e;}
+}));
+app.delete('/api/admin/services/:id',asyncRoute(async(req,res)=>{const id=Number(req.params.id);if(!Number.isInteger(id)||id<1)return res.status(400).json({error:'Invalid service ID.'});const r=await pool.query('DELETE FROM services WHERE id=$1 RETURNING id',[id]);if(!r.rowCount)return res.status(404).json({error:'Service not found.'});res.json({ok:true});}));
+app.get('/api/admin/blogs',asyncRoute(async(req,res)=>{const r=await pool.query('SELECT * FROM blog_posts ORDER BY updated_at DESC,id DESC');res.json({posts:r.rows});}));
+app.post('/api/admin/blogs',asyncRoute(async(req,res)=>{
+ const v=validateBlog(req.body||{});if(v.error)return res.status(400).json({error:v.error});const p=v.values;
+ try{const r=await pool.query("INSERT INTO blog_posts(slug,title,category,excerpt,content,cover_image,status,published_at) VALUES($1,$2,$3,$4,$5,$6,$7,CASE WHEN $7='published' THEN now() ELSE NULL END) RETURNING *",[p.slug,p.title,p.category,p.excerpt,p.content,p.cover_image,p.status]);res.status(201).json({post:r.rows[0]});}
+ catch(e){if(e.code==='23505')return res.status(409).json({error:'That blog URL slug already exists.'});throw e;}
+}));
+app.patch('/api/admin/blogs/:id',asyncRoute(async(req,res)=>{
+ const id=Number(req.params.id);if(!Number.isInteger(id)||id<1)return res.status(400).json({error:'Invalid post ID.'});const old=await pool.query('SELECT * FROM blog_posts WHERE id=$1',[id]);if(!old.rows.length)return res.status(404).json({error:'Post not found.'});
+ const v=validateBlog(Object.assign({},old.rows[0],req.body));if(v.error)return res.status(400).json({error:v.error});const p=v.values;
+ try{const r=await pool.query("UPDATE blog_posts SET slug=$1,title=$2,category=$3,excerpt=$4,content=$5,cover_image=$6,status=$7,published_at=CASE WHEN $7='published' THEN COALESCE(published_at,now()) ELSE NULL END,updated_at=now() WHERE id=$8 RETURNING *",[p.slug,p.title,p.category,p.excerpt,p.content,p.cover_image,p.status,id]);res.json({post:r.rows[0]});}
+ catch(e){if(e.code==='23505')return res.status(409).json({error:'That blog URL slug already exists.'});throw e;}
+}));
+app.delete('/api/admin/blogs/:id',asyncRoute(async(req,res)=>{const id=Number(req.params.id);if(!Number.isInteger(id)||id<1)return res.status(400).json({error:'Invalid post ID.'});const r=await pool.query('DELETE FROM blog_posts WHERE id=$1 RETURNING id',[id]);if(!r.rowCount)return res.status(404).json({error:'Post not found.'});res.json({ok:true});}));
+app.get('/api/admin/enquiries',asyncRoute(async(req,res)=>{const r=await pool.query('SELECT * FROM contact_enquiries ORDER BY created_at DESC LIMIT 500');res.json({enquiries:r.rows});}));
+app.patch('/api/admin/enquiries/:id',asyncRoute(async(req,res)=>{const id=Number(req.params.id),status=safeText(req.body?.status,30);if(!Number.isInteger(id)||id<1||!['new','in_progress','replied','closed'].includes(status))return res.status(400).json({error:'Invalid enquiry status.'});const r=await pool.query('UPDATE contact_enquiries SET status=$1 WHERE id=$2 RETURNING id,status',[status,id]);if(!r.rowCount)return res.status(404).json({error:'Enquiry not found.'});res.json({enquiry:r.rows[0]});}));
+app.post('/api/admin/password',asyncRoute(async(req,res)=>{
+ const current=typeof req.body?.currentPassword==='string'?req.body.currentPassword:'',next=typeof req.body?.newPassword==='string'?req.body.newPassword:'';
+ const r=await pool.query('SELECT password_hash FROM admin_users WHERE username=$1',[req.admin.username]);
+ if(!r.rows.length||!verifyPass(current,r.rows[0].password_hash))return res.status(400).json({error:'Current password is incorrect.'});
+ if(next.length<12||next.length>200)return res.status(400).json({error:'New password must be 12–200 characters.'});if(next===current)return res.status(400).json({error:'Choose a different password.'});
+ await pool.query('UPDATE admin_users SET password_hash=$1,session_version=session_version+1,updated_at=now() WHERE username=$2',[hashPass(next),req.admin.username]);res.json({ok:true,message:'Password changed. Please sign in again.'});
+}));
+app.use((req,res)=>res.status(404).json({error:'API route not found.'}));
+app.use((err,req,res,next)=>{console.error('Request failed:',err.code||err.name||'error');if(res.headersSent)return next(err);res.status(err.status||500).json({error:err.code==='23505'?'That value is already in use.':'The server could not complete this request. Please try again.'});});
+initialize().then(()=>{app.listen(PORT,'0.0.0.0',()=>console.log('AA Growth Studio CMS API listening on '+PORT));}).catch(err=>{console.error('Database initialization failed:',err.code||err.message);process.exit(1);});
++b64url(salt)+'
+function safeText(value,max=5000){return typeof value==='string'?value.trim().slice(0,max):'';}
+function validHttpUrl(value){if(!value)return true;try{const u=new URL(value);return u.protocol==='https:'||u.protocol==='http:';}catch{return false;}}
+function slugify(value){return safeText(value,150).toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,100);}
+function tokenFor(user){return jwt.sign({sub:user.username,sv:user.session_version},JWT_SECRET,{expiresIn:'8h',issuer:'aa-growth-studio-cms',audience:'aa-growth-studio-admin'});}
+async function adminAuth(req,res,next){
+ const header=req.get('authorization')||'';if(!header.startsWith('Bearer '))return res.status(401).json({error:'Please sign in again.'});
+ try{const claims=jwt.verify(header.slice(7),JWT_SECRET,{issuer:'aa-growth-studio-cms',audience:'aa-growth-studio-admin'});const found=await pool.query('SELECT username, session_version FROM admin_users WHERE username=$1',[claims.sub]);if(!found.rows.length||found.rows[0].session_version!==claims.sv)return res.status(401).json({error:'Session expired. Please sign in again.'});req.admin=found.rows[0];next();}catch{return res.status(401).json({error:'Session expired. Please sign in again.'});}
+}
+function asyncRoute(fn){return(req,res,next)=>Promise.resolve(fn(req,res,next)).catch(next);}
+function validateService(body){
+ const title=safeText(body.title,150),slug=slugify(body.slug||title);if(!title||!slug)return{error:'A service title is required.'};
+ if(body.image_url&&!validHttpUrl(body.image_url))return{error:'Image URL must be a valid HTTP or HTTPS URL.'};
+ const href=safeText(body.href||'/contact/',500);if(!(href.startsWith('/')&&!href.startsWith('//'))&&!validHttpUrl(href))return{error:'Link must be an internal path or HTTP(S) URL.'};
+ return{values:{slug,title,category:safeText(body.category||'SERVICE',80).toUpperCase(),icon:safeText(body.icon||'✳',12),short_description:safeText(body.short_description,800),detail_text:safeText(body.detail_text,4000),href,image_url:safeText(body.image_url,1000),visible:body.visible!==false,sort_order:Number.isFinite(Number(body.sort_order))?Math.trunc(Number(body.sort_order)):0}};
+}
+function validateBlog(body){
+ const title=safeText(body.title,180),slug=slugify(body.slug||title);if(!title||!slug)return{error:'A post title is required.'};
+ if(body.cover_image&&!validHttpUrl(body.cover_image))return{error:'Cover image must be a valid HTTP or HTTPS URL.'};
+ const status=body.status==='published'?'published':'draft';
+ return{values:{slug,title,category:safeText(body.category||'INSIGHTS',80),excerpt:safeText(body.excerpt,1200),content:safeText(body.content,50000),cover_image:safeText(body.cover_image,1000),status}};
+}
+async function initialize(){
+ for(const q of schema)await pool.query(q);
+ await pool.query('INSERT INTO admin_users(username,password_hash) VALUES($1,$2) ON CONFLICT(username) DO NOTHING',[ADMIN_USERNAME,ADMIN_PASSWORD_HASH]);
+ if(process.env.ADMIN_PASSWORD_RESET_HASH){
+  const reset=await pool.query('UPDATE admin_users SET password_hash=$1,session_version=session_version+1,updated_at=now() WHERE username=$2 AND password_hash<>$1 RETURNING username',[process.env.ADMIN_PASSWORD_RESET_HASH,ADMIN_USERNAME]);
+  if(reset.rowCount)console.log('Admin password reset completed from protected one-time configuration');
+ }
+ await pool.query('INSERT INTO site_settings(id,data) VALUES(1,$1::jsonb) ON CONFLICT(id) DO UPDATE SET data=$1::jsonb || site_settings.data,updated_at=now()',[JSON.stringify(defaults)]);
+ for(const s of defaultServices)await pool.query('INSERT INTO services(slug,title,category,icon,short_description,detail_text,href,visible,sort_order,image_url) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT(slug) DO NOTHING',[s.slug,s.title,s.category,s.icon,s.short_description,s.detail_text,s.href,s.visible,s.sort_order,s.image_url]);
+}
+app.get('/api/health',asyncRoute(async(req,res)=>{await pool.query('SELECT 1');res.setHeader('Cache-Control','no-store');res.json({ok:true,service:'AA Growth Studio CMS API',database:'connected'});}));
+app.get('/api/public/site',asyncRoute(async(req,res)=>{
+ const [settings,services]=await Promise.all([pool.query('SELECT data, updated_at FROM site_settings WHERE id=1'),pool.query('SELECT id,slug,title,category,icon,short_description,href,image_url,visible,sort_order FROM services WHERE visible=true ORDER BY sort_order,id')]);
+ res.setHeader('Cache-Control','public, max-age=60, stale-while-revalidate=300');res.json({settings:settings.rows[0]?.data||defaults,services:services.rows});
+}));
+app.get('/api/public/media/:id',asyncRoute(async(req,res)=>{
+ const id=Number(req.params.id);if(!Number.isSafeInteger(id)||id<1)return res.status(404).json({error:'Media not found.'});
+ const result=await pool.query('SELECT mime_type,file_data FROM studio_media WHERE id=$1',[id]);if(!result.rows.length)return res.status(404).json({error:'Media not found.'});
+ const asset=result.rows[0],data=asset.file_data;res.setHeader('Content-Type',asset.mime_type);res.setHeader('Cross-Origin-Resource-Policy','cross-origin');res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Cache-Control','public, max-age=31536000, immutable');res.setHeader('Accept-Ranges','bytes');res.setHeader('Content-Disposition','inline');
+ const range=req.headers.range;if(range){const m=/^bytes=(\d*)-(\d*)$/.exec(range);if(!m)return res.status(416).setHeader('Content-Range','bytes */'+data.length).end();const start=m[1]?Number(m[1]):Math.max(0,data.length-Number(m[2])),finish=m[1]&&m[2]?Math.min(Number(m[2]),data.length-1):data.length-1;if(start<0||start>=data.length||finish<start)return res.status(416).setHeader('Content-Range','bytes */'+data.length).end();const chunk=data.subarray(start,finish+1);res.status(206).setHeader('Content-Range','bytes '+start+'-'+finish+'/'+data.length);res.setHeader('Content-Length',chunk.length);return res.end(chunk)}
+ res.setHeader('Content-Length',data.length);return res.end(data);
+}));
+app.get('/api/public/blogs',asyncRoute(async(req,res)=>{
+ const result=await pool.query("SELECT slug,title,category,excerpt,cover_image,published_at,created_at FROM blog_posts WHERE status='published' AND published_at <= now() ORDER BY published_at DESC LIMIT 100");
+ res.setHeader('Cache-Control','public, max-age=60, stale-while-revalidate=300');res.json({posts:result.rows});
+}));
+app.get('/api/public/blogs/:slug',asyncRoute(async(req,res)=>{
+ const result=await pool.query("SELECT slug,title,category,excerpt,content,cover_image,published_at,created_at FROM blog_posts WHERE slug=$1 AND status='published' AND published_at <= now()",[slugify(req.params.slug)]);
+ if(!result.rows.length)return res.status(404).json({error:'Post not found.'});res.setHeader('Cache-Control','public, max-age=60, stale-while-revalidate=300');res.json({post:result.rows[0]});
+}));
+app.post('/api/public/enquiries',asyncRoute(async(req,res)=>{
+ const body=req.body||{};const name=safeText(body.name,120),email=safeText(body.email,250).toLowerCase(),mobile=safeText(body.mobile_number||body.mobile,32),company=safeText(body.company,180),service=safeText(body.service,180),goal=safeText(body.goal,5000);
+ const digits=mobile.replace(/\D/g,'');
+ if(!name||!email||!mobile||digits.length<7||digits.length>15||!/^[+0-9().\s-]+$/.test(mobile)||!company||!service||!goal||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return res.status(400).json({error:'Please complete all required fields with a valid email and mobile number.'});
+ const result=await pool.query('INSERT INTO contact_enquiries(name,email,mobile_number,company,service,goal) VALUES($1,$2,$3,$4,$5,$6) RETURNING id,created_at',[name,email,mobile,company,service,goal]);res.status(201).json({ok:true,message:'Your enquiry has been saved securely.',enquiryId:result.rows[0].id});
+}));
+app.post('/api/public/analytics/collect',visitorAnalyticsLimiter,asyncRoute(async(req,res)=>{
+ const body=req.body||{},sessionId=safeText(body.sessionId,80),eventType=safeText(body.eventType,32);
+ const allowedEvents=new Set(['session_start','page_view','heartbeat','click','outbound_click','scroll','form_start','form_submit']);
+ if(!/^[a-zA-Z0-9_-]{12,80}$/.test(sessionId)||!allowedEvents.has(eventType))return res.status(400).json({error:'Invalid analytics event.'});
+ let pagePath=safeText(body.pagePath,500).split('?')[0].split('#')[0].replace(/[\\\u0000-\\\u001f]/g,'').slice(0,300);
+ if(!pagePath.startsWith('/'))pagePath='/';if(!pagePath)pagePath='/';
+ const referrer=safeText(body.referrerHost,180).toLowerCase().replace(/[^a-z0-9.-]/g,'').slice(0,180);
+ const source=safeText(body.source,100).replace(/[<>\\\u0000-\\\u001f]/g,'')||referrer||'Direct / unknown';
+ const medium=safeText(body.utmMedium,80).replace(/[<>\\\u0000-\\\u001f]/g,'');
+ const campaign=safeText(body.utmCampaign,120).replace(/[<>\\\u0000-\\\u001f]/g,'');
+ const allowedDevices=new Set(['desktop','tablet','mobile','unknown']);
+ const deviceType=allowedDevices.has(body.deviceType)?body.deviceType:'unknown';
+ const browser=safeText(body.browser,40).replace(/[<>\\\u0000-\\\u001f]/g,'')||'unknown';
+ const os=safeText(body.os,40).replace(/[<>\\\u0000-\\\u001f]/g,'')||'unknown';
+ const language=safeText(body.language,40).replace(/[<>\\\u0000-\\\u001f]/g,'');
+ const timezone=safeText(body.timezone,80).replace(/[<>\\\u0000-\\\u001f]/g,'');
+ const viewport=safeText(body.viewportClass,16),viewportClass=['desktop','tablet','mobile'].includes(viewport)?viewport:'unknown';
+ await pool.query(`INSERT INTO visitor_sessions(session_id,landing_page,last_page,referrer,source,medium,campaign,device_type,browser,os,language,timezone,viewport_class,page_count,event_count,pages)
+ VALUES($1,$2,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,CASE WHEN $13='page_view' THEN 1 ELSE 0 END,CASE WHEN $13='heartbeat' THEN 0 ELSE 1 END,CASE WHEN $13='page_view' THEN jsonb_build_array($2::text) ELSE '[]'::jsonb END)
+ ON CONFLICT(session_id) DO UPDATE SET last_seen_at=now(),last_page=EXCLUDED.last_page,
+ referrer=CASE WHEN visitor_sessions.referrer='' THEN EXCLUDED.referrer ELSE visitor_sessions.referrer END,
+ source=CASE WHEN visitor_sessions.source='Direct / unknown' AND EXCLUDED.source<>'Direct / unknown' THEN EXCLUDED.source ELSE visitor_sessions.source END,
+ medium=CASE WHEN visitor_sessions.medium='' THEN EXCLUDED.medium ELSE visitor_sessions.medium END,
+ campaign=CASE WHEN visitor_sessions.campaign='' THEN EXCLUDED.campaign ELSE visitor_sessions.campaign END,
+ device_type=EXCLUDED.device_type,browser=EXCLUDED.browser,os=EXCLUDED.os,language=EXCLUDED.language,timezone=EXCLUDED.timezone,viewport_class=EXCLUDED.viewport_class,
+ page_count=visitor_sessions.page_count+CASE WHEN $13='page_view' THEN 1 ELSE 0 END,
+ event_count=visitor_sessions.event_count+CASE WHEN $13='heartbeat' THEN 0 ELSE 1 END,
+ pages=CASE WHEN $13='page_view' THEN (CASE WHEN jsonb_array_length(visitor_sessions.pages)>=50 THEN visitor_sessions.pages-0 ELSE visitor_sessions.pages END)||jsonb_build_array($2::text) ELSE visitor_sessions.pages END`,
+ [sessionId,pagePath,referrer,source,medium,campaign,deviceType,browser,os,language,timezone,viewportClass,eventType]);
+ if(eventType!=='heartbeat')await pool.query('INSERT INTO visitor_events(session_id,event_type,page_path,details) VALUES($1,$2,$3,$4)',[sessionId,eventType,pagePath,safeText(body.details,180).replace(/[\\\u0000-\\\u001f]/g,'')]);
+ if(eventType==='session_start')await pool.query("DELETE FROM visitor_sessions WHERE last_seen_at < now() - interval '90 days'");
+ res.setHeader('Cache-Control','no-store');res.status(202).json({ok:true});
+}));
+app.post('/api/admin/login',asyncRoute(async(req,res)=>{
+ const username=safeText(req.body?.username,120),password=typeof req.body?.password==='string'?req.body.password:'';
+ const result=await pool.query('SELECT username,password_hash,session_version FROM admin_users WHERE username=$1',[username]);const user=result.rows[0];
+ if(!user||password.length>500||!verifyPass(password,user.password_hash))return res.status(401).json({error:'Invalid admin ID or password.'});
+ res.json({token:tokenFor(user),username:user.username,expiresIn:28800});
+}));
+app.use('/api/admin',adminAuth);
+app.get('/api/admin/media',asyncRoute(async(req,res)=>{
+ const result=await pool.query('SELECT id,original_name,mime_type,file_size,created_at FROM studio_media ORDER BY created_at DESC LIMIT 200');
+ res.json({assets:result.rows.map(x=>({id:x.id,name:x.original_name,mimeType:x.mime_type,size:x.file_size,createdAt:x.created_at,url:PUBLIC_BASE_URL+'/api/public/media/'+x.id}))});
+}));
+app.post('/api/admin/media',rateLimit({windowMs:60*60*1000,limit:80,standardHeaders:'draft-7',legacyHeaders:false}),express.raw({type:['image/jpeg','image/png','image/webp','image/gif','video/mp4','video/webm'],limit:'15mb'}),asyncRoute(async(req,res)=>{
+ const mime=(req.get('content-type')||'').split(';')[0].trim().toLowerCase(),data=Buffer.isBuffer(req.body)?req.body:Buffer.alloc(0);
+ const allowed=new Set(['image/jpeg','image/png','image/webp','image/gif','video/mp4','video/webm']);
+ if(!allowed.has(mime))return res.status(415).json({error:'Upload a JPG, PNG, WebP, GIF, MP4 or WebM file.'});
+ const max=mime.startsWith('video/')?15*1024*1024:8*1024*1024;if(!data.length)return res.status(400).json({error:'The selected file is empty.'});if(data.length>max)return res.status(413).json({error:'Images must be 8 MB or less; videos must be 15 MB or less.'});
+ let valid=false;
+ if(mime==='image/jpeg')valid=data.length>3&&data[0]===0xff&&data[1]===0xd8&&data[2]===0xff;
+ else if(mime==='image/png')valid=data.length>8&&data.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10]));
+ else if(mime==='image/gif')valid=data.subarray(0,6).toString('ascii').startsWith('GIF8');
+ else if(mime==='image/webp')valid=data.length>12&&data.subarray(0,4).toString('ascii')==='RIFF'&&data.subarray(8,12).toString('ascii')==='WEBP';
+ else if(mime==='video/mp4')valid=data.length>12&&data.subarray(4,8).toString('ascii')==='ftyp';
+ else if(mime==='video/webm')valid=data.length>4&&data.subarray(0,4).equals(Buffer.from([0x1a,0x45,0xdf,0xa3]));
+ if(!valid)return res.status(400).json({error:'The file does not match its declared media format.'});
+ const original=safeText(req.query.name,180).replace(/[\\/\u0000-\u001f]/g,'_')||('studio-media-'+Date.now());
+ const result=await pool.query('INSERT INTO studio_media(original_name,mime_type,file_size,file_data) VALUES($1,$2,$3,$4) RETURNING id,created_at',[original,mime,data.length,data]);const asset=result.rows[0];
+ res.status(201).json({asset:{id:asset.id,name:original,mimeType:mime,size:data.length,createdAt:asset.created_at,url:PUBLIC_BASE_URL+'/api/public/media/'+asset.id}});
+}));
+app.get('/api/admin/me',(req,res)=>res.json({username:req.admin.username}));
+app.get('/api/admin/overview',asyncRoute(async(req,res)=>{
+ const [posts,services,leads,newLeads,recent]=await Promise.all([pool.query('SELECT count(*)::int n FROM blog_posts'),pool.query('SELECT count(*)::int n FROM services'),pool.query('SELECT count(*)::int n FROM contact_enquiries'),pool.query("SELECT count(*)::int n FROM contact_enquiries WHERE status='new'"),pool.query('SELECT id,name,email,mobile_number,company,service,status,created_at FROM contact_enquiries ORDER BY created_at DESC LIMIT 6')]);
+ res.json({posts:posts.rows[0].n,services:services.rows[0].n,enquiries:leads.rows[0].n,newEnquiries:newLeads.rows[0].n,recentEnquiries:recent.rows});
+}));
+app.get('/api/admin/visitors',asyncRoute(async(req,res)=>{
+ const ranges={'1h':'1 hour','24h':'24 hours','7d':'7 days','30d':'30 days'};
+ const range=Object.prototype.hasOwnProperty.call(ranges,req.query.range)?req.query.range:'24h',interval=ranges[range];
+ const [summary,sources,pages,sessions,events]=await Promise.all([
+  pool.query(`SELECT count(*)::int AS total_sessions,count(*) FILTER(WHERE last_seen_at>=now()-interval '90 seconds')::int AS active_now,COALESCE(sum(page_count),0)::int AS page_views,COALESCE(round(avg(GREATEST(0,extract(epoch FROM(last_seen_at-started_at))))),0)::int AS average_duration_seconds FROM visitor_sessions WHERE started_at>=now()-$1::interval`,[interval]),
+  pool.query(`SELECT source,count(*)::int AS visits FROM visitor_sessions WHERE started_at>=now()-$1::interval GROUP BY source ORDER BY visits DESC LIMIT 12`,[interval]),
+  pool.query(`SELECT page_path,count(*)::int AS page_views FROM visitor_events WHERE event_type='page_view' AND created_at>=now()-$1::interval GROUP BY page_path ORDER BY page_views DESC LIMIT 12`,[interval]),
+  pool.query(`SELECT session_id,started_at,last_seen_at,landing_page,last_page,referrer,source,medium,campaign,device_type,browser,os,language,timezone,viewport_class,page_count,event_count,pages,(last_seen_at>=now()-interval '90 seconds') AS active,GREATEST(0,extract(epoch FROM(last_seen_at-started_at))::int) AS duration_seconds FROM visitor_sessions WHERE started_at>=now()-$1::interval ORDER BY last_seen_at DESC LIMIT 100`,[interval]),
+  pool.query(`SELECT e.id,e.session_id,e.event_type,e.page_path,e.details,e.created_at,s.source,s.device_type FROM visitor_events e JOIN visitor_sessions s USING(session_id) WHERE e.created_at>=now()-$1::interval ORDER BY e.created_at DESC LIMIT 120`,[interval])
+ ]);
+ res.setHeader('Cache-Control','no-store');res.json({range,stats:summary.rows[0]||{total_sessions:0,active_now:0,page_views:0,average_duration_seconds:0},sources:sources.rows,popularPages:pages.rows,sessions:sessions.rows,events:events.rows});
+}));
+app.get('/api/admin/site',asyncRoute(async(req,res)=>{const r=await pool.query('SELECT data,updated_at FROM site_settings WHERE id=1');res.json({settings:r.rows[0]?.data||defaults,updatedAt:r.rows[0]?.updated_at||null});}));
+app.patch('/api/admin/site',asyncRoute(async(req,res)=>{
+ const incoming=req.body?.settings;if(!incoming||typeof incoming!=='object'||Array.isArray(incoming))return res.status(400).json({error:'Settings object required.'});
+ const allowed=new Set(Object.keys(defaults)),clean={};
+ for(const [key,value] of Object.entries(incoming)){
+  if(!allowed.has(key))continue;
+  if(key==='pageContent'){
+   if(!value||typeof value!=='object'||Array.isArray(value))return res.status(400).json({error:'Page content must be an object.'});
+   clean[key]={};
+   const knownPages=defaults.pageContent;
+   for(const [page,content] of Object.entries(value)){
+    if(!Object.prototype.hasOwnProperty.call(knownPages,page)||!content||typeof content!=='object'||Array.isArray(content))continue;
+    const safe={};
+    for(const field of Object.keys(knownPages[page]))if(typeof content[field]==='string')safe[field]=safeText(content[field],6000);
+    clean[key][page]=safe;
+   }
+  }else if(key==='customSections'){
+   if(!Array.isArray(value)||value.length>20)return res.status(400).json({error:'Custom sections limit is 20.'});
+   clean[key]=value.map((s,i)=>({id:safeText(s.id||('section-'+(i+1)),80),title:safeText(s.title,180),body:safeText(s.body,4000),visible:s.visible!==false})).filter(s=>s.title&&s.body);
+  }else if(key==='portfolioItems'){
+   if(!Array.isArray(value)||value.length>40)return res.status(400).json({error:'You can manage up to 40 portfolio items.'});
+   if(value.some(x=>(x.imageUrl&&!validHttpUrl(x.imageUrl))||(x.videoUrl&&!validHttpUrl(x.videoUrl))))return res.status(400).json({error:'Portfolio media URLs must be HTTP(S) links.'});
+   if(value.some(x=>x.href&&!((String(x.href).startsWith('/')&&!String(x.href).startsWith('//'))||validHttpUrl(x.href))))return res.status(400).json({error:'Portfolio links must be internal paths or HTTP(S) URLs.'});
+   clean[key]=value.map((x,i)=>({id:safeText(x.id||('work-'+(i+1)),100),title:safeText(x.title,180),category:safeText(x.category||'CREATIVE',100),label:safeText(x.label||'Concept exploration',100),description:safeText(x.description,2000),imageUrl:safeText(x.imageUrl,1000),videoUrl:safeText(x.videoUrl,1000),href:safeText(x.href||'/contact/',500),visible:x.visible!==false})).filter(x=>x.title&&x.description);
+  }else if(key==='teamMembers'){
+   if(!Array.isArray(value)||value.length>30)return res.status(400).json({error:'You can manage up to 30 additional team profiles.'});
+   if(value.some(x=>x.imageUrl&&!validHttpUrl(x.imageUrl)))return res.status(400).json({error:'Team photo URLs must be HTTP(S) links.'});
+   clean[key]=value.map((x,i)=>({id:safeText(x.id||('member-'+(i+1)),100),name:safeText(x.name,150),role:safeText(x.role,150),bio:safeText(x.bio,1200),imageUrl:safeText(x.imageUrl,1000),visible:x.visible!==false})).filter(x=>x.name&&x.role);
+  }else if(key==='showBlogLink')clean[key]=Boolean(value);
+  else if(typeof value==='string'){
+   if(['mapUrl','instagramUrl','linkedinUrl','founderImage'].includes(key)&&value&&!validHttpUrl(value))return res.status(400).json({error:key+' must be an HTTP(S) URL.'});
+   clean[key]=safeText(value,key.toLowerCase().includes('description')||key.toLowerCase().includes('paragraph')||key==='statementBody'||key==='studioParagraphOne'||key==='studioParagraphTwo'||key==='founderBio'?6000:1200);
+  }
+ }
+ const r=await pool.query('UPDATE site_settings SET data=data || $1::jsonb,updated_at=now() WHERE id=1 RETURNING data,updated_at',[JSON.stringify(clean)]);res.json({settings:r.rows[0].data,updatedAt:r.rows[0].updated_at});
+}));
+app.get('/api/admin/services',asyncRoute(async(req,res)=>{const r=await pool.query('SELECT * FROM services ORDER BY sort_order,id');res.json({services:r.rows});}));
+app.post('/api/admin/services',asyncRoute(async(req,res)=>{
+ const v=validateService(req.body||{});if(v.error)return res.status(400).json({error:v.error});const x=v.values;
+ try{const r=await pool.query('INSERT INTO services(slug,title,category,icon,short_description,detail_text,href,image_url,visible,sort_order) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *',[x.slug,x.title,x.category,x.icon,x.short_description,x.detail_text,x.href,x.image_url,x.visible,x.sort_order]);res.status(201).json({service:r.rows[0]});}
+ catch(e){if(e.code==='23505')return res.status(409).json({error:'That service URL slug already exists.'});throw e;}
+}));
+app.patch('/api/admin/services/:id',asyncRoute(async(req,res)=>{
+ const id=Number(req.params.id);if(!Number.isInteger(id)||id<1)return res.status(400).json({error:'Invalid service ID.'});const old=await pool.query('SELECT * FROM services WHERE id=$1',[id]);if(!old.rows.length)return res.status(404).json({error:'Service not found.'});
+ const v=validateService(Object.assign({},old.rows[0],req.body));if(v.error)return res.status(400).json({error:v.error});const x=v.values;
+ try{const r=await pool.query('UPDATE services SET slug=$1,title=$2,category=$3,icon=$4,short_description=$5,detail_text=$6,href=$7,image_url=$8,visible=$9,sort_order=$10,updated_at=now() WHERE id=$11 RETURNING *',[x.slug,x.title,x.category,x.icon,x.short_description,x.detail_text,x.href,x.image_url,x.visible,x.sort_order,id]);res.json({service:r.rows[0]});}
+ catch(e){if(e.code==='23505')return res.status(409).json({error:'That service URL slug already exists.'});throw e;}
+}));
+app.delete('/api/admin/services/:id',asyncRoute(async(req,res)=>{const id=Number(req.params.id);if(!Number.isInteger(id)||id<1)return res.status(400).json({error:'Invalid service ID.'});const r=await pool.query('DELETE FROM services WHERE id=$1 RETURNING id',[id]);if(!r.rowCount)return res.status(404).json({error:'Service not found.'});res.json({ok:true});}));
+app.get('/api/admin/blogs',asyncRoute(async(req,res)=>{const r=await pool.query('SELECT * FROM blog_posts ORDER BY updated_at DESC,id DESC');res.json({posts:r.rows});}));
+app.post('/api/admin/blogs',asyncRoute(async(req,res)=>{
+ const v=validateBlog(req.body||{});if(v.error)return res.status(400).json({error:v.error});const p=v.values;
+ try{const r=await pool.query("INSERT INTO blog_posts(slug,title,category,excerpt,content,cover_image,status,published_at) VALUES($1,$2,$3,$4,$5,$6,$7,CASE WHEN $7='published' THEN now() ELSE NULL END) RETURNING *",[p.slug,p.title,p.category,p.excerpt,p.content,p.cover_image,p.status]);res.status(201).json({post:r.rows[0]});}
+ catch(e){if(e.code==='23505')return res.status(409).json({error:'That blog URL slug already exists.'});throw e;}
+}));
+app.patch('/api/admin/blogs/:id',asyncRoute(async(req,res)=>{
+ const id=Number(req.params.id);if(!Number.isInteger(id)||id<1)return res.status(400).json({error:'Invalid post ID.'});const old=await pool.query('SELECT * FROM blog_posts WHERE id=$1',[id]);if(!old.rows.length)return res.status(404).json({error:'Post not found.'});
+ const v=validateBlog(Object.assign({},old.rows[0],req.body));if(v.error)return res.status(400).json({error:v.error});const p=v.values;
+ try{const r=await pool.query("UPDATE blog_posts SET slug=$1,title=$2,category=$3,excerpt=$4,content=$5,cover_image=$6,status=$7,published_at=CASE WHEN $7='published' THEN COALESCE(published_at,now()) ELSE NULL END,updated_at=now() WHERE id=$8 RETURNING *",[p.slug,p.title,p.category,p.excerpt,p.content,p.cover_image,p.status,id]);res.json({post:r.rows[0]});}
+ catch(e){if(e.code==='23505')return res.status(409).json({error:'That blog URL slug already exists.'});throw e;}
+}));
+app.delete('/api/admin/blogs/:id',asyncRoute(async(req,res)=>{const id=Number(req.params.id);if(!Number.isInteger(id)||id<1)return res.status(400).json({error:'Invalid post ID.'});const r=await pool.query('DELETE FROM blog_posts WHERE id=$1 RETURNING id',[id]);if(!r.rowCount)return res.status(404).json({error:'Post not found.'});res.json({ok:true});}));
+app.get('/api/admin/enquiries',asyncRoute(async(req,res)=>{const r=await pool.query('SELECT * FROM contact_enquiries ORDER BY created_at DESC LIMIT 500');res.json({enquiries:r.rows});}));
+app.patch('/api/admin/enquiries/:id',asyncRoute(async(req,res)=>{const id=Number(req.params.id),status=safeText(req.body?.status,30);if(!Number.isInteger(id)||id<1||!['new','in_progress','replied','closed'].includes(status))return res.status(400).json({error:'Invalid enquiry status.'});const r=await pool.query('UPDATE contact_enquiries SET status=$1 WHERE id=$2 RETURNING id,status',[status,id]);if(!r.rowCount)return res.status(404).json({error:'Enquiry not found.'});res.json({enquiry:r.rows[0]});}));
+app.post('/api/admin/password',asyncRoute(async(req,res)=>{
+ const current=typeof req.body?.currentPassword==='string'?req.body.currentPassword:'',next=typeof req.body?.newPassword==='string'?req.body.newPassword:'';
+ const r=await pool.query('SELECT password_hash FROM admin_users WHERE username=$1',[req.admin.username]);
+ if(!r.rows.length||!verifyPass(current,r.rows[0].password_hash))return res.status(400).json({error:'Current password is incorrect.'});
+ if(next.length<12||next.length>200)return res.status(400).json({error:'New password must be 12–200 characters.'});if(next===current)return res.status(400).json({error:'Choose a different password.'});
+ await pool.query('UPDATE admin_users SET password_hash=$1,session_version=session_version+1,updated_at=now() WHERE username=$2',[hashPass(next),req.admin.username]);res.json({ok:true,message:'Password changed. Please sign in again.'});
+}));
+app.use((req,res)=>res.status(404).json({error:'API route not found.'}));
+app.use((err,req,res,next)=>{console.error('Request failed:',err.code||err.name||'error');if(res.headersSent)return next(err);res.status(err.status||500).json({error:err.code==='23505'?'That value is already in use.':'The server could not complete this request. Please try again.'});});
+initialize().then(()=>{app.listen(PORT,'0.0.0.0',()=>console.log('AA Growth Studio CMS API listening on '+PORT));}).catch(err=>{console.error('Database initialization failed:',err.code||err.message);process.exit(1);});
++b64url(hash);}
+function secretKey(){return crypto.createHash('sha256').update(process.env.META_TOKEN_ENCRYPTION_KEY||JWT_SECRET).digest();}
+function encryptSecret(value){if(!value)return{ciphertext:'',iv:'',tag:''};const iv=crypto.randomBytes(12),cipher=crypto.createCipheriv('aes-256-gcm',secretKey(),iv),encrypted=Buffer.concat([cipher.update(String(value),'utf8'),cipher.final()]);return{ciphertext:encrypted.toString('base64url'),iv:iv.toString('base64url'),tag:cipher.getAuthTag().toString('base64url')};}
+function decryptSecret(row,prefix){try{if(!row||!row[prefix+'_ciphertext']||!row[prefix+'_iv']||!row[prefix+'_tag'])return'';const decipher=crypto.createDecipheriv('aes-256-gcm',secretKey(),Buffer.from(row[prefix+'_iv'],'base64url'));decipher.setAuthTag(Buffer.from(row[prefix+'_tag'],'base64url'));return Buffer.concat([decipher.update(Buffer.from(row[prefix+'_ciphertext'],'base64url')),decipher.final()]).toString('utf8')}catch{return''}}
+async function metaSettings(){const r=await pool.query('SELECT * FROM meta_settings WHERE id=1');return r.rows[0]||{id:1,app_id:process.env.META_APP_ID||'',pixel_id:process.env.META_PIXEL_ID||''};}
+function metaRedirectUri(){return (process.env.META_REDIRECT_URI||PUBLIC_BASE_URL+'/api/public/meta/callback').trim();}
+async function graphGet(path,accessToken){const url=new URL('https://graph.facebook.com/'+(process.env.META_GRAPH_API_VERSION||'v25.0')+'/'+String(path).replace(/^\\/+/,''));url.searchParams.set('access_token',accessToken);const response=await fetch(url,{signal:AbortSignal.timeout(10000)});const data=await response.json().catch(()=>({}));if(!response.ok||data.error)throw new Error('Meta Graph API request failed: '+safeText(data.error?.message,180));return data;}
+async function sendMetaLeadEvent({eventId,sourceUrl,userAgent,fbp,fbc,service,consent}){try{if(!consent)return{sent:false};const config=await metaSettings(),pixelId=safeText(config.pixel_id||process.env.META_PIXEL_ID,40),accessToken=decryptSecret(config,'conversions_token')||process.env.META_CONVERSIONS_ACCESS_TOKEN||'';if(!pixelId||!accessToken)return{sent:false};const userData={client_user_agent:safeText(userAgent,500)};if(/^fb\\.1\\.\\d{5,20}\\.[A-Za-z0-9_-]{1,250}$/.test(fbp||''))userData.fbp=fbp;if(/^fb\\.1\\.\\d{5,20}\\.[A-Za-z0-9._-]{1,300}$/.test(fbc||''))userData.fbc=fbc;if(!userData.client_user_agent&&!userData.fbp&&!userData.fbc)return{sent:false};const event={event_name:'Lead',event_time:Math.floor(Date.now()/1000),event_id:eventId,action_source:'website',event_source_url:sourceUrl,user_data:userData,custom_data:{currency:'INR',content_name:safeText(service,100)}};const payload={data:[event]};if(process.env.META_TEST_EVENT_CODE)payload.test_event_code=safeText(process.env.META_TEST_EVENT_CODE,100);const url='https://graph.facebook.com/'+(process.env.META_GRAPH_API_VERSION||'v25.0')+'/'+encodeURIComponent(pixelId)+'/events?access_token='+encodeURIComponent(accessToken);const res=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),signal:AbortSignal.timeout(4500)});const data=await res.json().catch(()=>({}));if(!res.ok||data.error){console.warn('Meta conversion event delivery did not succeed');return{sent:false}}return{sent:true}}catch(e){console.warn('Meta conversion event delivery unavailable');return{sent:false}}}
 function safeText(value,max=5000){return typeof value==='string'?value.trim().slice(0,max):'';}
 function validHttpUrl(value){if(!value)return true;try{const u=new URL(value);return u.protocol==='https:'||u.protocol==='http:';}catch{return false;}}
 function slugify(value){return safeText(value,150).toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,100);}
