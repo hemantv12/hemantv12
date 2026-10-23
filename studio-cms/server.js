@@ -17,7 +17,12 @@ if (!JWT_SECRET || !DATABASE_URL || !ADMIN_PASSWORD_HASH) {
   console.error('Missing required environment variables: DATABASE_URL, JWT_SECRET, ADMIN_PASSWORD_HASH');
   process.exit(1);
 }
-const pool = new Pool({connectionString:DATABASE_URL,ssl:{rejectUnauthorized:false},max:5,idleTimeoutMillis:30000,connectionTimeoutMillis:10000});
+// Enforce TLS certificate + hostname verification for the production database.
+// pg-connection-string URL SSL flags override the `ssl` object, so remove them
+// and keep unrelated settings (for example channel_binding) intact.
+const databaseUrl = new URL(DATABASE_URL);
+for (const key of ['sslmode','ssl','sslrootcert','sslcert','sslkey','uselibpqcompat']) databaseUrl.searchParams.delete(key);
+const pool = new Pool({connectionString:databaseUrl.toString(),ssl:{rejectUnauthorized:true},max:5,idleTimeoutMillis:30000,connectionTimeoutMillis:10000});
 const allowedOrigins = new Set((process.env.CORS_ORIGINS || 'https://rti-growth-studio.onrender.com').split(',').map(v => v.trim()).filter(Boolean));
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
