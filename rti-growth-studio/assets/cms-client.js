@@ -49,7 +49,7 @@ function renderTeam(items,settings){
  (Array.isArray(items)?items:[]).filter(function(m){return m&&m.visible!==false&&m.name&&m.role}).forEach(function(m,i){
   var card=make('article','team-card reveal is-visible');
   var portrait=make('div','team-portrait');
-  if(m.imageUrl&&hrefSafe(m.imageUrl)!=='#contact'){var img=make('img','team-photo ready');img.src=hrefSafe(m.imageUrl);img.alt=m.name;img.loading='lazy';img.onerror=function(){img.remove();portrait.appendChild(make('div','cms-team-monogram',m.name.split(/\s+/).map(function(w){return w.charAt(0)}).join('').slice(0,2).toUpperCase()))};portrait.appendChild(img)}
+  if(m.imageUrl&&hrefSafe(m.imageUrl)!=='#contact'){var img=make('img','team-photo ready');var src=hrefSafe(m.imageUrl);if(src.indexOf('/assets/team/')!==-1)src+=(src.indexOf('?')>=0?'&':'?')+'v=20261026-hd2';img.src=src;img.alt=m.name;img.loading='lazy';img.onerror=function(){img.remove();portrait.appendChild(make('div','cms-team-monogram',m.name.split(/\s+/).map(function(w){return w.charAt(0)}).join('').slice(0,2).toUpperCase()))};portrait.appendChild(img)}
   else{var monogram=make('div','cms-team-monogram',m.name.split(/\s+/).map(function(w){return w.charAt(0)}).join('').slice(0,2).toUpperCase());portrait.appendChild(monogram)}
   portrait.appendChild(make('span','portrait-stamp','Team profile'));card.appendChild(portrait);
   var meta=make('div','team-info');meta.appendChild(make('span','team-role',m.role));meta.appendChild(make('h3','',m.name));meta.appendChild(make('p','',m.bio||''));card.appendChild(meta);grid.appendChild(card);
@@ -160,7 +160,7 @@ function apply(data){
  put('.team-section .section-head .eyebrow',s.teamEyebrow);var teamTitle=q('.team-section .section-title');if(teamTitle){putFirstText(teamTitle,s.teamTitleLineOne);(function(){var ser=q('.team-section .section-title .serif'),cor=q('.team-section .section-title .coral'),words=(s.teamTitleLineTwo||'').trim().split(/\s+/);if(ser&&cor&&words.length){cor.textContent=words.pop();ser.textContent=words.join(' ')}else if(cor)cor.textContent=s.teamTitleLineTwo||''})()}
  put('.team-section .section-head>p',s.teamIntro);
  put('.founder-card .team-role',s.founderRole);put('.founder-card .team-info h3',s.founderName);put('.founder-card .team-info p',s.founderBio);
- if(s.founderImage){var pic=q('.founder-card .team-photo');if(pic){pic.src=hrefSafe(s.founderImage);pic.loading='lazy'}}
+ if(s.founderImage){var pic=q('.founder-card .team-photo');if(pic){var founderSrc=hrefSafe(s.founderImage);if(founderSrc.indexOf('/assets/team/')!==-1)founderSrc+=(founderSrc.indexOf('?')>=0?'&':'?')+'v=20261026-hd2';pic.src=founderSrc;pic.loading='lazy'}}
  put('.contact-intro .eyebrow',s.contactEyebrow);
  var contactTitle=q('.contact-intro h2');if(contactTitle){putFirstText(contactTitle,s.contactTitleLineOne);put('.contact-intro h2 em',s.contactTitleLineTwo)}
  put('.contact-intro>p',s.contactDescription);

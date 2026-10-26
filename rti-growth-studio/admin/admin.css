@@ -135,3 +135,12 @@ button,.nav-item,.mini-action,.secondary,.primary{min-height:42px}
  .login-card{padding:22px 16px}
  .main-area{padding-left:10px;padding-right:10px}
 }
+
+/* Dedicated Team Management workspace */
+.team-order-actions{display:flex;align-items:center;gap:6px}
+.team-order-actions button{border:1px solid var(--line);background:#fff;border-radius:8px;padding:7px 10px;color:var(--ink);font-size:12px;font-weight:750;cursor:pointer}
+.team-order-actions button:hover{background:#eef3df;border-color:#cbd7a7}
+.team-editor{scroll-margin-top:16px}
+.team-editor .media-upload{margin-top:8px}
+.team-editor .media-preview img{max-height:220px;object-fit:contain;background:#f7f6f1}
+@media(max-width:760px){.team-order-actions{gap:4px}.team-order-actions button{padding:7px 8px}.team-editor .field-grid{grid-template-columns:minmax(0,1fr)}}
