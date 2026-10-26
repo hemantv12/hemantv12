@@ -85,6 +85,7 @@ function installConversionExperience(){
  function closeModal(){modal.hidden=true;modal.setAttribute('aria-hidden','true');document.body.classList.remove('aa-conversion-open')}
  function openModal(){modal.hidden=false;modal.setAttribute('aria-hidden','false');document.body.classList.add('aa-conversion-open');send('conversion_modal_open','project enquiry form');var card=modal.querySelector('.aa-conversion-card');modal.scrollTop=0;if(card)card.scrollTop=0;window.requestAnimationFrame(function(){modal.scrollTop=0;if(card)card.scrollTop=0;var x=modal.querySelector("input[name='name']");if(x){try{x.focus({preventScroll:true})}catch(e){x.focus()}}})}
  dock.querySelector('[data-aa-convert]').addEventListener('click',function(){send('cta_click','discuss your project');openModal()});
+ document.querySelectorAll('[data-aa-open-lead]').forEach(function(trigger){trigger.addEventListener('click',function(e){e.preventDefault();send('cta_click','primary page project CTA');openModal()})});
  modal.querySelectorAll('[data-aa-close]').forEach(function(x){x.addEventListener('click',closeModal)});
  document.addEventListener('keydown',function(e){if(e.key==='Escape'&&!modal.hidden)closeModal()});
  dock.querySelector('.aa-dock-whatsapp').addEventListener('click',function(){send('whatsapp_click','sticky contact CTA')});

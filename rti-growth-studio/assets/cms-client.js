@@ -148,7 +148,7 @@ function apply(data){
  putFirstText(q('.hero-copy h1 .line:nth-child(3)'),s.heroLineThree);
  put('.hero-copy h1 .line:nth-child(3) em',s.heroHighlight);
  put('.hero-copy .hero-description',s.heroDescription);
- put('.hero-actions .btn-lime',s.heroPrimaryCta);put('.hero-actions .btn-outline',s.heroSecondaryCta);
+ putFirstText(q('.hero-actions .btn-lime'),s.heroPrimaryCta);putFirstText(q('.hero-actions .btn-outline'),s.heroSecondaryCta);
  put('.work-section .section-head .eyebrow',s.workEyebrow);
  var workTitle=q('.work-section .section-title');if(workTitle){var lines=qa('.line',workTitle);putFirstText(workTitle,s.workTitleLineOne);var serif=q('.serif',workTitle),coral=q('.coral',workTitle);if(s.workTitleLineTwo){var words=s.workTitleLineTwo.trim().split(/\s+/);var final=words.pop()||'';if(serif)serif.textContent=words.join(' ');if(coral)coral.textContent=final;}}
  put('.work-section .section-head>p',s.workIntro);

@@ -82,22 +82,9 @@ jobs:
           curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/blog/index.html" >/tmp/cms-blog.html
           grep -q 'Latest thinking' /tmp/cms-blog.html
           curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/assets/cms-client.js" >/dev/null
-          for attempt in $(seq 1 18); do
-            if curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/growth-lab/" >/tmp/cms-growth-lab.html && grep -q 'Make your next' /tmp/cms-growth-lab.html && grep -q 'forgeForm' /tmp/cms-growth-lab.html && grep -q 'data-concept-canvas' /tmp/cms-growth-lab.html; then
-              break
-            fi
-            if [ "$attempt" -eq 18 ]; then
-              echo "Website rollout did not serve the campaign planner after retries."
-              exit 1
-            fi
-            echo "Waiting for the public-site deployment to become visible ($attempt/18)..."
-            sleep 10
-          done
-          grep -q 'Campaign Forge' /tmp/cms-growth-lab.html
-          grep -q 'Make your next' /tmp/cms-growth-lab.html
-          grep -q 'forgeForm' /tmp/cms-growth-lab.html
-          curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/assets/growth-lab.css" >/dev/null
-          curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/assets/growth-lab.js" >/dev/null
+          curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/growth-lab/" >/tmp/cms-growth-lab.html
+          grep -q "window.location.replace('/services/paid-media/')" /tmp/cms-growth-lab.html
+          if grep -q 'forgeForm\|data-concept-canvas\|Campaign Forge' /tmp/cms-growth-lab.html; then echo "Retired Campaign Forge route must redirect."; exit 1; fi
           curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/assets/motion-system.css" >/dev/null
           curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/assets/motion-system.js" >/dev/null
           curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/assets/visitor-analytics.js" >/tmp/cms-visitor-analytics.js
@@ -120,19 +107,11 @@ jobs:
           grep -Fq "fetch(ANALYTICS_API" /tmp/cms-visitor-analytics.js
           grep -Fq "fetch(API_BASE+'/public/enquiries'" /tmp/cms-visitor-analytics.js
           curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/assets/conversion-system.css" >/dev/null
-          for attempt in $(seq 1 18); do
-            if curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/play/" >/tmp/cms-play.html && grep -q 'NEON RUSH' /tmp/cms-play.html; then break; fi
-            if [ "$attempt" -eq 18 ]; then echo "Arcade game page did not become available."; exit 1; fi
-            echo "Waiting for arcade rollout ($attempt/18)..."
-            sleep 10
-          done
-          grep -q 'id="neonCanvas"' /tmp/cms-play.html
-          grep -q 'id="startGame"' /tmp/cms-play.html
-          grep -q 'id="bestValue"' /tmp/cms-play.html
-          curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/assets/neon-rush.css" >/dev/null
-          curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/assets/neon-rush.js" >/tmp/cms-neon.js
+          curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/play/" >/tmp/cms-play.html
+          grep -q "window.location.replace('/')" /tmp/cms-play.html
+          if grep -q 'neonCanvas\|startGame\|NEON RUSH' /tmp/cms-play.html; then echo "Retired Arcade route must redirect."; exit 1; fi
 
-          for page in "/" "contact/" "blog/" "growth-lab/" "services/" "work/" "studio/" "team/" "privacy.html" "terms.html" "admin/" "play/"; do
+          for page in "/" "contact/" "blog/" "services/" "work/" "studio/" "team/" "privacy.html" "terms.html" "admin/"; do
             curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/$page" >/tmp/motion-page.html
             grep -q "motion-system.css" /tmp/motion-page.html || { echo "Motion stylesheet not wired on $page"; exit 1; }
             grep -q "motion-system.js" /tmp/motion-page.html || { echo "Motion script not wired on $page"; exit 1; }

@@ -114,7 +114,8 @@ const schema = [
  'CREATE TABLE IF NOT EXISTS meta_settings (id INTEGER PRIMARY KEY DEFAULT 1 CHECK(id=1), app_id TEXT NOT NULL DEFAULT \'\', app_secret_ciphertext TEXT NOT NULL DEFAULT \'\', app_secret_iv TEXT NOT NULL DEFAULT \'\', app_secret_tag TEXT NOT NULL DEFAULT \'\', pixel_id TEXT NOT NULL DEFAULT \'\', conversions_token_ciphertext TEXT NOT NULL DEFAULT \'\', conversions_token_iv TEXT NOT NULL DEFAULT \'\', conversions_token_tag TEXT NOT NULL DEFAULT \'\', updated_at TIMESTAMPTZ NOT NULL DEFAULT now())',
  'INSERT INTO meta_settings(id) VALUES(1) ON CONFLICT(id) DO NOTHING',
  'CREATE TABLE IF NOT EXISTS meta_connections (id INTEGER PRIMARY KEY DEFAULT 1 CHECK(id=1), page_id TEXT NOT NULL DEFAULT \'\', page_name TEXT NOT NULL DEFAULT \'\', instagram_id TEXT NOT NULL DEFAULT \'\', instagram_username TEXT NOT NULL DEFAULT \'\', instagram_name TEXT NOT NULL DEFAULT \'\', instagram_picture_url TEXT NOT NULL DEFAULT \'\', instagram_followers INTEGER NOT NULL DEFAULT 0, instagram_media_count INTEGER NOT NULL DEFAULT 0, token_ciphertext TEXT NOT NULL DEFAULT \'\', token_iv TEXT NOT NULL DEFAULT \'\', token_tag TEXT NOT NULL DEFAULT \'\', connected_at TIMESTAMPTZ NOT NULL DEFAULT now(), last_synced_at TIMESTAMPTZ NOT NULL DEFAULT now())',
- 'CREATE TABLE IF NOT EXISTS meta_oauth_states (nonce TEXT PRIMARY KEY, admin_username TEXT NOT NULL, expires_at TIMESTAMPTZ NOT NULL)'
+ 'CREATE TABLE IF NOT EXISTS meta_oauth_states (nonce TEXT PRIMARY KEY, admin_username TEXT NOT NULL, expires_at TIMESTAMPTZ NOT NULL)',
+ 'CREATE TABLE IF NOT EXISTS app_migrations (name TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT now())'
 ];
 function b64url(buf){return Buffer.from(buf).toString('base64url');}
 function verifyPass(password,stored){
@@ -177,6 +178,7 @@ async function initialize(){
   if(reset.rowCount)console.log('Admin password reset completed from protected one-time configuration');
  }
  await pool.query('INSERT INTO site_settings(id,data) VALUES(1,$1::jsonb) ON CONFLICT(id) DO UPDATE SET data=$1::jsonb || site_settings.data,updated_at=now()',[JSON.stringify(defaults)]);
+ await pool.query("WITH run AS (INSERT INTO app_migrations(name) VALUES('homepage-conversion-refresh-v1') ON CONFLICT(name) DO NOTHING RETURNING name) UPDATE site_settings SET data=data || $1::jsonb,updated_at=now() WHERE id=1 AND EXISTS(SELECT 1 FROM run)",[JSON.stringify({heroEyebrow:'CREATIVE + PERFORMANCE FOR AMBITIOUS BRANDS',heroLineOne:'Make your brand',heroLineTwo:'the one people',heroLineThree:'',heroHighlight:'choose.',heroDescription:'One connected growth partner for social media, content, video, branding, websites and Meta ads—built around your business goals and real enquiries.',heroPrimaryCta:'Discuss your project',heroSecondaryCta:'Explore services',seoTitle:'AA Growth Studio | Creative & Growth That Converts',seoDescription:'AA Growth Studio helps brands grow with social media, content, video editing, branding, websites, apps and Meta ads focused on qualified enquiries.'})]);
  for(const s of defaultServices)await pool.query('INSERT INTO services(slug,title,category,icon,short_description,detail_text,href,visible,sort_order,image_url) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT(slug) DO NOTHING',[s.slug,s.title,s.category,s.icon,s.short_description,s.detail_text,s.href,s.visible,s.sort_order,s.image_url]);
 }
 app.get('/api/public/meta/pixel',asyncRoute(async(req,res)=>{const s=await metaSettings();res.setHeader('Cache-Control','no-store');res.json({pixelId:safeText(s.pixel_id||process.env.META_PIXEL_ID,40)});}));
@@ -334,7 +336,7 @@ app.post('/api/admin/media',rateLimit({windowMs:60*60*1000,limit:80,standardHead
 }));
 app.get('/api/admin/me',(req,res)=>res.json({username:req.admin.username}));
 app.get('/api/admin/overview',asyncRoute(async(req,res)=>{
- const [posts,services,leads,newLeads,recent]=await Promise.all([pool.query('SELECT count(*)::int n FROM blog_posts'),pool.query('SELECT count(*)::int n FROM services'),pool.query('SELECT count(*)::int n FROM contact_enquiries'),pool.query("SELECT count(*)::int n FROM contact_enquiries WHERE status='new'"),pool.query('SELECT id,name,email,mobile_number,company,service,status,created_at FROM contact_enquiries ORDER BY created_at DESC LIMIT 6')]);
+ const [posts,services,leads,newLeads,recent]=await Promise.all([pool.query('SELECT count(*)::int n FROM blog_posts'),pool.query('SELECT count(*)::int n FROM services'),pool.query('SELECT count(*)::int n FROM contact_enquiries'),pool.query("SELECT count(*)::int n FROM contact_enquiries WHERE status='new'"),pool.query('SELECT id,name,email,mobile_number,company,service,status,source,utm_campaign,created_at FROM contact_enquiries ORDER BY created_at DESC LIMIT 6')]);
  res.json({posts:posts.rows[0].n,services:services.rows[0].n,enquiries:leads.rows[0].n,newEnquiries:newLeads.rows[0].n,recentEnquiries:recent.rows});
 }));
 app.get('/api/admin/visitors',asyncRoute(async(req,res)=>{
