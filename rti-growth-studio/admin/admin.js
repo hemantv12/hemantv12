@@ -130,8 +130,8 @@ async function loadSite(){var d=await api('/admin/site');settings=d.settings||{}
 async function loadTeam(){
  var d=await api('/admin/site');settings=d.settings||{};
  var items=Array.isArray(settings.teamMembers)?settings.teamMembers:[];
- view.innerHTML=pageHeading('Team management','Upload original photos and manage every public team profile from one dedicated screen. Changes publish through the live CMS.',btn('＋ Add team member','add-team','primary'))+
- '<form id="teamForm"><section class="panel"><div class="panel-title"><div><h3>People on your website</h3><p>Use a clear high-resolution photo, a real name, role and short biography. Upload directly from your computer—no image URL required.</p></div><span class="pill">'+items.length+' profiles</span></div><div id="teamMembers">'+teamMembersHtml(items)+'</div><div class="form-actions"><button type="button" class="secondary" data-action="go-site">Back to website content</button><button type="submit" class="primary">Save team & publish ↗</button></div></section></form>';
+ view.innerHTML=pageHeading('Team management','Manage the founder and every team profile from one place. Upload full-quality photos directly and publish changes to the website.',btn('＋ Add team member','add-team','primary'))+
+ '<form id="teamForm"><section class="panel"><div class="panel-title"><div><h3>Founder profile</h3><p>This profile appears first on the public People page. Update the name, role, biography and portrait here.</p></div><span class="pill">Featured profile</span></div><div class="field-grid"><div class="field"><label>Founder name *</label><input name="founderName" maxlength="150" value="'+esc(settings.founderName||'')+'" required></div><div class="field"><label>Founder role / title *</label><input name="founderRole" maxlength="150" value="'+esc(settings.founderRole||'')+'" required></div><div class="field full"><label>Founder biography</label><textarea name="founderBio" maxlength="1200">'+esc(settings.founderBio||'')+'</textarea></div><div class="field full"><label>Founder portrait (upload directly)</label><input type="url" name="founderImage" value="'+esc(settings.founderImage||'')+'" placeholder="Upload a high-resolution portrait below" readonly>'+mediaUploadBox('input[name="founderImage"]','',settings.founderImage||'','',false)+'</div></div></section><section class="panel" style="margin-top:16px"><div class="panel-title"><div><h3>Team members</h3><p>Use a clear high-resolution photo, real name, job title and short biography. Photos upload directly—no image URL required.</p></div><span class="pill">'+items.length+' profiles</span></div><div id="teamMembers">'+teamMembersHtml(items)+'</div><div class="form-actions"><button type="button" class="secondary" data-action="go-site">Back to website content</button><button type="submit" class="primary">Save team & publish ↗</button></div></section></form>';
  var badge=document.getElementById('teamBadge');if(badge)badge.textContent=items.length?String(items.length):'';
 }
 function refreshTeamOrder(){
@@ -268,8 +268,16 @@ view.addEventListener('submit',async function(e){
    e.preventDefault();
    var members=Array.prototype.slice.call(f.querySelectorAll('.team-editor')).map(function(m,i){return{id:m.querySelector('[data-team-id]').value||('member-'+(i+1)),name:m.querySelector('[data-team-name]').value.trim(),role:m.querySelector('[data-team-role]').value.trim(),bio:m.querySelector('[data-team-bio]').value.trim(),imageUrl:m.querySelector('[data-team-image]').value.trim(),visible:m.querySelector('[data-team-visible]').checked}}).filter(function(m){return m.name&&m.role});
    if(members.length>30)return toast('You can manage up to 30 team profiles.',true);
-   var savedTeam=await api('/admin/site',{method:'PATCH',body:{settings:{teamMembers:members}}});
-   settings=savedTeam.settings||settings;toast('Team profiles saved and published.');return loadTeam();
+   var teamSettings={
+    teamMembers:members,
+    founderName:f.elements.founderName.value.trim(),
+    founderRole:f.elements.founderRole.value.trim(),
+    founderBio:f.elements.founderBio.value.trim(),
+    founderImage:f.elements.founderImage.value.trim()
+   };
+   if(!teamSettings.founderName||!teamSettings.founderRole)return toast('Founder name and role are required.',true);
+   var savedTeam=await api('/admin/site',{method:'PATCH',body:{settings:teamSettings}});
+   settings=savedTeam.settings||settings;toast('Founder and team profiles saved and published.');return loadTeam();
   }else if(f.id==='serviceForm'){
    e.preventDefault();var data=servicePayload(f);if(editingService)await api('/admin/services/'+editingService.id,{method:'PATCH',body:data});else await api('/admin/services',{method:'POST',body:data});toast('Service saved.');editingService=null;await loadServices();
   }else if(f.id==='blogForm'){
