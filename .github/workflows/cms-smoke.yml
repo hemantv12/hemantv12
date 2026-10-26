@@ -102,6 +102,10 @@ jobs:
           curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/assets/motion-system.js" >/dev/null
           curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/assets/visitor-analytics.js" >/tmp/cms-visitor-analytics.js
           node --check /tmp/cms-visitor-analytics.js
+          if grep -qi 'free growth plan' /tmp/cms-visitor-analytics.js; then echo "Non-paid/free-plan CTA copy must not ship."; exit 1; fi
+          grep -Fq 'Discuss your project' /tmp/cms-visitor-analytics.js
+          grep -Fq "I%27d%20like%20to%20discuss%20a%20project" /tmp/cms-visitor-analytics.js
+          if grep -qi 'free-plan conversion form opens' rti-growth-studio/admin/admin.js; then echo "Outdated admin conversion label still present."; exit 1; fi
           curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/assets/conversion-system.css" >/tmp/cms-conversion-system.css
           grep -q 'max-width:560px' /tmp/cms-conversion-system.css
           grep -q 'Mobile-first finish' rti-growth-studio/assets/aa-studio.css
