@@ -3,7 +3,7 @@ var root=document.documentElement,body=document.body;
 if(!body)return;
 if(location.pathname!=='/admin'&&location.pathname.indexOf('/admin/')!==0&&!window.__aaVisitorAnalyticsLoader){
  window.__aaVisitorAnalyticsLoader=true;
- var visitorScript=document.createElement('script');visitorScript.src='/assets/visitor-analytics.js';visitorScript.async=true;document.head.appendChild(visitorScript);
+ var visitorScript=document.createElement('script');visitorScript.src='/assets/visitor-analytics.js?v=20261027-final1';visitorScript.async=true;document.head.appendChild(visitorScript);
 }
 var reduce=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 root.classList.add('motion-enhanced');if(reduce){root.classList.add('motion-reduced');return}

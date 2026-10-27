@@ -48,3 +48,39 @@ body.aa-conversion-open{overflow:hidden}
  .aa-conversion-card{padding-left:12px;padding-right:12px}
  .aa-conversion-card h2{font-size:25px}
 }
+
+/* Site-wide conversion and responsive recovery — loaded on every public page */
+.aa-lead-status{min-width:0;overflow-wrap:anywhere}
+.aa-lead-fallbacks{display:flex;flex-wrap:wrap;align-items:center;gap:9px;margin-top:11px}
+.aa-lead-fallbacks a{display:inline-flex;align-items:center;justify-content:center;min-height:42px;padding:9px 12px;border:1px solid #aab393;border-radius:10px;color:#26321b;font-size:11px;font-weight:850;text-decoration:none;background:#eef3df}
+.aa-lead-fallbacks a:hover{background:#dfeabf;border-color:#7d9447}
+@media(max-width:760px){
+ html,body{max-width:100%;overflow-x:clip}
+ main,header,footer,section,article,aside,nav,.wrap{min-width:0;max-width:100%}
+ .aa-page-hero{padding-top:52px;padding-bottom:38px}
+ .aa-page-content{padding-top:36px;padding-bottom:60px}
+ .aa-page-grid,.aa-split,.service-hero-grid,.process-grid,.work-grid,.team-grid,.aa-metric-grid,.services-grid{grid-template-columns:minmax(0,1fr)!important}
+ .work-card.wide{grid-column:auto;grid-template-columns:minmax(0,1fr)}
+ .work-card.wide .work-art,.work-art{min-height:230px}
+ .team-card.founder-card{grid-column:auto}
+ .team-portrait,.team-photo{height:clamp(220px,72vw,360px);min-height:0}
+ .aa-metric-grid{grid-template-columns:minmax(0,1fr)!important}
+ .aa-metric{border-right:0;border-bottom:1px solid var(--line)}
+ .aa-metric:last-child{border-bottom:0}
+ .aa-contact-inline{flex-direction:column;align-items:stretch;gap:12px;padding:18px}
+ .aa-contact-inline>*{min-width:0;max-width:100%}
+ .aa-contact-inline .btn,.aa-page-content .btn,.service-hero .btn{width:100%;white-space:normal;min-height:46px}
+ .contact-panel{grid-template-columns:minmax(0,1fr)}
+ .fields{grid-template-columns:minmax(0,1fr)}
+ .site-footer{padding-bottom:calc(118px + env(safe-area-inset-bottom))}
+ .site-footer .footer-main,.site-footer .footer-legal{align-items:flex-start;flex-direction:column;gap:12px}
+ .site-footer .footer-links{display:flex;flex-wrap:wrap;gap:12px 16px}
+ .aa-lead-fallbacks a{flex:1 1 135px}
+}
+@media(max-width:380px){
+ .aa-conversion-card{padding-left:12px;padding-right:12px}
+ .aa-conversion-card h2{font-size:clamp(24px,7.5vw,28px)}
+ .aa-dock-copy strong{font-size:11px}
+ .aa-lead-fallbacks{flex-direction:column;align-items:stretch}
+ .aa-lead-fallbacks a{width:100%}
+}

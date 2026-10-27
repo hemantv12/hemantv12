@@ -76,15 +76,34 @@ function firstTouch(){
 function newEventId(){try{if(window.crypto&&crypto.randomUUID)return crypto.randomUUID()}catch(e){}return 'lead-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2)}
 function installConversionExperience(){
  if(!document.body||document.getElementById('aaConversionDock')||location.pathname==='/admin'||location.pathname.indexOf('/admin/')===0)return;
- var css=document.createElement('link');css.rel='stylesheet';css.href='/assets/conversion-system.css';document.head.appendChild(css);
+ var css=document.createElement('link');css.rel='stylesheet';css.href='/assets/conversion-system.css?v=20261027-final1';document.head.appendChild(css);
  var dock=document.createElement('aside');dock.id='aaConversionDock';dock.className='aa-conversion-dock';dock.setAttribute('aria-label','Contact AA Growth Studio');
  dock.innerHTML="<div class='aa-dock-copy'><span class='aa-dock-kicker'>YOUR NEXT MOVE</span><strong>Let's move your business forward.</strong><small>Tell us your goals. We'll discuss scope, timeline and pricing.</small></div><button type='button' class='aa-dock-primary' data-aa-convert>Discuss your project <span aria-hidden='true'>↗</span></button><a class='aa-dock-whatsapp' href='https://wa.me/917466039959?text=Hi%20AA%20Growth%20Studio%2C%20I%27d%20like%20to%20discuss%20a%20project%20for%20my%20business.%20Please%20share%20your%20services%2C%20process%20and%20pricing.' target='_blank' rel='noopener noreferrer' aria-label='Chat with AA Growth Studio on WhatsApp'>WhatsApp ↗</a><a class='aa-dock-call' href='tel:+917466039959' aria-label='Call AA Growth Studio'>Call</a>";
  var modal=document.createElement('div');modal.id='aaConversionModal';modal.className='aa-conversion-modal';modal.hidden=true;modal.setAttribute('aria-hidden','true');
  modal.innerHTML="<div class='aa-conversion-backdrop' data-aa-close></div><section class='aa-conversion-card' role='dialog' aria-modal='true' aria-labelledby='aaLeadTitle'><button type='button' class='aa-conversion-close' data-aa-close aria-label='Close'>×</button><div class='aa-conversion-eyebrow'>AA GROWTH STUDIO / START HERE</div><h2 id='aaLeadTitle'>Let's discuss your <em>next project.</em></h2><p class='aa-conversion-intro'>Tell us what you need. We'll review your enquiry and follow up to discuss scope, timelines and pricing.</p><form id='aaQuickLeadForm'><div class='aa-lead-grid'><label>Your name *<input name='name' autocomplete='name' maxlength='120' required placeholder='Name'></label><label>Mobile / WhatsApp *<input name='mobile_number' type='tel' inputmode='tel' autocomplete='tel' maxlength='32' required placeholder='+91…'></label><label class='aa-lead-full'>Business email (optional)<input name='email' type='email' autocomplete='email' maxlength='250' placeholder='you@business.com'></label><label class='aa-lead-full'>What do you need? *<select name='service' required><option value=''>Choose one</option><option>Meta Ads & lead generation</option><option>Social media management</option><option>Video, reels & creative</option><option>Branding & graphic design</option><option>Website / app development</option><option>Growth strategy</option><option>Other / not sure yet</option></select></label><label class='aa-lead-full'>Main goal (optional)<textarea name='goal' maxlength='1500' rows='2' placeholder='More qualified leads, stronger brand, better website…'></textarea></label></div><label class='aa-consent-row'><input type='checkbox' name='meta_consent' value='yes'><span>Allow Meta ad-conversion measurement for this enquiry (optional). This does not subscribe you to marketing messages.</span></label><button class='aa-lead-submit' type='submit'>Send my enquiry <span aria-hidden='true'>↗</span></button><p class='aa-lead-status' id='aaLeadStatus' role='status' aria-live='polite'></p><small class='aa-lead-privacy'>Your details go to the studio enquiry dashboard and are used to respond to this request.</small></form></section>";
  document.body.appendChild(dock);document.body.appendChild(modal);
+ function normalizeContactPhone(value){var digits=String(value||'').replace(/\D/g,'');if(digits.length===10)digits='91'+digits;return digits.length>=8&&digits.length<=15?digits:''}
+ var activePhoneDigits=normalizeContactPhone('+91 74660 39959');
+ var dockWhatsApp=dock.querySelector('.aa-dock-whatsapp'),dockCall=dock.querySelector('.aa-dock-call');
+ function updateContactLinks(value){
+  var digits=normalizeContactPhone(value);
+  activePhoneDigits=digits;
+  if(!digits){dockWhatsApp.hidden=true;dockCall.hidden=true;return}
+  var genericMessage='Hi AA Growth Studio, I would like to discuss a project for my business. Please share your services, process and pricing.';
+  dockWhatsApp.href='https://wa.me/'+digits+'?text='+encodeURIComponent(genericMessage);
+  dockCall.href='tel:+'+digits;dockWhatsApp.hidden=false;dockCall.hidden=false;
+ }
+ updateContactLinks(activePhoneDigits);
+ fetch(API_BASE+'/public/site',{cache:'no-store'}).then(function(r){if(!r.ok)throw new Error('Contact settings unavailable');return r.json()}).then(function(data){if(data&&data.settings&&Object.prototype.hasOwnProperty.call(data.settings,'contactPhone'))updateContactLinks(data.settings.contactPhone)}).catch(function(){});
+
  function closeModal(){modal.hidden=true;modal.setAttribute('aria-hidden','true');document.body.classList.remove('aa-conversion-open')}
  function openModal(){modal.hidden=false;modal.setAttribute('aria-hidden','false');document.body.classList.add('aa-conversion-open');send('conversion_modal_open','project enquiry form');var card=modal.querySelector('.aa-conversion-card');modal.scrollTop=0;if(card)card.scrollTop=0;window.requestAnimationFrame(function(){modal.scrollTop=0;if(card)card.scrollTop=0;var x=modal.querySelector("input[name='name']");if(x){try{x.focus({preventScroll:true})}catch(e){x.focus()}}})}
  dock.querySelector('[data-aa-convert]').addEventListener('click',function(){send('cta_click','discuss your project');openModal()});
+ document.querySelectorAll('a.nav-cta,a.home-primary-cta,a.btn[href*="contact"],.aa-contact-inline a.btn').forEach(function(trigger){
+  var label=String(trigger.innerText||trigger.getAttribute('aria-label')||'').trim();
+  if(/explore|view work|case study|read more|learn more|all services|portfolio/i.test(label))return;
+  if(/project|start|discuss|build|growth|contact|talk|enquir|quote|brief|strategy|let'?s|work with|services/i.test(label))trigger.setAttribute('data-aa-open-lead','1');
+ });
  document.querySelectorAll('[data-aa-open-lead]').forEach(function(trigger){trigger.addEventListener('click',function(e){e.preventDefault();send('cta_click','primary page project CTA');openModal()})});
  modal.querySelectorAll('[data-aa-close]').forEach(function(x){x.addEventListener('click',closeModal)});
  document.addEventListener('keydown',function(e){if(e.key==='Escape'&&!modal.hidden)closeModal()});
@@ -92,6 +111,17 @@ function installConversionExperience(){
  dock.querySelector('.aa-dock-call').addEventListener('click',function(){send('call_click','sticky contact CTA')});
  function fbCookie(name){var parts=document.cookie.split(';');for(var i=0;i<parts.length;i++){var p=parts[i].trim();if(p.indexOf(name+'=')===0){try{return decodeURIComponent(p.slice(name.length+1))}catch(e){return ''}}}return ''}
  var form=modal.querySelector('#aaQuickLeadForm');
+ function showSaveError(status,error){
+  status.className='aa-lead-status is-error';status.replaceChildren();
+  var msg=document.createElement('span'),detail=String(error&&error.message||'Could not save your enquiry. Please try again.');
+  msg.textContent=/API route not found/i.test(detail)?'The enquiry service did not respond correctly. Your details are still in the form; try WhatsApp below or submit again.':detail+' Your details are still in the form.';
+  status.appendChild(msg);
+  if(!activePhoneDigits)return;
+  var actions=document.createElement('div');actions.className='aa-lead-fallbacks';
+  var wa=document.createElement('a');wa.href='https://wa.me/'+activePhoneDigits+'?text='+encodeURIComponent('Hi AA Growth Studio, I tried submitting an enquiry on your website but the form did not connect. Please help me discuss my project.');wa.target='_blank';wa.rel='noopener noreferrer';wa.textContent='Continue on WhatsApp ↗';wa.addEventListener('click',function(){send('whatsapp_click','lead form save fallback')});
+  var call=document.createElement('a');call.href='tel:+'+activePhoneDigits;call.textContent='Call the studio';call.addEventListener('click',function(){send('call_click','lead form save fallback')});
+  actions.appendChild(wa);actions.appendChild(call);status.appendChild(actions);
+ }
  form.addEventListener('submit',async function(e){
   e.preventDefault();var button=form.querySelector('.aa-lead-submit'),status=modal.querySelector('#aaLeadStatus'),fd=new FormData(form),touch=firstTouch(),eventId=newEventId();
   var payload={name:fd.get('name'),email:fd.get('email'),mobile_number:fd.get('mobile_number'),company:'',service:fd.get('service'),goal:fd.get('goal'),source:touch.source,utm_source:touch.utm_source,utm_medium:touch.utm_medium,utm_campaign:touch.utm_campaign,landing_page:touch.landing_page,referrer_host:touch.referrer_host,current_page:location.pathname,visitor_session_id:sid,event_id:eventId,meta_consent:fd.get('meta_consent')==='yes',fbp:fbCookie('_fbp'),fbc:fbCookie('_fbc')||(touch.fbclid&&/^[A-Za-z0-9._-]{1,300}$/.test(touch.fbclid)?'fb.1.'+Date.now()+'.'+touch.fbclid:'')};
@@ -103,7 +133,7 @@ function installConversionExperience(){
    form.reset();
    if(payload.meta_consent&&data.pixelId)loadMetaPixel(data.pixelId,eventId);
    button.textContent='Enquiry received ✓';window.setTimeout(closeModal,3600);
-  }catch(err){status.className='aa-lead-status is-error';status.textContent=err.message||'Could not save. Please try again or use WhatsApp.';button.disabled=false;button.innerHTML='Send my enquiry <span aria-hidden="true">↗</span>'}
+  }catch(err){showSaveError(status,err);button.disabled=false;button.innerHTML='Send my enquiry <span aria-hidden="true">↗</span>'}
  });
 }
 function loadMetaPixel(pixelId,eventId){

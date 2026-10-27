@@ -107,6 +107,10 @@ jobs:
           grep -q 'max-width:560px' /tmp/cms-conversion-system.css
           grep -q 'Mobile-first finish' rti-growth-studio/assets/aa-studio.css
           grep -q 'Mobile touch layouts' rti-growth-studio/admin/admin.css
+          grep -q 'Site-wide conversion and responsive recovery' rti-growth-studio/assets/conversion-system.css
+          grep -Fq 'function normalizeContactPhone' rti-growth-studio/assets/visitor-analytics.js
+          grep -Fq 'Continue on WhatsApp' rti-growth-studio/assets/visitor-analytics.js
+          grep -Fq 'visitorScript.src=.*/assets/visitor-analytics.js?v=20261027-final1' rti-growth-studio/assets/motion-system.js
           grep -Fq "var ANALYTICS_API=API_BASE+'/public/analytics/collect'" /tmp/cms-visitor-analytics.js
           grep -Fq "fetch(ANALYTICS_API" /tmp/cms-visitor-analytics.js
           grep -Fq "fetch(API_BASE+'/public/enquiries'" /tmp/cms-visitor-analytics.js
