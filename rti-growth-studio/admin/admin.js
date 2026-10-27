@@ -38,46 +38,61 @@ async function api(path,options){
  if(!res.ok)throw new Error(data.error||'Request failed. Please try again.');return data;
 }
 function formatBytes(n){return n<1024*1024?Math.max(1,Math.round(n/1024))+' KB':(n/1024/1024).toFixed(1)+' MB'}
-function mediaPreviewMarkup(imageUrl,videoUrl){var h='';if(imageUrl)h+='<img src="'+esc(imageUrl)+'" alt="Image preview" loading="lazy">';if(videoUrl)h+='<video src="'+esc(videoUrl)+'" controls muted playsinline preload="metadata"></video>';return h}
+function mediaPreviewMarkup(imageUrl,videoUrl){var h='';if(imageUrl)h+='<img src="'+esc(imageUrl)+'" alt="Image preview" loading="lazy" decoding="async">';if(videoUrl)h+='<video src="'+esc(videoUrl)+'" controls muted playsinline preload="metadata"></video>';return h}
 function mediaUploadBox(inputSelector,videoSelector,imageUrl,videoUrl,allowVideo){
  var accept='image/jpeg,image/png,image/webp,image/gif'+(allowVideo?',video/mp4,video/webm':'');
- return '<div class="media-upload" data-media-upload data-input-selector="'+esc(inputSelector)+'" data-video-selector="'+esc(videoSelector||'')+'" data-allow-video="'+(allowVideo?'true':'false')+'"><label class="upload-dropzone" tabindex="0"><input class="media-file" type="file" accept="'+accept+'" hidden><span class="upload-icon">↑</span><strong>Drop a file here or click to browse</strong><small>JPG · PNG · WebP · GIF'+(allowVideo?' · MP4 · WebM':'')+' · Images up to 8 MB'+(allowVideo?' · Video up to 15 MB':'')+'</small></label><div class="media-upload-progress" role="status"></div><div class="media-preview">'+mediaPreviewMarkup(imageUrl,videoUrl)+'</div></div>';
+ return '<div class="media-upload" data-media-upload data-input-selector="'+esc(inputSelector)+'" data-video-selector="'+esc(videoSelector||'')+'" data-allow-video="'+(allowVideo?'true':'false')+'"><label class="upload-dropzone" tabindex="0"><input class="media-file" type="file" accept="'+accept+'" hidden><span class="upload-icon">↑</span><strong>Upload an original photo</strong><small>JPG · PNG · WebP · GIF'+(allowVideo?' · MP4 · WebM':'')+' · Images up to 8 MB'+(allowVideo?' · Video up to 15 MB':'')+'</small><small>For team portraits, use the original photo at 800 × 1000 px or larger.</small></label><div class="media-upload-progress" role="status" aria-live="polite"></div><div class="media-preview">'+mediaPreviewMarkup(imageUrl,videoUrl)+'</div><div class="media-upload-tools"><button type="button" class="mini-action clear-media-field" data-action="clear-media-field">Clear selected media</button></div></div>';
+}
+async function readImageDimensions(file){
+ if(!file||!String(file.type||'').startsWith('image/'))return null;
+ if(typeof createImageBitmap==='function'){
+  try{var bitmap=await createImageBitmap(file),d={width:bitmap.width,height:bitmap.height};if(bitmap.close)bitmap.close();return d}catch(e){}
+ }
+ return new Promise(function(resolve){var url=URL.createObjectURL(file),img=new Image(),done=false;function finish(d){if(done)return;done=true;URL.revokeObjectURL(url);resolve(d)}img.onload=function(){finish({width:img.naturalWidth,height:img.naturalHeight})};img.onerror=function(){finish(null)};img.src=url});
+}
+function uploadImageRequest(file,mime,progress){
+ return new Promise(function(resolve,reject){
+  var xhr=new XMLHttpRequest();xhr.open('POST',API+'/admin/media?name='+encodeURIComponent(file.name),true);xhr.setRequestHeader('Authorization','Bearer '+token);xhr.setRequestHeader('Content-Type',mime);xhr.timeout=90000;
+  xhr.upload.onprogress=function(e){if(progress&&e.lengthComputable){var pct=Math.max(1,Math.min(99,Math.round(e.loaded/e.total*100)));progress.textContent='Uploading original image… '+pct+'%'}};
+  xhr.onload=function(){var data={};try{data=JSON.parse(xhr.responseText||'{}')}catch(e){}if(xhr.status<200||xhr.status>=300){reject(new Error(data.error||('Upload failed (HTTP '+xhr.status+'). Please retry.')));return}resolve(data)};
+  xhr.onerror=function(){reject(new Error('Network interrupted the upload. Check your connection and try again.'))};
+  xhr.ontimeout=function(){reject(new Error('Upload timed out. Try a smaller JPG/WebP or reconnect to a stronger network.'))};
+  xhr.onabort=function(){reject(new Error('Upload was cancelled.'))};xhr.send(file);
+ });
 }
 async function uploadMediaFile(file,box){
  if(!file||!box||box.dataset.uploading==='true')return;
- var mime=file.type||(/\.jpe?g$/i.test(file.name)?'image/jpeg':/\.png$/i.test(file.name)?'image/png':/\.webp$/i.test(file.name)?'image/webp':/\.gif$/i.test(file.name)?'image/gif':/\.mp4$/i.test(file.name)?'video/mp4':/\.webm$/i.test(file.name)?'video/webm':''),isVideo=mime.indexOf('video/')===0,max=isVideo?15*1024*1024:8*1024*1024,progress=box.querySelector('.media-upload-progress'),drop=box.querySelector('.upload-dropzone');
+ var extension=String(file.name||'').toLowerCase(),fallback=/\.jpe?g$/.test(extension)?'image/jpeg':/\.png$/.test(extension)?'image/png':/\.webp$/.test(extension)?'image/webp':/\.gif$/.test(extension)?'image/gif':/\.mp4$/.test(extension)?'video/mp4':/\.webm$/.test(extension)?'video/webm':'';
+ var supported=['image/jpeg','image/png','image/webp','image/gif','video/mp4','video/webm'],mime=supported.includes(file.type)?file.type:fallback,isVideo=String(mime).indexOf('video/')===0,max=isVideo?15*1024*1024:8*1024*1024,progress=box.querySelector('.media-upload-progress'),drop=box.querySelector('.upload-dropzone');
+ if(!supported.includes(mime)){if(progress)progress.textContent='Unsupported format. Choose JPG, PNG, WebP or GIF.'+(box.dataset.allowVideo==='true'?' Video fields also accept MP4/WebM.':'');return}
  if(isVideo&&box.dataset.allowVideo!=='true'){if(progress)progress.textContent='This field accepts images only.';return}
- if(!['image/jpeg','image/png','image/webp','image/gif','video/mp4','video/webm'].includes(mime)){if(progress)progress.textContent='Choose a JPG, PNG, WebP, GIF, MP4 or WebM file.';return}
- if(file.size>max){if(progress)progress.textContent=isVideo?'Video must be 15 MB or less.':'Image must be 8 MB or less.';return}
- box.dataset.uploading='true';if(drop)drop.classList.add('is-uploading');if(progress)progress.textContent='Uploading '+file.name+'…';
+ if(file.size>max){if(progress)progress.textContent=isVideo?'Video must be 15 MB or less.':'Image must be 8 MB or less. Please use a compressed original, not a screenshot of the image.';return}
+ box.dataset.uploading='true';if(drop)drop.classList.add('is-uploading');if(progress)progress.textContent='Checking image dimensions…';
  var savedAsset=null;
  try{
-  var res=await fetch(API+'/admin/media?name='+encodeURIComponent(file.name),{method:'POST',headers:{'Authorization':'Bearer '+token,'Content-Type':mime},body:file}),data={};try{data=await res.json()}catch(e){}
-  if(!res.ok)throw new Error(data.error||'Upload failed. Try again.');
-  if(!data.asset||!data.asset.url)throw new Error('The server saved the upload but did not return its media URL. Refresh the media library.');
+  if(!isVideo){
+   var dims=await readImageDimensions(file);
+   if(dims){
+    if(dims.width<600||dims.height<600){if(progress)progress.textContent='Warning: '+dims.width+' × '+dims.height+' px is small and may look soft. Uploading original…'}
+    else if(progress)progress.textContent='Original photo · '+dims.width+' × '+dims.height+' px · preparing upload…';
+   }
+  }
+  if(progress)progress.textContent='Uploading original file… 0%';
+  var data=await uploadImageRequest(file,mime,progress);
+  if(!data.asset||!data.asset.url||!data.asset.id)throw new Error('The server did not return the saved media ID. Refresh the Media Library and check before uploading again.');
   savedAsset=data.asset;
   var root=box.closest('.collection-editor')||box.closest('form')||view,sel=isVideo?box.dataset.videoSelector:box.dataset.inputSelector;
   function findField(selector){if(!selector)return null;try{return(root&&root.querySelector(selector))||view.querySelector(selector)||null}catch(e){return null}}
   var target=findField(sel);
-  if(!target){
-   if(progress)progress.textContent='Upload saved to the media library. Refresh this editor to attach the file.';
-   toast('Upload saved to the media library. Refresh this editor to attach the file.');
-   return;
-  }
-  target.value=savedAsset.id ? API+'/public/media/'+encodeURIComponent(savedAsset.id) : savedAsset.url;
+  if(!target){if(progress)progress.textContent='Uploaded successfully to Media Library. Open this editor again to attach it.';toast('Upload saved to Media Library.');return}
+  target.value=API+'/public/media/'+encodeURIComponent(savedAsset.id);
   var im=findField(box.dataset.inputSelector),vi=findField(box.dataset.videoSelector),preview=box.querySelector('.media-preview');
   if(preview)preview.innerHTML=mediaPreviewMarkup(im?im.value:'',vi?vi.value:'');
-  if(progress)progress.textContent='Saved to the studio media library · '+formatBytes(file.size);
-  toast(isVideo?'Video uploaded. Save website content to publish it.':'Image uploaded. Save website content to publish it.');
+  if(progress)progress.textContent='Uploaded successfully · '+formatBytes(file.size)+' · remember to save this profile/page.';
+  toast(isVideo?'Video uploaded. Save your changes to publish it.':'Original photo uploaded. Save your changes to publish it.');
  }catch(err){
-  if(savedAsset){
-   if(progress)progress.textContent='Upload saved to the media library. Refresh the editor if the preview did not update.';
-   toast(isVideo?'Video uploaded and saved.':'Image uploaded and saved.');
-   console.warn('Media upload succeeded; editor refresh needs attention:',err);
-  }else{
-   if(progress)progress.textContent=err.message;
-   toast(err.message,true);
-  }
+  if(savedAsset){if(progress)progress.textContent='Upload succeeded, but the editor could not attach the URL. Refresh this editor before retrying.';toast('Media was uploaded; check the Media Library before trying again.',true)}
+  else{if(progress)progress.textContent=err.message;toast(err.message,true)}
  }finally{box.dataset.uploading='false';if(drop)drop.classList.remove('is-uploading')}
 }
 function navActive(key){document.querySelectorAll('.nav-item').forEach(function(b){b.classList.toggle('active',b.dataset.view===key)});document.getElementById('pageTitle').textContent=titles[key]||'Studio admin'}
@@ -145,9 +160,9 @@ function renderServiceForm(s){
  '<form id="serviceForm"><section class="panel"><div class="field-grid"><div class="field"><label>Service title *</label><input name="title" required maxlength="150" value="'+esc(s.title)+'"></div><div class="field"><label>URL slug (auto from title)</label><input name="slug" value="'+esc(s.slug)+'" maxlength="100" placeholder="e.g. social-media"></div><div class="field"><label>Category / label</label><input name="category" value="'+esc(s.category)+'" maxlength="80"></div><div class="field"><label>Icon / symbol</label><input name="icon" value="'+esc(s.icon)+'" maxlength="12" placeholder="↗"></div><div class="field full"><label>Short description *</label><textarea name="short_description" required maxlength="800">'+esc(s.short_description)+'</textarea></div><div class="field full"><label>Long description / internal notes</label><textarea name="detail_text" maxlength="4000">'+esc(s.detail_text)+'</textarea></div><div class="field"><label>Card link (website path or HTTPS URL)</label><input name="href" value="'+esc(s.href||'/contact/')+'" placeholder="/contact/"></div><div class="field full"><label>Uploaded service artwork URL</label><input name="image_url" type="url" value="'+esc(s.image_url)+'" placeholder="Upload an image below" readonly>'+mediaUploadBox('input[name="image_url"]','',s.image_url||'','',false)+'</div><div class="field"><label>Sort order</label><input type="number" name="sort_order" value="'+esc(s.sort_order)+'"></div></div><label class="check-row"><input type="checkbox" name="visible" '+(s.visible!==false?'checked':'')+'> Show this service on the public homepage</label><div class="form-actions"><button type="button" class="secondary" data-action="cancel-service">Back to services</button><button class="primary" type="submit">Save service <span>↗</span></button></div></section></form>';
 }
 async function loadMedia(){
- var d=await api('/admin/media'),assets=d.assets||[],html=pageHeading('Media library','Your uploaded images and videos live in the studio database and stay available after deployments. Upload media from Website content, Services or Blog editors.','<span class="pill ok">'+assets.length+' assets</span>');
+ var d=await api('/admin/media'),assets=d.assets||[],html=pageHeading('Media library','Manage uploaded photos and videos. Delete is disabled by the server while a file is still used on the website.','<span class="pill ok">'+assets.length+' assets</span>');
  html+='<section class="panel"><div class="media-library-grid">';
- html+=assets.length?assets.map(function(x){var video=String(x.mimeType||'').indexOf('video/')===0,preview=video?'<video src="'+esc(x.url)+'" controls muted playsinline preload="metadata"></video>':'<img src="'+esc(x.url)+'" alt="'+esc(x.name)+'" loading="lazy">';return '<article class="media-library-card"><div class="media-library-preview">'+preview+'</div><div class="media-library-meta"><strong>'+esc(x.name)+'</strong><span>'+esc(x.mimeType)+' · '+formatBytes(x.size)+'</span><small>'+esc(fmtDate(x.createdAt))+'</small></div><a class="secondary media-open" href="'+esc(x.url)+'" target="_blank" rel="noopener">Open asset ↗</a></article>'}).join(''):'<div class="empty media-empty">No uploads yet. Open Website content and drop your first photo or video into a work, team or founder upload box.</div>';
+ html+=assets.length?assets.map(function(x){var video=String(x.mimeType||'').indexOf('video/')===0,preview=video?'<video src="'+esc(x.url)+'" controls muted playsinline preload="metadata"></video>':'<img src="'+esc(x.url)+'" alt="'+esc(x.name)+'" loading="lazy" decoding="async">';return '<article class="media-library-card"><div class="media-library-preview">'+preview+'</div><div class="media-library-meta"><strong>'+esc(x.name)+'</strong><span>'+esc(x.mimeType)+' · '+formatBytes(x.size)+'</span><small>'+esc(fmtDate(x.createdAt))+'</small></div><div class="media-library-actions"><a class="secondary media-open" href="'+esc(x.url)+'" target="_blank" rel="noopener">Open asset ↗</a>'+btn('Delete','delete-media:'+x.id,'secondary danger')+'</div></article>'}).join(''):'<div class="empty media-empty">No uploads yet. Open Team management or Website content and upload the original photo directly.</div>';
  html+='</div></section>';view.innerHTML=html;
 }
 async function loadBlogs(){var d=await api('/admin/blogs');posts=d.posts||[];document.getElementById('blogBadge').textContent=posts.length;var html=pageHeading('Blog & articles','Write drafts, edit posts and publish insights to the public blog page.',btn('＋ Write an article','new-blog','primary'))+'<div class="section-tabs"><span class="pill">All posts · '+posts.length+'</span><span class="pill ok">Published · '+posts.filter(function(p){return p.status==='published'}).length+'</span><span class="pill draft">Drafts · '+posts.filter(function(p){return p.status==='draft'}).length+'</span></div><div class="blog-admin-list">';
@@ -238,7 +253,9 @@ document.getElementById('sideNav').addEventListener('click',function(e){var b=e.
 view.addEventListener('click',async function(e){
  var b=e.target.closest('[data-action]');if(!b)return;var a=b.dataset.action;
  try{
-  if(a==='go-marketing')return showView('marketing');if(a==='refresh-marketing')return loadMarketing();if(a==='connect-meta'){var metaConnect=await api('/admin/meta/connect-url',{method:'POST'});window.location.href=metaConnect.url;return}if(a==='sync-meta'){var syncMeta=await api('/admin/meta/sync',{method:'POST',body:{}});toast(syncMeta.message||'Meta account synced.');return loadMarketing()}if(a==='disconnect-meta'){if(!confirm('Disconnect the saved Facebook and Instagram connection?'))return;await api('/admin/meta/disconnect',{method:'POST',body:{}});toast('Meta account disconnected.');return loadMarketing()}if(a==='copy-meta-redirect'){var metaStatus=await api('/admin/meta/status');await copyPlainText(metaStatus.redirectUri||'');toast('OAuth redirect URI copied.');return}if(a==='go-site')return showView('site');if(a==='go-visitors')return showView('visitors');if(a==='refresh-visitors')return loadVisitors(currentVisitorRange);if(a==='go-enquiries')return showView('enquiries');if(a==='go-overview')return showView('overview');if(a==='go-growth')return showView('growth');if(a==='refresh-growth')return loadGrowth();if(a==='refresh-enquiries')return loadEnquiries();if(a==='export-enquiries')return exportEnquiriesCsv();if(a==='go-blogs')return showView('blogs');if(a==='copy-followup'){var lead=enquiries.find(function(x){return String(x.id)===String(b.dataset.id)});if(!lead)throw new Error('Enquiry not found. Refresh inbox.');await copyPlainText(followupText(lead));toast('Follow-up copied. Review before sending.');return}if(a==='go-account')return showView('account');if(a==='retry')return showView(document.querySelector('.nav-item.active')?.dataset.view||'overview');
+  if(a==='go-marketing')return showView('marketing');if(a==='refresh-marketing')return loadMarketing();if(a==='connect-meta'){var metaConnect=await api('/admin/meta/connect-url',{method:'POST'});window.location.href=metaConnect.url;return}if(a==='sync-meta'){var syncMeta=await api('/admin/meta/sync',{method:'POST',body:{}});toast(syncMeta.message||'Meta account synced.');return loadMarketing()}if(a==='disconnect-meta'){if(!confirm('Disconnect the saved Facebook and Instagram connection?'))return;await api('/admin/meta/disconnect',{method:'POST',body:{}});toast('Meta account disconnected.');return loadMarketing()}if(a==='copy-meta-redirect'){var metaStatus=await api('/admin/meta/status');await copyPlainText(metaStatus.redirectUri||'');toast('OAuth redirect URI copied.');return}if(a==='clear-media-field'){var box=b.closest('[data-media-upload]');if(!box)return;var root=box.closest('.collection-editor')||box.closest('form')||view,selectors=[box.dataset.inputSelector,box.dataset.videoSelector].filter(Boolean);selectors.forEach(function(sel){try{var field=(root&&root.querySelector(sel))||view.querySelector(sel);if(field)field.value=''}catch(err){}});var preview=box.querySelector('.media-preview'),progress=box.querySelector('.media-upload-progress');if(preview)preview.innerHTML='';if(progress)progress.textContent='Media removed from this draft. Save changes to publish the removal.';toast('Media cleared from the draft. Save your changes.');return}
+  if(a.indexOf('delete-media:')===0){var mediaId=a.split(':')[1];if(!/^\d+$/.test(mediaId))throw new Error('Invalid media asset ID.');if(!confirm('Delete this uploaded file permanently? If the website is still using it, deletion will be blocked.'))return;await api('/admin/media/'+mediaId,{method:'DELETE'});toast('Media asset deleted.');return loadMedia()}
+  if(a==='go-site')return showView('site');if(a==='go-visitors')return showView('visitors');if(a==='refresh-visitors')return loadVisitors(currentVisitorRange);if(a==='go-enquiries')return showView('enquiries');if(a==='go-overview')return showView('overview');if(a==='go-growth')return showView('growth');if(a==='refresh-growth')return loadGrowth();if(a==='refresh-enquiries')return loadEnquiries();if(a==='export-enquiries')return exportEnquiriesCsv();if(a==='go-blogs')return showView('blogs');if(a==='copy-followup'){var lead=enquiries.find(function(x){return String(x.id)===String(b.dataset.id)});if(!lead)throw new Error('Enquiry not found. Refresh inbox.');await copyPlainText(followupText(lead));toast('Follow-up copied. Review before sending.');return}if(a==='go-account')return showView('account');if(a==='retry')return showView(document.querySelector('.nav-item.active')?.dataset.view||'overview');
   if(a==='new-service')return renderServiceForm(null);if(a==='new-blog')return renderBlogForm(null);
   if(a==='cancel-service')return showView('services');if(a==='cancel-blog')return showView('blogs');
   if(a==='add-portfolio'){var pbox=document.getElementById('portfolioItems'),pempty=document.getElementById('portfolioEmpty');if(pempty)pempty.remove();var pi=pbox.querySelectorAll('.portfolio-editor').length;pbox.insertAdjacentHTML('beforeend',portfolioEditor({id:'work-'+Date.now(),title:'',category:'CREATIVE',label:'Concept exploration',description:'',imageUrl:'',href:'/contact/',visible:true},pi));return}

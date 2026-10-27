@@ -32,6 +32,9 @@ jobs:
           node --check rti-growth-studio/assets/neon-rush.js
           node --check rti-growth-studio/assets/visitor-analytics.js
           node --check rti-growth-studio/admin/admin.js
+          grep -q "app.delete('/api/admin/media/:id'" studio-cms/server.js
+          grep -q 'delete-media:' rti-growth-studio/admin/admin.js
+          grep -q 'clear-media-field' rti-growth-studio/admin/admin.js
           echo "Backend, public-site and admin JavaScript syntax checks passed."
 
       - name: Wait for CMS API and validate public data

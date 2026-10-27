@@ -144,3 +144,14 @@ button,.nav-item,.mini-action,.secondary,.primary{min-height:42px}
 .team-editor .media-upload{margin-top:8px}
 .team-editor .media-preview img{max-height:220px;object-fit:contain;background:#f7f6f1}
 @media(max-width:760px){.team-order-actions{gap:4px}.team-order-actions button{padding:7px 8px}.team-editor .field-grid{grid-template-columns:minmax(0,1fr)}}
+
+/* Reliable uploads and clear media controls */
+.media-upload-tools{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin-top:8px}
+.clear-media-field{border-color:#ecd8d0;color:#944537;background:#fffdfc;min-height:36px}
+.clear-media-field:hover{background:#fff2ee;border-color:#daaa9d}
+.media-upload-progress{min-height:22px;font-size:11px;line-height:1.55;overflow-wrap:anywhere}
+.media-preview img,.media-preview video{width:min(180px,100%);height:auto;max-height:240px;aspect-ratio:4/5;object-fit:contain;background:#f5f4ee;padding:2px}
+.media-library-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:10px 12px 12px}
+.media-library-actions .media-open{margin:0;min-height:36px;display:inline-flex;align-items:center}
+.media-library-actions button{min-height:36px}
+@media(max-width:720px){.media-library-actions{align-items:stretch}.media-library-actions>*{flex:1 1 auto;justify-content:center}.media-upload-tools{justify-content:flex-start}.upload-dropzone{min-height:120px;touch-action:manipulation}}
