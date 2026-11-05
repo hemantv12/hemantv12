@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350">
  <defs><linearGradient id="shade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#141A14" stop-opacity=".94"/><stop offset=".52" stop-color="#141A14" stop-opacity=".58"/><stop offset="1" stop-color="#141A14" stop-opacity=".97"/></linearGradient></defs>
- <image href="https://images.pexels.com/photos/7289725/pexels-photo-7289725.jpeg?cs=srgb&dl=pexels-kampus-7289725.jpg&fm=jpg" x="0" y="0" width="1080" height="1350" preserveAspectRatio="xMidYMid slice"/><rect width="1080" height="1350" fill="url(#shade)"/><g transform="translate(48 40)">
+ <image href="https://images.pexels.com/photos/7289725/pexels-photo-7289725.jpeg?cs=srgb&amp;dl=pexels-kampus-7289725.jpg&amp;fm=jpg" x="0" y="0" width="1080" height="1350" preserveAspectRatio="xMidYMid slice"/><rect width="1080" height="1350" fill="url(#shade)"/><g transform="translate(48 40)">
 <rect width="88" height="88" rx="25" fill="#171D16" stroke="#D7F36B" stroke-opacity=".55" stroke-width="2"/>
 <path d="M14 55C8 34 29 12 50 14c16 1 27 11 27 26" fill="none" stroke="#D7F36B" stroke-width="2.3" stroke-linecap="round"/>
 <circle cx="76" cy="40" r="4" fill="#FF674D"/>
