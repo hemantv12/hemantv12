@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350">
+<defs>
+  <linearGradient id="shade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#141A14" stop-opacity=".96"/><stop offset=".52" stop-color="#141A14" stop-opacity=".60"/><stop offset="1" stop-color="#141A14" stop-opacity=".98"/></linearGradient>
+  <linearGradient id="lime" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#D7F36B"/><stop offset="1" stop-color="#A9D13D"/></linearGradient>
+</defs>
+<image href="https://images.pexels.com/photos/3931504/pexels-photo-3931504.jpeg?cs=srgb&amp;dl=pexels-olly-3931504.jpg&amp;fm=jpg" x="0" y="0" width="1080" height="1350" preserveAspectRatio="xMidYMid slice"/>
+<rect width="1080" height="1350" fill="url(#shade)"/>
+<g transform="translate(48 40)">
+  <rect width="88" height="88" rx="25" fill="#171D16" stroke="#D7F36B" stroke-opacity=".55" stroke-width="2"/>
+  <path d="M14 55C8 34 29 12 50 14c16 1 27 11 27 26" fill="none" stroke="#D7F36B" stroke-width="2.3" stroke-linecap="round"/>
+  <circle cx="76" cy="40" r="4" fill="#FF674D"/>
+  <path d="M18 65 33 26h9l16 39H46l-3-8H31l-3 8Z" fill="#F3EFE6"/>
+  <path d="M48 65 62 31h8l13 34H73l-2-7H60l-2 7Z" fill="#D7F36B"/>
+  <path d="M60 52h7l-3-8Z" fill="#171914"/>
+</g>
+<text x="154" y="75" fill="#FBF9F2" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="700" letter-spacing="1">AA GROWTH</text>
+<text x="155" y="106" fill="#D7F36B" font-family="Arial, Helvetica, sans-serif" font-size="17" font-weight="600" letter-spacing="3">STUDIO</text>
+<rect x="742" y="54" width="290" height="52" rx="18" fill="#283128" stroke="#D7F36B" stroke-opacity=".6" stroke-width="2"/>
+<text x="764" y="86" fill="#D7F36B" font-family="Arial, Helvetica, sans-serif" font-size="14" font-weight="700" letter-spacing="2">CONTENT SYSTEM</text>
+<text x="1007" y="86" text-anchor="end" fill="#FBF9F2" font-family="Arial, Helvetica, sans-serif" font-size="14">01 / 05</text>
+<path d="M48 150H1032" stroke="#D7F36B" stroke-opacity=".55" stroke-width="2"/>
+<text x="62" y="252" fill="#FBF9F2" font-family="Arial, Helvetica, sans-serif" font-size="82" font-weight="700">POST WITH</text>
+<text x="62" y="350" fill="url(#lime)" font-family="Arial, Helvetica, sans-serif" font-size="112" font-weight="800">PURPOSE.</text>
+<path d="M64 380H510" stroke="#FF674D" stroke-width="9" stroke-linecap="round"/>
+<text x="66" y="447" fill="#FBF9F2" font-family="Arial, Helvetica, sans-serif" font-size="27">A content plan should do more</text>
+<text x="66" y="486" fill="#FBF9F2" font-family="Arial, Helvetica, sans-serif" font-size="27">than fill a calendar.</text>
+<g transform="translate(64 620)">
+  <rect width="950" height="138" rx="26" fill="#283128" fill-opacity=".95" stroke="#D7F36B" stroke-opacity=".8" stroke-width="2"/>
+  <text x="32" y="40" fill="#D7F36B" font-family="Arial, Helvetica, sans-serif" font-size="17">01</text>
+  <text x="110" y="49" fill="#FBF9F2" font-family="Arial, Helvetica, sans-serif" font-size="29" font-weight="700">PROOF</text>
+  <text x="110" y="91" fill="#C8CCBE" font-family="Arial, Helvetica, sans-serif" font-size="21">Show the work. Share real evidence.</text>
+  <circle cx="872" cy="69" r="32" fill="none" stroke="#D7F36B" stroke-width="4"/>
+  <path d="M858 69h27m-10-10 10 10-10 10" fill="none" stroke="#D7F36B" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<g transform="translate(64 782)">
+  <rect width="950" height="138" rx="26" fill="#283128" fill-opacity=".95" stroke="#FF674D" stroke-width="2"/>
+  <text x="32" y="40" fill="#FF674D" font-family="Arial, Helvetica, sans-serif" font-size="17">02</text>
+  <text x="110" y="49" fill="#FBF9F2" font-family="Arial, Helvetica, sans-serif" font-size="29" font-weight="700">PERSPECTIVE</text>
+  <text x="110" y="91" fill="#C8CCBE" font-family="Arial, Helvetica, sans-serif" font-size="21">Share a point of view worth remembering.</text>
+  <circle cx="872" cy="69" r="32" fill="none" stroke="#FF674D" stroke-width="4"/>
+  <path d="M858 69h27m-10-10 10 10-10 10" fill="none" stroke="#FF674D" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<g transform="translate(64 944)">
+  <rect width="950" height="138" rx="26" fill="#283128" fill-opacity=".95" stroke="#D7F36B" stroke-opacity=".8" stroke-width="2"/>
+  <text x="32" y="40" fill="#D7F36B" font-family="Arial, Helvetica, sans-serif" font-size="17">03</text>
+  <text x="110" y="49" fill="#FBF9F2" font-family="Arial, Helvetica, sans-serif" font-size="29" font-weight="700">PRACTICAL VALUE</text>
+  <text x="110" y="91" fill="#C8CCBE" font-family="Arial, Helvetica, sans-serif" font-size="21">Give people something useful to apply.</text>
+  <circle cx="872" cy="69" r="32" fill="none" stroke="#D7F36B" stroke-width="4"/>
+  <path d="M858 69h27m-10-10 10 10-10 10" fill="none" stroke="#D7F36B" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<rect x="46" y="1240" width="988" height="70" rx="20" fill="#1B221B" stroke="#D7F36B" stroke-opacity=".55" stroke-width="2"/>
+<text x="76" y="1283" fill="#D7F36B" font-family="Arial, Helvetica, sans-serif" font-size="14" font-weight="700" letter-spacing="2">A BETTER CONTENT SYSTEM STARTS HERE</text>
+<text x="1006" y="1283" text-anchor="end" fill="#FBF9F2" font-family="Arial, Helvetica, sans-serif" font-size="19" font-weight="700">www.aagrowthstudio.com</text>
+</svg>
