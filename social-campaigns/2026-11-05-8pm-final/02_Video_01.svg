@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350">
+ <defs><linearGradient id="shade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#141A14" stop-opacity=".94"/><stop offset=".52" stop-color="#141A14" stop-opacity=".58"/><stop offset="1" stop-color="#141A14" stop-opacity=".97"/></linearGradient></defs>
+ <image href="https://images.pexels.com/photos/3931504/pexels-photo-3931504.jpeg?cs=srgb&dl=pexels-olly-3931504.jpg&fm=jpg" x="0" y="0" width="1080" height="1350" preserveAspectRatio="xMidYMid slice"/><rect width="1080" height="1350" fill="url(#shade)"/><g transform="translate(48 40)">
+<rect width="88" height="88" rx="25" fill="#171D16" stroke="#D7F36B" stroke-opacity=".55" stroke-width="2"/>
+<path d="M14 55C8 34 29 12 50 14c16 1 27 11 27 26" fill="none" stroke="#D7F36B" stroke-width="2.3" stroke-linecap="round"/>
+<circle cx="76" cy="40" r="4" fill="#FF674D"/>
+<path d="M18 65 33 26h9l16 39H46l-3-8H31l-3 8Z" fill="#F3EFE6"/>
+<path d="M48 65 62 31h8l13 34H73l-2-7H60l-2 7Z" fill="#D7F36B"/>
+<path d="M60 52h7l-3-8Z" fill="#171914"/>
+</g><text x="154" y="75" fill="#FBF9F2" font-family="Arial,Helvetica,sans-serif" font-size="28" font-weight="700" letter-spacing="1">AA GROWTH</text>
+ <text x="155" y="106" fill="#D7F36B" font-family="Arial,Helvetica,sans-serif" font-size="17" font-weight="600" letter-spacing="3">STUDIO</text>
+ <rect x="742" y="54" width="290" height="52" rx="18" fill="#283128" stroke="#D7F36B" stroke-opacity=".6" stroke-width="2"/>
+ <text x="764" y="86" fill="#D7F36B" font-family="Arial,Helvetica,sans-serif" font-size="14" font-weight="700" letter-spacing="2">VIDEO PRODUCTION</text>
+ <text x="1007" y="86" text-anchor="end" fill="#FBF9F2" font-family="Arial,Helvetica,sans-serif" font-size="14">01 / 05</text>
+ <path d="M48 150H1032" stroke="#D7F36B" stroke-opacity=".55" stroke-width="2"/>
+ <text x="62" y="250" fill="#FBF9F2" font-family="Arial" font-size="84" font-weight="800">EARN THE</text>
+ <text x="62" y="345" fill="#D7F36B" font-family="Arial" font-size="98" font-weight="800">FIRST 2 SECONDS.</text>
+ <path d="M65 405H820" stroke="#FF674D" stroke-width="9" stroke-linecap="round"/>
+ <text x="66" y="480" fill="#FBF9F2" font-family="Arial" font-size="27">Give people a reason to stay for the story.</text>
+ <rect x="62" y="590" width="956" height="430" rx="28" fill="#202820" fill-opacity=".95" stroke="#D7F36B" stroke-width="2"/>
+ <text x="100" y="655" fill="#D7F36B" font-family="Arial" font-size="18" letter-spacing="2">A SHORT-FORM STORY</text>
+ <g><rect x="100" y="710" width="250" height="220" rx="20" fill="#FF674D"/><rect x="415" y="710" width="250" height="220" rx="20" fill="#D7F36B"/><rect x="730" y="710" width="250" height="220" rx="20" fill="#E7C96B"/>
+ <text x="225" y="800" text-anchor="middle" fill="#1D241D" font-family="Arial" font-size="28" font-weight="700">HOOK</text><text x="225" y="855" text-anchor="middle" fill="#1D241D" font-family="Arial" font-size="18">Earn attention</text>
+ <text x="540" y="800" text-anchor="middle" fill="#1D241D" font-family="Arial" font-size="28" font-weight="700">STORY</text><text x="540" y="855" text-anchor="middle" fill="#1D241D" font-family="Arial" font-size="18">Hold interest</text>
+ <text x="855" y="800" text-anchor="middle" fill="#1D241D" font-family="Arial" font-size="28" font-weight="700">NEXT STEP</text><text x="855" y="855" text-anchor="middle" fill="#1D241D" font-family="Arial" font-size="18">Give direction</text></g>
+ <rect x="46" y="1240" width="988" height="70" rx="20" fill="#1B221B" stroke="#D7F36B" stroke-opacity=".55" stroke-width="2"/>
+ <text x="76" y="1283" fill="#D7F36B" font-family="Arial,Helvetica,sans-serif" font-size="14" font-weight="700" letter-spacing="2">MAKE EVERY SECOND COUNT</text>
+ <text x="1006" y="1283" text-anchor="end" fill="#FBF9F2" font-family="Arial,Helvetica,sans-serif" font-size="19" font-weight="700">www.aagrowthstudio.com</text></svg>
