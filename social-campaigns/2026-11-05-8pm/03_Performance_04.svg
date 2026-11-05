@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350"><defs>
+ <linearGradient id="shade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#141A14" stop-opacity=".93"/><stop offset=".5" stop-color="#141A14" stop-opacity=".58"/><stop offset="1" stop-color="#141A14" stop-opacity=".98"/></linearGradient>
+ <linearGradient id="glow" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#D7F36B" stop-opacity=".24"/><stop offset="1" stop-color="#FF674D" stop-opacity=".04"/></linearGradient>
+ </defs><rect width="1080" height="1350" fill="#F3EFE6"/><g transform="translate(48 40)">
+  <rect width="88" height="88" rx="25" fill="#171D16" stroke="#D7F36B" stroke-opacity=".55" stroke-width="2"/>
+  <path d="M14 55C8 34 29 12 50 14c16 1 27 11 27 26" fill="none" stroke="#D7F36B" stroke-width="2.3" stroke-linecap="round"/>
+  <circle cx="76" cy="40" r="4" fill="#FF674D"/>
+  <path d="M18 65 33 26h9l16 39H46l-3-8H31l-3 8Z" fill="#F3EFE6"/>
+  <path d="M48 65 62 31h8l13 34H73l-2-7H60l-2 7Z" fill="#D7F36B"/>
+  <path d="M60 52h7l-3-8Z" fill="#171914"/>
+</g>
+ <text x="154" y="75" fill="#1D241D" font-family="Arial,Helvetica,sans-serif" font-size="28" font-weight="700" letter-spacing="1">AA GROWTH</text>
+ <text x="155" y="106" fill="#7B856E" font-family="Arial,Helvetica,sans-serif" font-size="17" font-weight="600" letter-spacing="3">STUDIO</text>
+ <rect x="742" y="54" width="290" height="52" rx="18" fill="#E8E3D7" stroke="#7B856E" stroke-opacity=".6" stroke-width="2"/>
+ <text x="764" y="86" fill="#7B856E" font-family="Arial,Helvetica,sans-serif" font-size="14" font-weight="700" letter-spacing="2">PERFORMANCE MARKETING</text>
+ <text x="1007" y="86" text-anchor="end" fill="#1D241D" font-family="Arial,Helvetica,sans-serif" font-size="14">04 / 05</text>
+ <path d="M48 150H1032" stroke="#7B856E" stroke-opacity=".55" stroke-width="2"/>
+ <text x="62" y="238" fill="#1D241D" font-family="Arial" font-size="84" font-weight="800">TEST ONE</text>
+ <text x="62" y="330" fill="#7B856E" font-family="Arial" font-size="58" font-weight="800">VARIABLE AT A TIME.</text>
+ <text x="66" y="405" fill="#354234" font-family="Arial" font-size="22">Keep the question clear. Learn from the signal.</text>
+ <rect x="62" y="480" width="956" height="635" rx="28" fill="#1D241D" stroke="#7B856E" stroke-width="2"/>
+ <text x="98" y="535" fill="#D7F36B" font-family="Arial" font-size="18" letter-spacing="2">CREATIVE TEST BOARD</text>
+ <g>
+ <rect x="92" y="600" width="205" height="330" rx="22" fill="#283128" stroke="#FF674D" stroke-width="3"/>
+ <rect x="317" y="600" width="205" height="330" rx="22" fill="#283128" stroke="#D7F36B" stroke-width="3"/>
+ <rect x="542" y="600" width="205" height="330" rx="22" fill="#283128" stroke="#E7C96B" stroke-width="3"/>
+ <rect x="767" y="600" width="205" height="330" rx="22" fill="#283128" stroke="#FF674D" stroke-width="3"/>
+ <text x="120" y="650" fill="#FF674D" font-family="Arial" font-size="22" font-weight="700">A</text><text x="120" y="730" fill="#FBF9F2" font-family="Arial" font-size="22" font-weight="700">HOOK</text><text x="120" y="780" fill="#C8CCBE" font-family="Arial" font-size="17">Problem-led</text>
+ <text x="345" y="650" fill="#D7F36B" font-family="Arial" font-size="22" font-weight="700">B</text><text x="345" y="730" fill="#FBF9F2" font-family="Arial" font-size="22" font-weight="700">VISUAL</text><text x="345" y="780" fill="#C8CCBE" font-family="Arial" font-size="17">Product / process</text>
+ <text x="570" y="650" fill="#E7C96B" font-family="Arial" font-size="22" font-weight="700">C</text><text x="570" y="730" fill="#FBF9F2" font-family="Arial" font-size="22" font-weight="700">OFFER</text><text x="570" y="780" fill="#C8CCBE" font-family="Arial" font-size="17">Clear value</text>
+ <text x="795" y="650" fill="#FF674D" font-family="Arial" font-size="22" font-weight="700">D</text><text x="795" y="730" fill="#FBF9F2" font-family="Arial" font-size="22" font-weight="700">CTA</text><text x="795" y="780" fill="#C8CCBE" font-family="Arial" font-size="17">One next step</text>
+ </g>
+ <text x="98" y="1005" fill="#FBF9F2" font-family="Arial" font-size="23" font-weight="700">Change one element. Keep the rest consistent.</text>
+ <text x="98" y="1055" fill="#C8CCBE" font-family="Arial" font-size="19">Then use the result to choose the next test.</text>
+ <rect x="46" y="1240" width="988" height="70" rx="20" fill="#1B221B" stroke="#D7F36B" stroke-opacity=".55" stroke-width="2"/>
+ <text x="76" y="1283" fill="#D7F36B" font-family="Arial,Helvetica,sans-serif" font-size="14" font-weight="700" letter-spacing="2">LEARN BEFORE YOU SCALE</text>
+ <text x="1006" y="1283" text-anchor="end" fill="#1D241D" font-family="Arial,Helvetica,sans-serif" font-size="19" font-weight="700">www.aagrowthstudio.com</text></svg>
