@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350"><defs>
+ <linearGradient id="shade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#141A14" stop-opacity=".93"/><stop offset=".5" stop-color="#141A14" stop-opacity=".58"/><stop offset="1" stop-color="#141A14" stop-opacity=".98"/></linearGradient>
+ <linearGradient id="glow" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#D7F36B" stop-opacity=".24"/><stop offset="1" stop-color="#FF674D" stop-opacity=".04"/></linearGradient>
+ </defs><rect width="1080" height="1350" fill="#F3EFE6"/><g transform="translate(48 40)">
+  <rect width="88" height="88" rx="25" fill="#171D16" stroke="#D7F36B" stroke-opacity=".55" stroke-width="2"/>
+  <path d="M14 55C8 34 29 12 50 14c16 1 27 11 27 26" fill="none" stroke="#D7F36B" stroke-width="2.3" stroke-linecap="round"/>
+  <circle cx="76" cy="40" r="4" fill="#FF674D"/>
+  <path d="M18 65 33 26h9l16 39H46l-3-8H31l-3 8Z" fill="#F3EFE6"/>
+  <path d="M48 65 62 31h8l13 34H73l-2-7H60l-2 7Z" fill="#D7F36B"/>
+  <path d="M60 52h7l-3-8Z" fill="#171914"/>
+</g>
+ <text x="154" y="75" fill="#1D241D" font-family="Arial,Helvetica,sans-serif" font-size="28" font-weight="700" letter-spacing="1">AA GROWTH</text>
+ <text x="155" y="106" fill="#7B856E" font-family="Arial,Helvetica,sans-serif" font-size="17" font-weight="600" letter-spacing="3">STUDIO</text>
+ <rect x="742" y="54" width="290" height="52" rx="18" fill="#E8E3D7" stroke="#7B856E" stroke-opacity=".6" stroke-width="2"/>
+ <text x="764" y="86" fill="#7B856E" font-family="Arial,Helvetica,sans-serif" font-size="14" font-weight="700" letter-spacing="2">CONTENT SYSTEM</text>
+ <text x="1007" y="86" text-anchor="end" fill="#1D241D" font-family="Arial,Helvetica,sans-serif" font-size="14">02 / 05</text>
+ <path d="M48 150H1032" stroke="#7B856E" stroke-opacity=".55" stroke-width="2"/>
+ <text x="62" y="238" fill="#1D241D" font-family="Arial,Helvetica,sans-serif" font-size="72" font-weight="800">THE 3-LAYER</text>
+ <text x="62" y="320" fill="#7B856E" font-family="Arial,Helvetica,sans-serif" font-size="78" font-weight="800">CONTENT MIX</text>
+ <text x="66" y="390" fill="#354234" font-family="Arial,Helvetica,sans-serif" font-size="23">A stronger feed balances three kinds of value.</text>
+ <g>
+ <rect x="62" y="470" width="956" height="195" rx="24" fill="#283128" stroke="#D7F36B" stroke-opacity=".9" stroke-width="2"/>
+ <text x="90" y="508" fill="#D7F36B" font-family="Arial,Helvetica,sans-serif" font-size="16" font-weight="700">01</text>
+ <text x="90" y="553" fill="#FBF9F2" font-family="Arial,Helvetica,sans-serif" font-size="27" font-weight="700">PROOF</text>
+ <text x="90" y="596" fill="#C8CCBE" font-family="Arial,Helvetica,sans-serif" font-size="18">Show the work. Share evidence you can stand behind.</text>
+ <circle cx="946" cy="567.5" r="28" fill="none" stroke="#D7F36B" stroke-width="3"/>
+ <path d="M934 567.5h24m-9 -9 9 9-9 9" fill="none" stroke="#D7F36B" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+ </g>
+ <g>
+ <rect x="62" y="685" width="956" height="195" rx="24" fill="#283128" stroke="#FF674D" stroke-opacity=".9" stroke-width="2"/>
+ <text x="90" y="723" fill="#FF674D" font-family="Arial,Helvetica,sans-serif" font-size="16" font-weight="700">02</text>
+ <text x="90" y="768" fill="#FBF9F2" font-family="Arial,Helvetica,sans-serif" font-size="27" font-weight="700">PERSPECTIVE</text>
+ <text x="90" y="811" fill="#C8CCBE" font-family="Arial,Helvetica,sans-serif" font-size="18">Say something useful that sounds like your brand.</text>
+ <circle cx="946" cy="782.5" r="28" fill="none" stroke="#FF674D" stroke-width="3"/>
+ <path d="M934 782.5h24m-9 -9 9 9-9 9" fill="none" stroke="#FF674D" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+ </g>
+ <g>
+ <rect x="62" y="900" width="956" height="195" rx="24" fill="#283128" stroke="#E7C96B" stroke-opacity=".9" stroke-width="2"/>
+ <text x="90" y="938" fill="#E7C96B" font-family="Arial,Helvetica,sans-serif" font-size="16" font-weight="700">03</text>
+ <text x="90" y="983" fill="#FBF9F2" font-family="Arial,Helvetica,sans-serif" font-size="27" font-weight="700">PRACTICAL VALUE</text>
+ <text x="90" y="1026" fill="#C8CCBE" font-family="Arial,Helvetica,sans-serif" font-size="18">Give people an idea they can apply today.</text>
+ <circle cx="946" cy="997.5" r="28" fill="none" stroke="#E7C96B" stroke-width="3"/>
+ <path d="M934 997.5h24m-9 -9 9 9-9 9" fill="none" stroke="#E7C96B" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+ </g>
+ <rect x="46" y="1240" width="988" height="70" rx="20" fill="#1B221B" stroke="#D7F36B" stroke-opacity=".55" stroke-width="2"/>
+ <text x="76" y="1283" fill="#D7F36B" font-family="Arial,Helvetica,sans-serif" font-size="14" font-weight="700" letter-spacing="2">PROOF + PERSPECTIVE + VALUE</text>
+ <text x="1006" y="1283" text-anchor="end" fill="#1D241D" font-family="Arial,Helvetica,sans-serif" font-size="19" font-weight="700">www.aagrowthstudio.com</text></svg>
