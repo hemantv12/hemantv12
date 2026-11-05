@@ -23,7 +23,7 @@ function renderServices(items){
  var grid=q('.services-grid');if(!grid||!Array.isArray(items)||!items.length)return;
  var stock=["https://images.unsplash.com/photo-1611162616475-46b635cb6868?auto=format&fit=crop&w=1500&q=85","https://images.unsplash.com/photo-1492619375914-88005aa9e8fb?auto=format&fit=crop&w=1500&q=85","https://images.unsplash.com/photo-1558655146-9f40138edfeb?auto=format&fit=crop&w=1500&q=85","https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=1500&q=85","https://images.unsplash.com/photo-1559028012-481c04fa702d?auto=format&fit=crop&w=1500&q=85","https://images.unsplash.com/photo-1552664730-d307ca884978?auto=format&fit=crop&w=1500&q=85"];grid.textContent='';items.forEach(function(s,i){
  var a=make('a','service-card reveal is-visible');a.href=hrefSafe(s.href);var visual=make('div','service-visual'),img=make('img','service-visual-image');img.src=s.image_url?hrefSafe(s.image_url):stock[i%stock.length];img.alt=s.title||'Creative service';img.loading='lazy';img.onerror=function(){visual.remove()};visual.appendChild(img);a.appendChild(visual);
- var top=make('div','service-card-top');top.appendChild(make('span','service-number',String(i+1).padStart(2,'0')+' / '+(s.category||'SERVICE')));top.appendChild(make('span','service-mark',s.icon||'✳'));a.appendChild(top);a.appendChild(make('h3','',s.title||'Service'));a.appendChild(make('p','',s.short_description||''));var cta=make('span','service-cta','Explore service');cta.appendChild(make('span','','↗'));a.appendChild(cta);grid.appendChild(a)});
+ var top=make('div','service-card-top');top.appendChild(make('span','service-number',String(i+1).padStart(2,'0')+' / '+(s.category||'SERVICE')));top.appendChild(make('span','service-mark',s.icon||'✳'));a.appendChild(top);a.appendChild(make('h3','',s.title||'Service'));a.appendChild(make('p','',s.short_description||''));var cta=make('span','service-cta','Explore service');cta.appendChild(make('span','','→'));a.appendChild(cta);grid.appendChild(a)});
 }
 
 function renderPortfolio(items){
@@ -49,7 +49,7 @@ function renderTeam(items,settings){
  (Array.isArray(items)?items:[]).filter(function(m){return m&&m.visible!==false&&m.name&&m.role}).forEach(function(m,i){
   var card=make('article','team-card reveal is-visible');
   var portrait=make('div','team-portrait');
-  if(m.imageUrl&&hrefSafe(m.imageUrl)!=='#contact'){var img=make('img','team-photo ready');var src=hrefSafe(m.imageUrl);if(src.indexOf('/assets/team/')!==-1)src+=(src.indexOf('?')>=0?'&':'?')+'v=20261027-photo-management1';img.src=src;img.alt=m.name;img.loading='lazy';img.onerror=function(){img.remove();portrait.appendChild(make('div','cms-team-monogram',m.name.split(/\s+/).map(function(w){return w.charAt(0)}).join('').slice(0,2).toUpperCase()))};portrait.appendChild(img)}
+  if(m.imageUrl&&hrefSafe(m.imageUrl)!=='#contact'){var img=make('img','team-photo ready');var src=hrefSafe(m.imageUrl);if(src.indexOf('/assets/team/')!==-1)src+=(src.indexOf('?')>=0?'&':'?')+'v=20261030-photo-jpeg1';img.src=src;img.alt=m.name;img.loading='lazy';img.onerror=function(){img.remove();portrait.appendChild(make('div','cms-team-monogram',m.name.split(/\s+/).map(function(w){return w.charAt(0)}).join('').slice(0,2).toUpperCase()))};portrait.appendChild(img)}
   else{var monogram=make('div','cms-team-monogram',m.name.split(/\s+/).map(function(w){return w.charAt(0)}).join('').slice(0,2).toUpperCase());portrait.appendChild(monogram)}
   portrait.appendChild(make('span','portrait-stamp','Team profile'));card.appendChild(portrait);
   var meta=make('div','team-info');meta.appendChild(make('span','team-role',m.role));meta.appendChild(make('h3','',m.name));meta.appendChild(make('p','',m.bio||''));card.appendChild(meta);grid.appendChild(card);
@@ -72,6 +72,7 @@ function contentPageKey(path){
  var p=String(path||'/').replace(/\/index\.html$/,'').replace(/\/+$/,'');
  if(!p||p==='/')return null;
  p=p.replace(/^\//,'');
+ if(p==='about')return 'studio'; // /about/ merged the studio and team pages; it uses the Studio fields
  if(p==='services'||p==='work'||p==='studio'||p==='team'||p==='contact')return p;
  if(/^services\/(social-media|video-motion|brand-design|websites|app-uiux|paid-media)$/.test(p))return p;
  return null;
@@ -160,7 +161,7 @@ function apply(data){
  put('.team-section .section-head .eyebrow',s.teamEyebrow);var teamTitle=q('.team-section .section-title');if(teamTitle){putFirstText(teamTitle,s.teamTitleLineOne);(function(){var ser=q('.team-section .section-title .serif'),cor=q('.team-section .section-title .coral'),words=(s.teamTitleLineTwo||'').trim().split(/\s+/);if(ser&&cor&&words.length){cor.textContent=words.pop();ser.textContent=words.join(' ')}else if(cor)cor.textContent=s.teamTitleLineTwo||''})()}
  put('.team-section .section-head>p',s.teamIntro);
  put('.founder-card .team-role',s.founderRole);put('.founder-card .team-info h3',s.founderName);put('.founder-card .team-info p',s.founderBio);
- if(s.founderImage){var pic=q('.founder-card .team-photo');if(pic){var founderSrc=hrefSafe(s.founderImage);if(founderSrc.indexOf('/assets/team/')!==-1)founderSrc+=(founderSrc.indexOf('?')>=0?'&':'?')+'v=20261027-photo-management1';pic.src=founderSrc;pic.loading='lazy'}}
+ if(s.founderImage){var pic=q('.founder-card .team-photo');if(pic){var founderSrc=hrefSafe(s.founderImage);if(founderSrc.indexOf('/assets/team/')!==-1)founderSrc+=(founderSrc.indexOf('?')>=0?'&':'?')+'v=20261030-photo-jpeg1';pic.src=founderSrc;pic.loading='lazy'}}
  put('.contact-intro .eyebrow',s.contactEyebrow);
  var contactTitle=q('.contact-intro h2');if(contactTitle){putFirstText(contactTitle,s.contactTitleLineOne);put('.contact-intro h2 em',s.contactTitleLineTwo)}
  put('.contact-intro>p',s.contactDescription);
@@ -180,17 +181,24 @@ function apply(data){
  renderPortfolio(s.portfolioItems);
  renderTeam(s.teamMembers,s);
  renderSections(s.customSections);
- var formFoot=q('.form-footnote');if(formFoot)formFoot.textContent='Submitting sends your project details to the studio dashboard so the team can review your enquiry. Your details are not published publicly.';
+ var formFoot=q('.form-footnote');if(formFoot)formFoot.textContent='Your enquiry goes straight to the studio team and is never published. We also prepare a copy of your brief here so you can keep it.';
  var social= q('.footer-links');if(social){
   qa('a[data-social-link]',social).forEach(function(a){a.remove()});
   [['instagramUrl','Instagram'],['linkedinUrl','LinkedIn']].forEach(function(pair){if(s[pair[0]]&&hrefSafe(s[pair[0]])!=='#contact'){var a=make('a','',''+pair[1]+' ↗');a.href=hrefSafe(s[pair[0]]);a.target='_blank';a.rel='noopener noreferrer';a.dataset.socialLink='1';social.appendChild(a)}});
  }
 }
 fetch(API+'/public/site').then(function(r){if(!r.ok)throw new Error('CMS unavailable');return r.json()}).then(apply).catch(function(){});
+function sendToFormspree(p){return fetch('https://formspree.io/f/xzeeowon',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({_subject:'New website enquiry: '+(p.service||'General')+' from '+(p.name||'visitor'),name:p.name,email:p.email,phone:p.mobile_number,company:p.company||'',service:p.service,goal:p.goal,page:p.current_page,source:p.source,utm_campaign:p.utm_campaign||''})}).then(function(r){if(!r.ok)throw new Error('Formspree rejected the enquiry');return true})}
 var form=q('#briefForm');
 if(form)form.addEventListener('submit',function(e){e.preventDefault();
  var d=new FormData(form),touch={};try{touch=JSON.parse(sessionStorage.getItem('aaLeadFirstTouch')||'{}')||{}}catch(e){}var sid='';try{sid=sessionStorage.getItem('aaVisitorSession')||''}catch(e){}var host='';try{host=document.referrer?new URL(document.referrer).hostname:''}catch(e){}var fbc='',fbp='';try{document.cookie.split(';').forEach(function(part){var bits=part.trim();if(bits.indexOf('_fbp=')===0)fbp=decodeURIComponent(bits.slice(5));if(bits.indexOf('_fbc=')===0)fbc=decodeURIComponent(bits.slice(5))})}catch(e){}if(!fbc&&touch.fbclid&&/^[A-Za-z0-9._-]{1,300}$/.test(touch.fbclid))fbc='fb.1.'+Date.now()+'.'+touch.fbclid;var eventId=(window.crypto&&crypto.randomUUID)?crypto.randomUUID():('lead-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2));var payload={name:d.get('name'),email:d.get('email'),mobile_number:d.get('mobile_number'),company:d.get('company'),service:d.get('service'),goal:d.get('goal'),source:touch.source||host||'Direct / unknown',utm_source:touch.utm_source||'',utm_medium:touch.utm_medium||'',utm_campaign:touch.utm_campaign||'',landing_page:touch.landing_page||location.pathname,referrer_host:touch.referrer_host||host,current_page:location.pathname,visitor_session_id:sid,event_id:eventId,meta_consent:d.get('meta_consent')==='yes',fbp:fbp,fbc:fbc};
- var status=q('#formStatus');if(status)status.textContent='Saving your enquiry…';
- fetch(API+'/public/enquiries',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),cache:'no-store'}).then(function(r){return r.json().then(function(d){if(!r.ok)throw new Error(d.error||'Could not save enquiry');return d})}).then(function(d){if(status)status.textContent='Your enquiry has been saved to the studio dashboard. Reference #'+d.enquiryId+'.';if(payload.meta_consent&&d.pixelId&&typeof window.aaTrackMetaLead==='function')window.aaTrackMetaLead(d.pixelId,d.eventId)}).catch(function(e){if(status)status.textContent='Your brief is ready, but the enquiry could not reach the dashboard. Please copy it and contact the studio directly.';var foot=q('.form-footnote');if(foot)foot.textContent='Your brief is ready, but saving failed. Please copy the brief above and contact the studio directly.'});
+ var status=q('#formStatus');if(status)status.textContent='Sending your enquiry…';
+ // Email copy via Formspree and dashboard copy via the CMS, in parallel; either one reaching us counts.
+ var toEmail=sendToFormspree(payload).catch(function(){return false});
+ var toDashboard=fetch(API+'/public/enquiries',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),cache:'no-store'}).then(function(r){return r.json().then(function(d){if(!r.ok)throw new Error(d.error||'Could not save enquiry');return d})}).catch(function(){return null});
+ Promise.all([toEmail,toDashboard]).then(function(res){var emailed=res[0],d=res[1];
+  if(!emailed&&!d){if(status)status.textContent='Your brief is ready, but the enquiry could not be sent. Please copy it and contact the studio directly.';var foot=q('.form-footnote');if(foot)foot.textContent='Your brief is ready, but sending failed. Please copy the brief above and contact the studio directly.';return}
+  if(status)status.textContent='Thank you! Your enquiry has reached the studio'+(d&&d.enquiryId?' (reference #'+d.enquiryId+')':'')+'. We will be in touch soon.';
+  if(d&&payload.meta_consent&&d.pixelId&&typeof window.aaTrackMetaLead==='function')window.aaTrackMetaLead(d.pixelId,d.eventId)});
 });
 })();

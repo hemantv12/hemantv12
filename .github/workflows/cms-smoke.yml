@@ -7,6 +7,7 @@ on:
     paths:
       - 'studio-cms/**'
       - 'rti-growth-studio/**'
+      - 'tools/site/**'
       - '.github/workflows/cms-smoke.yml'
   workflow_dispatch:
 
@@ -27,15 +28,17 @@ jobs:
           node --check studio-cms/server.js
           node --check rti-growth-studio/assets/aa-studio.js
           node --check rti-growth-studio/assets/cms-client.js
-          node --check rti-growth-studio/assets/growth-lab.js
           node --check rti-growth-studio/assets/motion-system.js
-          node --check rti-growth-studio/assets/neon-rush.js
+          node --check rti-growth-studio/assets/aa-experience.js
           node --check rti-growth-studio/assets/visitor-analytics.js
           node --check rti-growth-studio/admin/admin.js
           grep -q "app.delete('/api/admin/media/:id'" studio-cms/server.js
           grep -q 'delete-media:' rti-growth-studio/admin/admin.js
           grep -q 'clear-media-field' rti-growth-studio/admin/admin.js
           echo "Backend, public-site and admin JavaScript syntax checks passed."
+
+      - name: Check shared header, footer and asset versions are in sync
+        run: node tools/site/build.mjs --check
 
       - name: Wait for CMS API and validate public data
         env:
@@ -97,7 +100,7 @@ jobs:
           curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/assets/visitor-analytics.js" >/tmp/cms-visitor-analytics.js
           node --check /tmp/cms-visitor-analytics.js
           if grep -qi 'free growth plan' /tmp/cms-visitor-analytics.js; then echo "Non-paid/free-plan CTA copy must not ship."; exit 1; fi
-          grep -Fq 'Discuss your project' /tmp/cms-visitor-analytics.js
+          grep -Fq 'Start a project' /tmp/cms-visitor-analytics.js
           grep -Fq "I%27d%20like%20to%20discuss%20a%20project" /tmp/cms-visitor-analytics.js
           if grep -Eqi 'free[+%20_-]+growth[+%20_-]+plan|free growth plan' /tmp/cms-visitor-analytics.js; then echo "Non-paid/free-plan CTA copy must not ship."; exit 1; fi
           if grep -Eqi 'free-plan conversion form opens|free growth plan|I want a free growth plan' rti-growth-studio/admin/admin.js; then echo "Outdated admin conversion copy still present."; exit 1; fi
@@ -113,7 +116,7 @@ jobs:
           grep -q 'Site-wide conversion and responsive recovery' rti-growth-studio/assets/conversion-system.css
           grep -Fq 'function normalizeContactPhone' rti-growth-studio/assets/visitor-analytics.js
           grep -Fq 'Continue on WhatsApp' rti-growth-studio/assets/visitor-analytics.js
-          grep -Fq "visitorScript.src='/assets/visitor-analytics.js?v=20261027-final1'" rti-growth-studio/assets/motion-system.js
+          grep -Fq "visitorScript.src='/assets/visitor-analytics.js?v=" rti-growth-studio/assets/motion-system.js
           grep -Fq "var ANALYTICS_API=API_BASE+'/public/analytics/collect'" /tmp/cms-visitor-analytics.js
           grep -Fq "fetch(ANALYTICS_API" /tmp/cms-visitor-analytics.js
           grep -Fq "fetch(API_BASE+'/public/enquiries'" /tmp/cms-visitor-analytics.js
@@ -122,7 +125,7 @@ jobs:
           grep -q "window.location.replace('/')" /tmp/cms-play.html
           if grep -q 'neonCanvas\|startGame\|NEON RUSH' /tmp/cms-play.html; then echo "Retired Arcade route must redirect."; exit 1; fi
 
-          for page in "/" "contact/" "blog/" "services/" "work/" "studio/" "team/" "privacy.html" "terms.html" "admin/"; do
+          for page in "/" "contact/" "blog/" "services/" "work/" "about/" "privacy.html" "terms.html" "admin/"; do
             curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/$page" >/tmp/motion-page.html
             grep -q "motion-system.css" /tmp/motion-page.html || { echo "Motion stylesheet not wired on $page"; exit 1; }
             grep -q "motion-system.js" /tmp/motion-page.html || { echo "Motion script not wired on $page"; exit 1; }
@@ -135,17 +138,21 @@ jobs:
           grep -q 'metaSettingsForm' /tmp/cms-admin.js
           grep -q 'loadVisitors' /tmp/cms-admin.js
           grep -q 'exportEnquiriesCsv' /tmp/cms-admin.js
-          for page in "services/" "work/" "studio/" "team/" "contact/" "services/social-media/" "services/video-motion/" "services/brand-design/" "services/websites/" "services/app-uiux/" "services/paid-media/"; do
+          for page in "services/" "work/" "about/" "contact/" "services/social-media/" "services/video-motion/" "services/brand-design/" "services/websites/" "services/app-uiux/" "services/paid-media/"; do
             curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/$page" >/tmp/cms-page.html
-            grep -q 'src="/assets/cms-client.js"' /tmp/cms-page.html || { echo "CMS client script missing on $page"; exit 1; }
+            grep -q 'src="/assets/cms-client.js' /tmp/cms-page.html || { echo "CMS client script missing on $page"; exit 1; }
           done
-          curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/team/" >/tmp/cms-team.html
+          for old in "studio/" "team/"; do
+            curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/$old" >/tmp/cms-old.html
+            grep -q "window.location.replace('/about/" /tmp/cms-old.html || { echo "/$old must redirect to /about/"; exit 1; }
+          done
+          curl --connect-timeout 8 --max-time 15 -fsS "$SITE_URL/about/" >/tmp/cms-team.html
           grep -q 'Apurba Ruidas' /tmp/cms-team.html
           grep -q 'Divyanshu Bhargava' /tmp/cms-team.html
           grep -q 'Arya Rupesh Jain' /tmp/cms-team.html
           grep -q 'assets/team/apurba-ruidas.webp' /tmp/cms-team.html
-          echo "Team page verified: founder plus real team profiles and portraits are published."
-          echo "Homepage, admin, blog, all 11 editable sub-pages and CMS assets are reachable."
+          echo "About page verified: founder plus real team profiles and portraits are published."
+          echo "Homepage, admin, blog, all 10 editable sub-pages and CMS assets are reachable."
 
       - name: Check browser cross-origin connection
         env:

@@ -1,0 +1,44 @@
+# AA Growth Studio: Apache / LiteSpeed settings for shared hosting (ServerByt).
+# Copied to public_html/.htaccess by tools/site/package.mjs.
+
+Options -Indexes
+DirectoryIndex index.html
+ErrorDocument 404 /index.html
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+
+  # One address for search engines: without www. The http → https redirect is left to Cloudflare
+  # ("Always Use HTTPS"): the host terminates SSL before Apache, so %{HTTPS} is always off here
+  # and an https rule would redirect forever.
+  RewriteCond %{HTTP_HOST} ^www\. [NC]
+  RewriteRule ^ https://aagrowthstudio.com%{REQUEST_URI} [R=301,L]
+
+  # Moved pages: permanent redirects pass their search ranking to the new address.
+  RewriteRule ^(studio|team)(/.*)?$ /about/ [R=301,L]
+  RewriteRule ^growth-lab(/.*)?$ /services/paid-media/ [R=301,L]
+  RewriteRule ^play(/.*)?$ / [R=301,L]
+</IfModule>
+
+<IfModule mod_headers.c>
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+  Header always set X-Frame-Options "SAMEORIGIN"
+  <If "%{REQUEST_URI} =~ m#^/admin/#">
+    Header set X-Robots-Tag "noindex, nofollow"
+  </If>
+  # CSS and JS references carry a content hash (?v=…), so they can be cached for a long time.
+  <If "%{REQUEST_URI} =~ m#^/assets/#">
+    Header set Cache-Control "public, max-age=604800, stale-while-revalidate=86400"
+  </If>
+  <FilesMatch "\.html$">
+    Header set Cache-Control "public, max-age=0, must-revalidate"
+  </FilesMatch>
+</IfModule>
+
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/css application/javascript text/javascript application/json image/svg+xml application/xml text/xml text/plain application/manifest+json
+</IfModule>
+
+AddType application/manifest+json .webmanifest
+AddType image/webp .webp

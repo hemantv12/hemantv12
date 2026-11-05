@@ -18,15 +18,15 @@ html.motion-enhanced body:not(.motion-reduced) .motion-reveal.motion-in img:not(
 @keyframes aaSoftSettle{from{clip-path:inset(3% 1% 3% 1% round 4px)}to{clip-path:inset(0 0 0 0 round 0)}}
 html.motion-enhanced body:not(.motion-reduced) .site-header{transition:background .35s ease,box-shadow .35s ease,border-color .35s ease}
 html.motion-enhanced body:not(.motion-reduced).has-scrolled .site-header{background:#f3efe6f5;box-shadow:0 10px 30px #1719140b;border-bottom-color:#d8d1c4aa}
-html.motion-enhanced body:not(.motion-reduced) .brand-image,html.motion-enhanced body:not(.motion-reduced) .brand-mark{transition:transform .45s var(--motion-ease)}
-html.motion-enhanced body:not(.motion-reduced) .brand:hover .brand-image,html.motion-enhanced body:not(.motion-reduced) .brand:hover .brand-mark{transform:rotate(-8deg) scale(1.055)}
+html.motion-enhanced body:not(.motion-reduced) .brand-image{transition:transform .45s var(--motion-ease)}
+html.motion-enhanced body:not(.motion-reduced) .brand:hover .brand-image{transform:rotate(-8deg) scale(1.055)}
 html.motion-enhanced body:not(.motion-reduced) .btn,html.motion-enhanced body:not(.motion-reduced) .growth-btn,html.motion-enhanced body:not(.motion-reduced) .blog-cta,html.motion-enhanced body:not(.motion-reduced) .forge-action-primary,html.motion-enhanced body:not(.motion-reduced) .forge-action-secondary{translate:var(--aa-magnet-x,0px) var(--aa-magnet-y,0px);transition:translate .18s ease,transform .28s var(--motion-ease),box-shadow .28s ease,background .28s ease}
 html.motion-enhanced body:not(.motion-reduced) .work-card,html.motion-enhanced body:not(.motion-reduced) .service-card,html.motion-enhanced body:not(.motion-reduced) .post-card,html.motion-enhanced body:not(.motion-reduced) .forge-concept,html.motion-enhanced body:not(.motion-reduced) .team-card,html.motion-enhanced body:not(.motion-reduced) .service-detail,html.motion-enhanced body:not(.motion-reduced) .process-item{transform-origin:center bottom;transition:transform .45s var(--motion-ease),box-shadow .45s ease,border-color .35s ease,background .35s ease}
 html.motion-enhanced body:not(.motion-reduced) .work-card:hover,html.motion-enhanced body:not(.motion-reduced) .post-card:hover,html.motion-enhanced body:not(.motion-reduced) .team-card:hover{transform:translateY(-7px) scale(1.006);box-shadow:0 22px 55px #17191413}
 html.motion-enhanced body:not(.motion-reduced) .service-card:hover{transform:translateY(-5px)}
 html.motion-enhanced body:not(.motion-reduced) .work-art img,html.motion-enhanced body:not(.motion-reduced) .cms-work-image,html.motion-enhanced body:not(.motion-reduced) .team-photo,html.motion-enhanced body:not(.motion-reduced) .post-art img{transition:transform .9s var(--motion-ease),filter .8s ease}
 html.motion-enhanced body:not(.motion-reduced) .work-card:hover .work-art img,html.motion-enhanced body:not(.motion-reduced) .work-card:hover .cms-work-image,html.motion-enhanced body:not(.motion-reduced) .team-card:hover .team-photo,html.motion-enhanced body:not(.motion-reduced) .post-card:hover .post-art img{transform:scale(1.055);filter:saturate(1.08)}
-html.motion-enhanced body:not(.motion-reduced) .floating-card{transition:filter .35s ease,box-shadow .35s ease}
+
 html.motion-enhanced body:not(.motion-reduced) .hero-visual,html.motion-enhanced body:not(.motion-reduced) .service-hero-art,html.motion-enhanced body:not(.motion-reduced) .forge-hero-stage{translate:0 var(--aa-parallax-y,0px);will-change:translate}
 html.motion-enhanced body:not(.motion-reduced) .hero-copy h1 .line{animation:aaHeroLineIn .92s var(--motion-ease) both}
 html.motion-enhanced body:not(.motion-reduced) .hero-copy h1 .line:nth-child(2){animation-delay:100ms}
@@ -37,20 +37,12 @@ html.motion-enhanced body:not(.motion-reduced) .hero-visual .scene{animation:aaS
 html.motion-enhanced body:not(.motion-reduced) .section-title,html.motion-enhanced body:not(.motion-reduced) .forge-section-head h2{ text-wrap:balance}
 html.motion-enhanced body:not(.motion-reduced) .eyebrow:before{transform-origin:left;animation:aaLineIn .65s .12s var(--motion-ease) both}
 @keyframes aaLineIn{from{transform:scaleX(0)}to{transform:scaleX(1)}}
-html.motion-enhanced body:not(.motion-reduced) .ticker:hover .ticker-track{animation-play-state:paused}
+
 html.motion-enhanced body:not(.motion-reduced) .statement:before{transition:transform 1.1s var(--motion-ease),opacity .7s ease}
 html.motion-enhanced body:not(.motion-reduced) .statement:hover:before{transform:rotate(-5deg) scale(1.025);opacity:1}
 html.motion-enhanced body:not(.motion-reduced) .nav-links a:after{transition:transform .35s var(--motion-ease)}
-html.motion-enhanced body:not(.motion-reduced) .forge-canvas-wrap canvas{transition:transform .6s var(--motion-ease),filter .6s ease}
-html.motion-enhanced body:not(.motion-reduced) .forge-concept:hover .forge-canvas-wrap canvas{transform:scale(1.018);filter:saturate(1.08)}
-html.motion-enhanced body:not(.motion-reduced) .forge-stage-art{animation:aaPosterFloat 7s ease-in-out infinite}
-@keyframes aaPosterFloat{0%,100%{transform:rotate(-3deg) translateY(0)}50%{transform:rotate(-1deg) translateY(-7px)}}
-html.motion-enhanced body:not(.motion-reduced) .forge-stage-orbit{animation:aaOrbit 32s linear infinite}
-@keyframes aaOrbit{to{transform:rotate(340deg)}}
-html.motion-enhanced body:not(.motion-reduced) .growth-promo .promo-card{animation:aaPromoFloat 6s ease-in-out infinite}
-@keyframes aaPromoFloat{0%,100%{translate:0 0;rotate:0deg}50%{translate:0 -8px;rotate:1.5deg}}
+
 @media(max-width:760px){html.motion-enhanced body:not(.motion-reduced) .motion-reveal{transform:translate3d(0,22px,0) scale(.995);filter:none;transition-duration:.62s}.aa-scroll-progress{height:2px}html.motion-enhanced body:not(.motion-reduced) .hero-visual,html.motion-enhanced body:not(.motion-reduced) .service-hero-art,html.motion-enhanced body:not(.motion-reduced) .forge-hero-stage{translate:none;will-change:auto}}
-@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;view-transition-name:none!important}.aa-scroll-progress{display:none}}
 
 /* The CMS control room shares the same restrained entrance choreography. */
 html.motion-enhanced body:not(.motion-reduced) .stat-card,html.motion-enhanced body:not(.motion-reduced) .panel,html.motion-enhanced body:not(.motion-reduced) .media-library-card,html.motion-enhanced body:not(.motion-reduced) .insight-action,html.motion-enhanced body:not(.motion-reduced) .row-item{transition:opacity .72s var(--motion-ease),transform .76s var(--motion-ease),box-shadow .3s ease}

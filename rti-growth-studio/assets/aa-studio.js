@@ -15,15 +15,20 @@ if(siteIntro&&document.documentElement.classList.contains('aa-intro-pending')){
  const enterButton=document.getElementById('introEnter');if(enterButton)enterButton.addEventListener('click',closeIntro);
  introTimer=window.setTimeout(closeIntro,2450);
 }else if(siteIntro){siteIntro.remove()}
-const reduced=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+// Motion always runs: the studio chose full animation regardless of the OS reduce-motion setting.
+const reduced=false;
 body.classList.add('js-motion');
 document.querySelectorAll('[data-year]').forEach(function(el){el.textContent=String(new Date().getFullYear())});
 document.querySelectorAll('.nav-shell').forEach(function(nav){
  const toggle=nav.querySelector('.menu-toggle'), links=nav.querySelector('.nav-links');
  if(!toggle||!links)return;
- function close(){links.classList.remove('open');toggle.setAttribute('aria-expanded','false');toggle.setAttribute('aria-label','Open navigation');toggle.textContent='☰'}
- toggle.addEventListener('click',function(){const open=links.classList.toggle('open');toggle.setAttribute('aria-expanded',String(open));toggle.setAttribute('aria-label',open?'Close navigation':'Open navigation');toggle.textContent=open?'×':'☰'});
- links.querySelectorAll('a').forEach(function(a){a.addEventListener('click',close)});
+ // The phone menu is a full-screen sheet: page scrolling is locked while it is open.
+ function set(open){if(open){const h=nav.closest('header');if(h)document.documentElement.style.setProperty('--header-h',Math.round(h.getBoundingClientRect().bottom)+'px')}links.classList.toggle('open',open);document.documentElement.classList.toggle('nav-open',open);toggle.setAttribute('aria-expanded',String(open));toggle.setAttribute('aria-label',open?'Close navigation':'Open navigation');toggle.textContent=open?'×':'☰';if(window.aaLenis){if(open)window.aaLenis.stop();else window.aaLenis.start()}}
+ function close(){if(links.classList.contains('open')){set(false);toggle.focus()}}
+ toggle.addEventListener('click',function(){set(!links.classList.contains('open'))});
+ links.querySelectorAll('a').forEach(function(a){a.addEventListener('click',function(){set(false)})});
+ document.addEventListener('keydown',function(e){if(e.key==='Escape')close()});
+ window.matchMedia('(min-width: 761px)').addEventListener('change',function(e){if(e.matches)set(false)});
 });
 if(!reduced&&'IntersectionObserver'in window){
  const observer=new IntersectionObserver(function(entries){entries.forEach(function(entry){if(entry.isIntersecting){entry.target.classList.add('is-visible');observer.unobserve(entry.target)}})},{threshold:.09,rootMargin:'0px 0px -25px 0px'});

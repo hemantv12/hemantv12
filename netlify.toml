@@ -1,0 +1,42 @@
+# Netlify hosting for the static AA Growth Studio site.
+# Pages are plain HTML; run `node tools/site/build.mjs` before deploying (CI enforces it).
+[build]
+  publish = "rti-growth-studio"
+  command = ""
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    X-Frame-Options = "SAMEORIGIN"
+
+# Moved pages: permanent redirects pass their search ranking to the new address.
+[[redirects]]
+  from = "/studio/*"
+  to = "/about/"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/team/*"
+  to = "/about/"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/growth-lab/*"
+  to = "/services/paid-media/"
+  status = 301
+  force = true
+
+# CSS and JS references carry a content hash (?v=…), so they can be cached for a long time.
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=604800, stale-while-revalidate=86400"
+
+[[headers]]
+  for = "/admin/*"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
