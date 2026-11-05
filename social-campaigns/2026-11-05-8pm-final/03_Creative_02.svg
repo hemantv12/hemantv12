@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350">
+ <defs><linearGradient id="shade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#141A14" stop-opacity=".94"/><stop offset=".52" stop-color="#141A14" stop-opacity=".58"/><stop offset="1" stop-color="#141A14" stop-opacity=".97"/></linearGradient></defs>
+ <rect width="1080" height="1350" fill="#F3EFE6"/><g transform="translate(48 40)">
+<rect width="88" height="88" rx="25" fill="#171D16" stroke="#D7F36B" stroke-opacity=".55" stroke-width="2"/>
+<path d="M14 55C8 34 29 12 50 14c16 1 27 11 27 26" fill="none" stroke="#D7F36B" stroke-width="2.3" stroke-linecap="round"/>
+<circle cx="76" cy="40" r="4" fill="#FF674D"/>
+<path d="M18 65 33 26h9l16 39H46l-3-8H31l-3 8Z" fill="#F3EFE6"/>
+<path d="M48 65 62 31h8l13 34H73l-2-7H60l-2 7Z" fill="#D7F36B"/>
+<path d="M60 52h7l-3-8Z" fill="#171914"/>
+</g><text x="154" y="75" fill="#1D241D" font-family="Arial,Helvetica,sans-serif" font-size="28" font-weight="700" letter-spacing="1">AA GROWTH</text>
+ <text x="155" y="106" fill="#7B856E" font-family="Arial,Helvetica,sans-serif" font-size="17" font-weight="600" letter-spacing="3">STUDIO</text>
+ <rect x="742" y="54" width="290" height="52" rx="18" fill="#E8E3D7" stroke="#7B856E" stroke-opacity=".6" stroke-width="2"/>
+ <text x="764" y="86" fill="#7B856E" font-family="Arial,Helvetica,sans-serif" font-size="14" font-weight="700" letter-spacing="2">CREATIVE PROCESS</text>
+ <text x="1007" y="86" text-anchor="end" fill="#1D241D" font-family="Arial,Helvetica,sans-serif" font-size="14">02 / 05</text>
+ <path d="M48 150H1032" stroke="#7B856E" stroke-opacity=".55" stroke-width="2"/>
+ <text x="62" y="240" fill="#1D241D" font-family="Arial" font-size="76" font-weight="800">START WITH</text>
+ <text x="62" y="325" fill="#7B856E" font-family="Arial" font-size="78" font-weight="800">4 ANSWERS.</text>
+ <text x="66" y="400" fill="#354234" font-family="Arial" font-size="22">A useful brief gives the creative team direction.</text>
+ <g><rect x="62" y="475" width="956" height="135" rx="24" fill="#283128" stroke="#D7F36B" stroke-width="2"/>
+ <text x="88" y="510" fill="#D7F36B" font-family="Arial,Helvetica,sans-serif" font-size="16" font-weight="700">01</text>
+ <text x="88" y="555" fill="#FBF9F2" font-family="Arial,Helvetica,sans-serif" font-size="26" font-weight="700">AUDIENCE</text>
+ <text x="88" y="597" fill="#C8CCBE" font-family="Arial,Helvetica,sans-serif" font-size="18">Who needs to see this?</text></g>
+ <g><rect x="62" y="630" width="956" height="135" rx="24" fill="#283128" stroke="#FF674D" stroke-width="2"/>
+ <text x="88" y="665" fill="#FF674D" font-family="Arial,Helvetica,sans-serif" font-size="16" font-weight="700">02</text>
+ <text x="88" y="710" fill="#FBF9F2" font-family="Arial,Helvetica,sans-serif" font-size="26" font-weight="700">GOAL</text>
+ <text x="88" y="752" fill="#C8CCBE" font-family="Arial,Helvetica,sans-serif" font-size="18">What should change after they see it?</text></g>
+ <g><rect x="62" y="785" width="956" height="135" rx="24" fill="#283128" stroke="#E7C96B" stroke-width="2"/>
+ <text x="88" y="820" fill="#E7C96B" font-family="Arial,Helvetica,sans-serif" font-size="16" font-weight="700">03</text>
+ <text x="88" y="865" fill="#FBF9F2" font-family="Arial,Helvetica,sans-serif" font-size="26" font-weight="700">MESSAGE</text>
+ <text x="88" y="907" fill="#C8CCBE" font-family="Arial,Helvetica,sans-serif" font-size="18">What is the one idea to remember?</text></g>
+ <g><rect x="62" y="940" width="956" height="135" rx="24" fill="#283128" stroke="#D7F36B" stroke-width="2"/>
+ <text x="88" y="975" fill="#D7F36B" font-family="Arial,Helvetica,sans-serif" font-size="16" font-weight="700">04</text>
+ <text x="88" y="1020" fill="#FBF9F2" font-family="Arial,Helvetica,sans-serif" font-size="26" font-weight="700">ACTION</text>
+ <text x="88" y="1062" fill="#C8CCBE" font-family="Arial,Helvetica,sans-serif" font-size="18">What should they do next?</text></g>
+ <rect x="46" y="1240" width="988" height="70" rx="20" fill="#1B221B" stroke="#D7F36B" stroke-opacity=".55" stroke-width="2"/>
+ <text x="76" y="1283" fill="#D7F36B" font-family="Arial,Helvetica,sans-serif" font-size="14" font-weight="700" letter-spacing="2">CLEAR INPUT. STRONGER OUTPUT.</text>
+ <text x="1006" y="1283" text-anchor="end" fill="#FBF9F2" font-family="Arial,Helvetica,sans-serif" font-size="19" font-weight="700">www.aagrowthstudio.com</text></svg>
