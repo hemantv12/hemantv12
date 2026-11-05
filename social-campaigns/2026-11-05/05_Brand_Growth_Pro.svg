@@ -1,0 +1,89 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350">
+<defs>
+  <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#0b0e0b"/><stop offset=".58" stop-color="#171c16"/><stop offset="1" stop-color="#090b09"/></linearGradient>
+  <radialGradient id="glow"><stop stop-color="#d7f36b" stop-opacity=".26"/><stop offset="1" stop-color="#d7f36b" stop-opacity="0"/></radialGradient>
+  <linearGradient id="lime" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#efff8b"/><stop offset="1" stop-color="#c5eb48"/></linearGradient>
+  <linearGradient id="coral" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#ff674d"/><stop offset="1" stop-color="#ff987e"/></linearGradient>
+  <filter id="blur"><feGaussianBlur stdDeviation="36"/></filter>
+  <pattern id="grid" width="48" height="48" patternUnits="userSpaceOnUse"><path d="M48 0H0V48" fill="none" stroke="#f3efe6" stroke-opacity=".04" stroke-width="1"/></pattern>
+  <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="16" stdDeviation="18" flood-color="#000" flood-opacity=".42"/></filter>
+</defs>
+<rect width="1080" height="1350" fill="url(#bg)"/>
+<rect width="1080" height="1350" fill="url(#grid)"/>
+<circle cx="900" cy="390" r="360" fill="url(#glow)" filter="url(#blur)"/>
+<path d="M0 0H1080V12H0Z" fill="url(#lime)"/>
+<path d="M0 1180L230 1350H0Z" fill="#ff674d" opacity=".1"/>
+<path d="M890 0H1080V245Z" fill="#d7f36b" opacity=".07"/>
+<!-- Official AA symbol -->
+<g transform="translate(64 52)">
+ <rect x="0" y="0" width="100" height="100" rx="28" fill="#171b14" stroke="#d7f36b" stroke-opacity=".6" stroke-width="2"/>
+ <path d="M14 55C8 32 28 10 51 12c18 1 31 13 31 30" fill="none" stroke="#d7f36b" stroke-width="2.5" stroke-linecap="round"/>
+ <circle cx="82" cy="42" r="4.5" fill="#ff674d"/>
+ <path d="M20 74 37 29h10l18 45H52l-3-9H35l-3 9Zm17-17h8l-4-11Z" fill="#f3efe6"/>
+ <path d="M54 74 68 35h9l14 39H79l-3-9H65l-3 9Z" fill="#d7f36b"/>
+ <path d="M65 56h9l-4.5-11Z" fill="#171914"/>
+ <path d="M18 81h62" stroke="#fff" stroke-opacity=".2"/>
+</g>
+<text x="188" y="91" fill="#f3efe6" font-family="Inter,Arial,sans-serif" font-size="35" font-weight="800" letter-spacing="1.2">AA GROWTH</text>
+<text x="188" y="132" fill="#f3efe6" font-family="Inter,Arial,sans-serif" font-size="35" font-weight="800" letter-spacing="1.2">STUDIO</text>
+<text x="190" y="159" fill="#d7f36b" font-family="Inter,Arial,sans-serif" font-size="13" font-weight="700" letter-spacing="3.2">CREATIVE · SOCIAL · DIGITAL</text>
+<g transform="translate(740 75)">
+ <rect width="276" height="50" rx="25" fill="#f3efe6" fill-opacity=".045" stroke="#d7f36b" stroke-opacity=".5"/>
+ <circle cx="25" cy="25" r="5" fill="#ff674d"/>
+ <text x="45" y="32" fill="#e9eddf" font-family="Inter,Arial,sans-serif" font-size="15" font-weight="650" letter-spacing="1.3">CREATIVE GROWTH PARTNER</text>
+</g>
+<!-- Hero message -->
+<text x="68" y="255" fill="#ff674d" font-family="Inter,Arial,sans-serif" font-size="18" font-weight="800" letter-spacing="4">THE BRAND SHOULD FEEL CONNECTED.</text>
+<text x="64" y="367" fill="#f3efe6" font-family="Inter,Arial,sans-serif" font-size="83" font-weight="850" letter-spacing="-3">BUILD A BRAND</text>
+<text x="64" y="465" fill="#f3efe6" font-family="Inter,Arial,sans-serif" font-size="83" font-weight="850" letter-spacing="-3">PEOPLE</text>
+<text x="64" y="563" fill="url(#lime)" font-family="Inter,Arial,sans-serif" font-size="104" font-weight="900" letter-spacing="-4">REMEMBER.</text>
+<path d="M68 590C210 614 380 614 526 585" fill="none" stroke="#ff674d" stroke-width="8" stroke-linecap="round"/>
+<text x="70" y="650" fill="#d6d9cd" font-family="Inter,Arial,sans-serif" font-size="26" font-weight="450">Strategy, content, design and digital experiences—</text>
+<text x="70" y="688" fill="#d6d9cd" font-family="Inter,Arial,sans-serif" font-size="26" font-weight="450">connected to move your business forward.</text>
+<!-- Connected growth system motif -->
+<g filter="url(#shadow)">
+ <circle cx="824" cy="843" r="142" fill="#111610" stroke="#d7f36b" stroke-opacity=".75" stroke-width="2"/>
+ <circle cx="824" cy="843" r="113" fill="none" stroke="#f3efe6" stroke-opacity=".13" stroke-width="1.5" stroke-dasharray="5 10"/>
+ <circle cx="824" cy="843" r="74" fill="#1e2618" stroke="#d7f36b" stroke-width="2"/>
+ <text x="824" y="835" text-anchor="middle" fill="#f3efe6" font-family="Inter,Arial,sans-serif" font-size="25" font-weight="850">ONE</text>
+ <text x="824" y="868" text-anchor="middle" fill="#d7f36b" font-family="Inter,Arial,sans-serif" font-size="25" font-weight="850">BRAND</text>
+ <g fill="#10140f" stroke="#ff674d" stroke-width="2">
+  <rect x="719" y="682" width="210" height="52" rx="26"/>
+  <rect x="940" y="818" width="112" height="52" rx="26"/>
+  <rect x="728" y="1018" width="198" height="52" rx="26"/>
+  <rect x="590" y="818" width="110" height="52" rx="26"/>
+ </g>
+ <g fill="#f3efe6" font-family="Inter,Arial,sans-serif" font-size="17" font-weight="700" text-anchor="middle">
+  <text x="824" y="715">STRATEGY</text>
+  <text x="996" y="851">WEB</text>
+  <text x="827" y="1051">CONTENT</text>
+  <text x="645" y="851">BRAND</text>
+ </g>
+ <g stroke="#d7f36b" stroke-width="3" fill="none" stroke-linecap="round">
+  <path d="M824 734V756"/><path d="M940 844H930"/><path d="M824 1018V987"/><path d="M700 844H710"/>
+ </g>
+</g>
+<!-- Service strip -->
+<text x="68" y="1136" fill="#f3efe6" font-family="Inter,Arial,sans-serif" font-size="20" font-weight="800" letter-spacing="2.4">THE CAPABILITIES BEHIND THE GROWTH</text>
+<g transform="translate(66 1165)">
+ <g>
+  <rect width="294" height="70" rx="17" fill="#f3efe6" fill-opacity=".035" stroke="#f3efe6" stroke-opacity=".18"/>
+  <circle cx="31" cy="35" r="7" fill="#d7f36b"/><text x="55" y="43" fill="#f3efe6" font-family="Inter,Arial,sans-serif" font-size="19" font-weight="650">Social &amp; Content</text>
+ </g>
+ <g transform="translate(310)">
+  <rect width="294" height="70" rx="17" fill="#f3efe6" fill-opacity=".035" stroke="#f3efe6" stroke-opacity=".18"/>
+  <circle cx="31" cy="35" r="7" fill="#ff674d"/><text x="55" y="43" fill="#f3efe6" font-family="Inter,Arial,sans-serif" font-size="19" font-weight="650">Video &amp; Motion</text>
+ </g>
+ <g transform="translate(620)">
+  <rect width="294" height="70" rx="17" fill="#f3efe6" fill-opacity=".035" stroke="#f3efe6" stroke-opacity=".18"/>
+  <circle cx="31" cy="35" r="7" fill="#d7f36b"/><text x="55" y="43" fill="#f3efe6" font-family="Inter,Arial,sans-serif" font-size="19" font-weight="650">Brand &amp; Web</text>
+ </g>
+</g>
+<g transform="translate(66 1255)">
+ <rect width="500" height="66" rx="33" fill="url(#lime)"/>
+ <text x="34" y="43" fill="#11140e" font-family="Inter,Arial,sans-serif" font-size="22" font-weight="900" letter-spacing=".7">LET'S BUILD YOUR NEXT MOVE</text>
+ <path d="M448 22l20 11-20 11" fill="none" stroke="#11140e" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<text x="1020" y="1297" text-anchor="end" fill="#f3efe6" font-family="Inter,Arial,sans-serif" font-size="22" font-weight="700">aagrowthstudio.com</text>
+<text x="1020" y="1323" text-anchor="end" fill="#aeb4a4" font-family="Inter,Arial,sans-serif" font-size="13" letter-spacing="2">WORKING WORLDWIDE</text>
+</svg>
