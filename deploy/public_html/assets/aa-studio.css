@@ -860,3 +860,73 @@ html body .aa-phone input{width:100%;min-width:0}
 /* Six recent builds: two rows of three on desktop */
 @media(min-width:761px){html body .recent-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 html body .build-link{display:inline-flex;margin-top:20px;font-weight:600}
+
+/* Phone menu: email on its own full-width row under WhatsApp and Call */
+html body .nav-extra-contact a[href^="mailto:"]{grid-column:1/-1}
+
+/* Home hero: real project screens fanned out from the bottom edge, and a moving services strip */
+html body .home-hero-field{justify-content:flex-start;min-height:0;padding:clamp(56px,8vh,96px) 0 0}
+html body .home-hero-field h1{font-size:clamp(44px,7.4vw,112px)}
+html body .hero-fan{position:relative;display:block;height:clamp(250px,30vw,380px);margin:clamp(44px,6vh,72px) auto 0;max-width:1100px}
+html body .hero-fan-label{position:absolute;left:50%;top:18px;z-index:6;transform:translate(-50%,-50%);padding:7px 12px;background:var(--ink);color:var(--paper);font-size:10px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;white-space:nowrap}
+html body .hero-fan-phone{position:absolute;left:50%;top:calc(var(--d) * 34px + 18px);z-index:calc(5 - var(--d));width:clamp(150px,15vw,224px);transform:translateX(calc(-50% + var(--i) * 92%)) rotate(calc(var(--i) * 4.5deg));transform-origin:50% 120%}
+html body .hero-fan-screen{display:block;aspect-ratio:420/909;overflow:hidden;border:7px solid #171914;background:#171914;box-shadow:0 30px 60px -24px #1719145c,0 10px 22px -12px #17191440;animation:aa-fan-rise 1.1s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(.35s + var(--d) * .12s);transition:transform .5s cubic-bezier(.2,.8,.2,1)}
+html body .hero-fan-screen img{display:block;width:100%;height:100%;object-fit:cover;object-position:top}
+html body .hero-fan:hover .hero-fan-screen,html body .hero-fan:focus-visible .hero-fan-screen{transform:translateY(-22px)}
+html body .hero-fan:hover .hero-fan-phone:not([style*="--d:0"]) .hero-fan-screen{transform:translateY(-12px)}
+@keyframes aa-fan-rise{from{transform:translateY(70%);opacity:0}to{transform:none;opacity:1}}
+html body .hero-strip{display:flex;overflow:hidden;background:var(--ink);color:var(--paper);border-top:1px solid #ffffff1a}
+html body .hero-strip-track{display:flex;flex:none;gap:0;margin:0;padding:0;list-style:none;animation:aa-strip 34s linear infinite}
+html body .hero-strip-track li{display:flex;align-items:center;gap:28px;padding:20px 0 20px 28px;font-size:clamp(15px,1.6vw,22px);font-weight:650;letter-spacing:-.02em;white-space:nowrap}
+html body .hero-strip-track li:after{content:"";width:9px;height:9px;background:var(--lime);transform:rotate(45deg)}
+html body .hero-strip:hover .hero-strip-track{animation-play-state:paused}
+@keyframes aa-strip{to{transform:translateX(-100%)}}
+@media(max-width:760px){
+ html body .home-hero-field{padding:44px 0 0}
+ html body .hero-fan{height:236px;margin-top:40px}
+ html body .hero-fan-phone{width:132px;top:calc(var(--d) * 26px + 14px);transform:translateX(calc(-50% + var(--i) * 84%)) rotate(calc(var(--i) * 6deg))}
+ html body .hero-fan-phone[style*="--d:2"]{display:none}
+ html body .hero-fan-screen{border-width:5px}
+ html body .hero-fan-label{top:14px;padding:6px 10px;font-size:9px}
+ html body .hero-strip-track li{padding:15px 0 15px 22px;gap:22px}
+}
+/* Hero fan, refined: screens dissolve into the page instead of being cut by the strip */
+html body .hero-fan:after{content:"";position:absolute;left:-40px;right:-40px;bottom:0;z-index:7;height:38%;background:linear-gradient(#f5f2e900,var(--paper) 80%);pointer-events:none}
+html body .hero-strip{margin-top:0}
+@media(max-width:760px){
+ html body .hero-fan{height:300px;margin-top:64px;max-width:340px}
+ html body .hero-fan-label{top:-14px;transform:translate(-50%,-100%);padding:6px 10px;font-size:9px;letter-spacing:.12em}
+ html body .hero-fan-phone{width:150px;top:0;transform:translateX(-50%)}
+ html body .hero-fan-phone[style*="--d:1"]{width:124px;top:30px;z-index:3;filter:saturate(.9)}
+ html body .hero-fan-phone[style*="--i:-1"]{transform:translateX(calc(-50% - 92px)) rotate(-5deg)}
+ html body .hero-fan-phone[style*="--i:1"]{transform:translateX(calc(-50% + 92px)) rotate(5deg)}
+ html body .hero-fan-phone[style*="--d:1"] .hero-fan-screen{box-shadow:0 18px 36px -20px #17191450}
+ html body .hero-fan:after{height:46%}
+}
+/* First screen = header + hero + services strip, so the strip sits on the bottom edge of the screen.
+   The phone fan takes whatever height is left under the buttons. */
+html body{--hdr-h:83px;--strip-h:68px}
+html body .hero-strip{height:var(--strip-h);align-items:center}
+html body .hero-strip-track li{padding-top:0;padding-bottom:0}
+html body .home-hero-field{min-height:calc(100svh - var(--hdr-h) - var(--strip-h))}
+html body .home-hero-field>.wrap{flex:1 1 auto;display:flex;flex-direction:column;width:100%}
+html body .home-hero-field .hero-fan{flex:1 1 auto;width:100%;height:auto;min-height:190px;margin-bottom:0}
+@media(max-width:760px){
+ html body{--hdr-h:69px;--strip-h:54px}
+ html body .home-hero-field .hero-fan{min-height:150px;margin-top:52px}
+}
+/* Short screens: tighten the hero so the strip still lands on the bottom edge */
+@media(min-width:761px){html body .home-hero-field h1{font-size:clamp(44px,min(7.4vw,11.2vh),112px)}}
+@media(min-width:761px) and (max-height:820px){
+ html body .home-hero-field{padding-top:30px}
+ html body .home-hero-field .eyebrow{margin-bottom:18px}
+ html body .home-hero-field h1{margin-bottom:20px}
+ html body .home-hero-field .hero-actions{margin-top:24px}
+ html body .home-hero-field .hero-fan{margin-top:34px;min-height:150px}
+}
+@media(max-width:760px) and (max-height:800px){
+ html body .home-hero-field{padding-top:30px}
+ html body .home-hero-field .hero-fan{margin-top:40px;min-height:128px}
+}
+/* Hero headline: a line that wraps onto two rows must not be clipped to its first row */
+html body .home-hero-field h1 .line{clip-path:none!important;animation:none!important;opacity:1;transform:none}
