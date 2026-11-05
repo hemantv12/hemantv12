@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350">
+ <defs><linearGradient id="shade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#141A14" stop-opacity=".94"/><stop offset=".52" stop-color="#141A14" stop-opacity=".58"/><stop offset="1" stop-color="#141A14" stop-opacity=".97"/></linearGradient></defs>
+ <image href="https://images.pexels.com/photos/13451104/pexels-photo-13451104.jpeg?cs=srgb&dl=pexels-jonathanborba-13451104.jpg&fm=jpg" x="0" y="0" width="1080" height="1350" preserveAspectRatio="xMidYMid slice"/><rect width="1080" height="1350" fill="url(#shade)"/><g transform="translate(48 40)">
+<rect width="88" height="88" rx="25" fill="#171D16" stroke="#D7F36B" stroke-opacity=".55" stroke-width="2"/>
+<path d="M14 55C8 34 29 12 50 14c16 1 27 11 27 26" fill="none" stroke="#D7F36B" stroke-width="2.3" stroke-linecap="round"/>
+<circle cx="76" cy="40" r="4" fill="#FF674D"/>
+<path d="M18 65 33 26h9l16 39H46l-3-8H31l-3 8Z" fill="#F3EFE6"/>
+<path d="M48 65 62 31h8l13 34H73l-2-7H60l-2 7Z" fill="#D7F36B"/>
+<path d="M60 52h7l-3-8Z" fill="#171914"/>
+</g><text x="154" y="75" fill="#FBF9F2" font-family="Arial,Helvetica,sans-serif" font-size="28" font-weight="700" letter-spacing="1">AA GROWTH</text>
+ <text x="155" y="106" fill="#D7F36B" font-family="Arial,Helvetica,sans-serif" font-size="17" font-weight="600" letter-spacing="3">STUDIO</text>
+ <rect x="742" y="54" width="290" height="52" rx="18" fill="#283128" stroke="#D7F36B" stroke-opacity=".6" stroke-width="2"/>
+ <text x="764" y="86" fill="#D7F36B" font-family="Arial,Helvetica,sans-serif" font-size="14" font-weight="700" letter-spacing="2">BRAND DESIGN</text>
+ <text x="1007" y="86" text-anchor="end" fill="#FBF9F2" font-family="Arial,Helvetica,sans-serif" font-size="14">01 / 05</text>
+ <path d="M48 150H1032" stroke="#D7F36B" stroke-opacity=".55" stroke-width="2"/>
+ <text x="62" y="250" fill="#FBF9F2" font-family="Arial" font-size="82" font-weight="800">A LOGO IS</text>
+ <text x="62" y="345" fill="#D7F36B" font-family="Arial" font-size="96" font-weight="800">NOT A BRAND.</text>
+ <path d="M65 405H620" stroke="#FF674D" stroke-width="9" stroke-linecap="round"/>
+ <text x="66" y="480" fill="#FBF9F2" font-family="Arial" font-size="27">Recognition comes from the whole experience.</text>
+ <rect x="62" y="600" width="956" height="430" rx="28" fill="#202820" fill-opacity=".94" stroke="#D7F36B" stroke-width="2"/>
+ <text x="98" y="665" fill="#D7F36B" font-family="Arial" font-size="18" letter-spacing="2">THE BRAND SYSTEM</text>
+ <g><rect x="98" y="720" width="190" height="210" rx="20" fill="#2E3A2C"/><rect x="312" y="720" width="190" height="210" rx="20" fill="#FF674D"/><rect x="526" y="720" width="190" height="210" rx="20" fill="#D7F36B"/><rect x="740" y="720" width="230" height="210" rx="20" fill="#F3EFE6"/>
+ <text x="193" y="820" text-anchor="middle" fill="#FBF9F2" font-family="Arial" font-size="24" font-weight="700">VISUAL</text>
+ <text x="407" y="820" text-anchor="middle" fill="#1D241D" font-family="Arial" font-size="24" font-weight="700">VOICE</text>
+ <text x="621" y="820" text-anchor="middle" fill="#1D241D" font-family="Arial" font-size="24" font-weight="700">MESSAGE</text>
+ <text x="855" y="820" text-anchor="middle" fill="#1D241D" font-family="Arial" font-size="24" font-weight="700">EXPERIENCE</text>
+ <text x="193" y="870" text-anchor="middle" fill="#C8CCBE" font-family="Arial" font-size="15">Color / type</text>
+ <text x="407" y="870" text-anchor="middle" fill="#1D241D" font-family="Arial" font-size="15">Tone / words</text>
+ <text x="621" y="870" text-anchor="middle" fill="#1D241D" font-family="Arial" font-size="15">Point of view</text>
+ <text x="855" y="870" text-anchor="middle" fill="#354234" font-family="Arial" font-size="15">Every touchpoint</text></g>
+ <rect x="46" y="1240" width="988" height="70" rx="20" fill="#1B221B" stroke="#D7F36B" stroke-opacity=".55" stroke-width="2"/>
+ <text x="76" y="1283" fill="#D7F36B" font-family="Arial,Helvetica,sans-serif" font-size="14" font-weight="700" letter-spacing="2">BUILD A BRAND PEOPLE RECOGNIZE</text>
+ <text x="1006" y="1283" text-anchor="end" fill="#FBF9F2" font-family="Arial,Helvetica,sans-serif" font-size="19" font-weight="700">www.aagrowthstudio.com</text></svg>
