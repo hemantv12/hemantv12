@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350">
+ <defs><linearGradient id="shade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#141A14" stop-opacity=".94"/><stop offset=".52" stop-color="#141A14" stop-opacity=".58"/><stop offset="1" stop-color="#141A14" stop-opacity=".97"/></linearGradient></defs>
+ <rect width="1080" height="1350" fill="#F3EFE6"/><g transform="translate(48 40)">
+<rect width="88" height="88" rx="25" fill="#171D16" stroke="#D7F36B" stroke-opacity=".55" stroke-width="2"/>
+<path d="M14 55C8 34 29 12 50 14c16 1 27 11 27 26" fill="none" stroke="#D7F36B" stroke-width="2.3" stroke-linecap="round"/>
+<circle cx="76" cy="40" r="4" fill="#FF674D"/>
+<path d="M18 65 33 26h9l16 39H46l-3-8H31l-3 8Z" fill="#F3EFE6"/>
+<path d="M48 65 62 31h8l13 34H73l-2-7H60l-2 7Z" fill="#D7F36B"/>
+<path d="M60 52h7l-3-8Z" fill="#171914"/>
+</g><text x="154" y="75" fill="#1D241D" font-family="Arial,Helvetica,sans-serif" font-size="28" font-weight="700" letter-spacing="1">AA GROWTH</text>
+ <text x="155" y="106" fill="#7B856E" font-family="Arial,Helvetica,sans-serif" font-size="17" font-weight="600" letter-spacing="3">STUDIO</text>
+ <rect x="742" y="54" width="290" height="52" rx="18" fill="#E8E3D7" stroke="#7B856E" stroke-opacity=".6" stroke-width="2"/>
+ <text x="764" y="86" fill="#7B856E" font-family="Arial,Helvetica,sans-serif" font-size="14" font-weight="700" letter-spacing="2">CREATIVE PROCESS</text>
+ <text x="1007" y="86" text-anchor="end" fill="#1D241D" font-family="Arial,Helvetica,sans-serif" font-size="14">04 / 05</text>
+ <path d="M48 150H1032" stroke="#7B856E" stroke-opacity=".55" stroke-width="2"/>
+ <text x="62" y="240" fill="#1D241D" font-family="Arial" font-size="82" font-weight="800">ONE SOURCE</text>
+ <text x="62" y="330" fill="#7B856E" font-family="Arial" font-size="88" font-weight="800">OF TRUTH.</text>
+ <text x="66" y="405" fill="#354234" font-family="Arial" font-size="22">A smoother handoff protects time and quality.</text>
+ <rect x="62" y="500" width="956" height="560" rx="28" fill="#1D241D" stroke="#7B856E" stroke-width="2"/>
+ <g><circle cx="200" cy="690" r="80" fill="#D7F36B"/><circle cx="540" cy="690" r="80" fill="#FF674D"/><circle cx="880" cy="690" r="80" fill="#E7C96B"/>
+ <text x="200" y="700" text-anchor="middle" fill="#1D241D" font-family="Arial" font-size="30" font-weight="700">01</text><text x="540" y="700" text-anchor="middle" fill="#1D241D" font-family="Arial" font-size="30" font-weight="700">02</text><text x="880" y="700" text-anchor="middle" fill="#1D241D" font-family="Arial" font-size="30" font-weight="700">03</text>
+ <path d="M285 690H450M625 690H790" stroke="#FBF9F2" stroke-width="5"/><path d="M430 675l20 15-20 15M770 675l20 15-20 15" fill="none" stroke="#FBF9F2" stroke-width="5"/>
+ <text x="200" y="820" text-anchor="middle" fill="#FBF9F2" font-family="Arial" font-size="22" font-weight="700">ONE BRIEF</text><text x="540" y="820" text-anchor="middle" fill="#FBF9F2" font-family="Arial" font-size="22" font-weight="700">ONE OWNER</text><text x="880" y="820" text-anchor="middle" fill="#FBF9F2" font-family="Arial" font-size="22" font-weight="700">ONE APPROVAL</text>
+ <text x="100" y="955" fill="#C8CCBE" font-family="Arial" font-size="20">Keep files, feedback, and final decisions in one agreed place.</text></g>
+ <rect x="46" y="1240" width="988" height="70" rx="20" fill="#1B221B" stroke="#D7F36B" stroke-opacity=".55" stroke-width="2"/>
+ <text x="76" y="1283" fill="#D7F36B" font-family="Arial,Helvetica,sans-serif" font-size="14" font-weight="700" letter-spacing="2">LESS CONFUSION. BETTER COLLABORATION.</text>
+ <text x="1006" y="1283" text-anchor="end" fill="#FBF9F2" font-family="Arial,Helvetica,sans-serif" font-size="19" font-weight="700">www.aagrowthstudio.com</text></svg>
