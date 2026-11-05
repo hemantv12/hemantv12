@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350">
+<defs>
+ <linearGradient id="bg2" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#090c0a"/><stop offset=".55" stop-color="#171b16"/><stop offset="1" stop-color="#0a0c0b"/></linearGradient>
+ <radialGradient id="coralGlow"><stop stop-color="#ff674d" stop-opacity=".2"/><stop offset="1" stop-color="#ff674d" stop-opacity="0"/></radialGradient>
+ <linearGradient id="lime2"><stop stop-color="#efff8b"/><stop offset="1" stop-color="#c9ef55"/></linearGradient>
+ <pattern id="grid2" width="44" height="44" patternUnits="userSpaceOnUse"><path d="M44 0H0V44" fill="none" stroke="#fff" stroke-opacity=".035"/></pattern>
+ <filter id="shadow2"><feDropShadow dx="0" dy="18" stdDeviation="20" flood-color="#000" flood-opacity=".45"/></filter>
+</defs>
+<rect width="1080" height="1350" fill="url(#bg2)"/><rect width="1080" height="1350" fill="url(#grid2)"/>
+<circle cx="930" cy="520" r="330" fill="url(#coralGlow)"/>
+<path d="M0 0H1080V12H0Z" fill="url(#lime2)"/>
+<path d="M0 1198L320 1350H0Z" fill="#d7f36b" opacity=".07"/>
+<!-- Exact supplied AA mark -->
+<g transform="translate(64 52)">
+ <rect x="0" y="0" width="100" height="100" rx="28" fill="#171b14" stroke="#d7f36b" stroke-opacity=".6" stroke-width="2"/>
+ <path d="M14 55C8 32 28 10 51 12c18 1 31 13 31 30" fill="none" stroke="#d7f36b" stroke-width="2.5" stroke-linecap="round"/>
+ <circle cx="82" cy="42" r="4.5" fill="#ff674d"/>
+ <path d="M20 74 37 29h10l18 45H52l-3-9H35l-3 9Zm17-17h8l-4-11Z" fill="#f3efe6"/>
+ <path d="M54 74 68 35h9l14 39H79l-3-9H65l-3 9Z" fill="#d7f36b"/>
+ <path d="M65 56h9l-4.5-11Z" fill="#171914"/>
+ <path d="M18 81h62" stroke="#fff" stroke-opacity=".2"/>
+</g>
+<text x="188" y="91" fill="#f3efe6" font-family="Inter,Arial,sans-serif" font-size="35" font-weight="800" letter-spacing="1.2">AA GROWTH</text>
+<text x="188" y="132" fill="#f3efe6" font-family="Inter,Arial,sans-serif" font-size="35" font-weight="800" letter-spacing="1.2">STUDIO</text>
+<text x="190" y="159" fill="#d7f36b" font-family="Inter,Arial,sans-serif" font-size="13" font-weight="700" letter-spacing="3.2">CREATIVE · SOCIAL · DIGITAL</text>
+<g transform="translate(755 75)">
+ <rect width="260" height="50" rx="25" fill="#f3efe6" fill-opacity=".04" stroke="#ff674d" stroke-opacity=".65"/>
+ <circle cx="25" cy="25" r="5" fill="#d7f36b"/>
+ <text x="45" y="32" fill="#eeeade" font-family="Inter,Arial,sans-serif" font-size="15" font-weight="700" letter-spacing="1.2">WEBSITE CONVERSION</text>
+</g>
+<text x="68" y="258" fill="#ff674d" font-family="Inter,Arial,sans-serif" font-size="18" font-weight="800" letter-spacing="4">THE 5-SECOND HOMEPAGE TEST</text>
+<text x="64" y="370" fill="#f3efe6" font-family="Inter,Arial,sans-serif" font-size="79" font-weight="850" letter-spacing="-3">LOOKS GOOD.</text>
+<text x="64" y="466" fill="url(#lime2)" font-family="Inter,Arial,sans-serif" font-size="84" font-weight="900" letter-spacing="-3">BUT DOES IT</text>
+<text x="64" y="560" fill="#f3efe6" font-family="Inter,Arial,sans-serif" font-size="83" font-weight="850" letter-spacing="-3">CONVERT?</text>
+<path d="M69 586C192 615 355 609 500 578" stroke="#ff674d" stroke-width="8" fill="none" stroke-linecap="round"/>
+<text x="70" y="648" fill="#d6d9cd" font-family="Inter,Arial,sans-serif" font-size="25">A visitor should understand what you do,</text>
+<text x="70" y="685" fill="#d6d9cd" font-family="Inter,Arial,sans-serif" font-size="25">why it matters and what to do next.</text>
+<!-- Audit checklist -->
+<g filter="url(#shadow2)">
+ <rect x="64" y="756" width="952" height="392" rx="28" fill="#101511" stroke="#d7f36b" stroke-opacity=".55" stroke-width="2"/>
+ <text x="104" y="813" fill="#d7f36b" font-family="Inter,Arial,sans-serif" font-size="19" font-weight="850" letter-spacing="2.4">CHECK THESE FIVE THINGS</text>
+ <g font-family="Inter,Arial,sans-serif">
+  <g transform="translate(105 850)">
+   <circle cx="20" cy="20" r="18" fill="#d7f36b"/><path d="M11 20l6 6 12-14" fill="none" stroke="#131710" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+   <text x="62" y="28" fill="#f3efe6" font-size="24" font-weight="700">A clear headline that says who you help</text>
+  </g>
+  <g transform="translate(105 910)">
+   <circle cx="20" cy="20" r="18" fill="#d7f36b"/><path d="M11 20l6 6 12-14" fill="none" stroke="#131710" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+   <text x="62" y="28" fill="#f3efe6" font-size="24" font-weight="700">A specific reason to choose you</text>
+  </g>
+  <g transform="translate(105 970)">
+   <circle cx="20" cy="20" r="18" fill="#d7f36b"/><path d="M11 20l6 6 12-14" fill="none" stroke="#131710" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+   <text x="62" y="28" fill="#f3efe6" font-size="24" font-weight="700">Proof placed near the promise</text>
+  </g>
+  <g transform="translate(105 1030)">
+   <circle cx="20" cy="20" r="18" fill="#d7f36b"/><path d="M11 20l6 6 12-14" fill="none" stroke="#131710" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+   <text x="62" y="28" fill="#f3efe6" font-size="24" font-weight="700">A smooth, mobile-friendly journey</text>
+  </g>
+  <g transform="translate(105 1090)">
+   <circle cx="20" cy="20" r="18" fill="#ff674d"/><path d="M11 20l6 6 12-14" fill="none" stroke="#131710" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+   <text x="62" y="28" fill="#f3efe6" font-size="24" font-weight="700">One obvious next action</text>
+  </g>
+ </g>
+</g>
+<g transform="translate(66 1190)">
+ <rect width="548" height="70" rx="35" fill="url(#lime2)"/>
+ <text x="34" y="45" fill="#11140e" font-family="Inter,Arial,sans-serif" font-size="22" font-weight="900">MAKE YOUR WEBSITE WORK HARDER</text>
+ <path d="M493 23l20 12-20 12" fill="none" stroke="#11140e" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<text x="1014" y="1293" text-anchor="end" fill="#f3efe6" font-family="Inter,Arial,sans-serif" font-size="22" font-weight="700">aagrowthstudio.com</text>
+<text x="1014" y="1320" text-anchor="end" fill="#aeb4a4" font-family="Inter,Arial,sans-serif" font-size="13" letter-spacing="2">STRATEGY · DESIGN · PERFORMANCE</text>
+</svg>
