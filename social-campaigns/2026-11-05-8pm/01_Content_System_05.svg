@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350"><defs>
+ <linearGradient id="shade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#141A14" stop-opacity=".93"/><stop offset=".5" stop-color="#141A14" stop-opacity=".58"/><stop offset="1" stop-color="#141A14" stop-opacity=".98"/></linearGradient>
+ <linearGradient id="glow" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#D7F36B" stop-opacity=".24"/><stop offset="1" stop-color="#FF674D" stop-opacity=".04"/></linearGradient>
+ </defs><rect width="1080" height="1350" fill="#1D241D"/><g transform="translate(48 40)">
+  <rect width="88" height="88" rx="25" fill="#171D16" stroke="#D7F36B" stroke-opacity=".55" stroke-width="2"/>
+  <path d="M14 55C8 34 29 12 50 14c16 1 27 11 27 26" fill="none" stroke="#D7F36B" stroke-width="2.3" stroke-linecap="round"/>
+  <circle cx="76" cy="40" r="4" fill="#FF674D"/>
+  <path d="M18 65 33 26h9l16 39H46l-3-8H31l-3 8Z" fill="#F3EFE6"/>
+  <path d="M48 65 62 31h8l13 34H73l-2-7H60l-2 7Z" fill="#D7F36B"/>
+  <path d="M60 52h7l-3-8Z" fill="#171914"/>
+</g>
+ <text x="154" y="75" fill="#FBF9F2" font-family="Arial,Helvetica,sans-serif" font-size="28" font-weight="700" letter-spacing="1">AA GROWTH</text>
+ <text x="155" y="106" fill="#D7F36B" font-family="Arial,Helvetica,sans-serif" font-size="17" font-weight="600" letter-spacing="3">STUDIO</text>
+ <rect x="742" y="54" width="290" height="52" rx="18" fill="#283128" stroke="#D7F36B" stroke-opacity=".6" stroke-width="2"/>
+ <text x="764" y="86" fill="#D7F36B" font-family="Arial,Helvetica,sans-serif" font-size="14" font-weight="700" letter-spacing="2">CONTENT SYSTEM</text>
+ <text x="1007" y="86" text-anchor="end" fill="#FBF9F2" font-family="Arial,Helvetica,sans-serif" font-size="14">05 / 05</text>
+ <path d="M48 150H1032" stroke="#D7F36B" stroke-opacity=".55" stroke-width="2"/>
+ <text x="62" y="250" fill="#FBF9F2" font-family="Arial" font-size="78" font-weight="800">MAKE EVERY</text>
+ <text x="62" y="340" fill="#D7F36B" font-family="Arial" font-size="90" font-weight="800">POST EARN</text>
+ <text x="62" y="430" fill="#FBF9F2" font-family="Arial" font-size="90" font-weight="800">ITS PLACE.</text>
+ <path d="M65 480H620" stroke="#FF674D" stroke-width="9" stroke-linecap="round"/>
+ <rect x="62" y="560" width="956" height="520" rx="28" fill="#283128" stroke="#D7F36B" stroke-width="2"/>
+ <text x="98" y="625" fill="#D7F36B" font-family="Arial" font-size="18" letter-spacing="2">BEFORE YOU HIT PUBLISH</text>
+ <g fill="none" stroke="#D7F36B" stroke-width="4"><circle cx="115" cy="715" r="18"/><path d="M105 715l8 8 16-18"/><circle cx="115" cy="830" r="18"/><path d="M105 830l8 8 16-18"/><circle cx="115" cy="945" r="18"/><path d="M105 945l8 8 16-18"/></g>
+ <text x="160" y="724" fill="#FBF9F2" font-family="Arial" font-size="25">Does it help the right person?</text>
+ <text x="160" y="839" fill="#FBF9F2" font-family="Arial" font-size="25">Does it sound like your brand?</text>
+ <text x="160" y="954" fill="#FBF9F2" font-family="Arial" font-size="25">Does it lead to one clear next step?</text>
+ <rect x="46" y="1240" width="988" height="70" rx="20" fill="#1B221B" stroke="#D7F36B" stroke-opacity=".55" stroke-width="2"/>
+ <text x="76" y="1283" fill="#D7F36B" font-family="Arial,Helvetica,sans-serif" font-size="14" font-weight="700" letter-spacing="2">LET'S BUILD A CONTENT SYSTEM</text>
+ <text x="1006" y="1283" text-anchor="end" fill="#FBF9F2" font-family="Arial,Helvetica,sans-serif" font-size="19" font-weight="700">www.aagrowthstudio.com</text></svg>
