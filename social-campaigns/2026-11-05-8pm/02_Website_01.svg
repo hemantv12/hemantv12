@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350"><defs>
+ <linearGradient id="shade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#141A14" stop-opacity=".93"/><stop offset=".5" stop-color="#141A14" stop-opacity=".58"/><stop offset="1" stop-color="#141A14" stop-opacity=".98"/></linearGradient>
+ <linearGradient id="glow" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#D7F36B" stop-opacity=".24"/><stop offset="1" stop-color="#FF674D" stop-opacity=".04"/></linearGradient>
+ </defs><image href="https://images.pexels.com/photos/13451104/pexels-photo-13451104.jpeg?cs=srgb&dl=pexels-jonathanborba-13451104.jpg&fm=jpg" x="0" y="0" width="1080" height="1350" preserveAspectRatio="xMidYMid slice"/><rect width="1080" height="1350" fill="url(#shade)"/><g transform="translate(48 40)">
+  <rect width="88" height="88" rx="25" fill="#171D16" stroke="#D7F36B" stroke-opacity=".55" stroke-width="2"/>
+  <path d="M14 55C8 34 29 12 50 14c16 1 27 11 27 26" fill="none" stroke="#D7F36B" stroke-width="2.3" stroke-linecap="round"/>
+  <circle cx="76" cy="40" r="4" fill="#FF674D"/>
+  <path d="M18 65 33 26h9l16 39H46l-3-8H31l-3 8Z" fill="#F3EFE6"/>
+  <path d="M48 65 62 31h8l13 34H73l-2-7H60l-2 7Z" fill="#D7F36B"/>
+  <path d="M60 52h7l-3-8Z" fill="#171914"/>
+</g>
+ <text x="154" y="75" fill="#FBF9F2" font-family="Arial,Helvetica,sans-serif" font-size="28" font-weight="700" letter-spacing="1">AA GROWTH</text>
+ <text x="155" y="106" fill="#D7F36B" font-family="Arial,Helvetica,sans-serif" font-size="17" font-weight="600" letter-spacing="3">STUDIO</text>
+ <rect x="742" y="54" width="290" height="52" rx="18" fill="#283128" stroke="#D7F36B" stroke-opacity=".6" stroke-width="2"/>
+ <text x="764" y="86" fill="#D7F36B" font-family="Arial,Helvetica,sans-serif" font-size="14" font-weight="700" letter-spacing="2">WEBSITE EXPERIENCE</text>
+ <text x="1007" y="86" text-anchor="end" fill="#FBF9F2" font-family="Arial,Helvetica,sans-serif" font-size="14">01 / 05</text>
+ <path d="M48 150H1032" stroke="#D7F36B" stroke-opacity=".55" stroke-width="2"/>
+ <text x="62" y="250" fill="#FBF9F2" font-family="Arial" font-size="80" font-weight="800">YOUR WEBSITE</text>
+ <text x="62" y="340" fill="#D7F36B" font-family="Arial" font-size="96" font-weight="800">HAS ONE JOB.</text>
+ <path d="M65 390H680" stroke="#FF674D" stroke-width="9" stroke-linecap="round"/>
+ <text x="66" y="455" fill="#FBF9F2" font-family="Arial" font-size="28">Make the next step obvious.</text>
+ <g transform="translate(62 540)">
+ <rect width="956" height="575" rx="28" fill="#F3EFE6" stroke="#D7F36B" stroke-width="3"/>
+ <rect width="956" height="72" rx="28" fill="#DDD8CC"/><rect y="48" width="956" height="24" fill="#DDD8CC"/>
+ <circle cx="38" cy="36" r="10" fill="#FF674D"/><circle cx="72" cy="36" r="10" fill="#E7C96B"/><circle cx="106" cy="36" r="10" fill="#7B856E"/>
+ <text x="160" y="43" fill="#354234" font-family="Arial" font-size="16" letter-spacing="2">YOUR BRAND / HOMEPAGE</text>
+ <text x="54" y="180" fill="#1D241D" font-family="Arial" font-size="38" font-weight="800">A CLEAR PROMISE.</text>
+ <text x="54" y="230" fill="#7B856E" font-family="Arial" font-size="24">For the right customer.</text>
+ <rect x="54" y="280" width="350" height="68" rx="18" fill="#D7F36B"/>
+ <text x="229" y="323" text-anchor="middle" fill="#1D241D" font-family="Arial" font-size="19" font-weight="700">START A PROJECT →</text>
+ <rect x="54" y="390" width="250" height="120" rx="16" fill="#1D241D"/><rect x="352" y="390" width="250" height="120" rx="16" fill="#1D241D"/><rect x="650" y="390" width="250" height="120" rx="16" fill="#1D241D"/>
+ <text x="76" y="428" fill="#D7F36B" font-family="Arial" font-size="16">WHAT YOU DO</text><text x="76" y="472" fill="#FBF9F2" font-family="Arial" font-size="20">Plain language</text>
+ <text x="374" y="428" fill="#FF674D" font-family="Arial" font-size="16">WHO IT'S FOR</text><text x="374" y="472" fill="#FBF9F2" font-family="Arial" font-size="20">Specific audience</text>
+ <text x="672" y="428" fill="#E7C96B" font-family="Arial" font-size="16">WHAT'S NEXT</text><text x="672" y="472" fill="#FBF9F2" font-family="Arial" font-size="20">One clear action</text>
+ </g>
+ <rect x="46" y="1240" width="988" height="70" rx="20" fill="#1B221B" stroke="#D7F36B" stroke-opacity=".55" stroke-width="2"/>
+ <text x="76" y="1283" fill="#D7F36B" font-family="Arial,Helvetica,sans-serif" font-size="14" font-weight="700" letter-spacing="2">DESIGN FOR THE DECISION</text>
+ <text x="1006" y="1283" text-anchor="end" fill="#FBF9F2" font-family="Arial,Helvetica,sans-serif" font-size="19" font-weight="700">www.aagrowthstudio.com</text></svg>
