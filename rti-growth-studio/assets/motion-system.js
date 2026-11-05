@@ -43,7 +43,7 @@ els.forEach(function(el,i){
 });
 var observer=null;
 if('IntersectionObserver'in window){
- observer=new IntersectionObserver(function(entries){entries.forEach(function(entry){if(!entry.isIntersecting)return;entry.target.classList.add('motion-in');observer.unobserve(entry.target)})},{threshold:.12,rootMargin:'0px 0px -6% 0px'});
+ observer=new IntersectionObserver(function(entries){entries.forEach(function(entry){if(!entry.isIntersecting)return;entry.target.classList.add('motion-in');observer.unobserve(entry.target)})},{threshold:0,rootMargin:'0px 0px -6% 0px'});
  els.forEach(function(el){observer.observe(el)});
 }else{els.forEach(function(el){el.classList.add('motion-in')})}
 var processed=new WeakSet(els);

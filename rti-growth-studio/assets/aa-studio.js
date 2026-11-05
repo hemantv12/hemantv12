@@ -31,7 +31,7 @@ document.querySelectorAll('.nav-shell').forEach(function(nav){
  window.matchMedia('(min-width: 761px)').addEventListener('change',function(e){if(e.matches)set(false)});
 });
 if(!reduced&&'IntersectionObserver'in window){
- const observer=new IntersectionObserver(function(entries){entries.forEach(function(entry){if(entry.isIntersecting){entry.target.classList.add('is-visible');observer.unobserve(entry.target)}})},{threshold:.09,rootMargin:'0px 0px -25px 0px'});
+ const observer=new IntersectionObserver(function(entries){entries.forEach(function(entry){if(entry.isIntersecting){entry.target.classList.add('is-visible');observer.unobserve(entry.target)}})},{threshold:0,rootMargin:'0px 0px -25px 0px'});
  document.querySelectorAll('.reveal').forEach(function(el){observer.observe(el)});
 }else{document.querySelectorAll('.reveal').forEach(function(el){el.classList.add('is-visible')})}
 const scene=document.querySelector('.scene');
