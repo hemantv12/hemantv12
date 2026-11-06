@@ -32,3 +32,12 @@ Avoid repeating these three themes later on 6 November:
 1. A repeatable content-series format instead of filling a calendar.
 2. A motion-design system that feels like the brand.
 3. Product-page confidence and answering pre-purchase questions.
+
+## Channel navigation
+
+- Instagram profile: https://www.instagram.com/aagrowthstudio/
+- Facebook — The Content Series Playbook: https://www.facebook.com/122097750909542560/posts/122098195305542560
+- Facebook — Motion That Feels Like Your Brand: https://www.facebook.com/122097750909542560/posts/122098195407542560
+- Facebook — The Product Page Confidence Checklist: https://www.facebook.com/122097750909542560/posts/122098195509542560
+
+Instagram post permalinks were not returned by the publishing action; the three published media IDs above are recorded, and the connected reporting feed had not indexed the new media at verification time.
