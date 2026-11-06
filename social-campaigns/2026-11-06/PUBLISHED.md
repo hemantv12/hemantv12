@@ -41,3 +41,44 @@ Avoid repeating these three themes later on 6 November:
 - Facebook — The Product Page Confidence Checklist: https://www.facebook.com/122097750909542560/posts/122098195509542560
 
 Instagram post permalinks were not returned by the publishing action; the three published media IDs above are recorded, and the connected reporting feed had not indexed the new media at verification time.
+
+
+# 6 November 2026 — Evening publishing record
+
+Exactly three additional distinct campaigns were published immediately.
+
+## Instagram — @aagrowthstudio
+
+All three returned successful published-carousel responses; each carousel contains five separate JPEG slides.
+
+| Campaign | Instagram media ID | Live permalink | Result |
+|---|---:|---|---|
+| Positioning Before Promotion | 18089614277303239 | https://www.instagram.com/p/DfZgubhDhmo/ | Published |
+| The Shoot Brief That Works | 17948530677358518 | https://www.instagram.com/p/DfZgyh5DMJP/ | Published |
+| The Homepage Clarity Test | 18207089368375292 | https://www.instagram.com/p/DfZg4FzjOqL/ | Published |
+
+## Facebook — AA Growth Studio
+
+All three returned successful published-photo-post responses and were confirmed with is_published=True.
+
+| Campaign | Facebook Page post ID | Live permalink | Result |
+|---|---|---|---|
+| Positioning Before Promotion | 1454190361104294_122098513875542560 | https://www.facebook.com/122097750909542560/posts/122098513875542560 | Published |
+| The Shoot Brief That Works | 1454190361104294_122098514079542560 | https://www.facebook.com/122097750909542560/posts/122098514079542560 | Published |
+| The Homepage Clarity Test | 1454190361104294_122098514397542560 | https://www.facebook.com/122097750909542560/posts/122098514397542560 | Published |
+
+## Asset and brand checks
+
+- 15 individual SVG source slides are stored in this dated folder; each has a 1080×1350 viewBox.
+- Every slide embeds the exact supplied AA mark image data unchanged from the morning dated SVG source, alongside the AA GROWTH STUDIO wordmark.
+- Each Instagram carousel used five separately rendered JPEG URLs from wsrv.nl at 1080×1350; each matching Facebook post used its own first-slide cover.
+- A public wsrv.nl JPEG endpoint was opened successfully in a live browser before publishing; Instagram accepted and published all three five-image carousels.
+- No people photography, fabricated statistics, client logos, testimonials, awards or performance claims were used.
+
+## Creative angles to avoid in the remaining 6 November slot
+
+1. Brand positioning before promotion; audience, problem and differentiation.
+2. Pre-production briefing and shot-list planning for a campaign shoot.
+3. Homepage clarity: who the site serves, the outcome, and the next step.
+
+These are distinct from the morning campaigns and must not be repeated in the night slot.
