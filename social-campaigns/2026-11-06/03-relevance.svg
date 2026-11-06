@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350">
+<rect width="1080" height="1350" fill="#0f110e"/>
+<defs>
+ <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#141811"/><stop offset=".58" stop-color="#20271b"/><stop offset="1" stop-color="#0f110e"/></linearGradient>
+ <radialGradient id="glow"><stop stop-color="#d7f36b" stop-opacity=".17"/><stop offset="1" stop-color="#d7f36b" stop-opacity="0"/></radialGradient>
+ <linearGradient id="lime" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#e3ff7a"/><stop offset="1" stop-color="#d7f36b"/></linearGradient>
+</defs>
+<rect width="1080" height="1350" fill="url(#bg)"/>
+<circle cx="930" cy="245" r="410" fill="url(#glow)"/>
+<g opacity=".13" stroke="#f3efe6" stroke-width="1">
+ <path d="M0 0V1350"/><path d="M84 0V1350"/><path d="M168 0V1350"/><path d="M252 0V1350"/><path d="M336 0V1350"/><path d="M420 0V1350"/><path d="M504 0V1350"/><path d="M588 0V1350"/><path d="M672 0V1350"/><path d="M756 0V1350"/><path d="M840 0V1350"/><path d="M924 0V1350"/><path d="M1008 0V1350"/><path d="M1092 0V1350"/>
+ <path d="M0 0H1080"/><path d="M0 78H1080"/><path d="M0 156H1080"/><path d="M0 234H1080"/><path d="M0 312H1080"/><path d="M0 390H1080"/><path d="M0 468H1080"/><path d="M0 546H1080"/><path d="M0 624H1080"/><path d="M0 702H1080"/><path d="M0 780H1080"/><path d="M0 858H1080"/><path d="M0 936H1080"/><path d="M0 1014H1080"/><path d="M0 1092H1080"/><path d="M0 1170H1080"/><path d="M0 1248H1080"/><path d="M0 1326H1080"/>
+</g>
+<path d="M835 -50C1085 40 1140 250 1010 405" fill="none" stroke="#d7f36b" stroke-opacity=".22" stroke-width="5"/>
+<path d="M-120 1120C45 1015 165 1128 240 1350" fill="none" stroke="#ff674d" stroke-opacity=".35" stroke-width="6"/>
+<g transform="translate(56 42)">
+ <rect x="0" y="0" width="96" height="96" rx="27" fill="#20271b" stroke="#d7f36b" stroke-opacity=".7" stroke-width="2"/>
+ <path d="M14 55C7 33 28 10 50 12c17 1 29 12 29 27" fill="none" stroke="#d7f36b" stroke-width="2.3" stroke-linecap="round"/>
+ <circle cx="78" cy="39" r="4.3" fill="#ff674d"/>
+ <path d="M19 67 35 26h9l17 41H49l-3.2-9H33.4l-3.1 9Zm17-17h7l-3.5-10Z" fill="#f3efe6"/>
+ <path d="M50 67 64 31h8l14 36H75l-2.6-8H62.1l-2.7 8Z" fill="#d7f36b"/>
+ <path d="M62 52h7l-3.5-9Z" fill="#171914"/>
+ <path d="M17 74h56" stroke="#ffffff" stroke-opacity=".18" stroke-width="1"/>
+</g>
+<text x="174" y="79" fill="#f3efe6" font-size="29" font-weight="800" font-family="Inter,Arial,sans-serif" letter-spacing="-.6">AA GROWTH STUDIO</text>
+<text x="176" y="111" fill="#b2b8a5" font-size="14" font-family="Inter,Arial,sans-serif" letter-spacing="2.4">CREATIVE  /  SOCIAL  /  DIGITAL</text>
+<rect x="900" y="55" width="120" height="54" rx="26" fill="#20271b" stroke="#d7f36b" stroke-opacity=".7" stroke-width="2"/>
+<text x="960" y="89" text-anchor="middle" fill="#d7f36b" font-family="Inter,Arial,sans-serif" font-size="18" font-weight="800">03 / 05</text>
+<path d="M56 164H1024" stroke="#f3efe6" stroke-opacity=".2" stroke-width="2"/>
+
+<rect x="58" y="208" width="255" height="42" rx="21" fill="#ff674d"/><text x="78" y="236" fill="#141811" font-size="16" font-family="Inter,Arial,sans-serif" font-weight="800">02  /  RELEVANCE</text>
+<text x="58" y="365" fill="#f3efe6" font-size="81" font-family="Inter,Arial,sans-serif" font-weight="900">DO THEY FEEL</text>
+<text x="58" y="470" fill="#d7f36b" font-size="94" font-family="Inter,Arial,sans-serif" font-weight="900">YOU GET THEM?</text>
+<text x="60" y="550" fill="#f3efe6" font-size="29" font-family="Inter,Arial,sans-serif">A message for everyone often feels</text>
+<text x="60" y="592" fill="#ff674d" font-size="31" font-family="Inter,Arial,sans-serif" font-weight="800">like a message for no one.</text>
+<rect x="58" y="650" width="964" height="112" rx="23" fill="#252c21" stroke="#f3efe6" stroke-opacity=".17" stroke-width="2"/><rect x="78" y="675" width="8" height="62" rx="4" fill="#d7f36b"/><text x="110" y="692" fill="#d7f36b" font-size="18" font-family="Inter,Arial,sans-serif" font-weight="800">01</text><text x="165" y="697" fill="#f3efe6" font-size="26" font-family="Inter,Arial,sans-serif" font-weight="800">WHO</text><text x="165" y="732" fill="#b2b8a5" font-size="21" font-family="Inter,Arial,sans-serif">One real buyer — not “everyone”.</text><rect x="58" y="782" width="964" height="112" rx="23" fill="#252c21" stroke="#f3efe6" stroke-opacity=".17" stroke-width="2"/><rect x="78" y="807" width="8" height="62" rx="4" fill="#ff674d"/><text x="110" y="824" fill="#ff674d" font-size="18" font-family="Inter,Arial,sans-serif" font-weight="800">02</text><text x="165" y="829" fill="#f3efe6" font-size="26" font-family="Inter,Arial,sans-serif" font-weight="800">PROBLEM</text><text x="165" y="864" fill="#b2b8a5" font-size="21" font-family="Inter,Arial,sans-serif">A frustration they already recognize.</text><rect x="58" y="914" width="964" height="112" rx="23" fill="#252c21" stroke="#f3efe6" stroke-opacity=".17" stroke-width="2"/><rect x="78" y="939" width="8" height="62" rx="4" fill="#d7f36b"/><text x="110" y="956" fill="#d7f36b" font-size="18" font-family="Inter,Arial,sans-serif" font-weight="800">03</text><text x="165" y="961" fill="#f3efe6" font-size="26" font-family="Inter,Arial,sans-serif" font-weight="800">OUTCOME</text><text x="165" y="996" fill="#b2b8a5" font-size="21" font-family="Inter,Arial,sans-serif">A result they actually want.</text><rect x="58" y="1046" width="964" height="112" rx="23" fill="#252c21" stroke="#f3efe6" stroke-opacity=".17" stroke-width="2"/><rect x="78" y="1071" width="8" height="62" rx="4" fill="#ff674d"/><text x="110" y="1088" fill="#ff674d" font-size="18" font-family="Inter,Arial,sans-serif" font-weight="800">04</text><text x="165" y="1093" fill="#f3efe6" font-size="26" font-family="Inter,Arial,sans-serif" font-weight="800">LANGUAGE</text><text x="165" y="1128" fill="#b2b8a5" font-size="21" font-family="Inter,Arial,sans-serif">Words your audience really uses.</text>
+<rect x="58" y="1195" width="964" height="42" rx="15" fill="#ff674d" fill-opacity=".12"/>
+<text x="76" y="1223" fill="#ff674d" font-size="18" font-family="Inter,Arial,sans-serif">Talk about their world before you talk about your services.</text>
+
+<path d="M56 1260H1024" stroke="#f3efe6" stroke-opacity=".2" stroke-width="2"/>
+<text x="58" y="1301" fill="#b2b8a5" font-family="Inter,Arial,sans-serif" font-size="16" letter-spacing="1">AA GROWTH STUDIO</text>
+<text x="1020" y="1301" text-anchor="end" fill="#f3efe6" font-family="Inter,Arial,sans-serif" font-size="16">www.aagrowthstudio.com</text>
+</svg>
