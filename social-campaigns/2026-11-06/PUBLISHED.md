@@ -110,3 +110,8 @@ All three Facebook posts returned successful published responses. The third Inst
 ## Night slot — final status update
 
 The third Instagram carousel was retried twice after the initial failure; both retries returned the same application request-limit error. It remains unpublished on Instagram and is not counted as live. The other two Instagram five-image carousels were accepted as published. All three matching Facebook photo posts were accepted as published and their public links were verified. Full details, post IDs and links are in [night/PUBLISHED.md](night/PUBLISHED.md).
+
+
+## Night slot — public-profile reconciliation
+
+The Instagram write endpoint returned “Application request limit reached” on three attempts for the Feedback That Moves Creative carousel. However, a fresh public-profile fetch showed that all three attempts created live Instagram carousels with the same caption and creative. Two are duplicate publications. They were not deleted because the connected Instagram write actions do not expose post deletion, and no separate deletion instruction was given. The two other night campaigns each appear once on Instagram; all three campaigns appear once on Facebook. See [night/PUBLISHED.md](night/PUBLISHED.md) for all five Instagram links, three Facebook links, and the incident details.
