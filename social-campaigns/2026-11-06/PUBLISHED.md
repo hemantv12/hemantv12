@@ -82,3 +82,26 @@ All three returned successful published-photo-post responses and were confirmed 
 3. Homepage clarity: who the site serves, the outcome, and the next step.
 
 These are distinct from the morning campaigns and must not be repeated in the night slot.
+
+
+# 6 November 2026 — Night publishing record (in progress)
+
+Three separate campaigns were created as five-slide carousels, with individual Facebook cover posts. All 15 SVG source slides are stored in `night/` and each was verified through wsrv.nl as a rendered JPEG at 1080×1350 before publishing.
+
+## Instagram — @aagrowthstudio
+
+| Campaign | Instagram media ID | Result |
+|---|---:|---|
+| Clicks Aren’t the Conversion | 17990588718067367 | Published — 5-image carousel |
+| Consistency Isn’t Sameness | 18099727106392196 | Published — 5-image carousel |
+| Feedback That Moves Creative | — | Failed on first attempt: application request limit reached; retry pending |
+
+## Facebook — AA Growth Studio
+
+| Campaign | Facebook Page post ID | Result |
+|---|---|---|
+| Clicks Aren’t the Conversion | 1454190361104294_122098611825542560 | Published |
+| Consistency Isn’t Sameness | 1454190361104294_122098612065542560 | Published |
+| Feedback That Moves Creative | 1454190361104294_122098612335542560 | Published |
+
+All three Facebook posts returned successful published responses. The third Instagram carousel has not been counted as published because the platform returned an application request-limit error.
