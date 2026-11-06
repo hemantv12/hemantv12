@@ -105,3 +105,8 @@ Three separate campaigns were created as five-slide carousels, with individual F
 | Feedback That Moves Creative | 1454190361104294_122098612335542560 | Published |
 
 All three Facebook posts returned successful published responses. The third Instagram carousel has not been counted as published because the platform returned an application request-limit error.
+
+
+## Night slot — final status update
+
+The third Instagram carousel was retried twice after the initial failure; both retries returned the same application request-limit error. It remains unpublished on Instagram and is not counted as live. The other two Instagram five-image carousels were accepted as published. All three matching Facebook photo posts were accepted as published and their public links were verified. Full details, post IDs and links are in [night/PUBLISHED.md](night/PUBLISHED.md).
