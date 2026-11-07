@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1080" height="1350" viewBox="0 0 1080 1350" role="img" aria-labelledby="title desc">
+<title id="title">The Revision Loop Is a Decision Problem — AA Growth Studio</title>
+<desc id="desc">A premium editorial graphic showing scattered creative feedback being replaced by one clear approval owner, consolidated notes and agreed approval criteria.</desc>
+<defs>
+  <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#293225"/>
+    <stop offset=".52" stop-color="#171D16"/>
+    <stop offset="1" stop-color="#0D100D"/>
+  </linearGradient>
+  <radialGradient id="glow" cx=".8" cy=".35" r=".7">
+    <stop offset="0" stop-color="#D7F36B" stop-opacity=".16"/>
+    <stop offset="1" stop-color="#D7F36B" stop-opacity="0"/>
+  </radialGradient>
+  <pattern id="grid" width="42" height="42" patternUnits="userSpaceOnUse">
+    <path d="M42 0H0V42" fill="none" stroke="#F3EFE6" stroke-opacity=".035" stroke-width="1"/>
+  </pattern>
+  <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%">
+    <feGaussianBlur stdDeviation="9"/>
+  </filter>
+  <marker id="arrowLime" markerWidth="10" markerHeight="10" refX="7" refY="5" orient="auto">
+    <path d="M0 0L10 5L0 10Z" fill="#D7F36B"/>
+  </marker>
+</defs>
+
+<rect width="1080" height="1350" fill="url(#bg)"/>
+<rect width="1080" height="1350" fill="url(#grid)"/>
+<circle cx="880" cy="390" r="510" fill="url(#glow)"/>
+<path d="M930 -20C1080 110 1108 260 1038 420" fill="none" stroke="#D7F36B" stroke-opacity=".2" stroke-width="5"/>
+<path d="M-80 1160C70 1070 180 1160 235 1390" fill="none" stroke="#FF674D" stroke-opacity=".26" stroke-width="6"/>
+
+<!-- Official mark: linked directly to the original AA Growth Studio vector asset, unchanged. -->
+<image href="https://aagrowthstudio.com/assets/aa-symbol.svg" x="58" y="34" width="82" height="82" preserveAspectRatio="xMidYMid meet"/>
+<text x="158" y="74" fill="#F3EFE6" font-family="Arial,Helvetica,sans-serif" font-size="27" font-weight="800" letter-spacing="-.4">AA GROWTH STUDIO</text>
+<text x="160" y="103" fill="#B9BEAF" font-family="Arial,Helvetica,sans-serif" font-size="12" font-weight="700" letter-spacing="2.2">STRATEGY / CREATIVE / DIGITAL</text>
+<rect x="806" y="45" width="216" height="50" rx="25" fill="#252D22" stroke="#667451" stroke-width="1.5"/>
+<text x="914" y="76" text-anchor="middle" fill="#D7F36B" font-family="Arial,Helvetica,sans-serif" font-size="14" font-weight="800" letter-spacing="1.8">CREATIVE OPS</text>
+<path d="M56 145H1024" stroke="#46513E" stroke-width="2"/>
+
+<text x="62" y="218" fill="#FF674D" font-family="Arial,Helvetica,sans-serif" font-size="17" font-weight="800" letter-spacing="2.8">A BETTER APPROVAL PROCESS</text>
+<text x="58" y="326" fill="#F3EFE6" font-family="Arial,Helvetica,sans-serif" font-size="75" font-weight="900" letter-spacing="-2.6">THE REVISION</text>
+<text x="58" y="414" fill="#F3EFE6" font-family="Arial,Helvetica,sans-serif" font-size="75" font-weight="900" letter-spacing="-2.6">LOOP ISN'T</text>
+<text x="58" y="502" fill="#D7F36B" font-family="Arial,Helvetica,sans-serif" font-size="75" font-weight="900" letter-spacing="-2.6">A DESIGN PROBLEM.</text>
+<text x="62" y="557" fill="#FF674D" font-family="Arial,Helvetica,sans-serif" font-size="29" font-weight="700">It's a decision problem.</text>
+
+<!-- Left: the circular feedback loop -->
+<rect x="60" y="624" width="492" height="382" rx="28" fill="#20281E" stroke="#526047" stroke-width="2"/>
+<text x="94" y="674" fill="#AEB79F" font-family="Arial,Helvetica,sans-serif" font-size="14" font-weight="800" letter-spacing="2">THE LOOP</text>
+<rect x="386" y="646" width="126" height="34" rx="17" fill="#3A241F"/>
+<text x="449" y="668" text-anchor="middle" fill="#FF8B79" font-family="Arial,Helvetica,sans-serif" font-size="12" font-weight="800" letter-spacing="1.2">NO OWNER</text>
+
+<path d="M153 765C180 708 300 704 390 746C466 782 468 886 390 929C305 975 177 939 139 867" fill="none" stroke="#FF674D" stroke-width="5" stroke-linecap="round" stroke-dasharray="10 13"/>
+<path d="M139 867l-2 -24 22 10" fill="none" stroke="#FF674D" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M390 746l-21 -9 4 24" fill="none" stroke="#FF674D" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+
+<rect x="92" y="718" width="188" height="62" rx="15" fill="#F3EFE6"/>
+<circle cx="115" cy="749" r="7" fill="#FF674D"/>
+<text x="133" y="755" fill="#242A20" font-family="Arial,Helvetica,sans-serif" font-size="16" font-weight="700">One more thought…</text>
+
+<rect x="320" y="718" width="198" height="62" rx="15" fill="#E4E8D7"/>
+<circle cx="343" cy="749" r="7" fill="#D7F36B"/>
+<text x="361" y="755" fill="#242A20" font-family="Arial,Helvetica,sans-serif" font-size="16" font-weight="700">Try another direction?</text>
+
+<rect x="92" y="855" width="188" height="62" rx="15" fill="#E4E8D7"/>
+<circle cx="115" cy="886" r="7" fill="#D7F36B"/>
+<text x="133" y="892" fill="#242A20" font-family="Arial,Helvetica,sans-serif" font-size="16" font-weight="700">Tiny change…</text>
+
+<rect x="320" y="855" width="198" height="62" rx="15" fill="#F3EFE6"/>
+<circle cx="343" cy="886" r="7" fill="#FF674D"/>
+<text x="361" y="892" fill="#242A20" font-family="Arial,Helvetica,sans-serif" font-size="16" font-weight="700">Back to version two?</text>
+
+<rect x="186" y="798" width="222" height="54" rx="16" fill="#111610" stroke="#647052" stroke-width="1.5"/>
+<text x="297" y="831" text-anchor="middle" fill="#D7F36B" font-family="Arial,Helvetica,sans-serif" font-size="15" font-weight="800" letter-spacing="1.1">THE FILE GOES ROUND</text>
+
+<!-- Transition -->
+<path d="M570 815H608" stroke="#D7F36B" stroke-width="5" stroke-linecap="round" marker-end="url(#arrowLime)"/>
+
+<!-- Right: one clear decision path -->
+<rect x="628" y="624" width="392" height="382" rx="28" fill="#F3EFE6"/>
+<text x="662" y="674" fill="#69745B" font-family="Arial,Helvetica,sans-serif" font-size="14" font-weight="800" letter-spacing="2">THE FIX</text>
+<rect x="842" y="646" width="144" height="34" rx="17" fill="#E5EBCF"/>
+<text x="914" y="668" text-anchor="middle" fill="#3C4A2D" font-family="Arial,Helvetica,sans-serif" font-size="12" font-weight="800" letter-spacing="1.1">ONE OWNER</text>
+
+<g>
+  <circle cx="686" cy="744" r="19" fill="#D7F36B"/>
+  <text x="686" y="750" text-anchor="middle" fill="#1B2118" font-family="Arial,Helvetica,sans-serif" font-size="14" font-weight="900">01</text>
+  <text x="720" y="740" fill="#20261D" font-family="Arial,Helvetica,sans-serif" font-size="21" font-weight="800">Name the final</text>
+  <text x="720" y="768" fill="#20261D" font-family="Arial,Helvetica,sans-serif" font-size="21" font-weight="800">decision-maker.</text>
+  <path d="M662 792H986" stroke="#D4D9C8" stroke-width="2"/>
+
+  <circle cx="686" cy="842" r="19" fill="#D7F36B"/>
+  <text x="686" y="848" text-anchor="middle" fill="#1B2118" font-family="Arial,Helvetica,sans-serif" font-size="14" font-weight="900">02</text>
+  <text x="720" y="838" fill="#20261D" font-family="Arial,Helvetica,sans-serif" font-size="21" font-weight="800">Consolidate the</text>
+  <text x="720" y="866" fill="#20261D" font-family="Arial,Helvetica,sans-serif" font-size="21" font-weight="800">notes in one place.</text>
+  <path d="M662 890H986" stroke="#D4D9C8" stroke-width="2"/>
+
+  <circle cx="686" cy="940" r="19" fill="#FF674D"/>
+  <text x="686" y="946" text-anchor="middle" fill="#FFFFFF" font-family="Arial,Helvetica,sans-serif" font-size="14" font-weight="900">03</text>
+  <text x="720" y="936" fill="#20261D" font-family="Arial,Helvetica,sans-serif" font-size="21" font-weight="800">Agree on what</text>
+  <text x="720" y="964" fill="#20261D" font-family="Arial,Helvetica,sans-serif" font-size="21" font-weight="800">“approved” means.</text>
+</g>
+
+<text x="62" y="1075" fill="#F3EFE6" font-family="Arial,Helvetica,sans-serif" font-size="25" font-weight="700">One owner. One set of notes. One clear call.</text>
+<text x="62" y="1116" fill="#AEB79F" font-family="Arial,Helvetica,sans-serif" font-size="19">Give the work a decision path—not another lap.</text>
+
+<path d="M56 1192H1024" stroke="#46513E" stroke-width="2"/>
+<text x="58" y="1240" fill="#AEB79F" font-family="Arial,Helvetica,sans-serif" font-size="15" font-weight="800" letter-spacing="1.6">AA GROWTH STUDIO</text>
+<text x="1020" y="1240" text-anchor="end" fill="#F3EFE6" font-family="Arial,Helvetica,sans-serif" font-size="18" font-weight="800" letter-spacing=".5">www.aagrowthstudio.com</text>
+<text x="58" y="1282" fill="#839078" font-family="Arial,Helvetica,sans-serif" font-size="13" font-weight="700" letter-spacing="1.6">CREATIVE OPERATIONS / APPROVAL WORKFLOW</text>
+<circle cx="1005" cy="1280" r="8" fill="#D7F36B"/>
+</svg>
