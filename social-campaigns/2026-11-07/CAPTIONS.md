@@ -50,3 +50,22 @@ How does your team keep approvals moving?
 www.aagrowthstudio.com
 
 #CreativeOperations #AgencyWorkflow #CreativeDirection #BrandDesign #AAGrowthStudio
+
+
+## 8 PM — The Channel Fit Test
+
+Adding another platform can feel like momentum. But a channel only earns a place in your mix when it has a clear job.
+
+Run this four-part fit test first:
+- Audience: Are the people you want to reach active there?
+- Format: Does your message work naturally in that environment?
+- Capacity: Can you create and publish without stretching the team thin?
+- Signal: Do you know what meaningful progress would look like?
+
+If one answer is fuzzy, pause before expanding. Focus makes it easier to learn what’s actually working.
+
+Which filter is the toughest for your business right now: audience, format, capacity, or measurement?
+
+Build a focused growth plan: www.aagrowthstudio.com
+
+#SocialMediaStrategy #MarketingStrategy #ContentStrategy #DigitalGrowth #AAGrowthStudio
