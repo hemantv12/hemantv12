@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350">
+<defs>
+<linearGradient id="paperBg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F6F3EA"/><stop offset="1" stop-color="#E7E4D8"/></linearGradient>
+<pattern id="paperGrid" width="38" height="38" patternUnits="userSpaceOnUse"><path d="M38 0H0V38" fill="none" stroke="#20261E" stroke-opacity=".045" stroke-width="1"/></pattern>
+</defs><rect width="1080" height="1350" fill="url(#paperBg)"/><rect width="1080" height="1350" fill="url(#paperGrid)"/>
+<path d="M0 0H18V1350H0Z" fill="#FF674D"/>
+<svg x="56" y="34" width="96" height="96" viewBox="0 0 96 96" role="img" aria-labelledby="aaLogoTitle aaLogoDesc">
+<title id="aaLogoTitle">AA Growth Studio — Official profile image</title>
+<desc id="aaLogoDesc">The exact AA symbol used on the AA Growth Studio website, preserved as vector artwork for crisp resizing.</desc>
+<defs><linearGradient id="aaLogoGradient" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#282c22"/><stop offset="1" stop-color="#10120e"/></linearGradient></defs>
+<rect x="3" y="3" width="90" height="90" rx="28" fill="url(#aaLogoGradient)"/>
+<path d="M17 58C10 36 31 13 53 15c17 1 29 12 29 27" fill="none" stroke="#d7f36b" stroke-width="2.3" stroke-linecap="round"/>
+<circle cx="81" cy="42" r="4.3" fill="#ff674d"/>
+<path d="M22 70 38 29h9l17 41H52l-3.2-9H36.4l-3.1 9Zm17-17h7l-3.5-10Z" fill="#f3efe6"/>
+<path d="M53 70 67 34h8L89 70H78l-2.6-8H65.1l-2.7 8Z" fill="#d7f36b"/>
+<path d="M65 55h7l-3.5-9Z" fill="#171914"/>
+<path d="M20 77h56" stroke="#ffffff" stroke-opacity=".18" stroke-width="1"/>
+</svg>
+<text x="174" y="73" fill="#20261E" font-family="Arial,Helvetica,sans-serif" font-size="28" font-weight="800" letter-spacing="1.2">AA GROWTH</text>
+<text x="174" y="106" fill="#6E7A5D" font-family="Arial,Helvetica,sans-serif" font-size="20" font-weight="800" letter-spacing="2.4">STUDIO</text>
+<text x="174" y="130" fill="#68715E" font-family="Arial,Helvetica,sans-serif" font-size="12" font-weight="700" letter-spacing="2">CREATIVE / SOCIAL / DIGITAL</text>
+<rect x="800" y="52" width="224" height="52" rx="26" fill="#E8E6DA" stroke="#A8B096" stroke-width="1.5"/>
+<text x="912" y="84" text-anchor="middle" fill="#3D4934" font-family="Arial,Helvetica,sans-serif" font-size="15" font-weight="800" letter-spacing="1.5">TESTING NOTES</text>
+<path d="M56 164H1024" stroke="#C9CDBE" stroke-width="2"/>
+<text x="1020" y="130" text-anchor="end" fill="#68715E" font-family="Arial,Helvetica,sans-serif" font-size="15" font-weight="800" letter-spacing="1">01 / 01</text>
+<text x="62" y="250" fill="#FF674D" font-family="Arial,Helvetica,sans-serif" font-size="18" font-weight="800" letter-spacing="2.8">A CLEANER CREATIVE TEST</text>
+<text x="62" y="360" fill="#20261E" font-family="Arial,Helvetica,sans-serif" font-size="72" font-weight="900" letter-spacing="-2">CHANGE ONE</text>
+<text x="62" y="445" fill="#6D795D" font-family="Arial,Helvetica,sans-serif" font-size="72" font-weight="900" letter-spacing="-2">THING.</text>
+<text x="62" y="530" fill="#20261E" font-family="Arial,Helvetica,sans-serif" font-size="72" font-weight="900" letter-spacing="-2">LEARN ONE THING.</text>
+<text x="64" y="592" fill="#58634D" font-family="Arial,Helvetica,sans-serif" font-size="24">If the hook, visual, offer and audience all</text>
+<text x="64" y="630" fill="#58634D" font-family="Arial,Helvetica,sans-serif" font-size="24">change at once, the lesson gets muddy.</text>
+<rect x="62" y="690" width="450" height="280" rx="24" fill="#20261E"/>
+<rect x="82" y="710" width="410" height="46" rx="12" fill="#303B2B"/>
+<text x="108" y="740" fill="#D7F36B" font-family="Arial,Helvetica,sans-serif" font-size="15" font-weight="800" letter-spacing="1.5">VERSION A</text>
+<text x="108" y="815" fill="#F3EFE6" font-family="Arial,Helvetica,sans-serif" font-size="28" font-weight="800">Make your next</text>
+<text x="108" y="854" fill="#F3EFE6" font-family="Arial,Helvetica,sans-serif" font-size="28" font-weight="800">move clearer.</text>
+<rect x="108" y="886" width="300" height="48" rx="13" fill="#D7F36B"/>
+<text x="258" y="917" text-anchor="middle" fill="#20261E" font-family="Arial,Helvetica,sans-serif" font-size="16" font-weight="800">EXPLORE THE PLAN</text>
+<rect x="568" y="690" width="450" height="280" rx="24" fill="#20261E"/>
+<rect x="588" y="710" width="410" height="46" rx="12" fill="#303B2B"/>
+<text x="614" y="740" fill="#FF674D" font-family="Arial,Helvetica,sans-serif" font-size="15" font-weight="800" letter-spacing="1.5">VERSION B</text>
+<text x="614" y="815" fill="#F3EFE6" font-family="Arial,Helvetica,sans-serif" font-size="28" font-weight="800">Make your next</text>
+<text x="614" y="854" fill="#D7F36B" font-family="Arial,Helvetica,sans-serif" font-size="28" font-weight="800">move easier.</text>
+<rect x="614" y="886" width="300" height="48" rx="13" fill="#D7F36B"/>
+<text x="764" y="917" text-anchor="middle" fill="#20261E" font-family="Arial,Helvetica,sans-serif" font-size="16" font-weight="800">EXPLORE THE PLAN</text>
+<path d="M512 824H568" stroke="#FF674D" stroke-width="4" stroke-dasharray="7 7"/>
+<circle cx="540" cy="824" r="20" fill="#FF674D"/><text x="540" y="831" text-anchor="middle" fill="#20261E" font-family="Arial,Helvetica,sans-serif" font-size="18" font-weight="900">≠</text>
+<rect x="62" y="1010" width="956" height="170" rx="24" fill="#E1DECF" stroke="#BFC5B1" stroke-width="2"/>
+<text x="96" y="1055" fill="#6D795D" font-family="Arial,Helvetica,sans-serif" font-size="16" font-weight="800" letter-spacing="2">HOLD STEADY</text>
+<text x="96" y="1094" fill="#20261E" font-family="Arial,Helvetica,sans-serif" font-size="21" font-weight="700">Audience • Offer • Placement • Landing page</text>
+<text x="96" y="1135" fill="#FF674D" font-family="Arial,Helvetica,sans-serif" font-size="19" font-weight="800">CHANGE: ONE MEANINGFUL VARIABLE</text>
+
+<path d="M56 1220H1024" stroke="#C9CDBE" stroke-width="2"/>
+<text x="58" y="1266" fill="#68715E" font-family="Arial,Helvetica,sans-serif" font-size="15" font-weight="700" letter-spacing="1.6">AA GROWTH STUDIO</text>
+<text x="1020" y="1266" text-anchor="end" fill="#20261E" font-family="Arial,Helvetica,sans-serif" font-size="18" font-weight="800" letter-spacing=".7">www.aagrowthstudio.com</text>
+<text x="58" y="1305" fill="#7A846B" font-family="Arial,Helvetica,sans-serif" font-size="13" font-weight="700" letter-spacing="1.7">PICK ONE PRIMARY METRIC BEFORE THE TEST STARTS</text>
+</svg>
