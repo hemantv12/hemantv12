@@ -1,32 +1,33 @@
 # AA Growth Studio — 7 November 2026 — 7 AM Slot
 
-## Campaign 1 — Your 3 Pinned Posts Are a Mini Landing Page
+## Campaign 1 — The Mobile Thumb Test
+Your mobile site can look polished and still make simple tasks feel harder than they need to be.
 
-A lot of business profiles treat pinned posts like three more slots in the feed. Use them as a guided first visit instead:
+Try this quick thumb test:
+- Open the page one-handed.
+- Find the primary action.
+- Tap the key controls.
+- Complete the form.
+- Confirm the success state.
 
-1. **Orient:** who you help and what problem you help them solve.
-2. **Demonstrate:** show your process, point of view, or a useful teardown.
-3. **Invite:** make the next step clear and low-friction.
+Watch for pauses, mis-taps, tiny labels and moments where the next step isn't obvious. Test on a real phone—not just a desktop preview.
 
-Keep each post focused. Together, the three should answer the first questions a new visitor has.
+Save this for your next website review. Need a clearer, easier-to-use website? Let's talk: www.aagrowthstudio.com
 
-Save this before your next profile refresh. See how we connect social, creative and digital at www.aagrowthstudio.com.
+#MobileUX #WebsiteUsability #UXDesign #WebDesign #AAGrowthStudio
 
-#InstagramStrategy #SocialMediaStrategy #BrandContent #CreativeAgency #AAGrowthStudio
+## Campaign 2 — Change One Thing. Learn One Thing.
+Creative testing gets messy when the hook, visual, offer and audience all change at once. You might get a different result, but you won't know what caused it.
 
-## Campaign 2 — Your Ad Is a Swiss Army Knife. That's the Problem.
+For a cleaner test:
+1. Pick one question. For example: does a problem-led hook land differently from a benefit-led hook?
+2. Change one meaningful variable.
+3. Keep the rest of the setup as steady as practical.
+4. Choose the primary metric before launch.
+5. Log the learning—not just the winner.
 
-If one ad is trying to introduce your brand, explain every feature, handle every objection and collect a lead, the message has too many jobs.
+What would you test first: the hook, the visual, or the offer?
 
-Pick one primary job for the creative; let the landing page and follow-up do the rest.
+www.aagrowthstudio.com
 
-**Quick vote:** what should your next ad do first?
-
-A — Introduce the offer  
-B — Explain the difference  
-C — Answer a concern  
-D — Invite an inquiry
-
-Drop one letter below. www.aagrowthstudio.com
-
-#AdCreative #PerformanceMarketing #MarketingStrategy #PaidSocial #AAGrowthStudio
+#CreativeTesting #PerformanceMarketing #PaidSocial #MarketingStrategy #AAGrowthStudio
