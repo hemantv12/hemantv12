@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1080" height="1350" viewBox="0 0 1080 1350" role="img">
+
+<defs>
+ <linearGradient id="paper" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#F3EFE6"/><stop offset="1" stop-color="#E4E8D7"/></linearGradient>
+ <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="8"/></filter>
+</defs>
+<rect width="1080" height="1350" fill="url(#paper)"/>
+<path d="M860 0H1080V1350H1010C920 1060 1000 710 860 0Z" fill="#D7F36B" opacity=".42"/>
+
+  <image href="https://aagrowthstudio.com/assets/aa-symbol.svg" x="58" y="38" width="82" height="82" preserveAspectRatio="xMidYMid meet"/>
+  <text x="158" y="76" fill="#171914" font-family="Arial,Helvetica,sans-serif" font-size="27" font-weight="800" letter-spacing="-.5">AA GROWTH STUDIO</text>
+  <text x="160" y="103" fill="#6A705F" font-family="Arial,Helvetica,sans-serif" font-size="12" font-weight="600" letter-spacing="2.2">STRATEGY / CREATIVE / DIGITAL</text>
+  <rect x="790" y="48" width="232" height="48" rx="24" fill="#E6EBD8" stroke="#D7F36B" stroke-opacity=".55" stroke-width="1.5"/>
+  <text x="906" y="78" text-anchor="middle" fill="#343B2A" font-family="Arial,Helvetica,sans-serif" font-size="14" font-weight="800" letter-spacing="1.3">CREATIVE TRUTH</text>
+<text x="60" y="265" fill="#FF674D" font-family="Arial,Helvetica,sans-serif" font-size="18" font-weight="800" letter-spacing="2.4">A FRIENDLY REMINDER FOR AD TEAMS</text>
+<text x="58" y="372" fill="#171914" font-family="Arial,Helvetica,sans-serif" font-size="72" font-weight="900" letter-spacing="-3">YOUR AD IS A</text>
+<text x="58" y="460" fill="#171914" font-family="Arial,Helvetica,sans-serif" font-size="72" font-weight="900" letter-spacing="-3">SWISS ARMY</text>
+<text x="58" y="548" fill="#FF674D" font-family="Arial,Helvetica,sans-serif" font-size="84" font-weight="900" letter-spacing="-3">KNIFE.</text>
+<text x="58" y="632" fill="#171914" font-family="Arial,Helvetica,sans-serif" font-size="68" font-weight="900" letter-spacing="-2">THAT'S THE PROBLEM.</text>
+<g transform="translate(70 710)">
+ <rect x="0" y="16" width="940" height="238" rx="24" fill="#171914" opacity=".12" filter="url(#shadow)"/>
+ <rect x="0" y="0" width="940" height="238" rx="24" fill="#20271B"/>
+ <text x="34" y="52" fill="#D7F36B" font-family="Arial,Helvetica,sans-serif" font-size="17" font-weight="800" letter-spacing="1.6">ONE CREATIVE TRYING TO DO EVERYTHING</text>
+ <g font-family="Arial,Helvetica,sans-serif" font-size="21" font-weight="800">
+  <rect x="32" y="80" width="250" height="58" rx="14" fill="#F3EFE6"/><text x="157" y="117" text-anchor="middle" fill="#171914">INTRODUCE</text>
+  <rect x="302" y="80" width="250" height="58" rx="14" fill="#FF674D"/><text x="427" y="117" text-anchor="middle" fill="#171914">EDUCATE</text>
+  <rect x="572" y="80" width="336" height="58" rx="14" fill="#D7F36B"/><text x="740" y="117" text-anchor="middle" fill="#171914">COMPARE + REASSURE</text>
+  <rect x="32" y="154" width="420" height="58" rx="14" fill="#C5C9B8"/><text x="242" y="191" text-anchor="middle" fill="#171914">EXPLAIN EVERY DETAIL</text>
+  <rect x="472" y="154" width="436" height="58" rx="14" fill="#F3EFE6"/><text x="690" y="191" text-anchor="middle" fill="#171914">ASK FOR THE INQUIRY</text>
+ </g>
+</g>
+<path d="M540 966V1006" stroke="#FF674D" stroke-width="6" stroke-linecap="round"/>
+<path d="M524 990L540 1008L556 990" fill="none" stroke="#FF674D" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+<rect x="60" y="1024" width="960" height="92" rx="18" fill="#D7F36B"/>
+<text x="88" y="1081" fill="#171914" font-family="Arial,Helvetica,sans-serif" font-size="38" font-weight="900" letter-spacing="-.8">PICK ONE PRIMARY JOB.</text>
+<text x="62" y="1160" fill="#4E5744" font-family="Arial,Helvetica,sans-serif" font-size="21" font-weight="800" letter-spacing="1.1">QUICK VOTE: WHAT SHOULD YOUR NEXT AD DO FIRST?</text>
+<g font-family="Arial,Helvetica,sans-serif" font-size="19" font-weight="800">
+ <text x="62" y="1205" fill="#171914">A  INTRODUCE THE OFFER</text>
+ <text x="540" y="1205" fill="#171914">B  EXPLAIN THE DIFFERENCE</text>
+ <text x="62" y="1242" fill="#171914">C  ANSWER A CONCERN</text>
+ <text x="540" y="1242" fill="#171914">D  INVITE AN INQUIRY</text>
+</g>
+
+  <path d="M58 1260H1022" stroke="#171914" stroke-opacity=".18" stroke-width="2"/>
+  <text x="60" y="1305" fill="#626957" font-family="Arial,Helvetica,sans-serif" font-size="18" font-weight="700" letter-spacing=".4">www.aagrowthstudio.com</text>
+  <text x="1020" y="1305" text-anchor="end" fill="#626957" font-family="Arial,Helvetica,sans-serif" font-size="17" font-weight="700" letter-spacing="1">STANDALONE / 01</text>
+
+</svg>

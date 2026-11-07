@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1080" height="1350" viewBox="0 0 1080 1350" role="img">
+
+<rect width="1080" height="1350" fill="#F3EFE6"/>
+<rect x="780" y="0" width="300" height="1350" fill="#E5EAD6"/>
+
+  <image href="https://aagrowthstudio.com/assets/aa-symbol.svg" x="58" y="38" width="82" height="82" preserveAspectRatio="xMidYMid meet"/>
+  <text x="158" y="76" fill="#171914" font-family="Arial,Helvetica,sans-serif" font-size="27" font-weight="800" letter-spacing="-.5">AA GROWTH STUDIO</text>
+  <text x="160" y="103" fill="#6A705F" font-family="Arial,Helvetica,sans-serif" font-size="12" font-weight="600" letter-spacing="2.2">STRATEGY / CREATIVE / DIGITAL</text>
+  <rect x="790" y="48" width="232" height="48" rx="24" fill="#E6EBD8" stroke="#D7F36B" stroke-opacity=".55" stroke-width="1.5"/>
+  <text x="906" y="78" text-anchor="middle" fill="#343B2A" font-family="Arial,Helvetica,sans-serif" font-size="14" font-weight="800" letter-spacing="1.3">PIN 03 / INVITE</text>
+<text x="60" y="268" fill="#FF674D" font-family="Arial,Helvetica,sans-serif" font-size="18" font-weight="800" letter-spacing="2.4">MAKE THE NEXT STEP FEEL EASY</text>
+<text x="58" y="386" fill="#171914" font-family="Arial,Helvetica,sans-serif" font-size="76" font-weight="900" letter-spacing="-3">GIVE THEM</text>
+<text x="58" y="476" fill="#171914" font-family="Arial,Helvetica,sans-serif" font-size="76" font-weight="900" letter-spacing="-3">A REASON</text>
+<text x="58" y="566" fill="#FF674D" font-family="Arial,Helvetica,sans-serif" font-size="91" font-weight="900" letter-spacing="-3">TO REACH OUT.</text>
+<text x="62" y="635" fill="#5C6453" font-family="Arial,Helvetica,sans-serif" font-size="27">One clear invitation beats a list of vague CTAs.</text>
+<g transform="translate(60 735)">
+ <rect x="0" y="0" width="960" height="300" rx="24" fill="#20271B"/>
+ <text x="34" y="58" fill="#D7F36B" font-family="Arial,Helvetica,sans-serif" font-size="17" font-weight="800" letter-spacing="1.7">A USEFUL INVITATION EXPLAINS</text>
+ <circle cx="52" cy="122" r="15" fill="#D7F36B"/>
+ <text x="88" y="131" fill="#F3EFE6" font-family="Arial,Helvetica,sans-serif" font-size="27" font-weight="700">What you can help with</text>
+ <circle cx="52" cy="188" r="15" fill="#FF674D"/>
+ <text x="88" y="197" fill="#F3EFE6" font-family="Arial,Helvetica,sans-serif" font-size="27" font-weight="700">What the first conversation covers</text>
+ <circle cx="52" cy="254" r="15" fill="#D7F36B"/>
+ <text x="88" y="263" fill="#F3EFE6" font-family="Arial,Helvetica,sans-serif" font-size="27" font-weight="700">How to take that first step</text>
+</g>
+<rect x="60" y="1080" width="960" height="100" rx="18" fill="#D7F36B"/>
+<text x="88" y="1120" fill="#4B5538" font-family="Arial,Helvetica,sans-serif" font-size="16" font-weight="800" letter-spacing="1.5">KEEP IT SPECIFIC</text>
+<text x="88" y="1154" fill="#171914" font-family="Arial,Helvetica,sans-serif" font-size="26" font-weight="800">“Tell us what you're working on. We'll discuss a sensible next step.”</text>
+
+  <path d="M58 1260H1022" stroke="#171914" stroke-opacity=".18" stroke-width="2"/>
+  <text x="60" y="1305" fill="#626957" font-family="Arial,Helvetica,sans-serif" font-size="18" font-weight="700" letter-spacing=".4">www.aagrowthstudio.com</text>
+  <text x="1020" y="1305" text-anchor="end" fill="#626957" font-family="Arial,Helvetica,sans-serif" font-size="17" font-weight="700" letter-spacing="1">04 / 05</text>
+
+</svg>
