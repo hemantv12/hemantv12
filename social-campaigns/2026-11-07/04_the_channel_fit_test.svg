@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1080" height="1350" viewBox="0 0 1080 1350" role="img" aria-labelledby="title desc">
+<title id="title">The Channel Fit Test — AA Growth Studio</title>
+<desc id="desc">An editorial social strategy infographic showing four practical filters—audience, format, capacity and signal—to evaluate whether a new social platform belongs in a brand's channel mix.</desc>
+<defs>
+  <linearGradient id="paper" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#F7F3EA"/>
+    <stop offset="1" stop-color="#E9E7D9"/>
+  </linearGradient>
+  <linearGradient id="ink" x1="0" y1="0" x2="1" y2="1">
+    <stop offset="0" stop-color="#30392B"/>
+    <stop offset="1" stop-color="#171D16"/>
+  </linearGradient>
+  <pattern id="paperGrid" width="36" height="36" patternUnits="userSpaceOnUse">
+    <path d="M36 0H0V36" fill="none" stroke="#3B4632" stroke-opacity=".045" stroke-width="1"/>
+  </pattern>
+  <pattern id="dots" width="14" height="14" patternUnits="userSpaceOnUse">
+    <circle cx="2" cy="2" r="1.4" fill="#F3EFE6" fill-opacity=".18"/>
+  </pattern>
+</defs>
+
+<rect width="1080" height="1350" fill="url(#paper)"/>
+<rect width="1080" height="1350" fill="url(#paperGrid)"/>
+<path d="M0 0H1080V14H0Z" fill="#D7F36B"/>
+<path d="M1010 0H1080V350C1050 300 1034 235 1010 0Z" fill="#FF674D" fill-opacity=".12"/>
+<path d="M0 1080C120 1035 190 1080 250 1350H0Z" fill="#D7F36B" fill-opacity=".16"/>
+
+<!-- Exact official vector mark referenced from the original AA Growth Studio asset, not redrawn. -->
+<image x="62" y="38" width="76" height="76" href="https://aagrowthstudio.com/assets/aa-symbol.svg" xlink:href="https://aagrowthstudio.com/assets/aa-symbol.svg" preserveAspectRatio="xMidYMid meet"/>
+<text x="158" y="72" fill="#20271F" font-family="Arial,Helvetica,sans-serif" font-size="27" font-weight="900" letter-spacing=".3">AA GROWTH STUDIO</text>
+<text x="160" y="101" fill="#68745A" font-family="Arial,Helvetica,sans-serif" font-size="12" font-weight="800" letter-spacing="2.4">STRATEGY / CREATIVE / DIGITAL</text>
+<rect x="804" y="45" width="214" height="48" rx="24" fill="#20271F"/>
+<text x="911" y="75" text-anchor="middle" fill="#D7F36B" font-family="Arial,Helvetica,sans-serif" font-size="13" font-weight="900" letter-spacing="1.7">GROWTH NOTE  /  04</text>
+<path d="M58 143H1022" stroke="#A8AD98" stroke-width="2"/>
+
+<text x="62" y="212" fill="#FF674D" font-family="Arial,Helvetica,sans-serif" font-size="17" font-weight="900" letter-spacing="2.8">A GROUNDED SOCIAL STRATEGY TAKE</text>
+
+<text x="58" y="316" fill="#20271F" font-family="Arial,Helvetica,sans-serif" font-size="78" font-weight="900" letter-spacing="-3.2">A NEW CHANNEL</text>
+<text x="58" y="407" fill="#20271F" font-family="Arial,Helvetica,sans-serif" font-size="78" font-weight="900" letter-spacing="-3.2">ISN'T A</text>
+<rect x="54" y="427" width="678" height="102" rx="16" fill="#D7F36B"/>
+<text x="78" y="505" fill="#20271F" font-family="Arial,Helvetica,sans-serif" font-size="82" font-weight="900" letter-spacing="-3.4">GROWTH PLAN.</text>
+
+<text x="62" y="584" fill="#4B5543" font-family="Arial,Helvetica,sans-serif" font-size="25" font-weight="600">Give every platform a clear job before it earns</text>
+<text x="62" y="621" fill="#4B5543" font-family="Arial,Helvetica,sans-serif" font-size="25" font-weight="600">a place in your channel mix.</text>
+
+<!-- Four-stage channel-fit filter: one continuous editorial decision path. -->
+<rect x="58" y="673" width="964" height="452" rx="30" fill="url(#ink)"/>
+<rect x="58" y="673" width="964" height="452" rx="30" fill="url(#dots)"/>
+<text x="94" y="725" fill="#D7F36B" font-family="Arial,Helvetica,sans-serif" font-size="15" font-weight="900" letter-spacing="2.4">THE CHANNEL FIT TEST</text>
+<text x="984" y="725" text-anchor="end" fill="#AEB79F" font-family="Arial,Helvetica,sans-serif" font-size="13" font-weight="700" letter-spacing="1.5">FOUR QUESTIONS BEFORE YOU EXPAND</text>
+<path d="M127 773V1046" stroke="#78866A" stroke-width="3" stroke-linecap="round"/>
+<g>
+  <circle cx="127" cy="790" r="24" fill="#D7F36B"/>
+  <text x="127" y="797" text-anchor="middle" fill="#20271F" font-family="Arial,Helvetica,sans-serif" font-size="16" font-weight="900">01</text>
+  <text x="177" y="785" fill="#F3EFE6" font-family="Arial,Helvetica,sans-serif" font-size="24" font-weight="900" letter-spacing=".8">AUDIENCE</text>
+  <text x="177" y="816" fill="#BFC7B5" font-family="Arial,Helvetica,sans-serif" font-size="18" font-weight="500">Are the people you want to reach active there?</text>
+  <path d="M94 844H986" stroke="#6B7760" stroke-opacity=".6" stroke-width="1.5"/>
+
+  <circle cx="127" cy="883" r="24" fill="#D7F36B"/>
+  <text x="127" y="890" text-anchor="middle" fill="#20271F" font-family="Arial,Helvetica,sans-serif" font-size="16" font-weight="900">02</text>
+  <text x="177" y="878" fill="#F3EFE6" font-family="Arial,Helvetica,sans-serif" font-size="24" font-weight="900" letter-spacing=".8">FORMAT</text>
+  <text x="177" y="909" fill="#BFC7B5" font-family="Arial,Helvetica,sans-serif" font-size="18" font-weight="500">Does your message work naturally in that format?</text>
+  <path d="M94 937H986" stroke="#6B7760" stroke-opacity=".6" stroke-width="1.5"/>
+
+  <circle cx="127" cy="976" r="24" fill="#FF674D"/>
+  <text x="127" y="983" text-anchor="middle" fill="#FFFFFF" font-family="Arial,Helvetica,sans-serif" font-size="16" font-weight="900">03</text>
+  <text x="177" y="971" fill="#F3EFE6" font-family="Arial,Helvetica,sans-serif" font-size="24" font-weight="900" letter-spacing=".8">CAPACITY</text>
+  <text x="177" y="1002" fill="#BFC7B5" font-family="Arial,Helvetica,sans-serif" font-size="18" font-weight="500">Can you show up without stretching quality thin?</text>
+  <path d="M94 1030H986" stroke="#6B7760" stroke-opacity=".6" stroke-width="1.5"/>
+
+  <circle cx="127" cy="1069" r="24" fill="#D7F36B"/>
+  <text x="127" y="1076" text-anchor="middle" fill="#20271F" font-family="Arial,Helvetica,sans-serif" font-size="16" font-weight="900">04</text>
+  <text x="177" y="1064" fill="#F3EFE6" font-family="Arial,Helvetica,sans-serif" font-size="24" font-weight="900" letter-spacing=".8">SIGNAL</text>
+  <text x="177" y="1095" fill="#BFC7B5" font-family="Arial,Helvetica,sans-serif" font-size="18" font-weight="500">Will you know what meaningful progress looks like?</text>
+</g>
+
+<rect x="58" y="1156" width="964" height="88" rx="20" fill="#E9D8CE"/>
+<rect x="58" y="1156" width="12" height="88" rx="6" fill="#FF674D"/>
+<text x="96" y="1192" fill="#293126" font-family="Arial,Helvetica,sans-serif" font-size="18" font-weight="900" letter-spacing=".6">IF ONE ANSWER IS UNCLEAR, PAUSE BEFORE EXPANDING.</text>
+<text x="96" y="1221" fill="#56604C" font-family="Arial,Helvetica,sans-serif" font-size="16" font-weight="600">Focus makes it easier to learn what is actually working.</text>
+
+<path d="M58 1275H1022" stroke="#A8AD98" stroke-width="2"/>
+<text x="60" y="1312" fill="#66715A" font-family="Arial,Helvetica,sans-serif" font-size="14" font-weight="900" letter-spacing="1.7">AA GROWTH STUDIO</text>
+<text x="1020" y="1312" text-anchor="end" fill="#20271F" font-family="Arial,Helvetica,sans-serif" font-size="18" font-weight="900" letter-spacing=".4">www.aagrowthstudio.com</text>
+<circle cx="1010" cy="1333" r="7" fill="#FF674D"/>
+</svg>
