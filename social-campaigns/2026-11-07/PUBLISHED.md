@@ -78,7 +78,7 @@ All six final SVGs are individual 1080×1350 vector artworks. The exact AA Growt
 | 01_mobile_thumb_test_slide_02.svg | https://raw.githubusercontent.com/hemantv12/hemantv12/aa-growth-social-assets/social-campaigns/2026-11-07/01_mobile_thumb_test_slide_02.svg | https://wsrv.nl/?url=https%3A%2F%2Fraw.githubusercontent.com%2Fhemantv12%2Fhemantv12%2Faa-growth-social-assets%2Fsocial-campaigns%2F2026-11-07%2F01_mobile_thumb_test_slide_02.svg&w=1080&h=1350&fit=cover&output=jpg&q=92 |
 | 01_mobile_thumb_test_slide_03.svg | https://raw.githubusercontent.com/hemantv12/hemantv12/aa-growth-social-assets/social-campaigns/2026-11-07/01_mobile_thumb_test_slide_03.svg | https://wsrv.nl/?url=https%3A%2F%2Fraw.githubusercontent.com%2Fhemantv12%2Fhemantv12%2Faa-growth-social-assets%2Fsocial-campaigns%2F2026-11-07%2F01_mobile_thumb_test_slide_03.svg&w=1080&h=1350&fit=cover&output=jpg&q=92 |
 | 01_mobile_thumb_test_slide_04.svg | https://raw.githubusercontent.com/hemantv12/hemantv12/aa-growth-social-assets/2026-11-07/01_mobile_thumb_test_slide_04.svg | https://wsrv.nl/?url=https%3A%2F%2Fraw.githubusercontent.com%2Fhemantv12%2Fhemantv12%2Faa-growth-social-assets%2Fsocial-campaigns%2F2026-11-07%2F01_mobile_thumb_test_slide_04.svg&w=1080&h=1350&fit=cover&output=jpg&q=92 |
-| 01_mobile_thumb_test_slide_05.svg | https://raw.githubusercontent.com/hemantv12/hemantv12/aa-growth-social-assets%2Fsocial-campaigns%2F2026-11-07%2F01_mobile_thumb_test_slide_05.svg | https://wsrv.nl/?url=https%3A%2F%2Fraw.githubusercontent.com%2Fhemantv12%2Fhemantv12%2Faa-growth-social-assets%2Fsocial-campaigns%2F2026-11-07%2F01_mobile_thumb_test_slide_05.svg&w=1080&h=1350&fit=cover&output=jpg&q=92 |
+| 01_mobile_thumb_test_slide_05.svg | https://raw.githubusercontent.com/hemantv12/hemantv12/aa-growth-social-assets/social-campaigns/2026-11-07/01_mobile_thumb_test_slide_05.svg | https://wsrv.nl/?url=https%3A%2F%2Fraw.githubusercontent.com%2Fhemantv12%2Fhemantv12%2Faa-growth-social-assets%2Fsocial-campaigns%2F2026-11-07%2F01_mobile_thumb_test_slide_05.svg&w=1080&h=1350&fit=cover&output=jpg&q=92 |
 | 02_one_variable_rule.svg | https://raw.githubusercontent.com/hemantv12/hemantv12/aa-growth-social-assets/social-campaigns/2026-11-07/02_one_variable_rule.svg | https://wsrv.nl/?url=https%3A%2F%2Fraw.githubusercontent.com%2Fhemantv12%2Fhemantv12%2Faa-growth-social-assets%2Fsocial-campaigns%2F2026-11-07%2F02_one_variable_rule.svg&w=1080&h=1350&fit=cover&output=jpg&q=92 |
 
 ## 5 PM slot — The Revision Loop Is a Decision Problem
@@ -168,7 +168,7 @@ Build a focused growth plan: www.aagrowthstudio.com
 
 ## Counts — 7 November 2026
 
-- Distinct campaigns: **3** (2 at 7 AM, 1 at 5 PM, 1 at 8 PM = 4 total? Note: the 7 AM and 5 PM sections contain three distinct campaigns total; this line is corrected below.)
+- Distinct campaigns across the day: **4** (2 at 7 AM, 1 at 5 PM, and 1 at 8 PM).
 - 8 PM slot: **1** standalone campaign created.
 - Instagram: **0 published for the 8 PM slot** (one rate-limit response; no retry).
 - Facebook: **1 photo post write confirmed by connector**; public verification blocked by login wall.
