@@ -94,3 +94,22 @@ First connector read after publication:
 - Primary buyer-intent phrase: Facebook lead ads.
 - Supporting phrases: Meta lead form questions; lead quality; qualified leads; lead generation for small businesses; Facebook Instant Forms.
 - Four relevant public Instagram topic pages were checked for Facebook Ads, Meta Ads, lead generation and small-business marketing. Some exact hashtag pages were login-gated. No reliable current hashtag volume or competition data was available; no volume claims are made.
+
+
+## Media-history reconciliation — 9 November 2026
+
+A fresh Instagram media-history read returned two separate carousel media objects with the same opening caption, 2 minutes 53 seconds apart. The original publishing record above lists only the first media ID.
+
+| Instagram media ID | Platform timestamp (UTC) | Permalink | Caption opening | Status |
+|---|---|---|---|---|
+| 18036210503905783 | 2026-11-09 01:42:16 | https://www.instagram.com/p/DfgLR_FCMHg/ | Facebook lead ads can make it easy for someone to send their details… | Already recorded above. |
+| 18031383431691523 | 2026-11-09 01:45:09 | https://www.instagram.com/p/DfgLmNhgjv1/ | Facebook lead ads can make it easy for someone to send their details… | Additional media object found in history; not present in the original publishing response/log. |
+
+Both are separate Instagram media IDs and both appear in the connected media-history read. Their matching caption and close timestamps make the second a likely duplicate, but the read did not expose enough asset-level data to assert that every slide is identical. The cause is unknown. No deletion action is exposed by the connected Instagram tools, so neither post was changed. No retry or new publication was made during reconciliation.
+
+### Facebook media-history confirmation
+
+- Post ID: `1454190361104294_122100510207542560`
+- Permalink: https://www.facebook.com/122097750909542560/posts/122100510207542560
+- Platform timestamp: 2026-11-09 01:42:51 UTC
+- Status: matches the single Facebook post already recorded above.
