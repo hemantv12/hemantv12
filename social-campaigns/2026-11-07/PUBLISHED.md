@@ -173,3 +173,30 @@ Build a focused growth plan: www.aagrowthstudio.com
 - Instagram: **0 published for the 8 PM slot** (one rate-limit response; no retry).
 - Facebook: **1 photo post write confirmed by connector**; public verification blocked by login wall.
 - No drafts or future-scheduled posts were created.
+
+
+## Media-history reconciliation — 9 November 2026
+
+A fresh Instagram media-history read for 7 November returned four distinct media objects. This read is stronger evidence of media existence than the earlier write response, but it does not explain why the write response returned an application request-limit error.
+
+### Instagram media objects actually present
+
+| Media | Instagram media ID | Platform timestamp (UTC) | Permalink | Reconciliation |
+|---|---:|---|---|---|
+| The Mobile Thumb Test | 18099413900689715 | 2026-11-07 01:50:24 | https://www.instagram.com/p/DfbCnIZCPMy/ | Present in media history despite the original rate-limit response. |
+| Pinned-posts strategy (unlogged campaign) | 17976600168168647 | 2026-11-07 01:40:35 | https://www.instagram.com/p/DfbBcCxCkK_/ | Present in media history; no matching campaign or ID appears in this publishing record. |
+| The Revision Loop Is a Decision Problem | 18110603228217060 | 2026-11-07 11:31:14 | https://www.instagram.com/p/DfcFFMVjtxQ/ | Present in media history despite the original rate-limit response. |
+| The Channel Fit Test | 17910429534604252 | 2026-11-07 14:30:41 | https://www.instagram.com/p/DfcZn6hgnsg/ | Present in media history despite the original rate-limit response. |
+
+The second 7 AM campaign, “Change One Thing. Learn One Thing.”, did not appear in the 7 November date-scoped Instagram media read. No replacement or retry was attempted during reconciliation.
+
+### Facebook media objects actually present
+
+The Facebook Page read returned six photo posts for 7 November. Four match the logged campaigns above; two additional posts have no matching campaign entry in this file:
+
+| Additional Facebook post | Post ID | Platform timestamp (UTC) | Permalink |
+|---|---|---|---|
+| Ad-creative quick-vote post | 1454190361104294_122098965069542560 | 2026-11-07 01:40:57 | https://www.facebook.com/122097750909542560/posts/122098965069542560 |
+| Pinned-posts strategy | 1454190361104294_122098964973542560 | 2026-11-07 01:40:45 | https://www.facebook.com/122097750909542560/posts/122098964973542560 |
+
+These are recorded as additional platform media, not assumed to be duplicates. No comments were created, no posts were deleted, and no publishing retry was made during this read-only reconciliation.
