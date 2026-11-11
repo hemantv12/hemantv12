@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350" role="img" aria-labelledby="title desc">
+<title id="title">Show the Whole Total — Checkout Cost Transparency</title><desc id="desc">A warm-paper editorial still life of three dimensional price layers combining into a clear total, explaining why shipping, tax and fees should be shown before the final checkout step.</desc>
+<rect width="1080" height="1350" fill="#F3EFE6"/>
+<path d="M0 0H1080V20H0Z" fill="#20271F"/>
+
+<g transform="translate(840 54)">
+  <svg width="62" height="62" viewBox="0 0 96 96" role="img" aria-label="Official AA Growth Studio mark">
+    <defs><linearGradient id="aa-official-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#282c22"/><stop offset="1" stop-color="#10120e"/></linearGradient></defs>
+    <rect x="3" y="3" width="90" height="90" rx="28" fill="url(#aa-official-g)"/>
+    <path d="M17 58C10 36 31 13 53 15c17 1 29 12 29 27" fill="none" stroke="#d7f36b" stroke-width="2.3" stroke-linecap="round"/>
+    <circle cx="81" cy="42" r="4.3" fill="#ff674d"/>
+    <path d="M22 70 38 29h9l17 41H52l-3.2-9H36.4l-3.1 9Zm17-17h7l-3.5-10Z" fill="#f3efe6"/>
+    <path d="M53 70 67 34h8L89 70H78l-2.6-8H65.1l-2.7 8Z" fill="#d7f36b"/>
+    <path d="M65 55h7l-3.5-9Z" fill="#171914"/>
+    <path d="M20 77h56" stroke="#ffffff" stroke-opacity=".18" stroke-width="1"/>
+  </svg>
+  <text x="76" y="29" fill="#20271F" font-family="Arial,Helvetica,sans-serif" font-size="22" font-weight="900" letter-spacing=".3">AA GROWTH</text>
+  <text x="78" y="49" fill="#20271F" font-family="Arial,Helvetica,sans-serif" font-size="12" font-weight="800" letter-spacing="2.5">STUDIO</text>
+</g>
+<text x="70" y="210" fill="#68745A" font-family="Arial,Helvetica,sans-serif" font-size="19" font-weight="900" letter-spacing="3">01 / COST CLARITY</text>
+<text x="70" y="340" fill="#20271F" font-family="Arial,Helvetica,sans-serif" font-size="92" font-weight="900" letter-spacing="-4">SHOW THE</text>
+<text x="70" y="445" fill="#FF674D" font-family="Arial,Helvetica,sans-serif" font-size="112" font-weight="900" letter-spacing="-5">WHOLE</text>
+<text x="70" y="550" fill="#20271F" font-family="Arial,Helvetica,sans-serif" font-size="112" font-weight="900" letter-spacing="-5">TOTAL.</text>
+<text x="74" y="610" fill="#68745A" font-family="Arial,Helvetica,sans-serif" font-size="25" font-weight="700">Before the buyer reaches the final step.</text>
+<!-- exploded cost stack -->
+<g transform="translate(550 690)">
+ <path d="M0 115L198 38L410 120L212 198Z" fill="#20271F"/>
+ <path d="M0 115L212 198V278L0 194Z" fill="#68745A"/>
+ <path d="M212 198L410 120V201L212 278Z" fill="#3E4938"/>
+ <text x="207" y="145" text-anchor="middle" fill="#F3EFE6" font-family="Arial,Helvetica,sans-serif" font-size="27" font-weight="900" transform="rotate(-20 207 145)">ITEMS</text>
+ <path d="M30 -5L228 -82L440 0L242 78Z" fill="#D7F36B"/>
+ <path d="M30 -5L242 78V118L30 35Z" fill="#AFC64E"/>
+ <path d="M242 78L440 0V40L242 118Z" fill="#91A83A"/>
+ <text x="236" y="42" text-anchor="middle" fill="#20271F" font-family="Arial,Helvetica,sans-serif" font-size="24" font-weight="900" transform="rotate(-20 236 42)">SHIPPING</text>
+ <path d="M58 -120L256 -197L468 -115L270 -37Z" fill="#FF674D"/>
+ <path d="M58 -120L270 -37V-1L58 -84Z" fill="#D94D3E"/>
+ <path d="M270 -37L468 -115V-79L270 -1Z" fill="#B73A34"/>
+ <text x="266" y="-77" text-anchor="middle" fill="#20271F" font-family="Arial,Helvetica,sans-serif" font-size="24" font-weight="900" transform="rotate(-20 266 -77)">TAX / FEES</text>
+ <path d="M475 -55L540 -80" stroke="#20271F" stroke-width="4" stroke-linecap="round"/>
+ <path d="M527 -90L545 -80L531 -64" fill="none" stroke="#20271F" stroke-width="4"/>
+ <text x="550" y="-105" fill="#20271F" font-family="Arial,Helvetica,sans-serif" font-size="21" font-weight="900">CLEAR TOTAL</text>
+</g>
+<path d="M70 1035H1010" stroke="#20271F" stroke-width="2" opacity=".24"/>
+<text x="70" y="1100" fill="#20271F" font-family="Arial,Helvetica,sans-serif" font-size="31" font-weight="900">A late fee feels like a surprise.</text>
+<text x="70" y="1150" fill="#68745A" font-family="Arial,Helvetica,sans-serif" font-size="25" font-weight="600">Show shipping, tax and other charges in the cart</text>
+<text x="70" y="1188" fill="#68745A" font-family="Arial,Helvetica,sans-serif" font-size="25" font-weight="600">before the customer commits to checkout.</text>
+<text x="70" y="1290" fill="#FF674D" font-family="Arial,Helvetica,sans-serif" font-size="21" font-weight="900" letter-spacing="1.4">MAKE THE COST EASY TO UNDERSTAND.</text>
+</svg>
