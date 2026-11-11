@@ -23,7 +23,7 @@
 
   #CheckoutUX #EcommerceUX #ShopifyDesign #DTCBrand
 - **Write-response note:** The first attempt returned “Only photo or video can be accepted as media type” because the four secondary URLs in that attempt contained an incorrect raw-repository path. The corrected attempt returned “Application request limit reached.” No further Instagram publishing attempts were made after the rate-limit response. A subsequent read-only media-history query found the exact caption as a live CAROUSEL_ALBUM with the media ID and permalink above. This is why the final status is published rather than failed.
-- **Early metrics:** Reach 0; saves 0; shares 0; likes 0; comments 0 at the first read. These are initial readings, not a performance conclusion.
+- **Latest early metrics (11 Nov, 16:55 IST):** Reach 1; views 2; likes 0; comments 0; saves 0; shares 0; profile visits 0; follows 0. This is a very early snapshot, not a performance conclusion.
 
 ### Facebook Page AA Growth Studio
 - **Final status:** PUBLISHED — confirmed by write response and read-back.
