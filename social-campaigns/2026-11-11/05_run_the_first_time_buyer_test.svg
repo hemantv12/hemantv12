@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350" role="img" aria-labelledby="title desc">
+<title id="title">Run the First-Time Buyer Test — Ecommerce Checkout Action</title><desc id="desc">A pale butter editorial inspection poster with a large magnifying glass and a practical four-step first-time-buyer checkout test. The final slide ends with one clear action.</desc>
+<rect width="1080" height="1350" fill="#F0E8C9"/>
+<path d="M0 0H1080V16H0Z" fill="#20271F"/>
+
+<g transform="translate(70 54)">
+  <svg width="66" height="66" viewBox="0 0 96 96" role="img" aria-label="Official AA Growth Studio mark">
+    <defs><linearGradient id="aa-official-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#282c22"/><stop offset="1" stop-color="#10120e"/></linearGradient></defs>
+    <rect x="3" y="3" width="90" height="90" rx="28" fill="url(#aa-official-g)"/>
+    <path d="M17 58C10 36 31 13 53 15c17 1 29 12 29 27" fill="none" stroke="#d7f36b" stroke-width="2.3" stroke-linecap="round"/>
+    <circle cx="81" cy="42" r="4.3" fill="#ff674d"/>
+    <path d="M22 70 38 29h9l17 41H52l-3.2-9H36.4l-3.1 9Zm17-17h7l-3.5-10Z" fill="#f3efe6"/>
+    <path d="M53 70 67 34h8L89 70H78l-2.6-8H65.1l-2.7 8Z" fill="#d7f36b"/>
+    <path d="M65 55h7l-3.5-9Z" fill="#171914"/>
+    <path d="M20 77h56" stroke="#ffffff" stroke-opacity=".18" stroke-width="1"/>
+  </svg>
+  <text x="80" y="31" fill="#20271F" font-family="Arial,Helvetica,sans-serif" font-size="24" font-weight="900" letter-spacing=".3">AA GROWTH</text>
+  <text x="82" y="52" fill="#20271F" font-family="Arial,Helvetica,sans-serif" font-size="13" font-weight="800" letter-spacing="2.5">STUDIO</text>
+</g>
+<text x="1008" y="90" text-anchor="end" fill="#68745A" font-family="Arial,Helvetica,sans-serif" font-size="15" font-weight="900" letter-spacing="2">04 / YOUR NEXT STEP</text>
+<text x="70" y="260" fill="#20271F" font-family="Arial,Helvetica,sans-serif" font-size="78" font-weight="900" letter-spacing="-4">TEST IT AS A</text>
+<text x="70" y="355" fill="#FF674D" font-family="Arial,Helvetica,sans-serif" font-size="100" font-weight="900" letter-spacing="-5">FIRST-TIME</text>
+<text x="70" y="455" fill="#20271F" font-family="Arial,Helvetica,sans-serif" font-size="100" font-weight="900" letter-spacing="-5">BUYER.</text>
+<!-- inspection lens -->
+<circle cx="815" cy="740" r="176" fill="none" stroke="#243BA7" stroke-width="28"/>
+<circle cx="815" cy="740" r="136" fill="#F3EFE6" stroke="#20271F" stroke-width="4"/>
+<path d="M938 868L1030 982" stroke="#243BA7" stroke-width="42" stroke-linecap="square"/>
+<path d="M744 705L786 747L878 645" fill="none" stroke="#FF674D" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M700 798H930" stroke="#D7F36B" stroke-width="12" stroke-linecap="round"/>
+<text x="815" y="830" text-anchor="middle" fill="#20271F" font-family="Arial,Helvetica,sans-serif" font-size="18" font-weight="900" letter-spacing="1">LOOK FOR</text>
+<text x="815" y="855" text-anchor="middle" fill="#20271F" font-family="Arial,Helvetica,sans-serif" font-size="18" font-weight="900" letter-spacing="1">HESITATION</text>
+<!-- practical steps, open typography not cards -->
+<path d="M70 560V1085" stroke="#20271F" stroke-width="3" opacity=".35"/>
+<g fill="#20271F" font-family="Arial,Helvetica,sans-serif">
+ <text x="108" y="620" font-size="30" font-weight="900" fill="#FF674D">01</text>
+ <text x="172" y="620" font-size="28" font-weight="800">Start in a fresh session.</text>
+ <text x="108" y="735" font-size="30" font-weight="900" fill="#FF674D">02</text>
+ <text x="172" y="735" font-size="28" font-weight="800">Add one product.</text>
+ <text x="108" y="850" font-size="30" font-weight="900" fill="#FF674D">03</text>
+ <text x="172" y="850" font-size="28" font-weight="800">Choose delivery and payment.</text>
+ <text x="108" y="965" font-size="30" font-weight="900" fill="#FF674D">04</text>
+ <text x="172" y="965" font-size="28" font-weight="800">Write down every pause or surprise.</text>
+</g>
+<path d="M70 1060H1010" stroke="#20271F" stroke-width="2" opacity=".35"/>
+<text x="70" y="1130" fill="#20271F" font-family="Arial,Helvetica,sans-serif" font-size="31" font-weight="900">Fix the first friction point you can verify.</text>
+<text x="70" y="1180" fill="#68745A" font-family="Arial,Helvetica,sans-serif" font-size="23" font-weight="600">Don't redesign the whole checkout on instinct.</text>
+<text x="70" y="1270" fill="#20271F" font-family="Arial,Helvetica,sans-serif" font-size="20" font-weight="900" letter-spacing="1.1">NEED A CLEARER STORE JOURNEY?</text>
+<text x="1010" y="1270" text-anchor="end" fill="#243BA7" font-family="Arial,Helvetica,sans-serif" font-size="22" font-weight="900">AAGROWTHSTUDIO.COM ↗</text>
+</svg>
