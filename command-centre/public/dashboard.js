@@ -107,7 +107,7 @@ function openLeadModal(){
 }
 function renderLeads(){
  var rows=cache.enquiries||[];
- document.getElementById('view').innerHTML='<div class="page-head"><div><div class="eyebrow">Pipeline / First-party enquiries</div><h1>Leads CRM</h1><p>Website enquiries saved by your existing AA Growth contact form.</p></div><div class="head-actions"><button class="btn" id="leadsRefresh">↻ Refresh</button><button class="btn" id="addLead">+ Add lead</button><button class="btn primary" id="exportLeads">Export CSV</button></div></div>'+
+ document.getElementById('view').innerHTML='<div class="page-head"><div><div class="eyebrow">Pipeline / First-party enquiries</div><h1>Leads CRM</h1><p>Lead records and enquiries stored in this Command Centre database.</p></div><div class="head-actions"><button class="btn" id="leadsRefresh">↻ Refresh</button><button class="btn" id="addLead">+ Add lead</button><button class="btn primary" id="exportLeads">Export CSV</button></div></div>'+
  '<div class="notice info" style="margin-bottom:14px">These are leads saved in your new Command Centre database. Add leads manually for now; your old website enquiry history has not been copied.</div>'+
  '<div class="card"><div class="inline" style="margin-bottom:15px"><input id="leadSearch" class="control" placeholder="Search name, email, company or service" style="max-width:360px"><select id="leadFilter" class="control" style="max-width:170px"><option value="">All statuses</option><option value="new">New</option><option value="in_progress">In progress</option><option value="replied">Replied</option><option value="closed">Closed</option></select><span class="tiny right">'+rows.length+' records returned</span></div><div id="leadTable" class="table-wrap"></div></div>';
  function paint(){
@@ -149,7 +149,7 @@ function renderSocial(){
 function renderAnalytics(){
  var d=cache.connected||{},ig=d.instagram||{},fb=d.facebook_organic||{},sc=d.search_console||{},ga=d.ga4||{};
  var g=sc.summary||{},i=ig.summary||{},f=fb.summary||{},a=ga.summary||{};
- document.getElementById('view').innerHTML='<div class="page-head"><div><div class="eyebrow">Connected channel reporting</div><h1>Analytics</h1><p>Windsor.ai snapshots from Instagram, Facebook Page, Google Search Console and GA4.</p></div><div class="head-actions"><select id="rangeSelect" class="control" style="width:145px"><option value="7d">Last 7 days</option><option value="30d" selected>Last 30 days</option></select><button class="btn" id="analyticsRefresh">↻ Refresh</button></div></div>'+
+ document.getElementById('view').innerHTML='<div class="page-head"><div><div class="eyebrow">Connected channel reporting</div><h1>Analytics</h1><p>Windsor.ai snapshots from Instagram, Facebook Page, Google Search Console and GA4.</p></div><div class="head-actions"><select id="rangeSelect" class="control" style="width:145px"><option value="7d">Last 7 days</option><option value="30d" selected>Last 30 days</option></select><button class="btn" id="analyticsRefresh">↻ Reload saved data</button></div></div>'+
  '<div class="grid stats">'+card('Instagram reach · latest day',fmt(i.latest_day_reach),'Daily metric, not 30-day unique reach','◎')+card('Instagram interactions',fmt((Number(i.likes)||0)+(Number(i.comments)||0)+(Number(i.shares)||0)),'Likes + comments + shares','✳')+card('Facebook post impressions',fmt(f.impressions),'Selected period','▤')+card('Search Console clicks',fmt(g.clicks),'Selected period','⌕')+'</div>'+
  '<div class="grid split"><section class="card"><div class="card-head"><div><div class="eyebrow">Instagram Professional</div><h3>Daily insight trend</h3></div><span class="status-pill">'+fmt(i.days)+' days returned</span></div>'+
  (ig.daily&&ig.daily.length?'<div class="table-wrap"><table class="data-table"><thead><tr><th>Date</th><th>Reach</th><th>Likes</th><th>Comments</th><th>Shares</th></tr></thead><tbody>'+ig.daily.map(function(r){return '<tr><td>'+esc(r.date)+'</td><td>'+fmt(r.reach)+'</td><td>'+fmt(r.likes)+'</td><td>'+fmt(r.comments)+'</td><td>'+fmt(r.shares)+'</td></tr>';}).join('')+'</tbody></table></div>':empty('No Instagram insight rows returned.'))+
@@ -176,7 +176,7 @@ function renderAds(){
  var spend=available?accounts.reduce(function(n,a){return n+(Number(a.spend)||0);},0):null;
  var spendCurrency=(accounts.find(function(a){return a.spend_rows>0;})||accounts[0]||{}).currency||'—';
  var active=ads.filter(function(a){return a.effective_status==='ACTIVE';}).length;
- document.getElementById('view').innerHTML='<div class="page-head"><div><div class="eyebrow">Paid media / Meta Ads</div><h1>Ads Manager</h1><p>Two Meta ad-account sources are kept separate. Insights availability is shown exactly as returned.</p></div><button class="btn primary" id="adsRefresh">↻ Refresh snapshot</button></div>'+
+ document.getElementById('view').innerHTML='<div class="page-head"><div><div class="eyebrow">Paid media / Meta Ads</div><h1>Ads Manager</h1><p>Two Meta ad-account sources are kept separate. Insights availability is shown exactly as returned.</p></div><button class="btn primary" id="adsRefresh">↻ Reload saved data</button></div>'+
  '<div class="grid stats">'+card('Spend · last 30d',money(spend,spendCurrency),available?'Meta reporting':'No numeric spend returned','$')+card('Ad objects',fmt(ads.length),'Returned by Meta','▣')+card('Active ads',fmt(active),'Effective status ACTIVE','↗')+card('Leads',accounts.some(function(a){return a.lead_rows>0;})?fmt(accounts.reduce(function(n,a){return n+(Number(a.leads)||0);},0)):'Unavailable','Meta lead metric','◎')+'</div>'+
  '<div class="notice danger section-gap">Meta returned 2 active ad objects under “Hemant Verma”, but its spend, impressions, reach, clicks and lead insight fields are NULL. The AA Growth Studio ad account returned no rows. NULL means unavailable—not zero. No campaigns have been changed.</div>'+
  '<section class="card section-gap"><div class="card-head"><div><div class="eyebrow">Ad account inventory</div><h3>Connected account sources</h3></div><span class="status-pill ok">'+accounts.length+' sources</span></div>'+
@@ -198,7 +198,7 @@ function renderIntegrations(){
  var metaAgency=latest('facebook','1830321494777827'),metaOwner=latest('facebook','1483425516986252'),fbRun=latest('facebook_organic','1454190361104294'),igRun=latest('instagram','17841464848354217'),gaRun=latest('googleanalytics4','225503662'),scRun=latest('searchconsole','sc-domain:aagrowthstudio.com');
  var fbStatus=state(fbRun,(fb.summary||{}).posts),igStatus=state(igRun,(ig.summary||{}).days),gaStatus=state(gaRun,(ga.summary||{}).days),scStatus=state(scRun,(sc.summary||{}).rows);
  function last(r){return r?shortDate(r.fetched_at):'Not imported';}
- document.getElementById('view').innerHTML='<div class="page-head"><div><div class="eyebrow">Connections / Data access</div><h1>Integrations</h1><p>Verified Windsor sources, latest imported data and automation status.</p></div><button class="btn primary" id="intRefresh">↻ Refresh snapshot</button></div>'+
+ document.getElementById('view').innerHTML='<div class="page-head"><div><div class="eyebrow">Connections / Data access</div><h1>Integrations</h1><p>Verified Windsor sources, latest imported data and automation status.</p></div><button class="btn primary" id="intRefresh">↻ Reload saved data</button></div>'+
  '<section class="card"><div class="card-head"><div><div class="eyebrow">Meta Ads</div><h3>Ad account sources</h3></div><span class="status-pill ok">Windsor data imported</span></div>'+
  '<div class="rows">'+row('AA Growth Studio · 1830321494777827',metaAgency?fmt(metaAgency.rows_returned)+' rows returned': 'Not imported',metaAgency&&Number(metaAgency.rows_returned)>0?'ok':'warn')+
  row('Hemant Verma · 1483425516986252',metaOwner?fmt(metaOwner.rows_returned)+' ad objects': 'Not imported',metaOwner&&Number(metaOwner.rows_returned)>0?'ok':'warn')+
@@ -219,16 +219,44 @@ function renderIntegrations(){
 }
 
 function renderSettings(){
- document.getElementById('view').innerHTML='<div class="page-head"><div><div class="eyebrow">Controls / Guardrails</div><h1>Settings & safety</h1><p>Operating defaults for AA Growth Studio.</p></div></div>'+
- '<div class="grid split"><section class="card"><div class="eyebrow">Business defaults</div><h3>Growth profile</h3><div class="rows">'+row('Business','AA Growth Studio','ok')+row('Website','aagrowthstudio.com','ok')+row('Primary market','United States','ok')+row('Secondary market','India','ok')+row('Timezone','Asia/Kolkata','ok')+row('Brand voice','Premium · direct · human','ok')+'</div></section>'+
- '<section class="card"><div class="eyebrow">Spend safeguards</div><h3>Campaign controls</h3><div class="rows">'+row('Campaign launch','Disabled','warn')+row('Budget editing','Disabled','warn')+row('Approval before spend','Required','ok')+row('Global kill switch','ON · no spending actions','ok')+'</div><div class="notice info section-gap">No campaign can be launched or budget changed in this version. Drafts are planning documents only.</div></section></div>'+
- '<section class="card section-gap"><div class="eyebrow">Storage & uptime</div><h3>Where your data lives</h3><div class="rows">'+row('New dashboard login','Neon Free database branch','ok')+row('Campaign plans & content drafts','Saved in database','ok')+row('Leads CRM','Saved in database','ok')+row('Hosting','Render Free · may sleep','warn')+row('Old CMS data','Separate · not changed','ok')+'</div><p class="small muted">The new dashboard starts with an empty workspace. Old website enquiry history is not copied into it. The original CMS and website database were left untouched.</p></section>'+
- '<section class="card section-gap"><div class="eyebrow">Account</div><h3>Change your dashboard password</h3><p class="small muted">Your new dashboard password is separate from the old CMS password. You can change it here after signing in.</p><button class="btn" id="changePassword">Change dashboard password</button></section>';
- document.getElementById('changePassword').onclick=function(){openPasswordModal();};
+ var view=document.getElementById('view');
+ view.innerHTML='<div class="page-head"><div><div class="eyebrow">Controls / Operating preferences</div><h1>Settings & safety</h1><p>Update workspace defaults. Ads spending and publishing actions remain locked.</p></div></div><div class="card"><div class="muted small">Loading saved settings…</div></div>';
+ api('/admin/settings').then(function(result){
+  if(currentView!=='settings')return;
+  var s=result.settings||{};
+  view.innerHTML='<div class="page-head"><div><div class="eyebrow">Controls / Operating preferences</div><h1>Settings & safety</h1><p>Update workspace defaults. Ads spending and publishing actions remain locked.</p></div></div>'+
+  '<form id="settingsForm" class="card"><div class="card-head"><div><div class="eyebrow">Business defaults</div><h3>Growth profile</h3></div><span class="status-pill ok">Saved in database</span></div>'+
+  '<div class="grid thirds"><div class="field"><label for="settingCurrency">Reporting currency</label><select id="settingCurrency" class="control"><option value="USD">USD — US Dollar</option><option value="INR">INR — Indian Rupee</option></select></div>'+
+  '<div class="field"><label for="settingPrimary">Primary market</label><select id="settingPrimary" class="control"><option>USA</option><option>India</option></select></div>'+
+  '<div class="field"><label for="settingSecondary">Secondary market</label><select id="settingSecondary" class="control"><option>India</option><option>USA</option><option>Other</option></select></div>'+
+  '<div class="field"><label for="settingTimezone">Workspace timezone</label><select id="settingTimezone" class="control"><option>Asia/Kolkata</option><option>America/New_York</option><option>America/Los_Angeles</option><option>UTC</option></select></div>'+
+  '<div class="field"><label for="settingDailyCap">Daily budget cap (optional)</label><input id="settingDailyCap" class="control" type="number" min="0.01" step="0.01" placeholder="Not set"></div>'+
+  '<div class="field"><label for="settingLifetimeCap">Lifetime budget cap (optional)</label><input id="settingLifetimeCap" class="control" type="number" min="0.01" step="0.01" placeholder="Not set"></div></div>'+
+  '<div class="inline"><button class="btn primary" type="submit" id="saveSettings">Save preferences</button><span class="tiny" id="settingsSaveStatus">Values reflect the saved workspace record.</span></div></form>'+
+  '<div class="grid split section-gap"><section class="card"><div class="eyebrow">Spend safeguards</div><h3>Protected controls</h3><div class="rows">'+row('Campaign launch','Disabled','warn')+row('Budget edits in Meta','Disabled','warn')+row('Approval before spend','Required','ok')+row('Global kill switch','ON','ok')+'</div><div class="notice info section-gap">This dashboard is read-only for Ads. Protection controls stay ON; no campaign or budget write action is available.</div></section>'+
+  '<section class="card"><div class="eyebrow">Storage & uptime</div><h3>Workspace infrastructure</h3><div class="rows">'+row('Dashboard database','Neon · growthstudio','ok')+row('Reporting snapshots','Windsor schema','ok')+row('Hosting','Render Free · may sleep','warn')+row('Old CMS data','Separate · untouched','ok')+'</div><p class="small muted section-gap">Old website enquiry history has not been copied. New CRM leads are stored separately until website form routing is connected.</p></section></div>'+
+  '<section class="card section-gap"><div class="eyebrow">Account</div><h3>Change dashboard password</h3><p class="small muted">This password is separate from the old CMS password.</p><button class="btn" id="changePassword">Change dashboard password</button></section>';
+  document.getElementById('settingCurrency').value=s.currency||'USD';
+  document.getElementById('settingPrimary').value=s.primary_market||'USA';
+  document.getElementById('settingSecondary').value=s.secondary_market||'India';
+  document.getElementById('settingTimezone').value=s.timezone||'Asia/Kolkata';
+  document.getElementById('settingDailyCap').value=s.max_daily_budget==null?'':s.max_daily_budget;
+  document.getElementById('settingLifetimeCap').value=s.max_lifetime_cap==null?'':s.max_lifetime_cap;
+  document.getElementById('settingsForm').onsubmit=async function(e){
+   e.preventDefault();var btn=document.getElementById('saveSettings');btn.disabled=true;btn.textContent='Saving…';
+   var daily=document.getElementById('settingDailyCap').value,lifetime=document.getElementById('settingLifetimeCap').value;
+   var body={currency:document.getElementById('settingCurrency').value,primary_market:document.getElementById('settingPrimary').value,secondary_market:document.getElementById('settingSecondary').value,timezone:document.getElementById('settingTimezone').value,max_daily_budget:daily===''?null:Number(daily),max_lifetime_cap:lifetime===''?null:Number(lifetime),require_approval:true,kill_switch:true};
+   if((body.max_daily_budget!==null&&(!Number.isFinite(body.max_daily_budget)||body.max_daily_budget<=0))||(body.max_lifetime_cap!==null&&(!Number.isFinite(body.max_lifetime_cap)||body.max_lifetime_cap<=0))){toast('Enter a positive budget cap or leave the field blank.');btn.disabled=false;btn.textContent='Save preferences';return;}
+   try{await api('/admin/settings',{method:'PATCH',body:body});document.getElementById('settingsSaveStatus').textContent='Saved just now.';toast('Workspace preferences saved.');}
+   catch(e){toast(e.message);}
+   finally{btn.disabled=false;btn.textContent='Save preferences';}
+  };
+  document.getElementById('changePassword').onclick=openPasswordModal;
+ }).catch(function(e){view.innerHTML='<div class="page-head"><div><div class="eyebrow">Controls</div><h1>Settings & safety</h1></div></div><div class="notice danger">Could not load settings: '+esc(e.message)+'</div>';});
 }
 function openPasswordModal(){
  var el=document.getElementById('modal');el.classList.remove('hidden');
- document.getElementById('modalContent').innerHTML='<div class="card-head"><h3>Change CMS password</h3><button class="btn ghost" id="closeModal">✕</button></div><div class="field"><label>Current password</label><input id="oldPass" class="control" type="password"></div><div class="field"><label>New password (12+ characters)</label><input id="newPass" class="control" type="password"></div><button class="btn primary" id="savePassword">Update password</button>';
+ document.getElementById('modalContent').innerHTML='<div class="card-head"><h3>Change dashboard password</h3><button class="btn ghost" id="closeModal">✕</button></div><div class="field"><label>Current password</label><input id="oldPass" class="control" type="password"></div><div class="field"><label>New password (12+ characters)</label><input id="newPass" class="control" type="password"></div><button class="btn primary" id="savePassword">Update password</button>';
  document.getElementById('closeModal').onclick=function(){el.classList.add('hidden');};
  document.getElementById('savePassword').onclick=async function(){try{await api('/admin/password',{method:'POST',body:{currentPassword:document.getElementById('oldPass').value,newPassword:document.getElementById('newPass').value}});toast('Password updated. Sign in again.');logout();}catch(e){toast(e.message);}};
 }
@@ -242,11 +270,20 @@ function renderContent(){
  document.querySelectorAll('[data-post-export]').forEach(function(b){b.onclick=function(){var p=localPosts[Number(b.dataset.postExport)];downloadText(p.title+'.txt',p.body);};});
 }
 function createContentDraft(brief,format,market){
- var service=detectService(brief),topic=service==='General growth'?'growth':service.toLowerCase();
+ var clean=brief.replace(/\\s+/g,' ').trim(),service=detectService(clean),topic=service==='General growth'?'growth':service.toLowerCase();
  var title=market==='USA'?'The '+topic+' advantage':'A smarter way to grow with '+topic;
- var body=format==='Carousel'?'Slide 1 — '+(brief.slice(0,90))+'\nSlide 2 — The problem: disconnected marketing creates friction and missed opportunities.\nSlide 3 — The shift: make the message, creative, landing page and follow-up work together.\nSlide 4 — The practical move: choose one audience, one offer and one measurable next step.\nSlide 5 — Make the next step clear. AA Growth Studio | aagrowthstudio.com\n\nCaption: '+brief+'\n\nCTA: Start with a clearer growth plan.':
- format==='Instagram Reel'?'Hook (0–3s): '+brief+'\nScene 2 (3–7s): Show the friction your customer recognises.\nScene 3 (7–13s): Present one clear solution with a visual example.\nScene 4 (13–18s): Show the outcome the customer wants—without promising guaranteed results.\nEnd card (18–20s): AA Growth Studio · aagrowthstudio.com':
- brief+'\n\nA strong idea starts with a clear problem, a specific audience and one useful next step.\n\nAA Growth Studio | aagrowthstudio.com';
+ var audience=market==='USA'?'US founders, operators and small-business decision-makers':'Indian founders, operators and small-business decision-makers';
+ var hashtags=market==='USA'?'#SmallBusinessGrowth #DigitalMarketing #BrandStrategy #ContentMarketing #AAGrowthStudio':'#BusinessGrowth #DigitalMarketingIndia #BrandStrategy #ContentMarketing #AAGrowthStudio';
+ var body='';
+ if(format==='Carousel'){
+  body='CAROUSEL / 5 SLIDES\\n\\nSlide 1 — THE HOOK\\n'+clean+'\\nVisual direction: one sharp statement, premium typography and a single focal point.\\n\\nSlide 2 — THE PROBLEM\\nYour audience is not looking for more noise. They are looking for a reason to trust the next step.\\nVisual direction: show the real friction your buyer recognises.\\n\\nSlide 3 — THE SHIFT\\nConnect the message, creative, landing page and follow-up into one customer journey.\\nVisual direction: a clear four-step journey.\\n\\nSlide 4 — THE PRACTICAL MOVE\\nChoose one audience, one offer and one measurable action. Test the creative before increasing spend.\\nVisual direction: simple checklist or campaign workflow.\\n\\nSlide 5 — THE CTA\\nMake your next move clearer.\\nAA Growth Studio · aagrowthstudio.com\\nVisual direction: branded end card using the official logo.\\n\\nCAPTION\\n'+clean+'\\n\\nA stronger growth system starts with clarity: the right audience, a relevant message and a useful next step.\\n\\nCTA: Explore a more connected growth approach at aagrowthstudio.com\\n\\nHASHTAGS\\n'+hashtags;
+ }else if(format==='Instagram Reel'){
+  body='INSTAGRAM REEL / 20-SECOND SCRIPT\\nAudience: '+audience+'\\n\\n00:00–00:03 — HOOK\\nOn-screen: '+clean+'\\nVisual: immediate problem-led opening; no generic stock montage.\\n\\n00:03–00:07 — THE FRICTION\\nOn-screen: Disconnected marketing creates friction.\\nVisual: show the gap between an ad, a landing page and the follow-up.\\n\\n00:07–00:12 — THE SHIFT\\nOn-screen: Strategy + Creative + Conversion.\\nVisual: three quick transitions that connect into one journey.\\n\\n00:12–00:17 — THE VALUE\\nOn-screen: One audience. One clear offer. One measurable next step.\\nVisual: use real product/service screens supplied by the team.\\n\\n00:17–00:20 — CTA\\nOn-screen: Build a clearer growth system.\\nEnd card: AA Growth Studio · aagrowthstudio.com\\n\\nCAPTION\\nThe strongest creative does more than stop the scroll. It gives the right person a clear reason to take the next step.\\n\\nCTA: Visit aagrowthstudio.com\\n\\nHASHTAGS\\n'+hashtags;
+ }else if(format==='LinkedIn post'){
+  body='LINKEDIN POST\\n\\n'+clean+'\\n\\nA useful growth strategy is not a collection of disconnected tactics. It connects positioning, creative, distribution and the customer journey.\\n\\nFor '+audience.toLowerCase()+', the practical starting point is simple: identify one buyer problem, make the value easy to understand and define the next action you want the buyer to take.\\n\\nWhat is the biggest gap in your current growth journey?\\n\\nAA Growth Studio | aagrowthstudio.com\\n\\nHASHTAGS\\n'+hashtags;
+ }else{
+  body='SINGLE-IMAGE POST / CAPTION\\n\\nHEADLINE\\n'+clean+'\\n\\nSUPPORTING COPY\\nA stronger digital presence starts with a clear audience, a useful message and a next step that feels natural. Strategy, creative and conversion should work together—not in separate silos.\\n\\nCTA\\nExplore a clearer growth approach at aagrowthstudio.com\\n\\nHASHTAGS\\n'+hashtags;
+ }
  return {title:title,format:format,market:market,body:body,createdAt:new Date().toISOString()};
 }
 function detectService(text){
@@ -294,7 +331,7 @@ async function runCommand(){
  document.getElementById('exportOne').onclick=function(){downloadText(result.name+'.json',JSON.stringify(result,null,2));};
 }
 function planItem(label,value){return '<div class="plan-item"><label>'+esc(label)+'</label><strong>'+esc(value)+'</strong></div>';}
-function downloadText(name,content){var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([content],{type:'text/plain'}));a.download=name.replace(/[\\/:*?"<>|]/g,'-');a.click();URL.revokeObjectURL(a.href);}
+function downloadText(name,content){var a=document.createElement('a'),url=URL.createObjectURL(new Blob([content],{type:'text/plain;charset=utf-8'}));a.href=url;a.download=name.replace(/[\\/:*?"<>|]/g,'-');document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(url);},1500);}
 async function loadSavedData(){
  try{
   var results=await Promise.all([api('/admin/plans'),api('/admin/audiences'),api('/admin/content-drafts')]);
@@ -312,8 +349,8 @@ async function loadOverview(){
 async function loadLeads(){try{var r=await api('/admin/enquiries');cache.enquiries=r.enquiries||[];renderLeads();}catch(e){toast(e.message);}}
 async function loadVisitors(range){try{cache.visitors=await api('/admin/visitors?range='+(range||'7d'));renderAnalytics();}catch(e){toast(e.message);document.getElementById('view').innerHTML='<div class="empty">Could not load website analytics. '+esc(e.message)+'</div>';}}
 async function loadConnectedData(range){
- try{cache.connected=await api('/admin/connected-data?range='+(range||'30d'));if(currentView==='overview'||currentView==='ads'||currentView==='integrations'||currentView==='analytics')renderView();}
- catch(e){if(e.status===401)return logout();toast('Could not read connected data: '+e.message);}
+ try{cache.connected=await api('/admin/connected-data?range='+(range||'30d'));if(currentView==='overview'||currentView==='ads'||currentView==='integrations'||currentView==='analytics'||currentView==='social')renderView();return true;}
+ catch(e){if(e.status===401){logout();return false;}toast('Could not read connected data: '+e.message);return false;}
 }
 async function loadMeta(render){try{cache.meta=await api('/admin/meta/status');}catch(e){cache.meta=null;}if(render!==false){if(currentView==='integrations')renderIntegrations();if(currentView==='ads')renderAds();if(currentView==='overview')renderOverview();}}
 function renderView(){
