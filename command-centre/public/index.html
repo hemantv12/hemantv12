@@ -53,7 +53,7 @@
   </aside>
   <main class="main">
     <header class="topbar">
-      <div class="top-left"><button id="menuButton" class="btn ghost mobile-menu" aria-label="Open navigation">☰</button><div class="top-title" id="topTitle">Overview</div><div class="top-status"><span class="status-dot"></span>CMS connection active</div></div>
+      <div class="top-left"><button id="menuButton" class="btn ghost mobile-menu" aria-label="Open navigation">☰</button><div class="top-title" id="topTitle">Overview</div><div class="top-status"><span class="status-dot"></span>New database connected</div></div>
       <div class="inline"><span class="tiny" id="lastSync">Not synced yet</span><button class="btn ghost" id="refreshButton">↻ Refresh</button><button class="btn ghost" id="logoutButton">Sign out</button></div>
     </header>
     <div class="content" id="view"></div>
@@ -101,22 +101,22 @@ function card(label,value,foot,icon){return '<div class="card"><div class="card-
 function empty(message){return '<div class="empty">'+esc(message)+'</div>';}
 function renderOverview(){
  var o=cache.overview,v=cache.visitors,m=cache.meta;
- if(!o){document.getElementById('view').innerHTML='<div class="page-head"><div><div class="eyebrow">AA Growth Studio / Control room</div><h1>Good to see you.</h1><p>One view of your website enquiries, traffic and campaign operations.</p></div></div><div class="empty">Loading live CMS data…</div>';return;}
+ if(!o){document.getElementById('view').innerHTML='<div class="page-head"><div><div class="eyebrow">AA Growth Studio / Control room</div><h1>Good to see you.</h1><p>One place for campaign plans, leads, content drafts and channel health.</p></div></div><div class="empty">Loading live CMS data…</div>';return;}
  var stats=(v&&v.stats)||{};
  var adStatus=m&&m.connected?'Instagram connected · Ads API not enabled':'Meta Ads metrics unavailable';
  document.getElementById('view').innerHTML=
- '<div class="page-head"><div><div class="eyebrow">Thursday / Growth operations</div><h1>Good to see you.</h1><p>Here is what is happening across your website and growth workflow.</p></div><div class="head-actions"><button class="btn primary" data-go="command">⌘ New command</button><button class="btn" data-go="leads">View enquiries</button></div></div>'+
+ '<div class="page-head"><div><div class="eyebrow">Thursday / Growth operations</div><h1>Good to see you.</h1><p>Here is what is happening across your website and growth workflow.</p></div><div class="head-actions"><button class="btn primary" data-go="command">⌘ New command</button><button class="btn" data-go="leads">View leads</button></div></div>'+
  '<div class="grid stats">'+
  card('Website enquiries',fmt(o.enquiries),'All recorded enquiries','◎')+
  card('New enquiries',fmt(o.newEnquiries),'Awaiting follow-up','↗')+
  card('Website sessions',fmt(stats.total_sessions),'Last 7 days','◉')+
  card('Page views',fmt(stats.page_views),'Last 7 days','▤')+'</div>'+
  '<div class="grid split">'+
- '<section class="card"><div class="card-head"><div><div class="eyebrow">Lead pipeline</div><h3>Recent enquiries</h3></div><button class="btn ghost" data-go="leads">Open CRM →</button></div>'+
+ '<section class="card"><div class="card-head"><div><div class="eyebrow">Lead pipeline</div><h3>Recent enquiries</h3></div><button class="btn ghost" data-go="leads">Open Leads →</button></div>'+
  recentRows(o.recentEnquiries||[])+'</section>'+
- '<section class="card"><div class="card-head"><div><div class="eyebrow">Connection health</div><h3>Growth stack</h3></div><span class="status-pill ok">CMS online</span></div>'+
+ '<section class="card"><div class="card-head"><div><div class="eyebrow">Connection health</div><h3>Growth stack</h3></div><span class="status-pill ok">Database online</span></div>'+
  '<div class="rows">'+
- row('Website leads & analytics','Connected','ok')+
+ row('Command Centre database','Connected','ok')+
  row('Facebook / Instagram',m&&m.connected?'Connected':'Not connected',m&&m.connected?'ok':'warn')+
  row('Meta Ads insights', 'Permission required','warn')+
  row('Social publishing','Not connected','off')+
