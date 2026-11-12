@@ -150,7 +150,7 @@ function renderOverview(){
 
 function row(label,value,state){return '<div class="rowline"><span class="muted">'+esc(label)+'</span><span class="status-pill '+state+'">'+esc(value)+'</span></div>';}
 function recentRows(rows){
- if(!rows.length)return empty('No website enquiries have been recorded yet.');
+ if(!rows.length)return empty('No leads have been saved in this new CRM yet.');
  return '<div class="table-wrap"><table class="data-table" style="min-width:490px"><thead><tr><th>Name</th><th>Service</th><th>Status</th><th>Date</th></tr></thead><tbody>'+rows.map(function(r){return '<tr><td><strong>'+esc(r.name)+'</strong><div class="tiny">'+esc(r.email||r.mobile_number||'')+'</div></td><td>'+esc(r.service)+'</td><td><span class="status-pill '+(r.status==='new'?'warn':'')+'">'+esc(r.status)+'</span></td><td>'+esc(shortDate(r.created_at))+'</td></tr>';}).join('')+'</tbody></table></div>';
 }
 function sourceBars(rows){
