@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#11120f">
+<title>AA Growth Command Centre</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#11120f;--panel:#191b17;--panel2:#20231d;--line:#30342b;--text:#f2f1e9;--muted:#a4a89b;--dim:#6f7569;--lime:#d7f36b;--coral:#ff674d;--green:#a9d77b;--yellow:#edc66b;--red:#ff8877;--radius:15px;--sans:'DM Sans',sans-serif;--display:'Manrope',sans-serif;--mono:'DM Mono',monospace}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px}button,input,textarea,select{font:inherit}button{cursor:pointer}a{color:var(--lime)}.hidden{display:none!important}
+.login-wrap{min-height:100vh;display:grid;place-items:center;padding:24px;background:radial-gradient(ellipse at 75% 15%,#252b1b 0,transparent 38%),var(--bg)}.login-card{width:min(430px,100%);padding:36px;border:1px solid var(--line);background:rgba(25,27,23,.94);border-radius:22px;box-shadow:0 30px 100px #0007}.brand-mark{height:37px;width:37px;object-fit:contain}.eyebrow{font:11px var(--mono);letter-spacing:.13em;text-transform:uppercase;color:var(--lime)}h1,h2,h3,h4,p{margin-top:0}h1,h2,h3{font-family:var(--display);letter-spacing:-.04em}h1{font-size:32px;line-height:1.1;margin:10px 0}h2{font-size:24px;margin:0 0 7px}h3{font-size:17px;margin:0 0 7px}.muted{color:var(--muted)}.small{font-size:12px}.tiny{font:10px var(--mono);color:var(--dim);letter-spacing:.06em;text-transform:uppercase}.field{display:grid;gap:7px;margin:15px 0}.field label{font-size:12px;color:var(--muted)}.control{width:100%;border:1px solid var(--line);border-radius:10px;padding:12px 13px;background:#11130f;color:var(--text);outline:none}.control:focus{border-color:#9cb94d;box-shadow:0 0 0 3px #d7f36b14}.btn{border:1px solid var(--line);border-radius:10px;padding:10px 14px;color:var(--text);background:var(--panel2);font-weight:600;transition:.2s}.btn:hover{border-color:#666e54;transform:translateY(-1px)}.btn.primary{background:var(--lime);color:#171a11;border-color:var(--lime)}.btn.ghost{background:transparent}.btn.danger{color:var(--coral);border-color:#704137}.btn:disabled{opacity:.4;cursor:not-allowed;transform:none}.login-card .btn{width:100%;margin-top:7px}.login-note{margin-top:18px;padding-top:16px;border-top:1px solid var(--line);font-size:11px;color:var(--dim);line-height:1.6}
+.app{min-height:100vh}.sidebar{width:248px;position:fixed;inset:0 auto 0 0;background:#151713;border-right:1px solid var(--line);padding:24px 16px;display:flex;flex-direction:column;z-index:20}.brand{display:flex;gap:11px;align-items:center;padding:0 8px 24px;border-bottom:1px solid var(--line)}.brand-name{font:800 15px var(--display);letter-spacing:-.04em}.brand-sub{font:9px var(--mono);letter-spacing:.12em;color:var(--dim);margin-top:3px;text-transform:uppercase}.nav-label{font:10px var(--mono);color:var(--dim);letter-spacing:.15em;text-transform:uppercase;padding:23px 10px 9px}.nav{display:grid;gap:4px}.nav button{display:flex;align-items:center;gap:12px;text-align:left;background:none;border:0;color:var(--muted);padding:11px 12px;border-radius:9px;font-size:13px}.nav button:hover{background:#ffffff08;color:var(--text)}.nav button.active{background:#d7f36b14;color:var(--lime)}.nav .ico{width:17px;text-align:center;font-size:16px}.sidebar-foot{margin-top:auto;padding:14px 8px 0;border-top:1px solid var(--line)}.profile{display:flex;align-items:center;gap:10px}.avatar{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:#303a23;color:var(--lime);font:11px var(--mono)}.profile strong{font-size:12px}.profile span{display:block;color:var(--dim);font-size:10px;margin-top:2px}
+.main{margin-left:248px;min-height:100vh}.topbar{height:72px;padding:0 34px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);background:#11120fdf;backdrop-filter:blur(16px);position:sticky;top:0;z-index:10}.top-left{display:flex;align-items:center;gap:15px}.top-title{font:700 13px var(--display)}.status-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);margin-right:6px}.top-status{font:10px var(--mono);color:var(--muted)}.content{max-width:1440px;padding:34px;margin:auto}.page-head{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;margin-bottom:26px}.page-head h1{font-size:30px}.page-head p{margin:7px 0 0;color:var(--muted)}.head-actions{display:flex;gap:8px;flex-wrap:wrap}.grid{display:grid;gap:14px}.stats{grid-template-columns:repeat(4,minmax(0,1fr));margin-bottom:15px}.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:19px;min-width:0}.card-head{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:15px}.metric-label{font-size:11px;color:var(--muted)}.metric-value{font:700 27px var(--display);letter-spacing:-.06em;margin:9px 0 4px}.metric-foot{font-size:10px;color:var(--dim)}.metric-icon{color:var(--lime);font-size:17px}.split{grid-template-columns:1.3fr .7fr}.thirds{grid-template-columns:repeat(3,minmax(0,1fr))}.status-pill{font:10px var(--mono);letter-spacing:.03em;border:1px solid var(--line);padding:5px 8px;border-radius:99px;color:var(--muted);white-space:nowrap}.status-pill.ok{color:var(--green);border-color:#546e3d}.status-pill.warn{color:var(--yellow);border-color:#68552e}.status-pill.off{color:var(--coral);border-color:#704137}.rows{display:grid;gap:0}.rowline{display:flex;justify-content:space-between;gap:16px;padding:12px 0;border-bottom:1px solid #ffffff0a}.rowline:last-child{border-bottom:0}.rowline strong{font-weight:600}.data-table{width:100%;border-collapse:collapse;min-width:670px}.data-table th{text-align:left;padding:11px 12px;color:var(--dim);font:10px var(--mono);letter-spacing:.08em;text-transform:uppercase;border-bottom:1px solid var(--line)}.data-table td{padding:13px 12px;border-bottom:1px solid #ffffff0a;color:#e4e4dc;font-size:12px;vertical-align:middle}.data-table tr:last-child td{border-bottom:0}.table-wrap{overflow:auto}.bar-list{display:grid;gap:12px}.bar-top{display:flex;justify-content:space-between;font-size:11px;margin-bottom:6px}.bar-track{height:6px;background:#30342b;border-radius:9px;overflow:hidden}.bar-fill{height:100%;background:var(--lime);border-radius:9px}.empty{padding:26px;border:1px dashed #414638;border-radius:12px;text-align:center;color:var(--muted);line-height:1.6}.notice{padding:13px 15px;border:1px solid #5d522b;background:#c59f2810;border-radius:11px;color:#e4d7a9;font-size:12px;line-height:1.6}.notice.info{border-color:#454c3d;background:#d7f36b09;color:var(--muted)}.notice.danger{border-color:#704137;background:#ff674d0c;color:#f1b2a7}.section-gap{margin-top:15px}.command-box{border:1px solid #59653c;background:linear-gradient(120deg,#242b1b,#1a1d16);padding:22px;border-radius:16px;margin-bottom:18px}.command-box textarea{min-height:92px;resize:vertical}.quick-prompts{display:flex;gap:7px;flex-wrap:wrap;margin-top:13px}.chip{border:1px solid var(--line);color:var(--muted);background:#151713;padding:7px 10px;border-radius:50px;font-size:11px}.chip:hover{border-color:var(--lime);color:var(--lime)}.plan-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.plan-item{padding:13px;border:1px solid var(--line);border-radius:10px;background:#151713}.plan-item label{display:block;font:9px var(--mono);color:var(--dim);text-transform:uppercase;letter-spacing:.09em;margin-bottom:6px}.plan-item strong{font-size:12px;line-height:1.5}.copy-block{padding:14px;border:1px solid var(--line);background:#151713;border-radius:10px;margin:10px 0}.copy-block p{font-size:12px;color:var(--muted);line-height:1.6;margin:7px 0}.tabs{display:flex;gap:6px;flex-wrap:wrap}.tab{background:transparent;border:1px solid var(--line);border-radius:8px;padding:8px 11px;color:var(--muted);font-size:11px}.tab.active{color:var(--lime);border-color:#59653c;background:#d7f36b0a}.right{margin-left:auto}.mobile-menu{display:none}.mobile-nav{display:none}.inline{display:flex;align-items:center;gap:9px;flex-wrap:wrap}.stack{display:grid;gap:10px}.spacer{height:10px}.divider{height:1px;background:var(--line);margin:18px 0}.modal-backdrop{position:fixed;inset:0;background:#0009;z-index:80;display:grid;place-items:center;padding:18px}.modal{width:min(560px,100%);background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:22px;max-height:90vh;overflow:auto}.toast{position:fixed;right:20px;bottom:20px;z-index:100;max-width:360px;background:#282c22;border:1px solid #647348;color:var(--text);border-radius:11px;padding:13px 16px;box-shadow:0 10px 40px #0008}.muted-link{color:var(--muted);text-decoration:none}.muted-link:hover{color:var(--lime)}
+@media(max-width:1050px){.sidebar{width:215px}.main{margin-left:215px}.content{padding:25px}.stats{grid-template-columns:repeat(2,1fr)}.split{grid-template-columns:1fr}.thirds{grid-template-columns:1fr 1fr}}
+@media(max-width:720px){.sidebar{display:none}.main{margin-left:0;padding-bottom:70px}.topbar{height:60px;padding:0 16px}.content{padding:20px 15px}.page-head{align-items:flex-start;flex-direction:column;margin-bottom:18px}.page-head h1{font-size:26px}.top-status{display:none}.mobile-menu{display:block}.mobile-nav{display:flex;position:fixed;bottom:0;left:0;right:0;z-index:30;background:#151713f5;backdrop-filter:blur(15px);border-top:1px solid var(--line);padding:7px 4px calc(7px + env(safe-area-inset-bottom));justify-content:space-around}.mobile-nav button{display:grid;justify-items:center;gap:3px;min-width:0;flex:1;color:var(--muted);background:none;border:0;font-size:9px;padding:5px 2px}.mobile-nav button.active{color:var(--lime)}.mobile-nav b{font-size:17px;font-weight:400}.stats{gap:9px}.metric-value{font-size:23px}.card{padding:15px}.thirds{grid-template-columns:1fr}.plan-grid{grid-template-columns:1fr}.page-head .head-actions{width:100%}.page-head .head-actions .btn{flex:1}.login-card{padding:27px}}
+</style>
+</head>
+<body>
+<div id="login" class="login-wrap">
+  <form id="loginForm" class="login-card">
+    <img class="brand-mark" src="https://aagrowthstudio.com/assets/aa-symbol.svg" alt="AA Growth Studio logo">
+    <div class="eyebrow" style="margin-top:24px">Private workspace · Owner sign in</div>
+    <h1>Growth, in<br>one place.</h1>
+    <p class="muted" style="line-height:1.6;margin-bottom:24px">AA Growth Command Centre connects to your existing AA Growth CMS account. No new paid platform required.</p>
+    <div class="field"><label for="username">CMS admin username</label><input id="username" class="control" autocomplete="username" required placeholder="Your existing admin username"></div>
+    <div class="field"><label for="password">CMS admin password</label><input id="password" class="control" type="password" autocomplete="current-password" required placeholder="Your existing admin password"></div>
+    <button class="btn primary" type="submit" id="loginButton">Sign in to Command Centre</button>
+    <div id="loginError" class="small" style="color:var(--coral);margin-top:12px"></div>
+    <div class="login-note">Authentication is checked by your existing AA Growth CMS API. This dashboard does not store your admin password. The Render free service can take about a minute to wake after inactivity.</div>
+  </form>
+</div>
+<div id="app" class="app hidden">
+  <aside class="sidebar">
+    <div class="brand"><img class="brand-mark" src="https://aagrowthstudio.com/assets/aa-symbol.svg" alt=""><div><div class="brand-name">AA Growth Studio</div><div class="brand-sub">Command Centre</div></div></div>
+    <div class="nav-label">Workspace</div>
+    <nav class="nav" id="sideNav">
+      <button class="active" data-view="overview"><span class="ico">◫</span>Overview</button>
+      <button data-view="command"><span class="ico">⌘</span>AI Command</button>
+      <button data-view="ads"><span class="ico">↗</span>Ads & Audiences</button>
+      <button data-view="leads"><span class="ico">◎</span>Leads CRM</button>
+      <button data-view="analytics"><span class="ico">▥</span>Website Analytics</button>
+      <button data-view="content"><span class="ico">✳</span>Content Studio</button>
+    </nav>
+    <div class="nav-label">Control</div>
+    <nav class="nav" id="sideNav2">
+      <button data-view="integrations"><span class="ico">⌁</span>Integrations</button>
+      <button data-view="settings"><span class="ico">⚙</span>Settings & Safety</button>
+    </nav>
+    <div class="sidebar-foot"><div class="profile"><div class="avatar">AA</div><div><strong>AA Growth Owner</strong><span id="sideUsername">Connected account</span></div></div></div>
+  </aside>
+  <main class="main">
+    <header class="topbar">
+      <div class="top-left"><button id="menuButton" class="btn ghost mobile-menu" aria-label="Open navigation">☰</button><div class="top-title" id="topTitle">Overview</div><div class="top-status"><span class="status-dot"></span>CMS connection active</div></div>
+      <div class="inline"><span class="tiny" id="lastSync">Not synced yet</span><button class="btn ghost" id="refreshButton">↻ Refresh</button><button class="btn ghost" id="logoutButton">Sign out</button></div>
+    </header>
+    <div class="content" id="view"></div>
+  </main>
+  <nav class="mobile-nav" id="mobileNav">
+    <button class="active" data-view="overview"><b>◫</b>Home</button>
+    <button data-view="command"><b>⌘</b>Command</button>
+    <button data-view="ads"><b>↗</b>Ads</button>
+    <button data-view="leads"><b>◎</b>Leads</button>
+    <button data-view="integrations"><b>⌁</b>Connect</button>
+  </nav>
+</div>
+<div id="toast" class="toast hidden"></div>
+<div id="modal" class="modal-backdrop hidden"><div class="modal" id="modalContent"></div></div>
+<script>
+(function(){
+'use strict';
+var token=sessionStorage.getItem('aa_cc_token')||'';
+var currentView='overview';
+var cache={overview:null,visitors:null,enquiries:[],meta:null};
+var localPlans=JSON.parse(localStorage.getItem('aa_cc_plans')||'[]');
+var localPosts=JSON.parse(localStorage.getItem('aa_cc_posts')||'[]');
+var titles={overview:'Overview',command:'AI Command',ads:'Ads & Audiences',leads:'Leads CRM',analytics:'Website Analytics',content:'Content Studio',integrations:'Integrations',settings:'Settings & Safety'};
+function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+function fmt(v){return Number(v||0).toLocaleString('en-US');}
+function shortDate(v){if(!v)return '—';var d=new Date(v);return isNaN(d)?'—':d.toLocaleString();}
+function toast(message){var t=document.getElementById('toast');t.textContent=message;t.classList.remove('hidden');setTimeout(function(){t.classList.add('hidden');},3800);}
+async function api(path,options){
+ options=options||{};var headers={'Accept':'application/json'};
+ if(token)headers.Authorization='Bearer '+token;
+ if(options.body!==undefined)headers['Content-Type']='application/json';
+ var response=await fetch('/api'+path,{method:options.method||'GET',headers:headers,body:options.body===undefined?undefined:JSON.stringify(options.body),cache:'no-store'});
+ var data=await response.json().catch(function(){return {error:'Unexpected server response.'};});
+ if(!response.ok){var err=new Error(data.error||'Request failed ('+response.status+').');err.status=response.status;throw err;}
+ return data;
+}
+function showLogin(){document.getElementById('login').classList.remove('hidden');document.getElementById('app').classList.add('hidden');}
+function showApp(){document.getElementById('login').classList.add('hidden');document.getElementById('app').classList.remove('hidden');}
+function setView(view){
+ if(!titles[view])return;currentView=view;document.getElementById('topTitle').textContent=titles[view];
+ document.querySelectorAll('[data-view]').forEach(function(b){b.classList.toggle('active',b.dataset.view===view);});
+ renderView();if(view==='leads')loadLeads();if(view==='analytics')loadVisitors('7d');if(view==='integrations'||view==='ads')loadMeta();
+}
+function card(label,value,foot,icon){return '<div class="card"><div class="card-head"><span class="metric-label">'+esc(label)+'</span><span class="metric-icon">'+icon+'</span></div><div class="metric-value">'+esc(value)+'</div><div class="metric-foot">'+esc(foot)+'</div></div>';}
+function empty(message){return '<div class="empty">'+esc(message)+'</div>';}
+function renderOverview(){
+ var o=cache.overview,v=cache.visitors,m=cache.meta;
+ if(!o){document.getElementById('view').innerHTML='<div class="page-head"><div><div class="eyebrow">AA Growth Studio / Control room</div><h1>Good to see you.</h1><p>One view of your website enquiries, traffic and campaign operations.</p></div></div><div class="empty">Loading live CMS data…</div>';return;}
+ var stats=(v&&v.stats)||{};
+ var adStatus=m&&m.connected?'Instagram connected · Ads API not enabled':'Meta Ads metrics unavailable';
+ document.getElementById('view').innerHTML=
+ '<div class="page-head"><div><div class="eyebrow">Thursday / Growth operations</div><h1>Good to see you.</h1><p>Here is what is happening across your website and growth workflow.</p></div><div class="head-actions"><button class="btn primary" data-go="command">⌘ New command</button><button class="btn" data-go="leads">View enquiries</button></div></div>'+
+ '<div class="grid stats">'+
+ card('Website enquiries',fmt(o.enquiries),'All recorded enquiries','◎')+
+ card('New enquiries',fmt(o.newEnquiries),'Awaiting follow-up','↗')+
+ card('Website sessions',fmt(stats.total_sessions),'Last 7 days','◉')+
+ card('Page views',fmt(stats.page_views),'Last 7 days','▤')+'</div>'+
+ '<div class="grid split">'+
+ '<section class="card"><div class="card-head"><div><div class="eyebrow">Lead pipeline</div><h3>Recent enquiries</h3></div><button class="btn ghost" data-go="leads">Open CRM →</button></div>'+
+ recentRows(o.recentEnquiries||[])+'</section>'+
+ '<section class="card"><div class="card-head"><div><div class="eyebrow">Connection health</div><h3>Growth stack</h3></div><span class="status-pill ok">CMS online</span></div>'+
+ '<div class="rows">'+
+ row('Website leads & analytics','Connected','ok')+
+ row('Facebook / Instagram',m&&m.connected?'Connected':'Not connected',m&&m.connected?'ok':'warn')+
+ row('Meta Ads insights', 'Permission required','warn')+
+ row('Social publishing','Not connected','off')+
+ row('AI model','Local command parser','warn')+
+ '</div><div class="divider"></div><p class="small muted">'+esc(adStatus)+'. This dashboard never fills missing advertising metrics with zero.</p><button class="btn" data-go="integrations">Manage connections</button></section></div>'+
+ '<div class="grid split section-gap"><section class="card"><div class="card-head"><div><div class="eyebrow">Traffic attribution</div><h3>Top sources · 7 days</h3></div><button class="btn ghost" data-go="analytics">Details →</button></div>'+sourceBars((v&&v.sources)||[])+'</section>'+
+ '<section class="card"><div class="card-head"><div><div class="eyebrow">Command queue</div><h3>Saved plans</h3></div><span class="status-pill">'+localPlans.length+' drafts</span></div>'+
+ (localPlans.length?localPlans.slice(0,3).map(function(p){return '<div class="rowline"><div><strong>'+esc(p.name)+'</strong><div class="tiny">'+esc(p.market)+' · '+esc(p.objective)+'</div></div><span class="status-pill warn">Draft</span></div>';}).join(''):empty('No plans saved yet. Use AI Command to create your first campaign brief.'))+'</section></div>'+
+ '<div class="notice info section-gap">This free version uses your existing website CMS data. Ad spend, reach, impressions, clicks, CPL and ROAS are only shown when a real Meta Ads data connection supplies them.</div>';
+}
+function row(label,value,state){return '<div class="rowline"><span class="muted">'+esc(label)+'</span><span class="status-pill '+state+'">'+esc(value)+'</span></div>';}
+function recentRows(rows){
+ if(!rows.length)return empty('No website enquiries have been recorded yet.');
+ return '<div class="table-wrap"><table class="data-table" style="min-width:490px"><thead><tr><th>Name</th><th>Service</th><th>Status</th><th>Date</th></tr></thead><tbody>'+rows.map(function(r){return '<tr><td><strong>'+esc(r.name)+'</strong><div class="tiny">'+esc(r.email||r.mobile_number||'')+'</div></td><td>'+esc(r.service)+'</td><td><span class="status-pill '+(r.status==='new'?'warn':'')+'">'+esc(r.status)+'</span></td><td>'+esc(shortDate(r.created_at))+'</td></tr>';}).join('')+'</tbody></table></div>';
+}
+function sourceBars(rows){
+ if(!rows.length)return empty('No traffic source data is available for this date range.');
+ var max=Math.max.apply(null,rows.map(function(x){return Number(x.visits)||0;}))||1;
+ return '<div class="bar-list">'+rows.slice(0,7).map(function(x){return '<div><div class="bar-top"><span>'+esc(x.source)+'</span><strong>'+fmt(x.visits)+'</strong></div><div class="bar-track"><div class="bar-fill" style="width:'+Math.round((Number(x.visits)||0)/max*100)+'%"></div></div></div>';}).join('')+'</div>';
+}
+function renderLeads(){
+ var rows=cache.enquiries||[];
+ document.getElementById('view').innerHTML='<div class="page-head"><div><div class="eyebrow">Pipeline / First-party enquiries</div><h1>Leads CRM</h1><p>Website enquiries saved by your existing AA Growth contact form.</p></div><div class="head-actions"><button class="btn" id="leadsRefresh">↻ Refresh</button><button class="btn primary" id="exportLeads">Export CSV</button></div></div>'+
+ '<div class="notice info" style="margin-bottom:14px">These are actual website enquiries from the connected CMS database—not Meta lead forms. Meta lead-form syncing requires the additional Ads / lead access permissions.</div>'+
+ '<div class="card"><div class="inline" style="margin-bottom:15px"><input id="leadSearch" class="control" placeholder="Search name, email, company or service" style="max-width:360px"><select id="leadFilter" class="control" style="max-width:170px"><option value="">All statuses</option><option value="new">New</option><option value="in_progress">In progress</option><option value="replied">Replied</option><option value="closed">Closed</option></select><span class="tiny right">'+rows.length+' records returned</span></div><div id="leadTable" class="table-wrap"></div></div>';
+ function paint(){
+  var q=(document.getElementById('leadSearch').value||'').toLowerCase(),f=document.getElementById('leadFilter').value;
+  var filtered=rows.filter(function(r){return (!f||r.status===f)&&[r.name,r.email,r.company,r.service,r.source].join(' ').toLowerCase().includes(q);});
+  var el=document.getElementById('leadTable');
+  if(!filtered.length){el.innerHTML=empty('No enquiries match this filter.');return;}
+  el.innerHTML='<table class="data-table"><thead><tr><th>Contact</th><th>Company</th><th>Service</th><th>Source</th><th>Status</th><th>Received</th></tr></thead><tbody>'+filtered.map(function(r){return '<tr><td><strong>'+esc(r.name)+'</strong><div class="tiny">'+esc(r.email||r.mobile_number||'')+'</div></td><td>'+esc(r.company||'—')+'</td><td>'+esc(r.service||'—')+'</td><td>'+esc(r.source||'—')+'</td><td><select class="control statusChange" data-id="'+esc(r.id)+'" style="padding:6px;min-width:110px"><option value="new" '+(r.status==='new'?'selected':'')+'>New</option><option value="in_progress" '+(r.status==='in_progress'?'selected':'')+'>In progress</option><option value="replied" '+(r.status==='replied'?'selected':'')+'>Replied</option><option value="closed" '+(r.status==='closed'?'selected':'')+'>Closed</option></select></td><td>'+esc(shortDate(r.created_at))+'</td></tr>';}).join('')+'</tbody></table>';
+  el.querySelectorAll('.statusChange').forEach(function(sel){sel.addEventListener('change',async function(){try{await api('/admin/enquiries/'+sel.dataset.id,{method:'PATCH',body:{status:sel.value}});toast('Lead status updated.');await loadLeads();}catch(e){toast(e.message);}});});
+ }
+ document.getElementById('leadSearch').addEventListener('input',paint);document.getElementById('leadFilter').addEventListener('change',paint);
+ document.getElementById('leadsRefresh').onclick=loadLeads;
+ document.getElementById('exportLeads').onclick=function(){downloadCSV(rows,'aa-growth-website-enquiries.csv');};paint();
+}
+function downloadCSV(rows,filename){
+ if(!rows||!rows.length){toast('There are no records to export.');return;}
+ var cols=Object.keys(rows[0]),csv=[cols.join(',')].concat(rows.map(function(r){return cols.map(function(k){return '"'+String(r[k]==null?'':r[k]).replace(/"/g,'""')+'"';}).join(',');})).join('\r\n');
+ var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download=filename;a.click();URL.revokeObjectURL(a.href);
+}
+function renderAnalytics(){
+ var v=cache.visitors,st=(v&&v.stats)||{};
+ document.getElementById('view').innerHTML='<div class="page-head"><div><div class="eyebrow">First-party tracking</div><h1>Website analytics</h1><p>Traffic and conversion events recorded by the AA Growth website.</p></div><div class="head-actions"><select id="rangeSelect" class="control" style="width:145px"><option value="24h">Last 24 hours</option><option value="7d" selected>Last 7 days</option><option value="30d">Last 30 days</option><option value="1h">Last hour</option></select><button class="btn" id="analyticsRefresh">↻ Refresh</button></div></div>'+
+ (v?'<div class="grid stats">'+card('Sessions',fmt(st.total_sessions),'Selected period','◉')+card('Page views',fmt(st.page_views),'Recorded page-view events','▤')+card('Leads',fmt(st.leads),'Website form submissions','◎')+card('WhatsApp clicks',fmt(st.whatsapp_clicks),'Tracked click events','↗')+'</div><div class="grid split"><section class="card"><div class="eyebrow">Acquisition</div><h3>Traffic sources</h3>'+sourceBars(v.sources||[])+'</section><section class="card"><div class="eyebrow">Content discovery</div><h3>Most viewed pages</h3>'+sourceBars((v.popularPages||[]).map(function(x){return {source:x.page_path,visits:x.page_views};}))+'</section></div><section class="card section-gap"><div class="card-head"><div><div class="eyebrow">Recent activity</div><h3>Latest tracked events</h3></div><span class="status-pill">'+(v.events||[]).length+' events</span></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Event</th><th>Page</th><th>Source</th><th>Device</th><th>Time</th></tr></thead><tbody>'+(v.events||[]).slice(0,35).map(function(e){return '<tr><td>'+esc(e.event_type)+'</td><td>'+esc(e.page_path)+'</td><td>'+esc(e.source)+'</td><td>'+esc(e.device_type)+'</td><td>'+esc(shortDate(e.created_at))+'</td></tr>';}).join('')+'</tbody></table></div></section>':'<div class="empty">Website analytics are not available right now. Refresh after the CMS API wakes up.</div>')+
+ '<div class="notice info section-gap">These numbers come from your website tracking database. They are not Meta Ads attribution, and they do not prove that a paid campaign caused the visit or enquiry.</div>';
+ document.getElementById('rangeSelect').value=(v&&v.range)||'7d';document.getElementById('rangeSelect').onchange=function(){loadVisitors(this.value);};document.getElementById('analyticsRefresh').onclick=function(){loadVisitors(document.getElementById('rangeSelect').value);};
+}
+function renderAds(){
+ var m=cache.meta;
+ document.getElementById('view').innerHTML='<div class="page-head"><div><div class="eyebrow">Paid media / Meta</div><h1>Ads & audiences</h1><p>Campaign planning, audience briefs and permissions for Facebook & Instagram.</p></div><button class="btn" id="adsRefresh">↻ Check connection</button></div>'+
+ '<div class="notice danger" style="margin-bottom:14px"><strong>Meta Ads API is not enabled in the current CMS integration.</strong> The existing OAuth flow only asks for Facebook Page and Instagram profile/insights permissions. It does not request ads_read or ads_management, so this page will not pretend campaign spend, CPL or ROAS are connected.</div>'+
+ '<div class="grid split"><section class="card"><div class="eyebrow">Current Meta connection</div><h3>Facebook Page & Instagram</h3>'+
+ (m&&m.connected?'<span class="status-pill ok">Connected</span><div class="rows section-gap">'+row('Page',m.page&&m.page.name||'Connected','ok')+row('Instagram',m.instagram&&m.instagram.username?'@'+m.instagram.username:'Connected','ok')+row('Followers',m.instagram&&m.instagram.followers!=null?fmt(m.instagram.followers):'Unavailable','ok')+row('Last sync',shortDate(m.lastSyncedAt),'')+'</div><button class="btn" id="metaSync">Sync profile details</button>':'<span class="status-pill warn">Not connected</span><p class="small muted section-gap">Connect the Facebook Page linked to your Instagram Professional account from Integrations. This will only enable the scopes already present in the current Meta app.</p><button class="btn" data-go="integrations">Open integrations</button>')+
+ '</section><section class="card"><div class="eyebrow">Ads API capability</div><h3>What is still missing</h3><div class="rows">'+row('ads_read permission','Not requested','warn')+row('ads_management','Not requested','warn')+row('Ad account selection','Pending','warn')+row('Custom Audiences','Not available','off')+row('Lead form access','Not available','off')+'</div><p class="small muted">These permissions need to be configured and approved in your Meta developer app before campaign-level data or write actions can be enabled.</p></section></div>'+
+ '<section class="card section-gap"><div class="card-head"><div><div class="eyebrow">Audience lab</div><h3>Safe audience briefs</h3></div><span class="status-pill warn">Planning only</span></div><div class="grid thirds">'+
+ '<div class="plan-item"><label>Prospecting</label><strong>USA small-business owners researching website, app and social media services.</strong><p class="small muted">Hypothesis based on service and market—not a verified Meta audience estimate.</p></div>'+
+ '<div class="plan-item"><label>Website retargeting</label><strong>Visitors to relevant service pages who did not submit an enquiry.</strong><p class="small muted">Requires Pixel/CAPI data, audience eligibility and Custom Audiences permission.</p></div>'+
+ '<div class="plan-item"><label>Social engagement</label><strong>People who engaged with the studio’s Instagram/Facebook content.</strong><p class="small muted">Requires Meta engagement audience permission and sufficient audience size.</p></div></div></section>'+
+ '<div class="section-gap"><button class="btn primary" data-go="command">Draft a campaign plan →</button></div>';
+ var sync=document.getElementById('metaSync');if(sync)sync.onclick=async function(){try{await api('/admin/meta/sync',{method:'POST',body:{}});await loadMeta();toast('Meta profile synced.');}catch(e){toast(e.message);}};
+ var refresh=document.getElementById('adsRefresh');if(refresh)refresh.onclick=loadMeta;
+}
+function renderIntegrations(){
+ var m=cache.meta||{};
+ document.getElementById('view').innerHTML='<div class="page-head"><div><div class="eyebrow">Connections / Data access</div><h1>Integrations</h1><p>Connect the channels you already control. No paid integration platform is required for the current CMS link.</p></div><button class="btn" id="intRefresh">↻ Refresh</button></div>'+
+ '<div class="grid split"><section class="card"><div class="card-head"><div><div class="eyebrow">Meta Platforms</div><h3>Facebook & Instagram</h3></div><span class="status-pill '+(m.connected?'ok':'warn')+'">'+(m.connected?'Connected':'Not connected')+'</span></div>'+
+ '<div class="rows">'+row('Meta App configured',m.appConfigured?'Yes':'No',m.appConfigured?'ok':'warn')+row('Facebook Page',m.page&&m.page.name||'Not connected',m.connected?'ok':'warn')+row('Instagram profile',m.instagram&&m.instagram.username?'@'+m.instagram.username:'Not connected',m.connected?'ok':'warn')+row('Ads reporting permission','Not requested','warn')+row('Conversions API',m.conversionsApiConfigured?'Configured':'Not configured',m.conversionsApiConfigured?'ok':'warn')+'</div>'+
+ '<p class="small muted">Your current Meta app asks for Pages and Instagram basic/insights scopes only. It cannot manage or report ad campaigns yet.</p>'+
+ '<div class="inline"><button class="btn primary" id="metaConnect">'+(m.connected?'Reconnect Meta':'Connect Facebook / Instagram')+'</button><button class="btn" id="metaDisconnect" '+(m.connected?'':'disabled')+'>Disconnect</button></div>'+
+ '</section><section class="card"><div class="eyebrow">Website & first-party data</div><h3>AA Growth website</h3><div class="rows">'+row('CMS API','Connected','ok')+row('Enquiry database','Connected','ok')+row('Visitor analytics','Connected','ok')+row('Asset storage','Existing CMS media library','ok')+row('Public website','https://aagrowthstudio.com','ok')+'</div><p class="small muted">The dashboard reads existing enquiries and website analytics through your current CMS API. It does not create another database or touch the SubSathi database.</p></section></div>'+
+ '<section class="card section-gap"><div class="eyebrow">Publishing channels</div><h3>Social publishing</h3><div class="grid thirds">'+
+ '<div class="plan-item"><label>Instagram publishing</label><span class="status-pill warn">Not connected</span><p class="small muted">Needs instagram_content_publish and an approved publishing flow.</p></div>'+
+ '<div class="plan-item"><label>Facebook Page publishing</label><span class="status-pill warn">Not connected</span><p class="small muted">Needs Page publishing permission and a supported scheduling worker.</p></div>'+
+ '<div class="plan-item"><label>WhatsApp Business</label><span class="status-pill warn">Not connected</span><p class="small muted">No WhatsApp Business API credentials are configured here.</p></div></div></section>'+
+ '<section class="card section-gap"><div class="eyebrow">Meta app configuration</div><h3>Secure connection settings</h3><p class="small muted">These fields are sent directly to your existing CMS API over HTTPS. App secrets are stored encrypted by that API and are not echoed back to this page.</p>'+
+ '<div class="grid thirds"><div class="field"><label>Meta App ID</label><input id="metaAppId" class="control" inputmode="numeric" placeholder="'+(m.appId?'Saved · '+esc(m.appId):'App ID')+'"></div><div class="field"><label>Meta App Secret</label><input id="metaAppSecret" class="control" type="password" autocomplete="new-password" placeholder="'+(m.appConfigured?'Saved · leave blank to keep':'App Secret')+'"></div><div class="field"><label>Meta Pixel ID</label><input id="metaPixelId" class="control" inputmode="numeric" placeholder="'+(m.pixelConfigured?'Configured · '+esc(m.pixelId||''):'Pixel ID (optional)')+'"></div></div>'+
+ '<div class="inline"><button class="btn primary" id="saveMetaSettings">Save Meta settings</button><span id="metaSaveStatus" class="tiny"></span></div></section>'+
+ '<div class="notice info section-gap">Do not paste Meta tokens into this chat. App ID and Secret can be entered into the secure settings form above. For Ads reporting/management, update the Meta app permissions separately and complete Meta’s required review/verification process.</div>';
+ document.getElementById('intRefresh').onclick=loadMeta;
+ document.getElementById('metaConnect').onclick=async function(){try{var r=await api('/admin/meta/connect-url',{method:'POST',body:{}});window.location.href=r.url;}catch(e){toast(e.message);}};
+ document.getElementById('metaDisconnect').onclick=async function(){if(!confirm('Disconnect the saved Facebook and Instagram profile from this CMS?'))return;try{await api('/admin/meta/disconnect',{method:'POST',body:{}});await loadMeta();toast('Meta account disconnected.');}catch(e){toast(e.message);}};
+ document.getElementById('saveMetaSettings').onclick=async function(){
+  var body={appId:document.getElementById('metaAppId').value.trim(),appSecret:document.getElementById('metaAppSecret').value,pixelId:document.getElementById('metaPixelId').value.trim()};
+  try{await api('/admin/meta/settings',{method:'POST',body:body});document.getElementById('metaAppSecret').value='';document.getElementById('metaSaveStatus').textContent='Saved securely';await loadMeta();toast('Meta settings saved.');}catch(e){toast(e.message);}
+ };
+}
+function renderSettings(){
+ document.getElementById('view').innerHTML='<div class="page-head"><div><div class="eyebrow">Controls / Guardrails</div><h1>Settings & safety</h1><p>Default operating context for AA Growth Studio.</p></div></div>'+
+ '<div class="grid split"><section class="card"><div class="eyebrow">Business defaults</div><h3>Growth profile</h3><div class="rows">'+row('Business','AA Growth Studio','ok')+row('Website','aagrowthstudio.com','ok')+row('Primary market','United States','ok')+row('Secondary market','India','ok')+row('Timezone','Asia/Kolkata','ok')+row('Brand voice','Premium · direct · human','ok')+'</div></section>'+
+ '<section class="card"><div class="eyebrow">Spend safeguards</div><h3>Campaign controls</h3><div class="rows">'+row('Campaign launch','Disabled in this free build','warn')+row('Budget editing','Disabled until Ads API access','warn')+row('Approval before spend','Required','ok')+row('Global kill switch','ON · no spending actions','ok')+'</div><div class="notice info section-gap">No campaign can be launched or budget changed from this version. Drafts are planning documents only.</div></section></div>'+
+ '<section class="card section-gap"><div class="eyebrow">Storage & uptime</div><h3>Where your data lives</h3><div class="rows">'+row('Website leads & analytics','Existing CMS database','ok')+row('Campaign / content drafts','This browser only','warn')+row('Render hosting','Free web service · can sleep','warn')+row('Lovable','Not used','ok')+row('New paid subscriptions','None created','ok')+'</div></section>'+
+ '<section class="card section-gap"><div class="eyebrow">Account</div><h3>Sign in security</h3><p class="small muted">Your CMS password is never stored by this dashboard. Your session token stays in this browser tab and is cleared when you sign out or close the tab.</p><button class="btn" id="changePassword">Change CMS password</button></section>';
+ document.getElementById('changePassword').onclick=function(){openPasswordModal();};
+}
+function openPasswordModal(){
+ var el=document.getElementById('modal');el.classList.remove('hidden');
+ document.getElementById('modalContent').innerHTML='<div class="card-head"><h3>Change CMS password</h3><button class="btn ghost" id="closeModal">✕</button></div><div class="field"><label>Current password</label><input id="oldPass" class="control" type="password"></div><div class="field"><label>New password (12+ characters)</label><input id="newPass" class="control" type="password"></div><button class="btn primary" id="savePassword">Update password</button>';
+ document.getElementById('closeModal').onclick=function(){el.classList.add('hidden');};
+ document.getElementById('savePassword').onclick=async function(){try{await api('/admin/password',{method:'POST',body:{currentPassword:document.getElementById('oldPass').value,newPassword:document.getElementById('newPass').value}});toast('Password updated. Sign in again.');logout();}catch(e){toast(e.message);}};
+}
+function renderContent(){
+ document.getElementById('view').innerHTML='<div class="page-head"><div><div class="eyebrow">Editorial workflow</div><h1>Content Studio</h1><p>Build post ideas, carousels and reel scripts. Drafts stay in this browser until you export them.</p></div><span class="status-pill warn">Local drafts only</span></div>'+
+ '<section class="card"><div class="field"><label>What should we create?</label><textarea class="control" id="contentBrief" placeholder="Example: Create a 5-slide carousel for US business owners about why their website is losing leads."></textarea></div><div class="inline"><select class="control" id="contentFormat" style="max-width:170px"><option>Carousel</option><option>Instagram Reel</option><option>Single post</option><option>LinkedIn post</option></select><select class="control" id="contentMarket" style="max-width:150px"><option>USA</option><option>India</option></select><button class="btn primary" id="makeContent">Create draft</button></div><div id="contentOutput" class="section-gap"></div></section>'+
+ '<section class="card section-gap"><div class="card-head"><div><div class="eyebrow">Saved locally</div><h3>Content drafts</h3></div><span class="status-pill">'+localPosts.length+' saved</span></div>'+
+ (localPosts.length?localPosts.map(function(p,i){return '<div class="rowline"><div><strong>'+esc(p.title)+'</strong><div class="tiny">'+esc(p.format)+' · '+esc(p.market)+' · '+esc(shortDate(p.createdAt))+'</div></div><button class="btn ghost" data-post-export="'+i+'">Export</button></div>';}).join(''):empty('No content drafts have been saved yet.'))+'</section>'+
+ '<div class="notice info section-gap">Social scheduling and publishing are not connected. This screen produces editable content drafts only; it does not publish anything to Instagram or Facebook.</div>';
+ document.getElementById('makeContent').onclick=function(){var brief=document.getElementById('contentBrief').value.trim(),format=document.getElementById('contentFormat').value,market=document.getElementById('contentMarket').value;if(!brief){toast('Add a short content brief first.');return;}var draft=createContentDraft(brief,format,market);localPosts.unshift(draft);localStorage.setItem('aa_cc_posts',JSON.stringify(localPosts));document.getElementById('contentOutput').innerHTML='<div class="copy-block"><div class="eyebrow">Draft created · Not published</div><h3>'+esc(draft.title)+'</h3><p>'+esc(draft.body).replace(/\n/g,'<br>')+'</p><button class="btn" id="copyContent">Copy draft</button></div>';document.getElementById('copyContent').onclick=function(){navigator.clipboard.writeText(draft.body);toast('Draft copied.');};};
+ document.querySelectorAll('[data-post-export]').forEach(function(b){b.onclick=function(){var p=localPosts[Number(b.dataset.postExport)];downloadText(p.title+'.txt',p.body);};});
+}
+function createContentDraft(brief,format,market){
+ var service=detectService(brief),topic=service==='General growth'?'growth':service.toLowerCase();
+ var title=market==='USA'?'The '+topic+' advantage':'A smarter way to grow with '+topic;
+ var body=format==='Carousel'?'Slide 1 — '+(brief.slice(0,90))+'\nSlide 2 — The problem: disconnected marketing creates friction and missed opportunities.\nSlide 3 — The shift: make the message, creative, landing page and follow-up work together.\nSlide 4 — The practical move: choose one audience, one offer and one measurable next step.\nSlide 5 — Make the next step clear. AA Growth Studio | aagrowthstudio.com\n\nCaption: '+brief+'\n\nCTA: Start with a clearer growth plan.':
+ format==='Instagram Reel'?'Hook (0–3s): '+brief+'\nScene 2 (3–7s): Show the friction your customer recognises.\nScene 3 (7–13s): Present one clear solution with a visual example.\nScene 4 (13–18s): Show the outcome the customer wants—without promising guaranteed results.\nEnd card (18–20s): AA Growth Studio · aagrowthstudio.com':
+ brief+'\n\nA strong idea starts with a clear problem, a specific audience and one useful next step.\n\nAA Growth Studio | aagrowthstudio.com';
+ return {title:title,format:format,market:market,body:body,createdAt:new Date().toISOString()};
+}
+function detectService(text){
+ var s=text.toLowerCase();if(/app|mobile|software|product ui/.test(s))return 'App development';if(/website|web design|landing page/.test(s))return 'Website design';if(/social media|instagram|content/.test(s))return 'Social media';if(/video|reel|motion|editing/.test(s))return 'Video and motion';if(/brand|logo|identity|graphic/.test(s))return 'Brand design';if(/meta ads|facebook ads|lead generation|campaign/.test(s))return 'Meta Ads';return 'General growth';
+}
+function parseCommand(raw){
+ var text=raw.trim(),lower=text.toLowerCase(),service=detectService(text),market=/\b(india|indian|inr|rupees|₹)\b/i.test(text)?'India':'USA';
+ var money=text.match(/[$₹]\s?([\d,]+(?:\.\d+)?)/),budget=money?Number(money[1].replace(/,/g,'')):null,currency=money&&money[0].includes('₹')?'INR':(market==='India'?'INR':'USD');
+ if(!budget){var alt=text.match(/([\d,]+(?:\.\d+)?)\s*(?:usd|dollars?|inr|rupees?)(?:\s*(?:\/|per)\s*day)?/i);if(alt)budget=Number(alt[1].replace(/,/g,''));}
+ var isRetarget=/retarget|remarket|website visitors|site visitors/.test(lower),isContent=/reel|carousel|post|content|caption/.test(lower),isCampaign=/campaign|ads|lead generation|lead gen/.test(lower);
+ var objective=/traffic|website visits|clicks/.test(lower)?'Traffic':(/awareness|reach|brand awareness/.test(lower)?'Awareness':'Leads');
+ if(isRetarget){
+  return {kind:'audience',name:'Retargeting audience brief',market:market,service:service,objective:'Retargeting',budget:budget,currency:currency,summary:'Build a retargeting plan for relevant website visitors and social engagers.',audiences:['Website visitors to relevant service pages','Visitors who did not complete the enquiry form','Instagram/Facebook engagers and video viewers'],requirements:['Meta Pixel or Conversions API data source','Sufficient eligible audience size','ads_management / Custom Audiences permission','Privacy notice and lawful consent where required'],status:'Brief only — audience not created'};
+ }
+ if(isContent&&!isCampaign){return {kind:'content',brief:text,market:market,format:/reel/.test(lower)?'Instagram Reel':(/carousel/.test(lower)?'Carousel':'Single post')};}
+ return {kind:'campaign',name:market+' | '+service+' | '+objective,market:market,service:service,objective:objective,budget:budget,currency:currency,summary:'Draft a '+objective.toLowerCase()+' campaign for '+service+' in '+market+'.',audience:market==='USA'?'Small-business owners, founders and marketing decision-makers actively evaluating '+service.toLowerCase()+'.':'Indian founders, SMEs and decision-makers looking for '+service.toLowerCase()+'.',exclusions:['Existing customers and converted leads','Irrelevant job seekers and people outside the service area','Low-intent or unrelated interests after reviewing actual results'],placements:'Advantage+ placements as a starting hypothesis; validate against delivery and lead quality.',landing:'https://aagrowthstudio.com',form:['Name','Work email','Business name','Country','Service required','Project timeline','Approximate budget range'],tracking:['Confirm Meta Pixel and Conversions API status','Verify website enquiry event','Use UTMs for campaign/ad-set/ad naming','Test lead routing and response time'],angles:[
+  {title:'Problem / outcome',hook:'Your website should do more than look good.',copy:'A stronger digital presence starts with a clear user journey, a credible message and a next step people can take.',cta:'Learn More'},
+  {title:'Proof of process',hook:'From first click to a real enquiry.',copy:'Connect strategy, creative and conversion tracking so every part of the campaign has a job to do.',cta:'Get Started'},
+  {title:'Clarity / differentiation',hook:'Stop blending in with every other option.',copy:'Give your business a sharper point of view with thoughtful design and a campaign built around the right customer.',cta:'Contact Us'}
+ ],status:'Draft only — not sent to Meta'};
+}
+function renderCommand(){
+ document.getElementById('view').innerHTML='<div class="page-head"><div><div class="eyebrow">Natural language / Campaign desk</div><h1>What should we work on?</h1><p>Type a command in English or Hinglish. This free build turns common requests into editable plans.</p></div><span class="status-pill warn">Local planning engine</span></div>'+
+ '<section class="command-box"><div class="eyebrow">Ask AA</div><textarea id="commandInput" class="control" placeholder="Create a lead generation campaign for website development in the USA, $40/day.&#10;Draft a retargeting plan for website visitors.&#10;Give me 3 reel ideas for app development in India."></textarea><div class="inline" style="justify-content:space-between;margin-top:10px"><div class="tiny">No AI subscription · No publishing · No spend actions</div><button class="btn primary" id="runCommand">Run command →</button></div><div class="quick-prompts"><button class="chip" data-prompt="Create a lead generation campaign for website development in USA, $40/day">USA lead campaign</button><button class="chip" data-prompt="Draft a retargeting plan for website visitors">Retargeting brief</button><button class="chip" data-prompt="Create a 5-slide carousel about social media strategy for US founders">5-slide carousel</button><button class="chip" data-prompt="Show me last 7 days website lead performance">Website performance</button></div></section>'+
+ '<div id="commandOutput"></div><section class="card section-gap"><div class="card-head"><div><div class="eyebrow">Saved in this browser</div><h3>Campaign plans & briefs</h3></div><button class="btn" id="exportPlans">Export all</button></div>'+
+ (localPlans.length?localPlans.map(function(p,i){return '<div class="rowline"><div><strong>'+esc(p.name)+'</strong><div class="tiny">'+esc(p.market)+' · '+esc(p.objective)+' · '+esc(shortDate(p.createdAt))+'</div></div><div class="inline"><span class="status-pill warn">Draft</span><button class="btn ghost" data-plan-export="'+i+'">Export</button></div></div>';}).join(''):empty('Your saved campaign briefs will appear here.'))+'</section>';
+ document.querySelectorAll('[data-prompt]').forEach(function(b){b.onclick=function(){document.getElementById('commandInput').value=b.dataset.prompt;};});
+ document.getElementById('runCommand').onclick=runCommand;
+ document.getElementById('commandInput').addEventListener('keydown',function(e){if(e.key==='Enter'&&(e.metaKey||e.ctrlKey)){runCommand();}});
+ document.getElementById('exportPlans').onclick=function(){downloadText('aa-growth-campaign-drafts.json',JSON.stringify(localPlans,null,2));};
+ document.querySelectorAll('[data-plan-export]').forEach(function(b){b.onclick=function(){var p=localPlans[Number(b.dataset.planExport)];downloadText(p.name+'.json',JSON.stringify(p,null,2));};});
+}
+function runCommand(){
+ var input=document.getElementById('commandInput').value.trim();if(!input){toast('Type a command first.');return;}
+ var out=document.getElementById('commandOutput'),lower=input.toLowerCase();
+ if(/last 7 days|performance|how many leads|website leads|visitor analytics/.test(lower)){setView('analytics');toast('Showing real website analytics from the CMS.');return;}
+ var result=parseCommand(input);
+ if(result.kind==='content'){var draft=createContentDraft(result.brief,result.format,result.market);localPosts.unshift(draft);localStorage.setItem('aa_cc_posts',JSON.stringify(localPosts));out.innerHTML='<div class="card"><div class="eyebrow">Content draft created</div><h3>'+esc(draft.title)+'</h3><p class="small muted">'+esc(draft.body).replace(/\n/g,'<br>')+'</p><span class="status-pill warn">Not published</span><div class="inline section-gap"><button class="btn" id="cmdCopy">Copy text</button><button class="btn" id="cmdExport">Export text</button></div></div>';document.getElementById('cmdCopy').onclick=function(){navigator.clipboard.writeText(draft.body);toast('Copied.');};document.getElementById('cmdExport').onclick=function(){downloadText(draft.title+'.txt',draft.body);};return;}
+ result.createdAt=new Date().toISOString();localPlans.unshift(result);localStorage.setItem('aa_cc_plans',JSON.stringify(localPlans));
+ if(result.kind==='audience'){
+  out.innerHTML='<div class="card"><div class="eyebrow">Audience Lab / Saved brief</div><div class="inline"><h3>'+esc(result.name)+'</h3><span class="status-pill warn">'+esc(result.status)+'</span></div><p class="muted small">'+esc(result.summary)+'</p><div class="plan-grid">'+planItem('Market',result.market)+planItem('Service',result.service)+planItem('Potential segments',result.audiences.join(' · '))+planItem('Requirements',result.requirements.join(' · '))+'</div><div class="notice info section-gap">No audience has been created in Meta. This is a research brief only; the current connector does not have Custom Audiences permission.</div><button class="btn section-gap" id="exportOne">Export brief</button></div>';
+ }else{
+  out.innerHTML='<div class="card"><div class="eyebrow">Campaign Builder / Draft saved</div><div class="inline"><h3>'+esc(result.name)+'</h3><span class="status-pill warn">'+esc(result.status)+'</span></div><p class="muted small">'+esc(result.summary)+'</p><div class="plan-grid">'+planItem('Objective',result.objective)+planItem('Market',result.market)+planItem('Service',result.service)+planItem('Daily budget',result.budget?result.currency+' '+fmt(result.budget):'Not specified — set before launch')+planItem('Audience hypothesis',result.audience)+planItem('Placements',result.placements)+planItem('Landing page',result.landing)+planItem('Lead form',result.form.join(' · '))+planItem('Tracking checklist',result.tracking.join(' · '))+'</div><div class="divider"></div><div class="eyebrow">Creative directions</div>'+result.angles.map(function(a,i){return '<div class="copy-block"><div class="tiny">Angle 0'+(i+1)+' · '+esc(a.title)+'</div><h3>'+esc(a.hook)+'</h3><p>'+esc(a.copy)+'</p><span class="status-pill">'+esc(a.cta)+'</span></div>';}).join('')+'<div class="notice danger">This is a strategy draft, not a verified audience forecast. No campaign has been created or launched. Confirm targeting, tracking, policy and budget in Meta before any spend.</div><div class="inline section-gap"><button class="btn" id="exportOne">Export campaign brief</button><button class="btn" data-go="ads">Check Ads permissions</button></div></div>';
+ }
+ document.getElementById('exportOne').onclick=function(){downloadText(result.name+'.json',JSON.stringify(result,null,2));};
+}
+function planItem(label,value){return '<div class="plan-item"><label>'+esc(label)+'</label><strong>'+esc(value)+'</strong></div>';}
+function downloadText(name,content){var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([content],{type:'text/plain'}));a.download=name.replace(/[\\/:*?"<>|]/g,'-');a.click();URL.revokeObjectURL(a.href);}
+async function loadOverview(){
+ try{var result=await api('/admin/overview');cache.overview=result;}catch(e){if(e.status===401)return logout();cache.overview={enquiries:'Unavailable',newEnquiries:'Unavailable',recentEnquiries:[]};toast(e.message);}
+ try{cache.visitors=await api('/admin/visitors?range=7d');}catch(e){cache.visitors=null;}
+ await loadMeta(false);if(currentView==='overview')renderOverview();
+}
+async function loadLeads(){try{var r=await api('/admin/enquiries');cache.enquiries=r.enquiries||[];renderLeads();}catch(e){toast(e.message);}}
+async function loadVisitors(range){try{cache.visitors=await api('/admin/visitors?range='+(range||'7d'));renderAnalytics();}catch(e){toast(e.message);document.getElementById('view').innerHTML='<div class="empty">Could not load website analytics. '+esc(e.message)+'</div>';}}
+async function loadMeta(render){try{cache.meta=await api('/admin/meta/status');}catch(e){cache.meta=null;}if(render!==false){if(currentView==='integrations')renderIntegrations();if(currentView==='ads')renderAds();if(currentView==='overview')renderOverview();}}
+function renderView(){
+ if(currentView==='overview')renderOverview();
+ if(currentView==='command')renderCommand();
+ if(currentView==='ads')renderAds();
+ if(currentView==='leads')renderLeads();
+ if(currentView==='analytics')renderAnalytics();
+ if(currentView==='content')renderContent();
+ if(currentView==='integrations')renderIntegrations();
+ if(currentView==='settings')renderSettings();
+}
+function logout(){token='';sessionStorage.removeItem('aa_cc_token');cache={overview:null,visitors:null,enquiries:[],meta:null};showLogin();}
+async function boot(){
+ if(!token){showLogin();return;}
+ try{var me=await api('/admin/me');showApp();document.getElementById('sideUsername').textContent=me.username||'Connected';setView('overview');await loadOverview();document.getElementById('lastSync').textContent='Synced '+new Date().toLocaleTimeString();}catch(e){logout();document.getElementById('loginError').textContent=e.message||'Please sign in again.';}
+}
+document.getElementById('loginForm').addEventListener('submit',async function(e){
+ e.preventDefault();var btn=document.getElementById('loginButton'),err=document.getElementById('loginError');err.textContent='';btn.disabled=true;btn.textContent='Connecting…';
+ try{var r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:document.getElementById('username').value.trim(),password:document.getElementById('password').value})});var data=await r.json().catch(function(){return {};});if(!r.ok)throw new Error(data.error||'Sign in failed.');token=data.token;sessionStorage.setItem('aa_cc_token',token);document.getElementById('password').value='';await boot();}
+ catch(error){err.textContent=error.message||'Unable to sign in.';}
+ finally{btn.disabled=false;btn.textContent='Sign in to Command Centre';}
+});
+document.getElementById('logoutButton').onclick=logout;
+document.getElementById('refreshButton').onclick=async function(){await loadOverview();if(currentView==='leads')await loadLeads();if(currentView==='analytics')await loadVisitors('7d');document.getElementById('lastSync').textContent='Synced '+new Date().toLocaleTimeString();toast('Dashboard refreshed.');};
+document.getElementById('sideNav').addEventListener('click',function(e){var b=e.target.closest('[data-view]');if(b)setView(b.dataset.view);});
+document.getElementById('sideNav2').addEventListener('click',function(e){var b=e.target.closest('[data-view]');if(b)setView(b.dataset.view);});
+document.getElementById('mobileNav').addEventListener('click',function(e){var b=e.target.closest('[data-view]');if(b)setView(b.dataset.view);});
+document.getElementById('view').addEventListener('click',function(e){var b=e.target.closest('[data-go]');if(b)setView(b.dataset.go);});
+document.getElementById('menuButton').onclick=function(){var nav=document.getElementById('mobileNav');nav.classList.toggle('hidden');};
+document.getElementById('modal').addEventListener('click',function(e){if(e.target.id==='modal')e.currentTarget.classList.add('hidden');});
+boot();
+})();
+</script>
+</body>
+</html>
