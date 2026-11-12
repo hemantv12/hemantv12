@@ -78,7 +78,7 @@ var localPlans=JSON.parse(localStorage.getItem('aa_cc_plans')||'[]');
 var localPosts=JSON.parse(localStorage.getItem('aa_cc_posts')||'[]');
 var titles={overview:'Overview',command:'AI Command',ads:'Ads & Audiences',leads:'Leads CRM',analytics:'Website Analytics',content:'Content Studio',integrations:'Integrations',settings:'Settings & Safety'};
 function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
-function fmt(v){return Number(v||0).toLocaleString('en-US');}
+function fmt(v){if(v===null||v===undefined||v==='')return '—';var n=Number(v);return Number.isFinite(n)?n.toLocaleString('en-US'):'Unavailable';}
 function shortDate(v){if(!v)return '—';var d=new Date(v);return isNaN(d)?'—':d.toLocaleString();}
 function toast(message){var t=document.getElementById('toast');t.textContent=message;t.classList.remove('hidden');setTimeout(function(){t.classList.add('hidden');},3800);}
 async function api(path,options){
