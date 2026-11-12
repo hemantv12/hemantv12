@@ -1,105 +1,46 @@
 'use strict';
-const http = require('node:http');
-const fs = require('node:fs');
-const path = require('node:path');
-
-const PORT = Number(process.env.PORT || 10000);
-const CMS_API = (process.env.CMS_API_URL || 'https://aa-growth-studio-cms-api.onrender.com').replace(/\/+$/, '');
-const PUBLIC_DIR = path.join(__dirname, 'public');
-const loginAttempts = new Map();
-
-function send(res, status, body, type='application/json; charset=utf-8') {
-  res.writeHead(status, {
-    'Content-Type': type,
-    'X-Content-Type-Options': 'nosniff',
-    'Referrer-Policy': 'strict-origin-when-cross-origin',
-    'X-Frame-Options': 'DENY',
-    'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
-    'Cache-Control': type.startsWith('text/html') ? 'no-store' : 'no-cache'
-  });
-  res.end(body);
+const http=require('node:http'), fs=require('node:fs'), path=require('node:path'), crypto=require('node:crypto');
+const {Pool}=require('pg');
+const PORT=Number(process.env.PORT||10000), DATABASE_URL=process.env.DATABASE_URL, JWT_SECRET=process.env.JWT_SECRET;
+const PUBLIC_DIR=path.join(__dirname,'public');
+if(!DATABASE_URL||!JWT_SECRET||JWT_SECRET.length<40){console.error('Missing DATABASE_URL or a strong JWT_SECRET.');process.exit(1);}
+const pool=new Pool({connectionString:DATABASE_URL,max:4,idleTimeoutMillis:20000,connectionTimeoutMillis:20000,statement_timeout:25000});
+function json(res,status,value){res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'strict-origin-when-cross-origin','X-Frame-Options':'DENY'});res.end(JSON.stringify(value));}
+function safeText(value,max=4000){return typeof value==='string'?value.trim().slice(0,max):'';}
+function obj(value){return value&&typeof value==='object'&&!Array.isArray(value)?value:{};}
+async function readBody(req,maxBytes=1024*1024){const chunks=[];let size=0;for await(const chunk of req){size+=chunk.length;if(size>maxBytes)throw new Error('Request body is too large.');chunks.push(chunk);}if(!size)return{};try{return JSON.parse(Buffer.concat(chunks).toString('utf8'));}catch{throw new Error('Invalid JSON request.');}}
+function tokenFor(username,sv){const h=Buffer.from(JSON.stringify({alg:'HS256',typ:'JWT'})).toString('base64url'),p=Buffer.from(JSON.stringify({sub:username,sv,iss:'aa-growth-command-centre',aud:'aa-growth-command-centre-owner',exp:Math.floor(Date.now()/1000)+28800})).toString('base64url'),input=h+'.'+p;return input+'.'+crypto.createHmac('sha256',JWT_SECRET).update(input).digest('base64url');}
+function verifyToken(token){const a=String(token||'').split('.');if(a.length!==3)throw new Error('Invalid session.');const input=a[0]+'.'+a[1],expected=crypto.createHmac('sha256',JWT_SECRET).update(input).digest(),actual=Buffer.from(a[2],'base64url');if(actual.length!==expected.length||!crypto.timingSafeEqual(actual,expected))throw new Error('Invalid session.');const p=JSON.parse(Buffer.from(a[1],'base64url').toString('utf8'));if(p.iss!=='aa-growth-command-centre'||p.aud!=='aa-growth-command-centre-owner'||!p.sub||!Number.isFinite(p.exp)||p.exp<=Math.floor(Date.now()/1000))throw new Error('Session expired.');return p;}
+function verifyPassword(password,stored){try{const [kind,rounds,saltText,hashText]=String(stored||'').split('$'),n=Number(rounds);if(kind!=='pbkdf2'||!Number.isInteger(n)||n<200000||n>1000000)return false;const salt=Buffer.from(saltText,'base64url'),expected=Buffer.from(hashText,'base64url'),actual=crypto.pbkdf2Sync(password,salt,n,expected.length,'sha256');return expected.length===actual.length&&crypto.timingSafeEqual(actual,expected);}catch{return false;}}
+function hashPassword(password){const salt=crypto.randomBytes(16),n=310000,hash=crypto.pbkdf2Sync(password,salt,n,32,'sha256');return 'pbkdf2$'+n+'$'+salt.toString('base64url')+'$'+hash.toString('base64url');}
+const attempts=new Map();
+function loginAllowed(ip){const now=Date.now();let s=attempts.get(ip);if(!s||now>s.until)s={count:0,until:now+900000};s.count++;attempts.set(ip,s);if(attempts.size>3000)for(const[k,v]of attempts)if(now>v.until)attempts.delete(k);return s.count<=10;}
+async function ownerAuth(req){const h=String(req.headers.authorization||'');if(!h.startsWith('Bearer ')||h.length>5000)throw Object.assign(new Error('Please sign in again.'),{status:401});let c;try{c=verifyToken(h.slice(7));}catch{throw Object.assign(new Error('Your session expired. Please sign in again.'),{status:401});}const r=await pool.query('SELECT username,session_version FROM command_centre.admin_users WHERE username=$1',[c.sub]);if(!r.rows.length||r.rows[0].session_version!==c.sv)throw Object.assign(new Error('Your session has expired. Please sign in again.'),{status:401});req.owner=r.rows[0];}
+async function route(req,res){
+ const url=new URL(req.url,'http://localhost'),p=url.pathname;
+ if(p==='/health'){try{await pool.query('SELECT 1 FROM command_centre.admin_users LIMIT 1');return json(res,200,{ok:true,service:'AA Growth Command Centre',database:'connected',hosting:'Render Free + Neon Free'});}catch{return json(res,503,{ok:false,service:'AA Growth Command Centre',database:'unavailable'});}}
+ if(p==='/api/login'&&req.method==='POST'){const ip=String(req.headers['x-forwarded-for']||req.socket.remoteAddress||'unknown').split(',')[0].trim();if(!loginAllowed(ip))return json(res,429,{error:'Too many login attempts. Please wait 15 minutes.'});let b;try{b=await readBody(req,16000);}catch(e){return json(res,400,{error:e.message});}const username=safeText(b.username,80),password=typeof b.password==='string'?b.password:'',r=await pool.query('SELECT username,password_hash,session_version FROM command_centre.admin_users WHERE username=$1',[username]),u=r.rows[0];if(!u||password.length>500||!verifyPassword(password,u.password_hash))return json(res,401,{error:'Incorrect dashboard username or password.'});await pool.query('UPDATE command_centre.admin_users SET last_login_at=now() WHERE username=$1',[username]);await pool.query('INSERT INTO command_centre.audit_events(actor,action,object_type,object_id) VALUES($1,$2,$3,$4)',[username,'owner_login','session',username]);return json(res,200,{token:tokenFor(u.username,u.session_version),username:u.username,expiresIn:28800});}
+ if(!p.startsWith('/api/admin/')){if(req.method!=='GET'&&req.method!=='HEAD')return json(res,405,{error:'Method not allowed.'});const requested=p==='/'?'/index.html':p,file=path.resolve(PUBLIC_DIR,'.'+requested);if(!file.startsWith(PUBLIC_DIR+path.sep))return json(res,400,{error:'Invalid path.'});return fs.readFile(file,(err,data)=>{if(err)return json(res,404,{error:'Not found.'});const ext=path.extname(file).toLowerCase(),types={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.ico':'image/x-icon'};res.writeHead(200,{'Content-Type':types[ext]||'application/octet-stream','Cache-Control':ext==='.html'?'no-store':'public, max-age=60','X-Content-Type-Options':'nosniff','X-Frame-Options':'DENY'});res.end(data);});}
+ await ownerAuth(req);
+ if(p==='/api/admin/me'&&req.method==='GET')return json(res,200,{username:req.owner.username});
+ if(p==='/api/admin/overview'&&req.method==='GET'){const [l,n,recent,plans,drafts]=await Promise.all([pool.query('SELECT count(*)::int AS n FROM command_centre.leads'),pool.query("SELECT count(*)::int AS n FROM command_centre.leads WHERE status='new'"),pool.query('SELECT id,name,email,mobile_number,company,service,status,source,campaign,created_at FROM command_centre.leads ORDER BY created_at DESC LIMIT 6'),pool.query('SELECT count(*)::int AS n FROM command_centre.campaign_plans'),pool.query('SELECT count(*)::int AS n FROM command_centre.content_drafts')]);return json(res,200,{enquiries:l.rows[0].n,newEnquiries:n.rows[0].n,recentEnquiries:recent.rows,campaignPlans:plans.rows[0].n,contentDrafts:drafts.rows[0].n,dataSource:'New Command Centre database'});}
+ if(p==='/api/admin/visitors'&&req.method==='GET'){const ranges={'1h':'1 hour','24h':'24 hours','7d':'7 days','30d':'30 days'},key=url.searchParams.get('range'),range=Object.prototype.hasOwnProperty.call(ranges,key)?key:'7d',interval=ranges[range];const [s,src,pages,events,leads]=await Promise.all([pool.query("SELECT count(DISTINCT session_id)::int AS total_sessions,count(*) FILTER(WHERE event_type='page_view')::int AS page_views,count(*) FILTER(WHERE event_type='cta_click')::int AS cta_clicks,count(*) FILTER(WHERE event_type='whatsapp_click')::int AS whatsapp_clicks FROM command_centre.analytics_events WHERE created_at>=now()-$1::interval",[interval]),pool.query("SELECT COALESCE(NULLIF(source,''),'Direct / unknown') AS source,count(DISTINCT session_id)::int AS visits FROM command_centre.analytics_events WHERE created_at>=now()-$1::interval GROUP BY 1 ORDER BY visits DESC LIMIT 12",[interval]),pool.query("SELECT COALESCE(NULLIF(page_path,''),'Unknown page') AS page_path,count(*)::int AS page_views FROM command_centre.analytics_events WHERE event_type='page_view' AND created_at>=now()-$1::interval GROUP BY 1 ORDER BY page_views DESC LIMIT 12",[interval]),pool.query('SELECT id,session_id,event_type,page_path,source,created_at FROM command_centre.analytics_events WHERE created_at>=now()-$1::interval ORDER BY created_at DESC LIMIT 100',[interval]),pool.query('SELECT count(*)::int AS leads FROM command_centre.leads WHERE created_at>=now()-$1::interval',[interval])]);const stats=Object.assign({},s.rows[0],{leads:leads.rows[0].leads});stats.conversion_rate=stats.total_sessions>0?Math.round(stats.leads/stats.total_sessions*10000)/100:0;return json(res,200,{range,stats,sources:src.rows,popularPages:pages.rows,events:events.rows,sessions:[],leadSources:[],leadCampaigns:[],leadLandingPages:[],dataSource:'New dashboard tracking starts now'});}
+ if(p==='/api/admin/enquiries'&&req.method==='GET'){const r=await pool.query('SELECT id,name,email,mobile_number,company,service,market,status,source,campaign,notes,created_at,updated_at FROM command_centre.leads ORDER BY created_at DESC LIMIT 1000');return json(res,200,{enquiries:r.rows});}
+ if(p==='/api/admin/enquiries'&&req.method==='POST'){const b=await readBody(req),name=safeText(b.name,120),email=safeText(b.email,250).toLowerCase(),mobile=safeText(b.mobile_number||b.mobile,32),company=safeText(b.company,180),service=safeText(b.service,180);if(!name||(!email&&!mobile)||!service)return json(res,400,{error:'Name, email or phone, and service are required.'});if(email&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))return json(res,400,{error:'Enter a valid email address.'});const r=await pool.query('INSERT INTO command_centre.leads(name,email,mobile_number,company,service,market,source,notes) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id,name,email,mobile_number,company,service,market,status,source,created_at',[name,email,mobile,company,service,safeText(b.market,40),safeText(b.source||'manual',80),safeText(b.notes,2000)]);await pool.query('INSERT INTO command_centre.audit_events(actor,action,object_type,object_id) VALUES($1,$2,$3,$4)',[req.owner.username,'lead_created','lead',String(r.rows[0].id)]);return json(res,201,{enquiry:r.rows[0]});}
+ const lead=p.match(/^\/api\/admin\/enquiries\/([1-9]\d*)$/);if(lead&&req.method==='PATCH'){const b=await readBody(req,16000),status=safeText(b.status,30);if(!['new','in_progress','replied','closed'].includes(status))return json(res,400,{error:'Invalid lead status.'});const r=await pool.query('UPDATE command_centre.leads SET status=$1,updated_at=now() WHERE id=$2 RETURNING id,status',[status,Number(lead[1])]);if(!r.rowCount)return json(res,404,{error:'Lead not found.'});return json(res,200,{enquiry:r.rows[0]});}
+ if(p==='/api/admin/plans'&&req.method==='GET'){const r=await pool.query('SELECT id,name,market,service,objective,daily_budget,currency,plan,status,created_at FROM command_centre.campaign_plans ORDER BY created_at DESC LIMIT 100');return json(res,200,{plans:r.rows});}
+ if(p==='/api/admin/plans'&&req.method==='POST'){const b=obj(await readBody(req)),name=safeText(b.name||'Campaign brief',180),budget=Number.isFinite(Number(b.budget))&&Number(b.budget)>0?Number(b.budget):null;const r=await pool.query("INSERT INTO command_centre.campaign_plans(name,market,service,objective,daily_budget,currency,plan,status) VALUES($1,$2,$3,$4,$5,$6,$7::jsonb,'draft') RETURNING id,name,market,service,objective,daily_budget,currency,plan,status,created_at",[name,safeText(b.market||'USA',40),safeText(b.service,160),safeText(b.objective,80),budget,safeText(b.currency||'USD',8),JSON.stringify(b)]);await pool.query('INSERT INTO command_centre.audit_events(actor,action,object_type,object_id) VALUES($1,$2,$3,$4)',[req.owner.username,'campaign_plan_saved','campaign_plan',String(r.rows[0].id)]);return json(res,201,{plan:r.rows[0]});}
+ if(p==='/api/admin/audiences'&&req.method==='GET'){const r=await pool.query('SELECT id,name,market,brief,status,created_at FROM command_centre.audience_briefs ORDER BY created_at DESC LIMIT 100');return json(res,200,{audiences:r.rows});}
+ if(p==='/api/admin/audiences'&&req.method==='POST'){const b=obj(await readBody(req)),r=await pool.query("INSERT INTO command_centre.audience_briefs(name,market,brief,status) VALUES($1,$2,$3::jsonb,'brief_only') RETURNING id,name,market,status,created_at",[safeText(b.name||'Audience brief',180),safeText(b.market||'USA',40),JSON.stringify(b)]);return json(res,201,{audience:r.rows[0],message:'Brief saved. No Meta audience was created.'});}
+ if(p==='/api/admin/content-drafts'&&req.method==='GET'){const r=await pool.query('SELECT id,title,format,market,body,status,created_at FROM command_centre.content_drafts ORDER BY created_at DESC LIMIT 100');return json(res,200,{drafts:r.rows});}
+ if(p==='/api/admin/content-drafts'&&req.method==='POST'){const b=obj(await readBody(req)),title=safeText(b.title,180),format=safeText(b.format||'Single post',40),body=safeText(b.body,12000);if(!title||!body)return json(res,400,{error:'A title and draft body are required.'});const r=await pool.query('INSERT INTO command_centre.content_drafts(title,format,market,body) VALUES($1,$2,$3,$4) RETURNING id,title,format,market,body,status,created_at',[title,format,safeText(b.market||'USA',40),body]);return json(res,201,{draft:r.rows[0]});}
+ if(p==='/api/admin/meta/status'&&req.method==='GET')return json(res,200,{appConfigured:false,pixelConfigured:false,conversionsApiConfigured:false,connected:false,page:null,instagram:null,message:'Meta is not connected to this fresh dashboard yet.',capabilities:{adsRead:false,adsManagement:false,customAudiences:false,leadForms:false,publishing:false}});
+ if(p.startsWith('/api/admin/meta/'))return json(res,409,{error:'Meta is not connected to the new dashboard yet. No Ads account or publishing action has been enabled.'});
+ if(p==='/api/admin/settings'&&req.method==='GET'){const r=await pool.query('SELECT currency,timezone,primary_market,secondary_market,max_daily_budget,max_lifetime_cap,require_approval,kill_switch FROM command_centre.settings WHERE id=1');return json(res,200,{settings:r.rows[0]||{}});}
+ if(p==='/api/admin/settings'&&req.method==='PATCH'){const b=obj(await readBody(req)),r=await pool.query('UPDATE command_centre.settings SET currency=$1,timezone=$2,primary_market=$3,secondary_market=$4,max_daily_budget=$5,max_lifetime_cap=$6,require_approval=$7,kill_switch=$8,updated_at=now() WHERE id=1 RETURNING *',[safeText(b.currency||'USD',8),safeText(b.timezone||'Asia/Kolkata',80),safeText(b.primary_market||'USA',40),safeText(b.secondary_market||'India',40),Number.isFinite(Number(b.max_daily_budget))&&Number(b.max_daily_budget)>0?Number(b.max_daily_budget):null,Number.isFinite(Number(b.max_lifetime_cap))&&Number(b.max_lifetime_cap)>0?Number(b.max_lifetime_cap):null,b.require_approval!==false,b.kill_switch!==false]);return json(res,200,{settings:r.rows[0]});}
+ if(p==='/api/admin/automations'&&req.method==='GET'){const r=await pool.query('SELECT id,name,kind,schedule_text,timezone,enabled,status,created_at FROM command_centre.automation_jobs ORDER BY id');return json(res,200,{automations:r.rows});}
+ if(p==='/api/admin/password'&&req.method==='POST'){const b=await readBody(req,16000),current=typeof b.currentPassword==='string'?b.currentPassword:'',next=typeof b.newPassword==='string'?b.newPassword:'',r=await pool.query('SELECT password_hash FROM command_centre.admin_users WHERE username=$1',[req.owner.username]);if(!r.rows.length||!verifyPassword(current,r.rows[0].password_hash))return json(res,400,{error:'Current password is incorrect.'});if(next.length<12||next.length>200)return json(res,400,{error:'New password must be 12–200 characters.'});if(next===current)return json(res,400,{error:'Choose a different password.'});await pool.query('UPDATE command_centre.admin_users SET password_hash=$1,session_version=session_version+1,updated_at=now() WHERE username=$2',[hashPassword(next),req.owner.username]);return json(res,200,{ok:true,message:'Password changed. Please sign in again.'});}
+ return json(res,404,{error:'Dashboard API route not found.'});
 }
-function json(res, status, value) { send(res, status, JSON.stringify(value)); }
-async function readBody(req, maxBytes=1024*1024) {
-  const chunks=[]; let size=0;
-  for await (const chunk of req) {
-    size += chunk.length;
-    if (size > maxBytes) throw new Error('Request body too large.');
-    chunks.push(chunk);
-  }
-  if (!size) return {};
-  const raw=Buffer.concat(chunks).toString('utf8');
-  try { return JSON.parse(raw); } catch { throw new Error('Invalid JSON body.'); }
-}
-function limited(ip) {
-  const now=Date.now(), slot=loginAttempts.get(ip) || {count:0,until:now+15*60*1000};
-  if(now>slot.until){slot.count=0;slot.until=now+15*60*1000;}
-  slot.count++; loginAttempts.set(ip,slot);
-  if(loginAttempts.size>5000) for(const [key,value] of loginAttempts) if(now>value.until) loginAttempts.delete(key);
-  return slot.count<=10;
-}
-async function upstream(pathname, method, body, token) {
-  const url=new URL(pathname, CMS_API);
-  const headers={Accept:'application/json'};
-  if(body!==undefined) headers['Content-Type']='application/json';
-  if(token) headers.Authorization='Bearer '+token;
-  const response=await fetch(url,{method,headers,body:body===undefined?undefined:JSON.stringify(body),signal:AbortSignal.timeout(80000)});
-  const raw=await response.text();
-  let payload;
-  try{payload=raw?JSON.parse(raw):{};}catch{payload={error:'Upstream returned an unexpected response.'};}
-  return {status:response.status,payload};
-}
-function permitted(pathname,method) {
-  const exact={
-    '/api/admin/me':['GET'],
-    '/api/admin/overview':['GET'],
-    '/api/admin/visitors':['GET'],
-    '/api/admin/enquiries':['GET'],
-    '/api/admin/meta/status':['GET'],
-    '/api/admin/meta/settings':['POST'],
-    '/api/admin/meta/connect-url':['POST'],
-    '/api/admin/meta/sync':['POST'],
-    '/api/admin/meta/disconnect':['POST'],
-    '/api/admin/password':['POST']
-  };
-  if(exact[pathname]) return exact[pathname].includes(method);
-  return /^\/api\/admin\/enquiries\/[1-9]\d*$/.test(pathname) && method==='PATCH';
-}
-async function handle(req,res) {
-  const url=new URL(req.url,'http://localhost');
-  if(url.pathname==='/health') return json(res,200,{ok:true,service:'AA Growth Command Centre',hosting:'Render Free',cmsApi:CMS_API});
-  if(url.pathname==='/api/login' && req.method==='POST') {
-    const ip=(req.headers['x-forwarded-for']||req.socket.remoteAddress||'unknown').toString().split(',')[0].trim();
-    if(!limited(ip)) return json(res,429,{error:'Too many login attempts. Wait 15 minutes and try again.'});
-    try{
-      const body=await readBody(req,16*1024);
-      const result=await upstream('/api/admin/login','POST',{username:String(body.username||''),password:String(body.password||'')});
-      return json(res,result.status,result.payload);
-    }catch(error){return json(res,502,{error:error.message||'Could not reach the AA Growth CMS API.'});}
-  }
-  if(url.pathname.startsWith('/api/admin/')) {
-    if(!permitted(url.pathname,req.method)) return json(res,404,{error:'This dashboard action is not enabled.'});
-    const auth=String(req.headers.authorization||'');
-    if(!auth.startsWith('Bearer ') || auth.length>5000) return json(res,401,{error:'Please sign in again.'});
-    let body;
-    if(req.method!=='GET') {
-      try{body=await readBody(req,1024*1024);}catch(error){return json(res,400,{error:error.message});}
-    }
-    const query=url.search || '';
-    try{
-      const result=await upstream(url.pathname+query,req.method,body,auth.slice(7));
-      return json(res,result.status,result.payload);
-    }catch(error){return json(res,502,{error:'The connected AA Growth CMS API is unavailable. It may be waking from its free-tier sleep.'});}
-  }
-  if(req.method!=='GET' && req.method!=='HEAD') return json(res,405,{error:'Method not allowed.'});
-  const requested=url.pathname==='/'?'/index.html':url.pathname;
-  const resolved=path.resolve(PUBLIC_DIR,'.'+requested);
-  if(!resolved.startsWith(PUBLIC_DIR+path.sep)) return json(res,400,{error:'Invalid path.'});
-  fs.readFile(resolved,(error,data)=>{
-    if(error) return json(res,404,{error:'Not found.'});
-    const ext=path.extname(resolved).toLowerCase();
-    const types={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8','.js':'text/javascript; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.ico':'image/x-icon'};
-    send(res,200,data,types[ext]||'application/octet-stream');
-  });
-}
-http.createServer((req,res)=>{handle(req,res).catch(()=>json(res,500,{error:'Unexpected server error.'}));}).listen(PORT,'0.0.0.0',()=>console.log('AA Growth Command Centre listening on '+PORT));
+async function main(){await pool.query('SELECT username FROM command_centre.admin_users LIMIT 1');const server=http.createServer((req,res)=>route(req,res).catch(error=>{console.error('Request failed:',error&&(error.code||error.message)||'unknown');if(res.headersSent)return res.end();json(res,error.status||500,{error:error.status?error.message:'The dashboard could not complete that request. Please try again.'});}));server.listen(PORT,'0.0.0.0',()=>console.log('AA Growth Command Centre listening on '+PORT));}
+main().catch(error=>{console.error('Command Centre database connection failed:',error&&(error.code||error.message)||'unknown');process.exit(1);});

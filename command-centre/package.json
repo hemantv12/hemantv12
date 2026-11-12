@@ -1,0 +1,17 @@
+{
+  "name": "aa-growth-command-centre-free",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Private AA Growth Studio command centre hosted on Render Free with Neon Free Postgres",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "check": "node --check server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "pg": "^8.16.3"
+  }
+}
