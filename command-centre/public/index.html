@@ -54,7 +54,7 @@
   <main class="main">
     <header class="topbar">
       <div class="top-left"><button id="menuButton" class="btn ghost mobile-menu" aria-label="Open navigation">☰</button><div class="top-title" id="topTitle">Overview</div><div class="top-status"><span class="status-dot"></span>New database connected</div></div>
-      <div class="inline"><span class="tiny" id="lastSync">Not synced yet</span><button class="btn ghost" id="refreshButton">↻ Refresh</button><button class="btn ghost" id="logoutButton">Sign out</button></div>
+      <div class="inline"><span class="tiny" id="lastSync">Not synced yet</span><button class="btn ghost" id="refreshButton">↻ Reload data</button><button class="btn ghost" id="logoutButton">Sign out</button></div>
     </header>
     <div class="content" id="view"></div>
   </main>
@@ -119,7 +119,7 @@ function renderOverview(){
  var lastSync=(d.sync_runs||[]).reduce(function(best,r){return !best||new Date(r.fetched_at)>new Date(best.fetched_at)?r:best;},null);
  var adMetrics=metaSpendRows?'Insights returned':'Ads exist · Insights unavailable';
  document.getElementById('view').innerHTML=
- '<div class="page-head"><div><div class="eyebrow">AA Growth Studio / Live data room</div><h1>Marketing performance</h1><p>Connected Windsor snapshots · Last 7 days for channel metrics, last 30 days for source history.</p></div><div class="head-actions"><button class="btn" data-go="integrations">Connections</button><button class="btn primary" id="connectedRefresh">↻ Refresh snapshot</button></div></div>'+
+ '<div class="page-head"><div><div class="eyebrow">AA Growth Studio / Live data room</div><h1>Marketing performance</h1><p>Connected Windsor snapshots · Last 7 days for channel metrics, last 30 days for source history.</p></div><div class="head-actions"><button class="btn" data-go="integrations">Connections</button><button class="btn primary" id="connectedRefresh">↻ Reload saved data</button></div></div>'+
  '<div class="grid stats">'+
  card('Meta spend · 30d',money(spend,metaCurrency),'Meta account insights · '+adMetrics,'$')+
  card('Active Meta ads',fmt(active),'Across separately listed accounts','↗')+
@@ -145,7 +145,7 @@ function renderOverview(){
  (d.sync_runs&&d.sync_runs.length?d.sync_runs.map(function(r){return '<div class="rowline"><div><strong>'+esc(r.connector)+'</strong><div class="tiny">'+esc(r.account_id)+'</div></div><div style="text-align:right"><span class="status-pill '+(r.status==='synced'?'ok':'warn')+'">'+esc(r.status)+'</span><div class="tiny">'+esc(shortDate(r.fetched_at))+'</div></div></div>';}).join(''):empty('No source history yet.'))+
  '<div class="notice info section-gap">This is a one-time snapshot import. Hourly auto-sync is not active yet; the Windsor → Neon bridge still needs to be configured.</div><button class="btn" data-go="integrations">Finish data bridge setup</button></section></div>'+
  '<div class="notice info section-gap">GA4 returned '+fmt(ga.summary&&ga.summary.days)+' data rows. No GA4 sessions/conversions have been reported in this snapshot. Data sources are shown separately; no values are combined across accounts.</div>';
- document.getElementById('connectedRefresh').onclick=async function(){await loadConnectedData('7d');if(currentView==='overview')renderOverview();toast('Stored connector snapshot refreshed in the dashboard.');};
+ document.getElementById('connectedRefresh').onclick=async function(){await loadConnectedData('7d');if(currentView==='overview')renderOverview();toast('Stored dashboard data reloaded.');};
 }
 
 function row(label,value,state){return '<div class="rowline"><span class="muted">'+esc(label)+'</span><span class="status-pill '+state+'">'+esc(value)+'</span></div>';}
@@ -259,7 +259,7 @@ function renderIntegrations(){
  '<div class="rows section-gap">'+row('Latest imported snapshot',last(metaOwner),'')+row('Data scope','Meta Ads, Facebook Organic, Instagram, GA4, Search Console','')+row('Permissions','Read-only reporting; no Ads writes','ok')+'</div>'+
  '<div class="notice info section-gap">The initial snapshot has been imported. The existing daily 5 PM task now includes the database upsert. Its first scheduled run has not yet completed, so recurring sync is not marked verified until a successful run is recorded.</div></section>'+
  '<div class="notice info section-gap">Campaign creation, campaign edits, budget changes, retargeting audience creation, and social publishing remain disabled from this dashboard. Live data visibility does not imply write permission.</div>';
- document.getElementById('intRefresh').onclick=async function(){await loadConnectedData('30d');toast('Snapshot refreshed.');};
+ document.getElementById('intRefresh').onclick=async function(){await loadConnectedData('30d');toast('Stored data reloaded.');};
 }
 
 function renderSettings(){
