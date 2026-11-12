@@ -43,7 +43,7 @@ async function upstream(pathname, method, body, token) {
   const headers={Accept:'application/json'};
   if(body!==undefined) headers['Content-Type']='application/json';
   if(token) headers.Authorization='Bearer '+token;
-  const response=await fetch(url,{method,headers,body:body===undefined?undefined:JSON.stringify(body),signal:AbortSignal.timeout(25000)});
+  const response=await fetch(url,{method,headers,body:body===undefined?undefined:JSON.stringify(body),signal:AbortSignal.timeout(80000)});
   const raw=await response.text();
   let payload;
   try{payload=raw?JSON.parse(raw):{};}catch{payload={error:'Upstream returned an unexpected response.'};}
