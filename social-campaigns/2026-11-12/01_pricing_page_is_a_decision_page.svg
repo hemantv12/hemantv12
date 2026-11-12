@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350" role="img" aria-labelledby="title desc">
+<title id="title">Don't Make Buyers Decode Your Pricing — AA Growth Studio</title>
+<desc id="desc">A Swiss editorial typography poster for SaaS founders. It explains three questions a pricing page should answer: who a plan is for, what changes between tiers, and when to move up.</desc>
+<rect width="1080" height="1350" fill="#F3EFE6"/>
+<rect x="0" y="0" width="1080" height="14" fill="#282C22"/>
+<g transform="translate(72 58) scale(0.18)"><svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 96 96" role="img" aria-labelledby="t d"><title id="t">AA Growth Studio — Official profile image</title><desc id="d">The exact AA symbol used on the AA Growth Studio website, preserved as vector artwork for crisp resizing.</desc><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#282c22"/><stop offset="1" stop-color="#10120e"/></linearGradient></defs><rect x="3" y="3" width="90" height="90" rx="28" fill="url(#g)"/><path d="M17 58C10 36 31 13 53 15c17 1 29 12 29 27" fill="none" stroke="#d7f36b" stroke-width="2.3" stroke-linecap="round"/><circle cx="81" cy="42" r="4.3" fill="#ff674d"/><path d="M22 70 38 29h9l17 41H52l-3.2-9H36.4l-3.1 9Zm17-17h7l-3.5-10Z" fill="#f3efe6"/><path d="M53 70 67 34h8L89 70H78l-2.6-8H65.1l-2.7 8Z" fill="#d7f36b"/><path d="M65 55h7l-3.5-9Z" fill="#171914"/><path d="M20 77h56" stroke="#ffffff" stroke-opacity=".18" stroke-width="1"/></svg></g>
+<text x="178" y="112" font-family="Arial, Helvetica, sans-serif" font-size="27" font-weight="800" letter-spacing="1.4" fill="#282C22">AA GROWTH STUDIO</text>
+<text x="1008" y="109" text-anchor="end" font-family="Arial, Helvetica, sans-serif" font-size="17" font-weight="700" letter-spacing="3.2" fill="#6F7566">SAAS / PRODUCT UX</text>
+<path d="M72 178H1008" stroke="#282C22" stroke-width="2"/>
+<rect x="72" y="225" width="118" height="12" fill="#FF674D"/>
+<text x="72" y="285" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="700" letter-spacing="4.5" fill="#62685B">THE BUYER SHOULD NOT HAVE TO GUESS</text>
+<text x="72" y="405" font-family="Arial, Helvetica, sans-serif" font-size="104" font-weight="900" letter-spacing="-4.5" fill="#282C22">DON'T MAKE</text>
+<text x="72" y="520" font-family="Arial, Helvetica, sans-serif" font-size="104" font-weight="900" letter-spacing="-4.5" fill="#282C22">BUYERS <tspan fill="#FF674D">DECODE</tspan></text>
+<text x="72" y="635" font-family="Arial, Helvetica, sans-serif" font-size="104" font-weight="900" letter-spacing="-4.5" fill="#282C22">YOUR PRICING.</text>
+<path d="M73 660H1008" stroke="#D7F36B" stroke-width="14"/>
+<text x="72" y="724" font-family="Arial, Helvetica, sans-serif" font-size="29" font-weight="500" fill="#41473C">A SaaS pricing page is a decision page—not a feature dump.</text>
+<path d="M72 772H1008" stroke="#282C22" stroke-width="2"/>
+<path d="M382 812V1082M704 812V1082" stroke="#B9B9AA" stroke-width="2"/>
+<text x="72" y="858" font-family="Arial, Helvetica, sans-serif" font-size="61" font-weight="900" fill="#FF674D">01</text>
+<text x="72" y="918" font-family="Arial, Helvetica, sans-serif" font-size="26" font-weight="800" letter-spacing="1.2" fill="#282C22">WHO IT'S FOR</text>
+<text x="72" y="972" font-family="Arial, Helvetica, sans-serif" font-size="23" fill="#41473C">
+  <tspan x="72" dy="0">Name the customer</tspan><tspan x="72" dy="34">and the job each plan</tspan><tspan x="72" dy="34">is built to support.</tspan>
+</text>
+<text x="414" y="858" font-family="Arial, Helvetica, sans-serif" font-size="61" font-weight="900" fill="#FF674D">02</text>
+<text x="414" y="918" font-family="Arial, Helvetica, sans-serif" font-size="26" font-weight="800" letter-spacing="1.2" fill="#282C22">WHAT CHANGES</text>
+<text x="414" y="972" font-family="Arial, Helvetica, sans-serif" font-size="23" fill="#41473C">
+  <tspan x="414" dy="0">Show the meaningful</tspan><tspan x="414" dy="34">difference between tiers—</tspan><tspan x="414" dy="34">not just a longer list.</tspan>
+</text>
+<text x="738" y="858" font-family="Arial, Helvetica, sans-serif" font-size="61" font-weight="900" fill="#FF674D">03</text>
+<text x="738" y="918" font-family="Arial, Helvetica, sans-serif" font-size="26" font-weight="800" letter-spacing="1.2" fill="#282C22">WHEN TO MOVE UP</text>
+<text x="738" y="972" font-family="Arial, Helvetica, sans-serif" font-size="23" fill="#41473C">
+  <tspan x="738" dy="0">Explain the usage,</tspan><tspan x="738" dy="34">team need or workflow</tspan><tspan x="738" dy="34">that signals a new fit.</tspan>
+</text>
+<text x="72" y="1162" font-family="Arial, Helvetica, sans-serif" font-size="43" font-weight="900" letter-spacing="-1.2" fill="#282C22">CLARITY BEATS CLEVER TIER NAMES.</text>
+<path d="M72 1205H1008" stroke="#282C22" stroke-width="2"/>
+<text x="72" y="1265" font-family="Arial, Helvetica, sans-serif" font-size="25" font-weight="700" fill="#282C22">Make the choice easier to see.</text>
+<text x="1008" y="1265" text-anchor="end" font-family="Arial, Helvetica, sans-serif" font-size="25" font-weight="800" fill="#282C22">aagrowthstudio.com</text>
+<text x="72" y="1310" font-family="Arial, Helvetica, sans-serif" font-size="15" letter-spacing="2.8" fill="#777D70">AA GROWTH STUDIO / WEBSITE & PRODUCT EXPERIENCE</text>
+</svg>
