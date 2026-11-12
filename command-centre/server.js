@@ -34,6 +34,33 @@ async function route(req,res){
  if(p==='/api/admin/audiences'&&req.method==='POST'){const b=obj(await readBody(req)),r=await pool.query("INSERT INTO command_centre.audience_briefs(name,market,brief,status) VALUES($1,$2,$3::jsonb,'brief_only') RETURNING id,name,market,status,created_at",[safeText(b.name||'Audience brief',180),safeText(b.market||'USA',40),JSON.stringify(b)]);return json(res,201,{audience:r.rows[0],message:'Brief saved. No Meta audience was created.'});}
  if(p==='/api/admin/content-drafts'&&req.method==='GET'){const r=await pool.query('SELECT id,title,format,market,body,status,created_at FROM command_centre.content_drafts ORDER BY created_at DESC LIMIT 100');return json(res,200,{drafts:r.rows});}
  if(p==='/api/admin/content-drafts'&&req.method==='POST'){const b=obj(await readBody(req)),title=safeText(b.title,180),format=safeText(b.format||'Single post',40),body=safeText(b.body,12000);if(!title||!body)return json(res,400,{error:'A title and draft body are required.'});const r=await pool.query('INSERT INTO command_centre.content_drafts(title,format,market,body) VALUES($1,$2,$3,$4) RETURNING id,title,format,market,body,status,created_at',[title,format,safeText(b.market||'USA',40),body]);return json(res,201,{draft:r.rows[0]});}
+ if(p==='/api/admin/connected-data'&&req.method==='GET'){
+  const ranges={'7d':'7 days','30d':'30 days'};
+  const range=Object.prototype.hasOwnProperty.call(ranges,url.searchParams.get('range'))?url.searchParams.get('range'):'7d';
+  const interval=ranges[range];
+  const [metaAccounts,metaAds,fbSummary,fbPosts,igSummary,igDaily,gaSummary,gscSummary,gscQueries,syncRuns]=await Promise.all([
+    pool.query("SELECT account_id,max(account_name) AS account_name,max(account_currency) AS currency,count(*)::int AS ad_objects,count(*) FILTER(WHERE effective_status=$1)::int AS active_ads,sum(spend) AS spend,count(spend)::int AS spend_rows,sum(impressions) AS impressions,count(impressions)::int AS impression_rows,sum(reach) AS reach,count(reach)::int AS reach_rows,sum(clicks) AS clicks,count(clicks)::int AS click_rows,sum(actions_lead) AS leads,count(actions_lead)::int AS lead_rows,sum(actions_leadgen_grouped) AS instant_form_leads FROM windsor.facebook_ads_insights GROUP BY account_id ORDER BY account_name",['ACTIVE']),
+    pool.query('SELECT date,account_id,account_name,account_currency,campaign_id,campaign,adset_id,adset_name,ad_id,ad_name,effective_status,objective,spend,impressions,reach,clicks,ctr,cpc,cpm,actions_lead,actions_leadgen_grouped FROM windsor.facebook_ads_insights ORDER BY date DESC NULLS LAST,account_name,ad_name LIMIT 100'),
+    pool.query('SELECT count(*)::int AS posts,sum(post_impressions) AS impressions,count(post_impressions)::int AS impressions_rows,sum(post_clicks) AS clicks,sum(post_reactions_by_type_total) AS reactions,max(date) AS latest_date FROM windsor.facebook_page_posts WHERE date>=CURRENT_DATE-$1::interval',[interval]),
+    pool.query('SELECT date,post_id,post_message,post_impressions,post_impressions_unique,post_clicks,post_reactions_by_type_total FROM windsor.facebook_page_posts WHERE date>=CURRENT_DATE-$1::interval ORDER BY date DESC LIMIT 30',[interval]),
+    pool.query('SELECT count(*)::int AS days,sum(likes) AS likes,sum(comments) AS comments,sum(shares) AS shares,sum(reach) AS reach_days,count(reach)::int AS reach_rows,(SELECT reach FROM windsor.instagram_daily_insights WHERE date>=CURRENT_DATE-$1::interval ORDER BY date DESC LIMIT 1) AS latest_day_reach,max(date) AS latest_date FROM windsor.instagram_daily_insights WHERE date>=CURRENT_DATE-$1::interval',[interval]),
+    pool.query('SELECT date,impressions,reach,follower_count,profile_views,likes,comments,shares FROM windsor.instagram_daily_insights WHERE date>=CURRENT_DATE-$1::interval ORDER BY date DESC LIMIT 45',[interval]),
+    pool.query('SELECT count(*)::int AS days,sum(sessions) AS sessions,count(sessions)::int AS sessions_rows,sum(conversions) AS conversions,count(conversions)::int AS conversions_rows,max(date) AS latest_date FROM windsor.ga4_daily_traffic WHERE date>=CURRENT_DATE-$1::interval',[interval]),
+    pool.query('SELECT count(*)::int AS rows,sum(clicks) AS clicks,sum(impressions) AS impressions,count(clicks)::int AS clicks_rows,avg(ctr) AS avg_ctr,avg(position) AS avg_position,count(DISTINCT query)::int AS queries,max(date) AS latest_date FROM windsor.search_console_daily WHERE date>=CURRENT_DATE-$1::interval',[interval]),
+    pool.query('SELECT query,sum(clicks) AS clicks,sum(impressions) AS impressions,avg(ctr) AS ctr,avg(position) AS position FROM windsor.search_console_daily WHERE date>=CURRENT_DATE-$1::interval GROUP BY query ORDER BY impressions DESC NULLS LAST LIMIT 10',[interval]),
+    pool.query('SELECT DISTINCT ON(connector,account_id) connector,account_id,date_preset,fetched_at,rows_returned,status,details FROM windsor.sync_runs ORDER BY connector,account_id,fetched_at DESC')
+  ]);
+  return json(res,200,{
+    range,
+    data_mode:'Windsor.ai snapshots stored in AA Growth database. Recurring dashboard sync is not yet enabled.',
+    meta_ads:{accounts:metaAccounts.rows,ads:metaAds.rows},
+    facebook_organic:{summary:fbSummary.rows[0],posts:fbPosts.rows,posts_data:fbPosts.rows},
+    instagram:{summary:igSummary.rows[0],daily:igDaily.rows},
+    ga4:{summary:gaSummary.rows},
+    search_console:{summary:gscSummary.rows[0],queries:gscQueries.rows},
+    sync_runs:syncRuns.rows
+  });
+ }
  if(p==='/api/admin/meta/status'&&req.method==='GET')return json(res,200,{appConfigured:false,pixelConfigured:false,conversionsApiConfigured:false,connected:false,page:null,instagram:null,message:'Meta is not connected to this fresh dashboard yet.',capabilities:{adsRead:false,adsManagement:false,customAudiences:false,leadForms:false,publishing:false}});
  if(p.startsWith('/api/admin/meta/'))return json(res,409,{error:'Meta is not connected to the new dashboard yet. No Ads account or publishing action has been enabled.'});
  if(p==='/api/admin/settings'&&req.method==='GET'){const r=await pool.query('SELECT currency,timezone,primary_market,secondary_market,max_daily_budget,max_lifetime_cap,require_approval,kill_switch FROM command_centre.settings WHERE id=1');return json(res,200,{settings:r.rows[0]||{}});}

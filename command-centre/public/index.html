@@ -73,7 +73,7 @@
 'use strict';
 var token=sessionStorage.getItem('aa_cc_token')||'';
 var currentView='overview';
-var cache={overview:null,visitors:null,enquiries:[],meta:null};
+var cache={overview:null,visitors:null,enquiries:[],meta:null,connected:null};
 var localPlans=JSON.parse(localStorage.getItem('aa_cc_plans')||'[]');
 var localPosts=JSON.parse(localStorage.getItem('aa_cc_posts')||'[]');
 var titles={overview:'Overview',command:'AI Command',ads:'Ads & Audiences',leads:'Leads CRM',analytics:'Website Analytics',content:'Content Studio',integrations:'Integrations',settings:'Settings & Safety'};
@@ -95,38 +95,59 @@ function showApp(){document.getElementById('login').classList.add('hidden');docu
 function setView(view){
  if(!titles[view])return;currentView=view;document.getElementById('topTitle').textContent=titles[view];
  document.querySelectorAll('[data-view]').forEach(function(b){b.classList.toggle('active',b.dataset.view===view);});
- renderView();if(view==='leads')loadLeads();if(view==='analytics')loadVisitors('7d');if(view==='integrations'||view==='ads')loadMeta();
+ renderView();if(view==='leads')loadLeads();if(view==='analytics')loadConnectedData('30d');if(view==='integrations'||view==='ads')loadConnectedData('30d');
 }
 function card(label,value,foot,icon){return '<div class="card"><div class="card-head"><span class="metric-label">'+esc(label)+'</span><span class="metric-icon">'+icon+'</span></div><div class="metric-value">'+esc(value)+'</div><div class="metric-foot">'+esc(foot)+'</div></div>';}
 function empty(message){return '<div class="empty">'+esc(message)+'</div>';}
-function renderOverview(){
- var o=cache.overview,v=cache.visitors,m=cache.meta;
- if(!o){document.getElementById('view').innerHTML='<div class="page-head"><div><div class="eyebrow">AA Growth Studio / Control room</div><h1>Good to see you.</h1><p>One place for campaign plans, leads, content drafts and channel health.</p></div></div><div class="empty">Loading live CMS data…</div>';return;}
- var stats=(v&&v.stats)||{};
- var adStatus=m&&m.connected?'Instagram connected · Ads API not enabled':'Meta Ads metrics unavailable';
- document.getElementById('view').innerHTML=
- '<div class="page-head"><div><div class="eyebrow">Thursday / Growth operations</div><h1>Good to see you.</h1><p>Here is what is happening across your website and growth workflow.</p></div><div class="head-actions"><button class="btn primary" data-go="command">⌘ New command</button><button class="btn" data-go="leads">View leads</button></div></div>'+
- '<div class="grid stats">'+
- card('Website enquiries',fmt(o.enquiries),'All recorded enquiries','◎')+
- card('New enquiries',fmt(o.newEnquiries),'Awaiting follow-up','↗')+
- card('Website sessions',fmt(stats.total_sessions),'Last 7 days','◉')+
- card('Page views',fmt(stats.page_views),'Last 7 days','▤')+'</div>'+
- '<div class="grid split">'+
- '<section class="card"><div class="card-head"><div><div class="eyebrow">Lead pipeline</div><h3>Recent enquiries</h3></div><button class="btn ghost" data-go="leads">Open Leads →</button></div>'+
- recentRows(o.recentEnquiries||[])+'</section>'+
- '<section class="card"><div class="card-head"><div><div class="eyebrow">Connection health</div><h3>Growth stack</h3></div><span class="status-pill ok">Database online</span></div>'+
- '<div class="rows">'+
- row('Command Centre database','Connected','ok')+
- row('Facebook / Instagram',m&&m.connected?'Connected':'Not connected',m&&m.connected?'ok':'warn')+
- row('Meta Ads insights', 'Permission required','warn')+
- row('Social publishing','Not connected','off')+
- row('AI model','Local command parser','warn')+
- '</div><div class="divider"></div><p class="small muted">'+esc(adStatus)+'. This dashboard never fills missing advertising metrics with zero.</p><button class="btn" data-go="integrations">Manage connections</button></section></div>'+
- '<div class="grid split section-gap"><section class="card"><div class="card-head"><div><div class="eyebrow">Traffic attribution</div><h3>Top sources · 7 days</h3></div><button class="btn ghost" data-go="analytics">Details →</button></div>'+sourceBars((v&&v.sources)||[])+'</section>'+
- '<section class="card"><div class="card-head"><div><div class="eyebrow">Command queue</div><h3>Saved plans</h3></div><span class="status-pill">'+localPlans.length+' drafts</span></div>'+
- (localPlans.length?localPlans.slice(0,3).map(function(p){return '<div class="rowline"><div><strong>'+esc(p.name)+'</strong><div class="tiny">'+esc(p.market)+' · '+esc(p.objective)+'</div></div><span class="status-pill warn">Draft</span></div>';}).join(''):empty('No plans saved yet. Use AI Command to create your first campaign brief.'))+'</section></div>'+
- '<div class="notice info section-gap">This free version uses your existing website CMS data. Ad spend, reach, impressions, clicks, CPL and ROAS are only shown when a real Meta Ads data connection supplies them.</div>';
+function money(v,currency){
+ if(v===null||v===undefined||v==='')return 'Unavailable';
+ var n=Number(v);if(!Number.isFinite(n))return 'Unavailable';
+ return (currency||'USD')+' '+n.toLocaleString('en-US',{maximumFractionDigits:2});
 }
+function sourceSync(runRows,connector,account){
+ return (runRows||[]).find(function(r){return r.connector===connector&&(!account||r.account_id===account);})||null;
+}
+function renderOverview(){
+ var o=cache.overview,d=cache.connected||{},m=d.meta_ads||{},fb=d.facebook_organic||{},ig=d.instagram||{},ga=d.ga4||{},sc=d.search_console||{};
+ var accounts=m.accounts||[],ads=m.ads||[],active=ads.filter(function(a){return a.effective_status==='ACTIVE';}).length;
+ var metaSpendRows=accounts.reduce(function(n,a){return n+(Number(a.spend_rows)||0);},0);
+ var spend=metaSpendRows?accounts.reduce(function(n,a){return n+(Number(a.spend)||0);},0):null;
+ var leadsRows=accounts.reduce(function(n,a){return n+(Number(a.lead_rows)||0);},0);
+ var leads=leadsRows?accounts.reduce(function(n,a){return n+(Number(a.leads)||0);},0):null;
+ var metaCurrency=(accounts.find(function(a){return a.spend_rows>0;})||accounts[0]||{}).currency||'—';
+ var gsc=sc.summary||{},igs=ig.summary||{},fbs=fb.summary||{};
+ var lastSync=(d.sync_runs||[]).reduce(function(best,r){return !best||new Date(r.fetched_at)>new Date(best.fetched_at)?r:best;},null);
+ var adMetrics=metaSpendRows?'Insights returned':'Ads exist · Insights unavailable';
+ document.getElementById('view').innerHTML=
+ '<div class="page-head"><div><div class="eyebrow">AA Growth Studio / Live data room</div><h1>Marketing performance</h1><p>Connected Windsor snapshots · Last 7 days for channel metrics, last 30 days for source history.</p></div><div class="head-actions"><button class="btn" data-go="integrations">Connections</button><button class="btn primary" id="connectedRefresh">↻ Refresh snapshot</button></div></div>'+
+ '<div class="grid stats">'+
+ card('Meta spend · 30d',money(spend,metaCurrency),'Meta account insights · '+adMetrics,'$')+
+ card('Active Meta ads',fmt(active),'Across separately listed accounts','↗')+
+ card('Instagram reach · latest day',fmt(igs.latest_day_reach),'Latest available daily insight','◎')+
+ card('Google search clicks · 30d',fmt(gsc.clicks),'Search Console · '+fmt(gsc.impressions)+' impressions','⌕')+
+ '</div>'+
+ '<div class="grid split"><section class="card"><div class="card-head"><div><div class="eyebrow">Meta Ads / Account separation</div><h3>Ad account health</h3></div><span class="status-pill '+(accounts.length?'ok':'warn')+'">'+accounts.length+' account snapshots</span></div>'+
+ (accounts.length?'<div class="table-wrap"><table class="data-table" style="min-width:520px"><thead><tr><th>Account</th><th>Ads</th><th>Spend</th><th>Leads</th></tr></thead><tbody>'+accounts.map(function(a){return '<tr><td><strong>'+esc(a.account_name||a.account_id)+'</strong><div class="tiny">'+esc(a.account_id)+'</div></td><td>'+fmt(a.ad_objects)+' <span class="tiny">('+fmt(a.active_ads)+' active)</span></td><td>'+money(a.spend,a.currency)+'</td><td>'+fmt(a.leads)+'</td></tr>';}).join('')+'</tbody></table></div>':'<div class="empty">No Meta Ads account rows returned by Windsor yet.</div>')+
+ '<p class="small muted section-gap">Null spend or leads means Meta returned no usable insight value. It is not a zero.</p><button class="btn" data-go="ads">Open Ads Manager view →</button></section>'+
+ '<section class="card"><div class="card-head"><div><div class="eyebrow">Organic channels</div><h3>Recent social activity</h3></div><span class="status-pill '+((Number(fbs.posts)||0)+(Number(igs.days)||0)>0?'ok':'warn')+'">Snapshot</span></div>'+
+ '<div class="rows">'+
+ row('Facebook Page posts · 7d',fmt(fbs.posts),'')+
+ row('Facebook post impressions',fmt(fbs.impressions),'')+
+ row('Instagram insight days',fmt(igs.days),'')+
+ row('Instagram likes · 7d',fmt(igs.likes),'')+
+ row('Instagram comments · 7d',fmt(igs.comments),'')+
+ row('Instagram shares · 7d',fmt(igs.shares),'')+
+ '</div><button class="btn" data-go="analytics">Open channel analytics →</button></section></div>'+
+ '<div class="grid split section-gap"><section class="card"><div class="card-head"><div><div class="eyebrow">Search Console</div><h3>Organic search visibility</h3></div><span class="status-pill '+(Number(gsc.rows)>0?'ok':'warn')+'">'+fmt(gsc.rows)+' query rows</span></div>'+
+ '<div class="grid thirds">'+planItem('Clicks',fmt(gsc.clicks))+planItem('Impressions',fmt(gsc.impressions))+planItem('Average position',gsc.avg_position==null?'Unavailable':Number(gsc.avg_position).toFixed(1))+'</div>'+
+ (sc.queries&&sc.queries.length?'<div class="table-wrap section-gap"><table class="data-table"><thead><tr><th>Search query</th><th>Clicks</th><th>Impressions</th><th>Position</th></tr></thead><tbody>'+sc.queries.slice(0,5).map(function(q){return '<tr><td>'+esc(q.query)+'</td><td>'+fmt(q.clicks)+'</td><td>'+fmt(q.impressions)+'</td><td>'+ (q.position==null?'Unavailable':Number(q.position).toFixed(1))+'</td></tr>';}).join('')+'</tbody></table></div>':empty('No Search Console query rows returned for this range.'))+'</section>'+
+ '<section class="card"><div class="card-head"><div><div class="eyebrow">Data freshness</div><h3>Last source syncs</h3></div><span class="status-pill '+(lastSync?'ok':'warn')+'">'+(lastSync?'Snapshot imported':'No snapshots')+'</span></div>'+
+ (d.sync_runs&&d.sync_runs.length?d.sync_runs.map(function(r){return '<div class="rowline"><div><strong>'+esc(r.connector)+'</strong><div class="tiny">'+esc(r.account_id)+'</div></div><div style="text-align:right"><span class="status-pill '+(r.status==='synced'?'ok':'warn')+'">'+esc(r.status)+'</span><div class="tiny">'+esc(shortDate(r.fetched_at))+'</div></div></div>';}).join(''):empty('No source history yet.'))+
+ '<div class="notice info section-gap">This is a one-time snapshot import. Hourly auto-sync is not active yet; the Windsor → Neon bridge still needs to be configured.</div><button class="btn" data-go="integrations">Finish data bridge setup</button></section></div>'+
+ '<div class="notice info section-gap">GA4 returned '+fmt(ga.summary&&ga.summary.days)+' data rows. No GA4 sessions/conversions have been reported in this snapshot. Data sources are shown separately; no values are combined across accounts.</div>';
+ document.getElementById('connectedRefresh').onclick=async function(){await loadConnectedData('7d');if(currentView==='overview')renderOverview();toast('Stored connector snapshot refreshed in the dashboard.');};
+}
+
 function row(label,value,state){return '<div class="rowline"><span class="muted">'+esc(label)+'</span><span class="status-pill '+state+'">'+esc(value)+'</span></div>';}
 function recentRows(rows){
  if(!rows.length)return empty('No website enquiries have been recorded yet.');
@@ -170,41 +191,80 @@ function downloadCSV(rows,filename){
  var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download=filename;a.click();URL.revokeObjectURL(a.href);
 }
 function renderAnalytics(){
- var v=cache.visitors,st=(v&&v.stats)||{};
- document.getElementById('view').innerHTML='<div class="page-head"><div><div class="eyebrow">First-party tracking</div><h1>Website analytics</h1><p>Fresh dashboard tracking. Events will appear once the website tracking integration is connected.</p></div><div class="head-actions"><select id="rangeSelect" class="control" style="width:145px"><option value="24h">Last 24 hours</option><option value="7d" selected>Last 7 days</option><option value="30d">Last 30 days</option><option value="1h">Last hour</option></select><button class="btn" id="analyticsRefresh">↻ Refresh</button></div></div>'+
- (v?'<div class="grid stats">'+card('Sessions',fmt(st.total_sessions),'Selected period','◉')+card('Page views',fmt(st.page_views),'Recorded page-view events','▤')+card('Leads',fmt(st.leads),'Website form submissions','◎')+card('WhatsApp clicks',fmt(st.whatsapp_clicks),'Tracked click events','↗')+'</div><div class="grid split"><section class="card"><div class="eyebrow">Acquisition</div><h3>Traffic sources</h3>'+sourceBars(v.sources||[])+'</section><section class="card"><div class="eyebrow">Content discovery</div><h3>Most viewed pages</h3>'+sourceBars((v.popularPages||[]).map(function(x){return {source:x.page_path,visits:x.page_views};}))+'</section></div><section class="card section-gap"><div class="card-head"><div><div class="eyebrow">Recent activity</div><h3>Latest tracked events</h3></div><span class="status-pill">'+(v.events||[]).length+' events</span></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Event</th><th>Page</th><th>Source</th><th>Device</th><th>Time</th></tr></thead><tbody>'+(v.events||[]).slice(0,35).map(function(e){return '<tr><td>'+esc(e.event_type)+'</td><td>'+esc(e.page_path)+'</td><td>'+esc(e.source)+'</td><td>'+esc(e.device_type)+'</td><td>'+esc(shortDate(e.created_at))+'</td></tr>';}).join('')+'</tbody></table></div></section>':'<div class="empty">Website analytics are not available right now. Refresh after the CMS API wakes up.</div>')+
- '<div class="notice info section-gap">This is the new dashboard analytics database. It starts empty. Old website analytics and enquiry history have not been imported.</div>';
- document.getElementById('rangeSelect').value=(v&&v.range)||'7d';document.getElementById('rangeSelect').onchange=function(){loadVisitors(this.value);};document.getElementById('analyticsRefresh').onclick=function(){loadVisitors(document.getElementById('rangeSelect').value);};
+ var d=cache.connected||{},ig=d.instagram||{},fb=d.facebook_organic||{},sc=d.search_console||{},ga=d.ga4||{};
+ var g=sc.summary||{},i=ig.summary||{},f=fb.summary||{},a=ga.summary||{};
+ document.getElementById('view').innerHTML='<div class="page-head"><div><div class="eyebrow">Connected channel reporting</div><h1>Analytics</h1><p>Windsor.ai snapshots from Instagram, Facebook Page, Google Search Console and GA4.</p></div><div class="head-actions"><select id="rangeSelect" class="control" style="width:145px"><option value="7d">Last 7 days</option><option value="30d" selected>Last 30 days</option></select><button class="btn" id="analyticsRefresh">↻ Refresh</button></div></div>'+
+ '<div class="grid stats">'+card('Instagram reach · latest day',fmt(i.latest_day_reach),'Daily metric, not 30-day unique reach','◎')+card('Instagram interactions',fmt((Number(i.likes)||0)+(Number(i.comments)||0)+(Number(i.shares)||0)),'Likes + comments + shares','✳')+card('Facebook post impressions',fmt(f.impressions),'Selected period','▤')+card('Search Console clicks',fmt(g.clicks),'Selected period','⌕')+'</div>'+
+ '<div class="grid split"><section class="card"><div class="card-head"><div><div class="eyebrow">Instagram Professional</div><h3>Daily insight trend</h3></div><span class="status-pill">'+fmt(i.days)+' days returned</span></div>'+
+ (ig.daily&&ig.daily.length?'<div class="table-wrap"><table class="data-table"><thead><tr><th>Date</th><th>Reach</th><th>Likes</th><th>Comments</th><th>Shares</th></tr></thead><tbody>'+ig.daily.map(function(r){return '<tr><td>'+esc(r.date)+'</td><td>'+fmt(r.reach)+'</td><td>'+fmt(r.likes)+'</td><td>'+fmt(r.comments)+'</td><td>'+fmt(r.shares)+'</td></tr>';}).join('')+'</tbody></table></div>':empty('No Instagram insight rows returned.'))+
+ '<p class="tiny section-gap">Impressions are unavailable where the connector returned NULL. Reach is a per-day value; do not sum it as unique monthly reach.</p></section>'+
+ '<section class="card"><div class="card-head"><div><div class="eyebrow">Facebook Page</div><h3>Recent organic posts</h3></div><span class="status-pill">'+fmt(f.posts)+' posts</span></div>'+
+ '<div class="rows">'+row('Post impressions',fmt(f.impressions),'')+row('Post clicks',fmt(f.clicks),'')+row('Reactions',fmt(f.reactions),'')+
+ '</div><div class="notice info section-gap">Post-level impressions are not unique people reached. This is organic Page performance, not paid Ads Manager delivery.</div></section></div>'+
+ '<div class="grid split section-gap"><section class="card"><div class="card-head"><div><div class="eyebrow">Google Search Console</div><h3>Queries with impressions</h3></div><span class="status-pill">'+fmt(g.queries)+' queries</span></div>'+
+ (sc.queries&&sc.queries.length?'<div class="table-wrap"><table class="data-table"><thead><tr><th>Query</th><th>Clicks</th><th>Impressions</th><th>CTR</th><th>Position</th></tr></thead><tbody>'+sc.queries.map(function(q){return '<tr><td>'+esc(q.query)+'</td><td>'+fmt(q.clicks)+'</td><td>'+fmt(q.impressions)+'</td><td>'+(q.ctr==null?'Unavailable':(Number(q.ctr)*100).toFixed(1)+'%')+'</td><td>'+(q.position==null?'Unavailable':Number(q.position).toFixed(1))+'</td></tr>';}).join('')+'</tbody></table></div>':empty('No Search Console queries returned.'))+
+ '</section><section class="card"><div class="card-head"><div><div class="eyebrow">Google Analytics 4</div><h3>Website traffic</h3></div><span class="status-pill warn">'+(Number(a.days)>0?'Data returned':'No rows returned')+'</span></div>'+
+ '<div class="grid thirds">'+planItem('Sessions',fmt(a.sessions))+planItem('Key events',fmt(a.conversions))+planItem('Last date',a.latest_date||'Unavailable')+'</div>'+
+ '<p class="small muted section-gap">GA4 account is listed in Windsor, but it returned no rows for this snapshot. Confirm the GA4 property and reporting access before using these metrics.</p></section></div>'+
+ '<section class="card section-gap"><div class="card-head"><div><div class="eyebrow">Organic content library</div><h3>Latest Facebook Page posts</h3></div><span class="status-pill">'+(fb.posts||0)+' posts in source window</span></div>'+
+ (fb.posts_data&&fb.posts_data.length?'<div class="table-wrap"><table class="data-table"><thead><tr><th>Date</th><th>Post</th><th>Impressions</th><th>Clicks</th><th>Reactions</th></tr></thead><tbody>'+fb.posts_data.slice(0,20).map(function(p){return '<tr><td>'+esc(p.date)+'</td><td>'+esc((p.post_message||'').slice(0,130)||'Photo / media post')+'</td><td>'+fmt(p.post_impressions)+'</td><td>'+fmt(p.post_clicks)+'</td><td>'+fmt(p.post_reactions_by_type_total)+'</td></tr>';}).join('')+'</tbody></table></div>':empty('No Facebook Page post rows returned.'))+'</section>'+
+ '<div class="notice info section-gap">Last imported: '+esc((d.sync_runs||[]).map(function(r){return r.connector+' '+shortDate(r.fetched_at);}).join(' · ')||'not available')+'. These are stored snapshots, not live streaming analytics. Recurring sync setup is still pending.</div>';
+ document.getElementById('rangeSelect').value=d.range||'30d';
+ document.getElementById('rangeSelect').onchange=function(){loadConnectedData(this.value);};
+ document.getElementById('analyticsRefresh').onclick=function(){loadConnectedData(document.getElementById('rangeSelect').value);};
 }
+
 function renderAds(){
- var m=cache.meta;
- document.getElementById('view').innerHTML='<div class="page-head"><div><div class="eyebrow">Paid media / Meta</div><h1>Ads & audiences</h1><p>Campaign planning, audience briefs and permissions for Facebook & Instagram.</p></div><button class="btn" id="adsRefresh">↻ Check connection</button></div>'+
- '<div class="notice danger" style="margin-bottom:14px"><strong>Meta Ads API is not enabled in the current CMS integration.</strong> The existing OAuth flow only asks for Facebook Page and Instagram profile/insights permissions. It does not request ads_read or ads_management, so this page will not pretend campaign spend, CPL or ROAS are connected.</div>'+
- '<div class="grid split"><section class="card"><div class="eyebrow">Current Meta connection</div><h3>Facebook Page & Instagram</h3>'+
- (m&&m.connected?'<span class="status-pill ok">Connected</span><div class="rows section-gap">'+row('Page',m.page&&m.page.name||'Connected','ok')+row('Instagram',m.instagram&&m.instagram.username?'@'+m.instagram.username:'Connected','ok')+row('Followers',m.instagram&&m.instagram.followers!=null?fmt(m.instagram.followers):'Unavailable','ok')+row('Last sync',shortDate(m.lastSyncedAt),'')+'</div><button class="btn" id="metaSync">Sync profile details</button>':'<span class="status-pill warn">Not connected</span><p class="small muted section-gap">Connect the Facebook Page linked to your Instagram Professional account from Integrations. This will only enable the scopes already present in the current Meta app.</p><button class="btn" data-go="integrations">Open integrations</button>')+
- '</section><section class="card"><div class="eyebrow">Ads API capability</div><h3>What is still missing</h3><div class="rows">'+row('ads_read permission','Not requested','warn')+row('ads_management','Not requested','warn')+row('Ad account selection','Pending','warn')+row('Custom Audiences','Not available','off')+row('Lead form access','Not available','off')+'</div><p class="small muted">These permissions need to be configured and approved in your Meta developer app before campaign-level data or write actions can be enabled.</p></section></div>'+
- '<section class="card section-gap"><div class="card-head"><div><div class="eyebrow">Audience lab</div><h3>Safe audience briefs</h3></div><span class="status-pill warn">Planning only</span></div><div class="grid thirds">'+
- '<div class="plan-item"><label>Prospecting</label><strong>USA small-business owners researching website, app and social media services.</strong><p class="small muted">Hypothesis based on service and market—not a verified Meta audience estimate.</p></div>'+
- '<div class="plan-item"><label>Website retargeting</label><strong>Visitors to relevant service pages who did not submit an enquiry.</strong><p class="small muted">Requires Pixel/CAPI data, audience eligibility and Custom Audiences permission.</p></div>'+
- '<div class="plan-item"><label>Social engagement</label><strong>People who engaged with the studio’s Instagram/Facebook content.</strong><p class="small muted">Requires Meta engagement audience permission and sufficient audience size.</p></div></div></section>'+
- '<div class="section-gap"><button class="btn primary" data-go="command">Draft a campaign plan →</button></div>';
- var sync=document.getElementById('metaSync');if(sync)sync.onclick=async function(){try{await api('/admin/meta/sync',{method:'POST',body:{}});await loadMeta();toast('Meta profile synced.');}catch(e){toast(e.message);}};
- var refresh=document.getElementById('adsRefresh');if(refresh)refresh.onclick=loadMeta;
+ var d=cache.connected||{},m=d.meta_ads||{},accounts=m.accounts||[],ads=m.ads||[];
+ var available=accounts.reduce(function(n,a){return n+(Number(a.spend_rows)||0);},0);
+ var spend=available?accounts.reduce(function(n,a){return n+(Number(a.spend)||0);},0):null;
+ var spendCurrency=(accounts.find(function(a){return a.spend_rows>0;})||accounts[0]||{}).currency||'—';
+ var active=ads.filter(function(a){return a.effective_status==='ACTIVE';}).length;
+ document.getElementById('view').innerHTML='<div class="page-head"><div><div class="eyebrow">Paid media / Meta Ads</div><h1>Ads Manager</h1><p>Two Meta ad-account sources are kept separate. Insights availability is shown exactly as returned.</p></div><button class="btn primary" id="adsRefresh">↻ Refresh snapshot</button></div>'+
+ '<div class="grid stats">'+card('Spend · last 30d',money(spend,spendCurrency),available?'Meta reporting':'No numeric spend returned','$')+card('Ad objects',fmt(ads.length),'Returned by Meta','▣')+card('Active ads',fmt(active),'Effective status ACTIVE','↗')+card('Leads',accounts.some(function(a){return a.lead_rows>0;})?fmt(accounts.reduce(function(n,a){return n+(Number(a.leads)||0);},0)):'Unavailable','Meta lead metric','◎')+'</div>'+
+ '<div class="notice danger section-gap">Meta returned 2 active ad objects under “Hemant Verma”, but its spend, impressions, reach, clicks and lead insight fields are NULL. The AA Growth Studio ad account returned no rows. NULL means unavailable—not zero. No campaigns have been changed.</div>'+
+ '<section class="card section-gap"><div class="card-head"><div><div class="eyebrow">Ad account inventory</div><h3>Connected account sources</h3></div><span class="status-pill ok">'+accounts.length+' sources</span></div>'+
+ (accounts.length?'<div class="table-wrap"><table class="data-table"><thead><tr><th>Account</th><th>Objects</th><th>Active</th><th>Currency</th><th>Spend rows</th><th>Lead rows</th></tr></thead><tbody>'+accounts.map(function(a){return '<tr><td><strong>'+esc(a.account_name||a.account_id)+'</strong><div class="tiny">'+esc(a.account_id)+'</div></td><td>'+fmt(a.ad_objects)+'</td><td>'+fmt(a.active_ads)+'</td><td>'+esc(a.currency||'—')+'</td><td>'+fmt(a.spend_rows)+'</td><td>'+fmt(a.lead_rows)+'</td></tr>';}).join('')+'</tbody></table></div>':empty('No Meta Ads rows are stored yet.'))+'</section>'+
+ '<section class="card section-gap"><div class="card-head"><div><div class="eyebrow">Campaign / Ad delivery objects</div><h3>Returned ads</h3></div><span class="status-pill">'+ads.length+' rows</span></div>'+
+ (ads.length?'<div class="table-wrap"><table class="data-table"><thead><tr><th>Ad</th><th>Account</th><th>Status</th><th>Spend</th><th>Impressions</th><th>Clicks</th><th>Leads</th></tr></thead><tbody>'+ads.map(function(a){return '<tr><td><strong>'+esc(a.ad_name||a.ad_id)+'</strong><div class="tiny">Ad ID '+esc(a.ad_id)+'</div></td><td>'+esc(a.account_name||a.account_id)+'</td><td><span class="status-pill '+(a.effective_status==='ACTIVE'?'ok':'warn')+'">'+esc(a.effective_status||'Unavailable')+'</span></td><td>'+money(a.spend,a.account_currency)+'</td><td>'+fmt(a.impressions)+'</td><td>'+fmt(a.clicks)+'</td><td>'+fmt(a.actions_lead)+'</td></tr>';}).join('')+'</tbody></table></div>':empty('No ad objects were returned for this reporting window.'))+'</section>'+
+ '<section class="card section-gap"><div class="card-head"><div><div class="eyebrow">Audience Lab</div><h3>Retargeting & audience briefs</h3></div><span class="status-pill warn">Planning only</span></div><div class="grid thirds">'+
+ '<div class="plan-item"><label>Prospecting</label><strong>US small-business owners researching web, app and creative services.</strong><p class="small muted">Strategy hypothesis, not a measured Meta audience.</p></div>'+
+ '<div class="plan-item"><label>Website retargeting</label><strong>Relevant service-page visitors who did not submit an enquiry.</strong><p class="small muted">Needs Pixel/CAPI data and Custom Audiences permission.</p></div>'+
+ '<div class="plan-item"><label>Social engagement</label><strong>Instagram/Facebook engagers and video viewers.</strong><p class="small muted">Needs audience-creation permission and eligible audience size.</p></div></div></section>'+
+ '<div class="inline section-gap"><button class="btn" data-go="integrations">Manage data connections</button><button class="btn" data-go="command">Draft a campaign plan</button></div>';
+ document.getElementById('adsRefresh').onclick=function(){loadConnectedData('30d');};
 }
+
 function renderIntegrations(){
- var m=cache.meta||{};
- document.getElementById('view').innerHTML='<div class="page-head"><div><div class="eyebrow">Connections / Data access</div><h1>Integrations</h1><p>Connect channels when their permissions are ready. This dashboard is independent of the old CMS.</p></div><button class="btn" id="intRefresh">↻ Refresh</button></div>'+
- '<div class="grid split"><section class="card"><div class="card-head"><div><div class="eyebrow">Meta Platforms</div><h3>Facebook & Instagram Ads</h3></div><span class="status-pill warn">Not connected</span></div>'+
- '<div class="rows">'+row('Facebook Page','Not connected','warn')+row('Instagram profile','Not connected','warn')+row('Ads reporting (ads_read)','Permission required','warn')+row('Ads management','Disabled','off')+row('Custom Audiences','Disabled','off')+row('Lead forms','Disabled','off')+'</div>'+
- '<div class="notice info section-gap">No Meta account is connected to this fresh dashboard yet. Ads metrics, retargeting creation, campaign publishing and budget changes remain disabled.</div><button class="btn" disabled>Connect Meta · Setup required</button>'+
- '</section><section class="card"><div class="eyebrow">New dashboard database</div><h3>Storage health</h3><div class="rows">'+row('Owner login','Connected to new database','ok')+row('Campaign plans','Database storage','ok')+row('Content drafts','Database storage','ok')+row('Leads CRM','Database storage','ok')+row('Old CMS database','Separate · untouched','ok')+'</div><p class="small muted">The new dashboard stores its own login, leads, campaign briefs, content drafts and audit events. Existing website enquiries were not imported.</p></section></div>'+
- '<section class="card section-gap"><div class="eyebrow">Publishing channels</div><h3>Social publishing</h3><div class="grid thirds">'+
- '<div class="plan-item"><label>Instagram publishing</label><span class="status-pill warn">Not connected</span><p class="small muted">Requires Instagram publishing permission and an approved publishing integration.</p></div>'+
- '<div class="plan-item"><label>Facebook Page publishing</label><span class="status-pill warn">Not connected</span><p class="small muted">Requires Page publishing permission and a background scheduler.</p></div>'+
- '<div class="plan-item"><label>WhatsApp Business</label><span class="status-pill warn">Not connected</span><p class="small muted">No WhatsApp Business API has been connected.</p></div></div></section>'+
- '<div class="notice info section-gap">Do not share Meta passwords or access tokens here. Official authorization can be added when the integration is configured.</div>';
- document.getElementById('intRefresh').onclick=async function(){await loadMeta();toast('Connection status refreshed.');};
+ var d=cache.connected||{},m=d.meta_ads||{},fb=d.facebook_organic||{},ig=d.instagram||{},ga=d.ga4||{},sc=d.search_console||{},runs=d.sync_runs||[];
+ function latest(conn,account){return runs.find(function(r){return r.connector===conn&&(!account||r.account_id===account);})||null;}
+ function state(run,rows){if(!run)return {label:'Not imported',className:'warn'};if(Number(rows)>0)return {label:'Snapshot imported',className:'ok'};return {label:'No rows returned',className:'warn'};}
+ var metaAgency=latest('facebook','1830321494777827'),metaOwner=latest('facebook','1483425516986252'),fbRun=latest('facebook_organic','1454190361104294'),igRun=latest('instagram','17841464848354217'),gaRun=latest('googleanalytics4','225503662'),scRun=latest('searchconsole','sc-domain:aagrowthstudio.com');
+ var metaRowCount=(m.ads||[]).length, fbStatus=state(fbRun,(fb.posts_data||[]).length||((fb.summary||{}).posts)),igStatus=state(igRun,(ig.summary||{}).days),gaStatus=state(gaRun,(ga.summary||{}).days),scStatus=state(scRun,(sc.summary||{}).rows);
+ var setupUrl='https://onboard.windsor.ai/connect?client=CHATGPT&next=/app/destinations/overview%23postgresql&user=MjE0ODU5OTI0Nw.sTQ9ImKRfgT23ZC1BZftBersaoc';
+ document.getElementById('view').innerHTML='<div class="page-head"><div><div class="eyebrow">Connections / Windsor data bridge</div><h1>Integrations</h1><p>These are the data sources actually authorized in your Windsor account and the latest stored snapshots.</p></div><button class="btn" id="intRefresh">↻ Refresh stored data</button></div>'+
+ '<section class="card"><div class="card-head"><div><div class="eyebrow">Paid media</div><h3>Meta Ads accounts</h3></div><span class="status-pill ok">Windsor source linked</span></div>'+
+ '<div class="rows">'+row('AA Growth Studio · 1830321494777827',metaAgency?metaAgency.rows_returned+' rows':'Not synced',metaAgency&&Number(metaAgency.rows_returned)>0?'ok':'warn')+
+ row('Hemant Verma · 1483425516986252',metaOwner?metaOwner.rows_returned+' ad objects':'Not synced',metaOwner&&Number(metaOwner.rows_returned)>0?'ok':'warn')+
+ row('Last snapshot',metaOwner?shortDate(metaOwner.fetched_at):'Unavailable','')+
+ '</div><p class="small muted">Meta returned two active ad objects in the Hemant Verma account, but performance fields are NULL. AA Growth Studio account returned no rows. The dashboard keeps accounts separate.</p></section>'+
+ '<div class="grid thirds section-gap"><section class="card"><div class="eyebrow">Facebook Organic</div><h3>AA Growth Studio Page</h3><span class="status-pill '+fbStatus.className+'">'+fbStatus.label+'</span><div class="metric-value">'+fmt((fb.summary||{}).posts)+'</div><p class="small muted">Posts in snapshot · account 1454190361104294</p><div class="tiny">'+(fbRun?esc(shortDate(fbRun.fetched_at)):'No import time')+'</div></section>'+
+ '<section class="card"><div class="eyebrow">Instagram Insights</div><h3>@aagrowthstudio</h3><span class="status-pill '+igStatus.className+'">'+igStatus.label+'</span><div class="metric-value">'+fmt((ig.summary||{}).days)+'</div><p class="small muted">Daily insight rows · account 17841464848354217</p><div class="tiny">'+(igRun?esc(shortDate(igRun.fetched_at)):'No import time')+'</div></section>'+
+ '<section class="card"><div class="eyebrow">Google Search Console</div><h3>aagrowthstudio.com</h3><span class="status-pill '+scStatus.className+'">'+scStatus.label+'</span><div class="metric-value">'+fmt((sc.summary||{}).rows)+'</div><p class="small muted">Search query rows · sc-domain:aagrowthstudio.com</p><div class="tiny">'+(scRun?esc(shortDate(scRun.fetched_at)):'No import time')+'</div></section></div>'+
+ '<div class="grid split section-gap"><section class="card"><div class="eyebrow">Google Analytics 4</div><h3>Website Analytics</h3><span class="status-pill '+gaStatus.className+'">'+gaStatus.label+'</span><div class="rows section-gap">'+row('GA4 account','hemant-3ca03 · 225503662','')+row('Sessions',fmt((ga.summary||{}).sessions),'')+row('Key events',fmt((ga.summary||{}).conversions),'')+
+ '</div><p class="small muted">The GA4 account is authorized in Windsor, but no rows were returned for the current reporting window. Check that this is the correct property and that it has data.</p></section>'+
+ '<section class="card"><div class="eyebrow">CRM / Other tools</div><h3>Other connected sources</h3><div class="rows">'+row('HubSpot','www.aagrowthstudio.com · connected in Windsor','ok')+row('WhatsApp Business','Not connected to this dashboard','warn')+row('Instagram publishing','Account exists in Windsor; dashboard publishing not wired','warn')+row('Facebook publishing','Page connected; dashboard publishing not wired','warn')+
+ '</div></section></div>'+
+ '<section class="card section-gap"><div class="card-head"><div><div class="eyebrow">Recurring sync / Finish setup</div><h3>Windsor → Neon database bridge</h3></div><span class="status-pill warn">One-time snapshot only</span></div>'+
+ '<p class="small muted">The initial snapshots are already stored. To keep the dashboard updated automatically, connect the dedicated PostgreSQL destination in Windsor and schedule these five exports: Meta Ads, Facebook Organic, Instagram Insights, GA4 and Search Console. Use the table names shown below and an hourly or daily schedule if your Windsor plan allows it.</p>'+
+ '<div class="plan-grid">'+planItem('Host','ep-shiny-art-b3owqp4z-pooler.c-4.ap-southeast-1.aws.neon.tech')+planItem('Port','5432')+planItem('Database','growthstudio')+planItem('Schema','windsor')+planItem('Username','windsor_sync')+planItem('Tables','facebook_ads_insights · facebook_page_posts · instagram_daily_insights · ga4_daily_traffic · search_console_daily')+'</div>'+
+ '<div class="notice info section-gap">The database login is restricted to the dedicated windsor schema. Do not use the main database admin role in Windsor. The one-time password is supplied separately in this conversation and should be entered only into Windsor’s secure destination form.</div>'+
+ '<div class="inline section-gap"><a class="btn primary" href="'+setupUrl+'" target="_blank" rel="noopener">Open Windsor PostgreSQL setup →</a><button class="btn" id="copyTables">Copy table names</button></div></section>'+
+ '<div class="notice info section-gap">This dashboard is not yet authorized to create or publish Meta campaigns or social posts. Reporting imports do not imply campaign-management or publishing permissions. No campaign has been modified.</div>';
+ document.getElementById('intRefresh').onclick=function(){loadConnectedData('30d');};
+ document.getElementById('copyTables').onclick=function(){navigator.clipboard.writeText('facebook_ads_insights\\nfacebook_page_posts\\ninstagram_daily_insights\\nga4_daily_traffic\\nsearch_console_daily');toast('Table names copied.');};
 }
+
 function renderSettings(){
  document.getElementById('view').innerHTML='<div class="page-head"><div><div class="eyebrow">Controls / Guardrails</div><h1>Settings & safety</h1><p>Operating defaults for AA Growth Studio.</p></div></div>'+
  '<div class="grid split"><section class="card"><div class="eyebrow">Business defaults</div><h3>Growth profile</h3><div class="rows">'+row('Business','AA Growth Studio','ok')+row('Website','aagrowthstudio.com','ok')+row('Primary market','United States','ok')+row('Secondary market','India','ok')+row('Timezone','Asia/Kolkata','ok')+row('Brand voice','Premium · direct · human','ok')+'</div></section>'+
@@ -293,10 +353,15 @@ async function loadSavedData(){
 async function loadOverview(){
  try{var result=await api('/admin/overview');cache.overview=result;}catch(e){if(e.status===401)return logout();cache.overview={enquiries:'Unavailable',newEnquiries:'Unavailable',recentEnquiries:[]};toast(e.message);}
  try{cache.visitors=await api('/admin/visitors?range=7d');}catch(e){cache.visitors=null;}
+ try{cache.connected=await api('/admin/connected-data?range=7d');}catch(e){cache.connected=null;}
  await loadMeta(false);if(currentView==='overview')renderOverview();
 }
 async function loadLeads(){try{var r=await api('/admin/enquiries');cache.enquiries=r.enquiries||[];renderLeads();}catch(e){toast(e.message);}}
 async function loadVisitors(range){try{cache.visitors=await api('/admin/visitors?range='+(range||'7d'));renderAnalytics();}catch(e){toast(e.message);document.getElementById('view').innerHTML='<div class="empty">Could not load website analytics. '+esc(e.message)+'</div>';}}
+async function loadConnectedData(range){
+ try{cache.connected=await api('/admin/connected-data?range='+(range||'7d'));if(currentView==='overview'||currentView==='ads'||currentView==='integrations'||currentView==='analytics')renderView();}
+ catch(e){if(e.status===401)return logout();toast('Could not read connected data: '+e.message);}
+}
 async function loadMeta(render){try{cache.meta=await api('/admin/meta/status');}catch(e){cache.meta=null;}if(render!==false){if(currentView==='integrations')renderIntegrations();if(currentView==='ads')renderAds();if(currentView==='overview')renderOverview();}}
 function renderView(){
  if(currentView==='overview')renderOverview();
@@ -308,7 +373,7 @@ function renderView(){
  if(currentView==='integrations')renderIntegrations();
  if(currentView==='settings')renderSettings();
 }
-function logout(){token='';sessionStorage.removeItem('aa_cc_token');cache={overview:null,visitors:null,enquiries:[],meta:null};showLogin();}
+function logout(){token='';sessionStorage.removeItem('aa_cc_token');cache={overview:null,visitors:null,enquiries:[],meta:null,connected:null};showLogin();}
 async function boot(){
  if(!token){showLogin();return;}
  try{var me=await api('/admin/me');showApp();document.getElementById('sideUsername').textContent=me.username||'Connected';await loadSavedData();setView('overview');await loadOverview();document.getElementById('lastSync').textContent='Synced '+new Date().toLocaleTimeString();}catch(e){logout();document.getElementById('loginError').textContent=e.message||'Please sign in again.';}
@@ -320,7 +385,7 @@ document.getElementById('loginForm').addEventListener('submit',async function(e)
  finally{btn.disabled=false;btn.textContent='Sign in to Command Centre';}
 });
 document.getElementById('logoutButton').onclick=logout;
-document.getElementById('refreshButton').onclick=async function(){await loadOverview();if(currentView==='leads')await loadLeads();if(currentView==='analytics')await loadVisitors('7d');document.getElementById('lastSync').textContent='Synced '+new Date().toLocaleTimeString();toast('Dashboard refreshed.');};
+document.getElementById('refreshButton').onclick=async function(){await loadOverview();if(currentView==='leads')await loadLeads();if(currentView==='analytics')await loadConnectedData('30d');document.getElementById('lastSync').textContent='Synced '+new Date().toLocaleTimeString();toast('Dashboard refreshed.');};
 document.getElementById('sideNav').addEventListener('click',function(e){var b=e.target.closest('[data-view]');if(b)setView(b.dataset.view);});
 document.getElementById('sideNav2').addEventListener('click',function(e){var b=e.target.closest('[data-view]');if(b)setView(b.dataset.view);});
 document.getElementById('mobileNav').addEventListener('click',function(e){var b=e.target.closest('[data-view]');if(b)setView(b.dataset.view);});
