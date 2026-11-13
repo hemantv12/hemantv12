@@ -24,11 +24,12 @@
 - Image credits: Original vector artwork by AA Growth Studio; no third-party imagery.
 
 ## Instagram — @aagrowthstudio (17841464848354217)
-- Status: NOT PUBLISHED.
-- Action: create_image_post attempted once.
-- Exact response: `Application request limit reached`.
-- No media ID or live permalink returned.
-- Further Instagram attempts stopped immediately; no retries made.
+- Status: PUBLISHED — confirmed by the subsequent date-scoped Instagram media-history read.
+- Action: `create_image_post` attempted once.
+- Exact write response: `Application request limit reached`; the write response itself returned no media ID or permalink.
+- Reconciliation on 13 November: the exact 12 November date-range read returned media ID `18108881072632167`, type `IMAGE`, timestamp `2026-11-12T14:39:11+0000`, and permalink https://www.instagram.com/p/DfpSkVLjh6u/. The caption matches this campaign.
+- Early observed metrics: reach 2, likes 1, comments 0.
+- Platform media history takes precedence over the earlier write-response error. No retry was made, preventing a duplicate.
 
 ## Facebook — AA Growth Studio (1454190361104294)
 - Status: NOT PUBLISHED.
