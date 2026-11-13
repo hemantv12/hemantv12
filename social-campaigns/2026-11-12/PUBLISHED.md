@@ -8,8 +8,9 @@
 **Instagram hashtags:** #SaaSPricing #PricingPageDesign #SaaSMarketing #ProductMarketing #UXDesign.
 
 ## Duplicate check
-- Instagram date-scoped media read for 12 November 2026: 0 rows.
-- Facebook Page date-scoped post read for 12 November 2026: 0 rows.
+- Pre-publish Instagram date-scoped media read for 12 November 2026: 0 rows.
+- Pre-publish Facebook Page date-scoped post read for 12 November 2026: 0 rows.
+- Post-attempt reconciliation on 13 November: Instagram media history returned one matching 12 November image; Facebook's exact 12 November date-range read still returned 0 rows.
 - Public Instagram latest post before this campaign: 11 November 2026 ecommerce checkout carousel.
 - No same-day campaign was present in the current-date archive.
 
