@@ -7,11 +7,12 @@
 - No standalone second feed post was created.
 
 ## Instagram — @aagrowthstudio (17841464848354217)
-- **Status: NOT PUBLISHED.**
+- **Status: PUBLISHED — confirmed by the subsequent date-scoped Instagram media-history read.**
 - Action attempted once: `create_carousel_post` with the five verified JPEG URLs in slide order.
-- Exact response: `Application request limit reached`.
-- No media ID or permalink returned.
-- Further Instagram publish attempts stopped immediately. No retry was made for this slot.
+- Exact write response: `Application request limit reached`; the write response itself returned no media ID or permalink.
+- Reconciliation: the later Instagram media read for 13 Nov returned media ID `18134529790831214`, type `CAROUSEL_ALBUM`, timestamp `2026-11-13T01:39:47+0000`, and permalink https://www.instagram.com/p/DfqeLE9CBW0/. The caption matches this campaign.
+- Latest observed early metrics at 17:03 IST: reach 2, likes 0, comments 0. These are an early snapshot, not final performance.
+- The platform media-history record takes precedence over the earlier write-response error. No retry was made, preventing a duplicate.
 - Instagram same-day preflight read (13 Nov): zero existing media rows before the attempt.
 
 ## Facebook — AA Growth Studio (1454190361104294)
@@ -19,8 +20,8 @@
 - Action: `create_photo_post` with slide 1 as the separate cover image and the native Facebook caption.
 - Photo ID: `122104391625542560`.
 - Post ID: `1454190361104294_122104391649542560`.
-- Permalink pattern from returned Page ID + post ID: https://www.facebook.com/1454190361104294/posts/122104391649542560
-- Browser verification of the permalink was blocked by Facebook's login wall; the connector write response explicitly returned “Published photo post”.
+- Permalink returned by the subsequent date-scoped Facebook organic read: https://www.facebook.com/122097750909542560/posts/122104391649542560
+- The read returned date `2026-11-13`, 1 impression, 1 unique impression, 0 clicks and 0 reactions. The connector write response also explicitly returned “Published photo post”.
 - Facebook same-day preflight read (13 Nov): zero existing Page post rows before the attempt.
 
 ## Creative / render QA
