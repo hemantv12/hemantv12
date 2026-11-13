@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350" role="img" aria-labelledby="title desc"><title id="title">Show One Honest Path — Trigger, Action, Result</title><desc id="desc">A sea-glass process diagram showing a single conceptual workflow: a trigger, one action and a visible result, without fabricated product UI.</desc>
+<rect width="1080" height="1350" fill="#DCE9E5"/>
+<path d="M0 0H1080V16H0Z" fill="#20241F"/>
+<text x="72" y="100" fill="#52645D" font-family="Arial,Helvetica,sans-serif" font-size="16" font-weight="900" letter-spacing="3">03 / THE WORKFLOW</text>
+<text x="72" y="245" fill="#20241F" font-family="Arial,Helvetica,sans-serif" font-size="83" font-weight="900" letter-spacing="-4">SHOW ONE</text>
+<text x="72" y="340" fill="#20241F" font-family="Arial,Helvetica,sans-serif" font-size="83" font-weight="900" letter-spacing="-4">HONEST PATH.</text>
+<text x="76" y="402" fill="#53635C" font-family="Georgia,serif" font-size="31" font-style="italic">Not a tour of every feature.</text>
+<!-- three large open nodes -->
+<path d="M170 750H910" stroke="#20241F" stroke-width="5" stroke-linecap="round"/>
+<path d="M880 725L915 750L880 775" fill="none" stroke="#E6533C" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M512 725L547 750L512 775" fill="none" stroke="#E6533C" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+<circle cx="180" cy="750" r="78" fill="#F7F4EC" stroke="#20241F" stroke-width="5"/>
+<circle cx="540" cy="750" r="78" fill="#E6533C" stroke="#20241F" stroke-width="5"/>
+<circle cx="900" cy="750" r="78" fill="#F7F4EC" stroke="#20241F" stroke-width="5"/>
+<path d="M144 750H216M180 714V786" stroke="#20241F" stroke-width="7" stroke-linecap="round"/>
+<path d="M509 750H571" stroke="#F7F4EC" stroke-width="8" stroke-linecap="round"/>
+<path d="M540 719V781" stroke="#F7F4EC" stroke-width="8" stroke-linecap="round"/>
+<path d="M870 750H930M900 720V780" stroke="#20241F" stroke-width="7" stroke-linecap="round"/>
+<text x="180" y="884" text-anchor="middle" fill="#20241F" font-family="Arial,Helvetica,sans-serif" font-size="26" font-weight="900" letter-spacing="2">TRIGGER</text>
+<text x="540" y="884" text-anchor="middle" fill="#20241F" font-family="Arial,Helvetica,sans-serif" font-size="26" font-weight="900" letter-spacing="2">ACTION</text>
+<text x="900" y="884" text-anchor="middle" fill="#20241F" font-family="Arial,Helvetica,sans-serif" font-size="26" font-weight="900" letter-spacing="2">RESULT</text>
+<text x="180" y="930" text-anchor="middle" fill="#53635C" font-family="Arial,Helvetica,sans-serif" font-size="19" font-weight="600">A request arrives</text>
+<text x="540" y="930" text-anchor="middle" fill="#53635C" font-family="Arial,Helvetica,sans-serif" font-size="19" font-weight="600">Assign an owner</text>
+<text x="900" y="930" text-anchor="middle" fill="#53635C" font-family="Arial,Helvetica,sans-serif" font-size="19" font-weight="600">See what's next</text>
+<path d="M72 1040H1008" stroke="#20241F" stroke-opacity=".22" stroke-width="2"/>
+<text x="72" y="1120" fill="#20241F" font-family="Georgia,serif" font-size="41" font-weight="700">One scenario. One clear outcome.</text>
+<text x="72" y="1174" fill="#53635C" font-family="Arial,Helvetica,sans-serif" font-size="23" font-weight="600">Keep the path short enough for the buyer to follow.</text>
+<svg xmlns="http://www.w3.org/2000/svg" x="72" y="1210" width="70" height="70" viewBox="0 0 96 96" role="img" aria-labelledby="t d"><title id="t">AA Growth Studio — Official profile image</title><desc id="d">The exact AA symbol used on the AA Growth Studio website, preserved as vector artwork for crisp resizing.</desc><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#282c22"/><stop offset="1" stop-color="#10120e"/></linearGradient></defs><rect x="3" y="3" width="90" height="90" rx="28" fill="url(#g)"/><path d="M17 58C10 36 31 13 53 15c17 1 29 12 29 27" fill="none" stroke="#d7f36b" stroke-width="2.3" stroke-linecap="round"/><circle cx="81" cy="42" r="4.3" fill="#ff674d"/><path d="M22 70 38 29h9l17 41H52l-3.2-9H36.4l-3.1 9Zm17-17h7l-3.5-10Z" fill="#f3efe6"/><path d="M53 70 67 34h8L89 70H78l-2.6-8H65.1l-2.7 8Z" fill="#d7f36b"/><path d="M65 55h7l-3.5-9Z" fill="#171914"/><path d="M20 77h56" stroke="#ffffff" stroke-opacity=".18" stroke-width="1"/></svg><text x="160" y="1248" fill="#20241F" font-family="Arial,Helvetica,sans-serif" font-size="21" font-weight="900" letter-spacing="2">AA GROWTH</text><text x="162" y="1272" fill="#20241F" font-family="Arial,Helvetica,sans-serif" font-size="13" font-weight="800" letter-spacing="4">STUDIO</text>
+<text x="1008" y="1292" text-anchor="end" fill="#E6533C" font-family="Arial,Helvetica,sans-serif" font-size="18" font-weight="900">03 / 05</text>
+</svg>

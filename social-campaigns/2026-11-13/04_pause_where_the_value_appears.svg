@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350" role="img" aria-labelledby="title desc"><title id="title">Pause Where the Value Appears — Make the Demo a Conversation</title><desc id="desc">A lavender editorial speech-bubble composition that gives a practical buyer question to ask after showing the key product workflow.</desc>
+<rect width="1080" height="1350" fill="#E4DDF0"/>
+<path d="M0 0H1080V16H0Z" fill="#6E5A93"/>
+<svg xmlns="http://www.w3.org/2000/svg" x="72" y="58" width="86" height="86" viewBox="0 0 96 96" role="img" aria-labelledby="t d"><title id="t">AA Growth Studio — Official profile image</title><desc id="d">The exact AA symbol used on the AA Growth Studio website, preserved as vector artwork for crisp resizing.</desc><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#282c22"/><stop offset="1" stop-color="#10120e"/></linearGradient></defs><rect x="3" y="3" width="90" height="90" rx="28" fill="url(#g)"/><path d="M17 58C10 36 31 13 53 15c17 1 29 12 29 27" fill="none" stroke="#d7f36b" stroke-width="2.3" stroke-linecap="round"/><circle cx="81" cy="42" r="4.3" fill="#ff674d"/><path d="M22 70 38 29h9l17 41H52l-3.2-9H36.4l-3.1 9Zm17-17h7l-3.5-10Z" fill="#f3efe6"/><path d="M53 70 67 34h8L89 70H78l-2.6-8H65.1l-2.7 8Z" fill="#d7f36b"/><path d="M65 55h7l-3.5-9Z" fill="#171914"/><path d="M20 77h56" stroke="#ffffff" stroke-opacity=".18" stroke-width="1"/></svg><text x="176" y="96" fill="#2B2635" font-family="Arial,Helvetica,sans-serif" font-size="21" font-weight="900" letter-spacing="2">AA GROWTH</text><text x="178" y="120" fill="#2B2635" font-family="Arial,Helvetica,sans-serif" font-size="13" font-weight="800" letter-spacing="4">STUDIO</text>
+<text x="1008" y="112" text-anchor="end" fill="#6E5A93" font-family="Arial,Helvetica,sans-serif" font-size="16" font-weight="900" letter-spacing="3">04 / THE CONVERSATION</text>
+<text x="72" y="300" fill="#2B2635" font-family="Georgia,serif" font-size="82" font-weight="700" letter-spacing="-3">PAUSE WHERE</text>
+<text x="72" y="392" fill="#2B2635" font-family="Georgia,serif" font-size="82" font-weight="700" letter-spacing="-3">THE VALUE</text>
+<text x="72" y="484" fill="#6E5A93" font-family="Georgia,serif" font-size="82" font-weight="700" letter-spacing="-3">APPEARS.</text>
+<!-- single oversized conversation bubble -->
+<path d="M112 610Q112 570 156 570H918Q968 570 968 620V930Q968 980 918 980H430L310 1080L328 980H156Q112 980 112 930Z" fill="#F7F3EA" stroke="#2B2635" stroke-width="5"/>
+<path d="M162 648H340" stroke="#E6533C" stroke-width="8" stroke-linecap="round"/>
+<text x="164" y="750" fill="#2B2635" font-family="Georgia,serif" font-size="51" font-weight="700">“How would this fit</text>
+<text x="164" y="822" fill="#2B2635" font-family="Georgia,serif" font-size="51" font-weight="700">your current process?”</text>
+<text x="166" y="900" fill="#6E5A93" font-family="Arial,Helvetica,sans-serif" font-size="19" font-weight="900" letter-spacing="2">ASK ABOUT THEIR REAL WORKFLOW</text>
+<text x="72" y="1160" fill="#2B2635" font-family="Arial,Helvetica,sans-serif" font-size="31" font-weight="900" letter-spacing="1">ASK.</text>
+<path d="M190 1148H322" stroke="#6E5A93" stroke-width="4"/>
+<text x="356" y="1160" fill="#2B2635" font-family="Arial,Helvetica,sans-serif" font-size="31" font-weight="900" letter-spacing="1">LISTEN.</text>
+<path d="M520 1148H652" stroke="#6E5A93" stroke-width="4"/>
+<text x="690" y="1160" fill="#2B2635" font-family="Arial,Helvetica,sans-serif" font-size="31" font-weight="900" letter-spacing="1">CONNECT.</text>
+<text x="72" y="1240" fill="#6E5A93" font-family="Georgia,serif" font-size="28" font-style="italic">Don't talk over the moment that matters.</text>
+<text x="1008" y="1292" text-anchor="end" fill="#6E5A93" font-family="Arial,Helvetica,sans-serif" font-size="18" font-weight="900">04 / 05</text>
+</svg>

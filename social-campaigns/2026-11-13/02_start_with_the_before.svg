@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350" role="img" aria-labelledby="title desc"><title id="title">Start With the Before — SaaS Demo Framework</title><desc id="desc">A dark graphite storyboard page with three discovery questions for a B2B SaaS product demo: the job, current workaround and friction.</desc>
+<rect width="1080" height="1350" fill="#242821"/>
+<path d="M0 0H1080V18H0Z" fill="#E6533C"/>
+<svg xmlns="http://www.w3.org/2000/svg" x="900" y="58" width="78" height="78" viewBox="0 0 96 96" role="img" aria-labelledby="t d"><title id="t">AA Growth Studio — Official profile image</title><desc id="d">The exact AA symbol used on the AA Growth Studio website, preserved as vector artwork for crisp resizing.</desc><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#282c22"/><stop offset="1" stop-color="#10120e"/></linearGradient></defs><rect x="3" y="3" width="90" height="90" rx="28" fill="url(#g)"/><path d="M17 58C10 36 31 13 53 15c17 1 29 12 29 27" fill="none" stroke="#d7f36b" stroke-width="2.3" stroke-linecap="round"/><circle cx="81" cy="42" r="4.3" fill="#ff674d"/><path d="M22 70 38 29h9l17 41H52l-3.2-9H36.4l-3.1 9Zm17-17h7l-3.5-10Z" fill="#f3efe6"/><path d="M53 70 67 34h8L89 70H78l-2.6-8H65.1l-2.7 8Z" fill="#d7f36b"/><path d="M65 55h7l-3.5-9Z" fill="#171914"/><path d="M20 77h56" stroke="#ffffff" stroke-opacity=".18" stroke-width="1"/></svg><text x="882" y="97" text-anchor="end" fill="#F1EEE6" font-family="Arial,Helvetica,sans-serif" font-size="21" font-weight="900" letter-spacing="2">AA GROWTH</text><text x="882" y="121" text-anchor="end" fill="#F1EEE6" font-family="Arial,Helvetica,sans-serif" font-size="13" font-weight="800" letter-spacing="4">STUDIO</text>
+<text x="72" y="112" fill="#D7F36B" font-family="Arial,Helvetica,sans-serif" font-size="16" font-weight="900" letter-spacing="3">02 / CONTEXT BEFORE CLICKING</text>
+<text x="72" y="290" fill="#F1EEE6" font-family="Georgia,serif" font-size="88" font-weight="700" letter-spacing="-3">START WITH</text>
+<text x="72" y="390" fill="#F1EEE6" font-family="Georgia,serif" font-size="88" font-weight="700" letter-spacing="-3">THE BEFORE.</text>
+<path d="M72 438H1008" stroke="#F1EEE6" stroke-opacity=".35" stroke-width="2"/>
+<text x="78" y="530" fill="#E6533C" font-family="Arial,Helvetica,sans-serif" font-size="21" font-weight="900" letter-spacing="2">ASK THREE THINGS</text>
+<text x="78" y="640" fill="#D7F36B" font-family="Georgia,serif" font-size="57" font-weight="700">01</text>
+<text x="185" y="632" fill="#F1EEE6" font-family="Arial,Helvetica,sans-serif" font-size="34" font-weight="800">What are they trying to finish?</text>
+<path d="M185 666H1000" stroke="#F1EEE6" stroke-opacity=".18" stroke-width="2"/>
+<text x="78" y="770" fill="#D7F36B" font-family="Georgia,serif" font-size="57" font-weight="700">02</text>
+<text x="185" y="762" fill="#F1EEE6" font-family="Arial,Helvetica,sans-serif" font-size="34" font-weight="800">What do they do today?</text>
+<path d="M185 796H1000" stroke="#F1EEE6" stroke-opacity=".18" stroke-width="2"/>
+<text x="78" y="900" fill="#D7F36B" font-family="Georgia,serif" font-size="57" font-weight="700">03</text>
+<text x="185" y="892" fill="#F1EEE6" font-family="Arial,Helvetica,sans-serif" font-size="34" font-weight="800">Where does it slow down?</text>
+<!-- hand-marked route -->
+<path d="M92 1052C235 1012 310 1110 452 1064S694 1017 812 1072S940 1106 990 1060" fill="none" stroke="#E6533C" stroke-width="8" stroke-linecap="round"/>
+<circle cx="96" cy="1052" r="13" fill="#D7F36B"/>
+<circle cx="452" cy="1064" r="13" fill="#D7F36B"/>
+<circle cx="990" cy="1060" r="13" fill="#D7F36B"/>
+<text x="92" y="1018" fill="#F1EEE6" font-family="Arial,Helvetica,sans-serif" font-size="17" font-weight="900" letter-spacing="1">CURRENT WORKAROUND</text>
+<text x="452" y="1130" text-anchor="middle" fill="#F1EEE6" font-family="Arial,Helvetica,sans-serif" font-size="17" font-weight="900" letter-spacing="1">FRICTION</text>
+<text x="990" y="1018" text-anchor="end" fill="#F1EEE6" font-family="Arial,Helvetica,sans-serif" font-size="17" font-weight="900" letter-spacing="1">DESIRED JOB</text>
+<text x="72" y="1245" fill="#F1EEE6" font-family="Georgia,serif" font-size="34" font-style="italic">Don't assume the pain. Ask.</text>
+<text x="1008" y="1290" text-anchor="end" fill="#D7F36B" font-family="Arial,Helvetica,sans-serif" font-size="17" font-weight="900" letter-spacing="2">02 / 05</text>
+</svg>

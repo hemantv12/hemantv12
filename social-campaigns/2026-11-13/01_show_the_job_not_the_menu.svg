@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350" viewBox="0 0 1080 1350" role="img" aria-labelledby="title desc"><title id="title">Don't Demo the Menu. Demo the Moment.</title><desc id="desc">A warm-paper editorial cover for B2B SaaS founders. A conceptual theater spotlight isolates one buyer workflow rather than a feature menu.</desc>
+<rect width="1080" height="1350" fill="#F1EEE6"/>
+<path d="M0 0H1080V14H0Z" fill="#20241F"/>
+<svg xmlns="http://www.w3.org/2000/svg" x="72" y="58" width="86" height="86" viewBox="0 0 96 96" role="img" aria-labelledby="t d"><title id="t">AA Growth Studio — Official profile image</title><desc id="d">The exact AA symbol used on the AA Growth Studio website, preserved as vector artwork for crisp resizing.</desc><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#282c22"/><stop offset="1" stop-color="#10120e"/></linearGradient></defs><rect x="3" y="3" width="90" height="90" rx="28" fill="url(#g)"/><path d="M17 58C10 36 31 13 53 15c17 1 29 12 29 27" fill="none" stroke="#d7f36b" stroke-width="2.3" stroke-linecap="round"/><circle cx="81" cy="42" r="4.3" fill="#ff674d"/><path d="M22 70 38 29h9l17 41H52l-3.2-9H36.4l-3.1 9Zm17-17h7l-3.5-10Z" fill="#f3efe6"/><path d="M53 70 67 34h8L89 70H78l-2.6-8H65.1l-2.7 8Z" fill="#d7f36b"/><path d="M65 55h7l-3.5-9Z" fill="#171914"/><path d="M20 77h56" stroke="#ffffff" stroke-opacity=".18" stroke-width="1"/></svg><text x="176" y="96" fill="#20241F" font-family="Arial,Helvetica,sans-serif" font-size="21" font-weight="900" letter-spacing="2">AA GROWTH</text><text x="178" y="120" fill="#20241F" font-family="Arial,Helvetica,sans-serif" font-size="13" font-weight="800" letter-spacing="4">STUDIO</text>
+<text x="1000" y="100" text-anchor="end" fill="#6B6E64" font-family="Arial,Helvetica,sans-serif" font-size="15" font-weight="800" letter-spacing="3">PRODUCT DEMO FIELD GUIDE / 01</text>
+<text x="72" y="350" fill="#20241F" font-family="Georgia,serif" font-size="105" font-weight="700" letter-spacing="-4">DON'T DEMO</text>
+<text x="72" y="468" fill="#20241F" font-family="Georgia,serif" font-size="105" font-weight="700" letter-spacing="-4">THE MENU.</text>
+<text x="72" y="592" fill="#E6533C" font-family="Arial,Helvetica,sans-serif" font-size="94" font-weight="900" letter-spacing="-5">DEMO THE</text>
+<text x="72" y="694" fill="#E6533C" font-family="Arial,Helvetica,sans-serif" font-size="94" font-weight="900" letter-spacing="-5">MOMENT.</text>
+<text x="78" y="754" fill="#52584E" font-family="Arial,Helvetica,sans-serif" font-size="24" font-weight="600">A practical product demo framework for B2B SaaS founders.</text>
+<!-- analog theatre / one illuminated workflow -->
+<path d="M90 1100H990" stroke="#20241F" stroke-width="5"/>
+<path d="M140 1100Q220 1058 270 975Q360 825 540 824Q720 825 810 975Q860 1058 940 1100" fill="none" stroke="#20241F" stroke-width="3"/>
+<path d="M390 1100L510 814L705 814L860 1100Z" fill="#F4C98E" opacity=".75"/>
+<path d="M510 814L705 814L860 1100H390Z" fill="none" stroke="#E6533C" stroke-width="3" stroke-dasharray="10 12"/>
+<circle cx="625" cy="953" r="92" fill="#FFF9EA" stroke="#20241F" stroke-width="4"/>
+<circle cx="625" cy="953" r="67" fill="none" stroke="#E6533C" stroke-width="4" stroke-dasharray="7 8"/>
+<path d="M595 969V933L625 914L655 933V969" fill="none" stroke="#20241F" stroke-width="6" stroke-linejoin="round"/>
+<path d="M610 969V947H640V969" fill="none" stroke="#20241F" stroke-width="5"/>
+<text x="625" y="1068" text-anchor="middle" fill="#20241F" font-family="Arial,Helvetica,sans-serif" font-size="18" font-weight="900" letter-spacing="2">ONE BUYER JOB</text>
+<path d="M865 840L918 788L968 840L918 892Z" fill="#20241F"/>
+<circle cx="918" cy="840" r="14" fill="#D7F36B"/>
+<path d="M918 892L862 1012" stroke="#E6533C" stroke-width="3" stroke-dasharray="8 8"/>
+<text x="72" y="1252" fill="#20241F" font-family="Arial,Helvetica,sans-serif" font-size="20" font-weight="900" letter-spacing="2">ONE BUYER. ONE WORKFLOW. ONE CLEAR PROOF.</text>
+<text x="1008" y="1292" text-anchor="end" fill="#E6533C" font-family="Arial,Helvetica,sans-serif" font-size="18" font-weight="900" letter-spacing="2">SWIPE →</text>
+</svg>
