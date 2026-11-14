@@ -10,4 +10,4 @@
 **Captions and alt text:** CAPTIONS.md.
 **Research, hashtags and visual audit:** DISCOVERY.md.
 **Future Reel script:** REEL-SCRIPT.md.
-**Publication status:** Pending platform write actions at time of this commit.
+**Publication status:** One Instagram image post and one Facebook photo post confirmed live. See PUBLISHED.md for platform IDs, links and the Instagram rate-limit reconciliation.
